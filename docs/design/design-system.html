@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pastor Traslados · Design System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  /* ===== Tokens — calcados 1:1 de frontend/src/design-system/tokens.ts ===== */
+  :root {
+    --space-xs: 4px; --space-sm: 8px; --space-md: 12px; --space-lg: 16px;
+    --space-xl: 24px; --space-xxl: 32px; --space-xxxl: 48px;
+
+    --radius-sm: 8px; --radius-md: 10px; --radius-lg: 16px; --radius-pill: 999px;
+
+    --shadow-sm: 0 1px 2px rgba(27, 43, 42, 0.05);
+    --shadow-card: 0 1px 2px rgba(27, 43, 42, 0.05), 0 10px 24px -14px rgba(27, 43, 42, 0.14);
+    --shadow-card-hover: 0 4px 10px rgba(27, 43, 42, 0.07), 0 18px 32px -16px rgba(27, 43, 42, 0.18);
+
+    --bg: #F2F6F5;
+    --surface: #FFFFFF;
+    --surface-soft: #EEF4F3;
+    --border: #E1E9E8;
+    --border-strong: #CBDBD9;
+    --code: #F7FAF9;
+
+    --ink: #1B2B2A;
+    --text: #2E3D3C;
+    --muted: #6C7C7A;
+    --faint: #93A19E;
+
+    --sidebar-bg: #FFFFFF;
+    --sidebar-border: #E1E9E8;
+    --sidebar-text: #6C7C7A;
+    --sidebar-text-active: #3F7D73;
+
+    --primary: #3F7D73;
+    --primary-soft: #64A69D;
+    --primary-softer: #A3D6E5;
+    --secondary: #4C86A0;
+    --secondary-soft: #7BB6C6;
+    --highlight: #2FB6C4;
+
+    --success: #2F9E6E; --success-soft: #E4F5EC;
+    --warning: #B9791F; --warning-soft: #FBF1DF;
+    --danger: #C0524A;  --danger-soft: #FBEAE8;
+    --info: #3E7D91;    --info-soft: #E7F2F5;
+
+    --font-body: 'IBM Plex Sans', sans-serif;
+    --font-heading: 'Plus Jakarta Sans', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    padding: var(--space-xxxl) 40px;
+    min-height: 100vh;
+  }
+
+  header { margin-bottom: var(--space-xxxl); }
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+  h1 {
+    font-family: var(--font-heading);
+    font-size: 34px;
+    font-weight: 700;
+    margin: 6px 0 8px 0;
+    color: var(--ink);
+  }
+  header p {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 620px;
+    line-height: 1.5;
+  }
+  header code, p code {
+    font-family: var(--font-mono);
+    background: var(--code);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  /* ===== Section primitive ===== */
+  section.ds-section { margin-bottom: var(--space-xxxl); }
+  .ds-section-label {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-lg);
+  }
+  .ds-section-label span {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--faint);
+    text-transform: uppercase;
+  }
+  .ds-section-label .line { flex: 1; height: 1px; background: var(--border); }
+  .ds-section h2 {
+    font-family: var(--font-heading);
+    font-size: 21px;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 0 0 var(--space-lg) 0;
+  }
+
+  /* ===== Swatch ===== */
+  .swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: var(--space-lg);
+  }
+  .swatch { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .swatch-color {
+    width: 100%; height: 64px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+  }
+  .swatch-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .swatch-hex { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+  .swatch-usage { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ===== Tipografía ===== */
+  .type-sample { display: flex; flex-direction: column; gap: var(--space-lg); }
+  .type-heading { font-family: var(--font-heading); font-size: 24px; font-weight: 700; color: var(--ink); }
+  .type-body { font-family: var(--font-body); font-size: 16px; font-weight: 600; color: var(--ink); }
+  .type-mono { font-family: var(--font-mono); font-size: 15px; color: var(--ink); }
+  .type-caption { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+  .type-caption-body { font-size: 13px; color: var(--muted); }
+
+  /* ===== Button ===== */
+  .btn-row { display: flex; gap: var(--space-md); flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: var(--space-xs);
+    font-family: var(--font-body); font-size: 13px; font-weight: 600;
+    padding: 9px var(--space-lg);
+    border: 1.5px solid transparent;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: filter .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .btn:hover { filter: brightness(0.96); }
+  .btn-primary { background: var(--primary); color: #FFFFFF; box-shadow: 0 2px 6px rgba(63,125,115,0.28); }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1.5px solid var(--border-strong); }
+  .btn-success { background: var(--success); color: #FFFFFF; }
+  .btn-danger { background: var(--danger-soft); color: var(--danger); border: 1.5px solid rgba(192,82,74,0.3); }
+
+  /* ===== Chip ===== */
+  .chip-row { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+  .chip {
+    display: inline-flex; align-items: center;
+    font-family: var(--font-body); font-size: 12px; font-weight: 600;
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-pill);
+  }
+  .chip-success { background: var(--success-soft); color: var(--success); }
+  .chip-warning { background: var(--warning-soft); color: var(--warning); }
+  .chip-danger  { background: var(--danger-soft);  color: var(--danger); }
+  .chip-info    { background: var(--info-soft);    color: var(--info); }
+  .chip-secondary { background: var(--surface-soft); color: var(--muted); }
+
+  /* ===== Grilla de pacientes ===== */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .table-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1.2fr 1.2fr 1fr;
+    padding: var(--space-md) var(--space-lg);
+    align-items: center;
+    font-size: 13px;
+  }
+  .table-head {
+    background: var(--surface-soft);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--faint);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: var(--space-sm) var(--space-lg);
+  }
+  .table-row + .table-row { border-top: 1px solid var(--border); }
+  .cell-nombre { font-weight: 600; color: var(--ink); }
+  .cell-dni { font-family: var(--font-mono); font-size: 12px; }
+  .cell-muted { color: var(--muted); }
+
+  /* ===== Facturas ===== */
+  .factura-list { display: flex; flex-direction: column; gap: var(--space-md); }
+  .factura-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-lg);
+  }
+  .factura-card .row { display: flex; justify-content: space-between; align-items: center; }
+  .factura-id { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: var(--space-xs); }
+  .factura-monto { font-family: var(--font-mono); font-size: 14px; color: var(--ink); }
+  .factura-card.factura-success { border-left: 3px solid var(--success); }
+  .factura-card.factura-warning { border-left: 3px solid var(--warning); }
+  .factura-card.factura-danger  { border-left: 3px solid var(--danger); }
+  .factura-hint { font-size: 12px; color: var(--muted); margin-top: var(--space-sm); }
+
+  /* ===== Formulario ===== */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); max-width: 520px; }
+  .field { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .field span.label { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .field input {
+    font-family: var(--font-mono); font-size: 13px;
+    padding: 9px var(--space-md);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .select-fake {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--font-body); font-size: 13px; font-weight: 600;
+    padding: 9px var(--space-md);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .select-fake .arrow { color: var(--muted); font-size: 11px; }
+
+  /* ===== Sidebar de permisos ===== */
+  .module-toggles { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+  .module-toggle {
+    display: flex; align-items: center; gap: var(--space-xs);
+    font-family: var(--font-body); font-size: 12px; font-weight: 600;
+    padding: var(--space-xs) var(--space-md);
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    cursor: pointer;
+    color: var(--text);
+  }
+  .sidebar-demo {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    max-width: 640px;
+  }
+  .sidebar-nav {
+    width: 210px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--sidebar-border);
+    padding: var(--space-md);
+  }
+  .sidebar-empty { font-size: 12px; color: var(--faint); }
+  .sidebar-item {
+    display: flex; align-items: center; gap: var(--space-sm);
+    padding: var(--space-sm);
+    margin-bottom: 2px;
+    border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 600;
+    color: var(--sidebar-text);
+  }
+  .sidebar-item.active {
+    background: var(--surface-soft);
+    color: var(--sidebar-text-active);
+    box-shadow: inset 2px 0 0 var(--primary-soft);
+  }
+  .sidebar-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .sidebar-panel {
+    flex: 1;
+    padding: var(--space-xl);
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface);
+    text-align: center;
+  }
+  .sidebar-panel span { font-size: 12px; color: var(--muted); }
+  .sidebar-panel b { color: var(--ink); }
+
+  /* ===== Alertas ===== */
+  .alert-list { display: flex; flex-direction: column; gap: var(--space-sm); max-width: 420px; }
+  .alert {
+    display: flex; gap: var(--space-sm); align-items: center;
+    padding: 10px var(--space-md);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    color: var(--text);
+  }
+  .alert .dot { font-weight: 700; }
+  .alert-danger  { background: var(--danger-soft); }  .alert-danger .dot { color: var(--danger); }
+  .alert-warning { background: var(--warning-soft); } .alert-warning .dot { color: var(--warning); }
+  .alert-success { background: var(--success-soft); } .alert-success .dot { color: var(--success); }
+
+  /* ===== Checklist documental ===== */
+  .checklist { display: flex; flex-direction: column; gap: var(--space-sm); max-width: 560px; }
+  .checklist-item {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-md);
+  }
+  .checklist-item .name { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .checklist-item .required { font-size: 11px; color: var(--muted); margin-left: var(--space-xs); font-weight: 400; }
+  .checklist-item .action { font-size: 12px; font-weight: 600; color: var(--primary); cursor: pointer; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">PASTOR TRASLADOS · DESIGN SYSTEM</div>
+  <h1>Design System</h1>
+  <p>
+    Base visual del panel de gestión de Traslados, calcada del prototipo validado
+    (<code>prototype.html</code>): tema claro, sobrio y profesional, acento teal/cyan de
+    marca, tipografía Plus Jakarta Sans + IBM Plex Sans. El sidebar de permisos no usa
+    roles fijos — cada cuenta habilita módulos de forma independiente (RN-GL-01, ver
+    <code>knowledge-base/05_reglas_de_negocio.md</code>).
+  </p>
+</header>
+
+<section class="ds-section">
+  <div class="ds-section-label"><span>01</span><div class="line"></div></div>
+  <h2>Paleta</h2>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="swatch-color" style="background: var(--ink)"></div><div class="swatch-name">Grafito · Texto</div><div class="swatch-hex">#1B2B2A</div><div class="swatch-usage">Títulos, texto principal</div></div>
+    <div class="swatch"><div class="swatch-color" style="background: var(--bg)"></div><div class="swatch-name">Fondo</div><div class="swatch-hex">#F2F6F5</div><div class="swatch-usage">Fondo de página</div></div>
+    <div class="swatch"><div class="swatch-color" style="background: var(--primary)"></div><div class="swatch-name">Teal · Marca</div><div class="swatch-hex">#3F7D73</div><div class="swatch-usage">Acción principal, nav activo</div></div>
+    <div class="swatch"><div class="swatch-color" style="background: var(--primary-soft)"></div><div class="swatch-name">Teal suave</div><div class="swatch-hex">#64A69D</div><div class="swatch-usage">Íconos, acentos, gráfico</div></div>
+    <div class="swatch"><div class="swatch-color" style="background: var(--secondary)"></div><div class="swatch-name">Cyan · Info</div><div class="swatch-hex">#4C86A0</div><div class="swatch-usage">Enlaces, info secundaria</div></div>
+    <div class="swatch"><div class="swatch-color" style="background: var(--success)"></div><div class="swatch-name">Verde · Éxito</div><div class="swatch-hex">#2F9E6E</div><div class="swatch-usage">Cobrado, vigente, activo</div></div>
+    <div class="swatch"><div class="swatch-color" style="background: var(--warning)"></div><div class="swatch-name">Ámbar · Alerta</div><div class="swatch-hex">#B9791F</div><div class="swatch-usage">Por vencer, pago parcial</div></div>
+    <div class="swatch"><div class="swatch-color" style="background: var(--danger)"></div><div class="swatch-name">Rojo · Crítico</div><div class="swatch-hex">#C0524A</div><div class="swatch-usage">Vencido, en mora, incompatible</div></div>
+  </div>
+</section>
+
+<section class="ds-section">
+  <div class="ds-section-label"><span>02</span><div class="line"></div></div>
+  <h2>Tipografía</h2>
+  <div class="type-sample">
+    <div>
+      <div class="type-heading">Plus Jakarta Sans 700 — Títulos</div>
+      <div class="type-caption">h1–h4, nombres de módulo, valores de KPI</div>
+    </div>
+    <div>
+      <div class="type-body">IBM Plex Sans — Cuerpo e interfaz</div>
+      <div class="type-caption-body">Labels, formularios, texto de tablas. Legible en denso.</div>
+    </div>
+    <div>
+      <div class="type-mono">IBM Plex Mono — Datos que alinean en columna</div>
+      <div class="type-caption-body">DNI, CUIL, patente, montos — todo lo que se lee en tabla</div>
+    </div>
+  </div>
+</section>
+
+<section class="ds-section">
+  <div class="ds-section-label"><span>03</span><div class="line"></div></div>
+  <h2>Botones</h2>
+  <div class="btn-row">
+    <button class="btn btn-primary">Guardar</button>
+    <button class="btn btn-secondary">Cancelar</button>
+    <button class="btn btn-success">Registrar cobro</button>
+    <button class="btn btn-danger">Inhabilitar vehículo</button>
+  </div>
+</section>
+
+<section class="ds-section">
+  <div class="ds-section-label"><span>04</span><div class="line"></div></div>
+  <h2>Chips de estado</h2>
+  <div class="chip-row">
+    <span class="chip chip-success">Cobrado</span>
+    <span class="chip chip-info">Facturado</span>
+    <span class="chip chip-warning">Pago parcial</span>
+    <span class="chip chip-danger">En mora</span>
+    <span class="chip chip-secondary">Sin obra social</span>
+  </div>
+</section>
+
+<section class="ds-section">
+  <div class="ds-section-label"><span>05</span><div class="line"></div></div>
+  <h2>Grilla de pacientes</h2>
+  <div class="table-card">
+    <div class="table-row table-head">
+      <div>Paciente</div><div>DNI</div><div>Obra Social</div><div>Accesorio</div><div>Estado CUD</div>
+    </div>
+    <div class="table-row">
+      <div class="cell-nombre">Bautista Gómez</div>
+      <div class="cell-dni">48.123.456</div>
+      <div class="cell-muted">OSDE Discapacidad</div>
+      <div class="cell-muted">Silla de ruedas rígida</div>
+      <div><span class="chip chip-warning">Vence en 38d</span></div>
+    </div>
+    <div class="table-row">
+      <div class="cell-nombre">Milagros Rossi</div>
+      <div class="cell-dni">51.987.654</div>
+      <div class="cell-muted">PAMI (INSSJP)</div>
+      <div class="cell-muted">Silla postural</div>
+      <div><span class="chip chip-success">Vigente (2027-01-15)</span></div>
+    </div>
+    <div class="table-row">
+      <div class="cell-nombre">Tomás Peralta</div>
+      <div class="cell-dni">53.456.123</div>
+      <div class="cell-muted">APROSS Córdoba</div>
+      <div class="cell-muted">Andador</div>
+      <div><span class="chip chip-danger">Vencido</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="ds-section">
+  <div class="ds-section-label"><span>06</span><div class="line"></div></div>
+  <h2>Facturas por estado</h2>
+  <div class="factura-list">
+    <div class="factura-card factura-success">
+      <div class="row">
+        <div><div class="factura-id">FAC-0001 — Bautista Gómez</div><span class="chip chip-success">Cobrado</span></div>
+        <div class="factura-monto">$346.500</div>
+      </div>
+    </div>
+    <div class="factura-card factura-warning">
+      <div class="row">
+        <div><div class="factura-id">FAC-0002 — Milagros Rossi</div><span class="chip chip-warning">Pagado parcial</span></div>
+        <div class="factura-monto">$275.000</div>
+      </div>
+    </div>
+    <div class="factura-card factura-danger">
+      <div class="row">
+        <div><div class="factura-id">FAC-0003 — Bautista Gómez</div><span class="chip chip-danger">Facturado — en mora</span></div>
+        <div class="factura-monto">$346.500</div>
+      </div>
+    </div>
+  </div>
+  <p class="factura-hint">El borde de color identifica el estado de cobro de un vistazo (RN-FA), sin repetir la etiqueta en todos lados.</p>
+</section>
+
+<section class="ds-section">
+  <div class="ds-section-label"><span>07</span><div class="line"></div></div>
+  <h2>Formulario</h2>
+  <div class="form-grid">
+    <label class="field">
+      <span class="label">DNI del paciente</span>
+      <input placeholder="48.123.456" />
+    </label>
+    <label class="field">
+      <span class="label">Obra Social</span>
+      <div class="select-fake">OSDE Discapacidad <span class="arrow">▾</span></div>
+    </label>
+  </div>
+</section>
+
+<section class="ds-section">
+  <div class="ds-section-label"><span>08</span><div class="line"></div></div>
+  <h2>Sidebar de permisos (por módulo, sin roles fijos)</h2>
+
+  <div class="module-toggles" id="module-toggles">
+    <label class="module-toggle"><input type="checkbox" data-module="dashboard" checked /> Dashboard</label>
+    <label class="module-toggle"><input type="checkbox" data-module="hojasRuta" checked /> Hojas de Ruta</label>
+    <label class="module-toggle"><input type="checkbox" data-module="pacientes" checked /> Pacientes</label>
+    <label class="module-toggle"><input type="checkbox" data-module="obrasSociales" /> Obras Sociales</label>
+    <label class="module-toggle"><input type="checkbox" data-module="facturacion" /> Facturación y Cobros</label>
+    <label class="module-toggle"><input type="checkbox" data-module="flota" /> Flota y Conductores</label>
+  </div>
+
+  <div class="sidebar-demo">
+    <div class="sidebar-nav" id="sidebar-nav"></div>
+    <div class="sidebar-panel">
+      <span>Esta cuenta ve <b id="module-count">3</b> de 6 módulos.<br />
+        Sin roles fijos (RN-GL-01) — el módulo sin permiso no se renderiza, ni se atenúa: no
+        existe en el DOM para esa cuenta.</span>
+    </div>
+  </div>
+</section>
+
+<section class="ds-section">
+  <div class="ds-section-label"><span>09</span><div class="line"></div></div>
+  <h2>Alertas operativas</h2>
+  <div class="alert-list">
+    <div class="alert alert-danger"><span class="dot">●</span><span>3 facturas en mora</span></div>
+    <div class="alert alert-warning"><span class="dot">●</span><span>2 CUD por vencer</span></div>
+    <div class="alert alert-success"><span class="dot">●</span><span>2 vehículos con mantenimiento al día</span></div>
+  </div>
+</section>
+
+<section class="ds-section">
+  <div class="ds-section-label"><span>10</span><div class="line"></div></div>
+  <h2>Checklist documental (componente reutilizable — FE-1)</h2>
+  <p class="factura-hint" style="max-width: 560px; margin-top: -8px; margin-bottom: var(--space-md);">
+    Mismo componente para Pacientes, Vehículos, Conductores y Facturas (RF-900 a RF-902) —
+    solo cambia la lista de <code>items</code> (el checklist configurado por obra social,
+    RF-305) y la entidad. Vista estática: en la app real sube/quita archivo contra un
+    repositorio mock en memoria.
+  </p>
+  <div class="checklist">
+    <div class="checklist-item"><span class="name">CUD Vigente <span class="required">· requerido</span></span><span class="chip chip-success">Cargado</span></div>
+    <div class="checklist-item"><span class="name">CODEM Activo <span class="required">· requerido</span></span><span class="chip chip-danger">Falta</span></div>
+    <div class="checklist-item"><span class="name">Presupuesto Firmado <span class="required">· requerido</span></span><span class="chip chip-success">Cargado</span></div>
+    <div class="checklist-item"><span class="name">Autorización de Prestación <span class="required">· opcional</span></span><span class="chip chip-secondary">Sin subir</span></div>
+  </div>
+</section>
+
+<script>
+  // Íconos SVG por módulo — calcados de frontend/src/design-system/DesignSystem.tsx (moduleIcons)
+  const ICONS = {
+    dashboard: '<rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect>',
+    hojasRuta: '<path d="M9 20 3 17V4l6 3 6-3 6 3v13l-6-3-6 3zM9 7v13m6-16v13" stroke-linecap="round" stroke-linejoin="round"></path>',
+    pacientes: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm11 10v-2a4 4 0 0 0-3-3.87m-4-12a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"></path>',
+    obrasSociales: '<path d="m8 3 4 8 5-5 5 15H2L8 3z" stroke-linecap="round" stroke-linejoin="round"></path>',
+    facturacion: '<line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-linejoin="round"></path>',
+    flota: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line>',
+  };
+
+  const LABELS = {
+    dashboard: 'Dashboard',
+    hojasRuta: 'Hojas de Ruta',
+    pacientes: 'Pacientes',
+    obrasSociales: 'Obras Sociales',
+    facturacion: 'Facturación y Cobros',
+    flota: 'Flota y Conductores',
+  };
+
+  const MODULE_ORDER = ['dashboard', 'hojasRuta', 'pacientes', 'obrasSociales', 'facturacion', 'flota'];
+
+  function renderSidebar() {
+    const checkboxes = document.querySelectorAll('#module-toggles input[type="checkbox"]');
+    const active = MODULE_ORDER.filter((key) =>
+      Array.from(checkboxes).find((cb) => cb.dataset.module === key)?.checked
+    );
+
+    const nav = document.getElementById('sidebar-nav');
+    document.getElementById('module-count').textContent = active.length;
+
+    if (active.length === 0) {
+      nav.innerHTML = '<span class="sidebar-empty">Sin módulos habilitados.</span>';
+      return;
+    }
+
+    nav.innerHTML = active
+      .map((key, index) => `
+        <div class="sidebar-item${index === 0 ? ' active' : ''}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[key]}</svg>
+          ${LABELS[key]}
+        </div>
+      `)
+      .join('');
+  }
+
+  document.querySelectorAll('#module-toggles input[type="checkbox"]').forEach((cb) => {
+    cb.addEventListener('change', renderSidebar);
+  });
+
+  renderSidebar();
+</script>
+
+</body>
+</html>

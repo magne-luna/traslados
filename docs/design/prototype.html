@@ -1,0 +1,2488 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traslados - Panel de Gestión Operativa & Facturación</title>
+  <!-- Google Fonts: Plus Jakarta Sans (títulos) & IBM Plex Sans (cuerpo) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* VARIABLES DE DISEÑO — Tema claro, profesional, sobrio (paleta teal/cyan) */
+    :root {
+      --bg-page: #F2F6F5;
+      --bg-surface: #FFFFFF;
+      --bg-surface-soft: #EEF4F3;
+      --bg-sidebar: #FFFFFF;
+      --bg-code: #F7FAF9;
+
+      --color-primary: #3F7D73;       /* teal profundo — texto, botones, foco */
+      --color-primary-soft: #64A69D;  /* teal base de paleta — acentos, íconos, gráfico */
+      --color-primary-softer: #A3D6E5; /* fondo suave de acento */
+      --color-secondary: #4C86A0;     /* azul-cian profundo — info, links secundarios */
+      --color-secondary-soft: #7BB6C6;
+      --color-highlight: #2FB6C4;     /* derivado de #81EEFF, usado en detalles puntuales */
+      --color-muted-accent: #B2CFD6;
+
+      --text-heading: #1B2B2A;
+      --text-main: #2E3D3C;
+      --text-muted: #6C7C7A;
+      --text-on-primary: #FFFFFF;
+
+      --border-color: #E1E9E8;
+      --border-color-strong: #CBDBD9;
+
+      --color-success: #2F9E6E;
+      --color-success-bg: #E4F5EC;
+      --color-warning: #B9791F;
+      --color-warning-bg: #FBF1DF;
+      --color-danger: #C0524A;
+      --color-danger-bg: #FBEAE8;
+      --color-info: #3E7D91;
+      --color-info-bg: #E7F2F5;
+
+      --radius-card: 16px;
+      --radius-md: 10px;
+      --radius-sm: 8px;
+      --shadow-card: 0 1px 2px rgba(27, 43, 42, 0.05), 0 10px 24px -14px rgba(27, 43, 42, 0.14);
+      --shadow-card-hover: 0 4px 10px rgba(27, 43, 42, 0.07), 0 18px 32px -16px rgba(27, 43, 42, 0.18);
+      --transition-fast: 0.15s ease;
+      --transition-normal: 0.25s ease;
+    }
+
+    /* ESTILOS GLOBALES */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      display: flex;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4, .brand-text {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 700;
+      color: var(--text-heading);
+    }
+
+    /* SCROLLBARS */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-color-strong); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--color-primary-soft); }
+
+    /* SIDEBAR */
+    #sidebar {
+      width: 272px;
+      background-color: var(--bg-sidebar);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      z-index: 100;
+      padding: 1.5rem 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .brand-logo {
+      background: linear-gradient(135deg, var(--color-primary-soft), var(--color-secondary));
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 10px rgba(63, 125, 115, 0.28);
+      flex-shrink: 0;
+    }
+
+    .brand-text {
+      font-size: 1.3rem;
+      font-weight: 800;
+      background: linear-gradient(to right, var(--text-heading), var(--color-primary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.3px;
+    }
+
+    .menu-group-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin: 1.5rem 0.75rem 0.5rem;
+      font-weight: 700;
+    }
+
+    .nav-list { list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.7rem 0.9rem;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.92rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      border: 1px solid transparent;
+    }
+
+    .nav-item:hover { color: var(--text-heading); background-color: var(--bg-surface-soft); }
+
+    .nav-item.active {
+      color: var(--color-primary);
+      background-color: var(--bg-surface-soft);
+      border-color: var(--border-color);
+      font-weight: 600;
+      box-shadow: inset 2px 0 0 var(--color-primary-soft);
+    }
+
+    .nav-icon { width: 19px; height: 19px; stroke: currentColor; stroke-width: 2; fill: none; flex-shrink: 0; }
+
+    /* CONTENIDO */
+    #content-wrapper {
+      margin-left: 272px;
+      flex-grow: 1;
+      padding: 2rem 2.25rem;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1.5rem;
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      padding: 0.4rem 1rem 0.4rem 0.4rem;
+      border-radius: 100px;
+      box-shadow: var(--shadow-card);
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--color-secondary-soft), var(--color-primary));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: white;
+      font-size: 0.85rem;
+    }
+
+    .user-info { font-size: 0.85rem; }
+    .user-name { font-weight: 600; color: var(--text-heading); }
+    .user-role { color: var(--text-muted); font-size: 0.75rem; }
+
+    /* VISTAS */
+    .view-section { display: none; animation: fadeIn var(--transition-normal) forwards; }
+    .view-section.active { display: flex; flex-direction: column; gap: 1.5rem; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* KPI CARDS */
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; }
+
+    .kpi-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-card);
+      padding: 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 1.1rem;
+      box-shadow: var(--shadow-card);
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-card-hover); }
+
+    .kpi-icon-wrapper {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .kpi-card.danger .kpi-icon-wrapper { background: var(--color-danger-bg); color: var(--color-danger); }
+    .kpi-card.warning .kpi-icon-wrapper { background: var(--color-warning-bg); color: var(--color-warning); }
+    .kpi-card.success .kpi-icon-wrapper { background: var(--color-success-bg); color: var(--color-success); }
+    .kpi-card.primary .kpi-icon-wrapper { background: var(--color-primary-softer); color: var(--color-primary); }
+
+    .kpi-info h4 {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.3rem;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 600;
+    }
+
+    .kpi-value { font-size: 1.65rem; font-weight: 700; color: var(--text-heading); font-family: 'Plus Jakarta Sans', sans-serif; }
+
+    .kpi-card .alert-count {
+      position: absolute;
+      top: 0.75rem;
+      right: 0.75rem;
+      background: var(--color-danger-bg);
+      color: var(--color-danger);
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 100px;
+      border: 1px solid rgba(192, 82, 74, 0.2);
+    }
+
+    /* GRID DE PANELES */
+    .dashboard-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 1.25rem; }
+    @media (max-width: 1024px) { .dashboard-layout { grid-template-columns: 1fr; } }
+
+    /* PANEL */
+    .panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-card);
+      padding: 1.5rem;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      color: var(--text-heading);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .panel-title .nav-icon { color: var(--color-primary-soft); }
+
+    /* BOTONES */
+    .btn {
+      padding: 0.6rem 1.15rem;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: none;
+      font-family: 'IBM Plex Sans', sans-serif;
+    }
+
+    .btn-primary {
+      background: var(--color-primary);
+      color: white;
+      box-shadow: 0 2px 6px rgba(63, 125, 115, 0.28);
+    }
+    .btn-primary:hover { background: #356b62; transform: translateY(-1px); box-shadow: 0 4px 10px rgba(63, 125, 115, 0.32); }
+
+    .btn-secondary {
+      background: var(--bg-surface);
+      color: var(--text-main);
+      border: 1px solid var(--border-color-strong);
+    }
+    .btn-secondary:hover { background: var(--bg-surface-soft); color: var(--text-heading); border-color: var(--color-primary-soft); }
+
+    .btn-success { background: var(--color-success); color: white; }
+    .btn-success:hover { opacity: 0.9; }
+
+    .btn-danger { background: var(--color-danger-bg); color: var(--color-danger); border: 1px solid rgba(192, 82, 74, 0.3); }
+    .btn-danger:hover { background: var(--color-danger); color: white; }
+
+    .btn-sm { padding: 0.35rem 0.7rem; font-size: 0.78rem; border-radius: 6px; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* TABLAS */
+    .table-container { overflow-x: auto; width: 100%; }
+
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.87rem; }
+
+    th {
+      padding: 0.7rem 1rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-surface-soft);
+    }
+    th:first-child { border-top-left-radius: var(--radius-sm); }
+    th:last-child { border-top-right-radius: var(--radius-sm); }
+
+    td { padding: 0.9rem 1rem; border-bottom: 1px solid var(--border-color); color: var(--text-main); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background-color: var(--bg-surface-soft); }
+
+    /* BADGES */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.6rem;
+      border-radius: 100px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .badge-success { background: var(--color-success-bg); color: var(--color-success); }
+    .badge-warning { background: var(--color-warning-bg); color: var(--color-warning); }
+    .badge-danger { background: var(--color-danger-bg); color: var(--color-danger); }
+    .badge-info { background: var(--color-info-bg); color: var(--color-info); }
+    .badge-secondary { background: var(--bg-surface-soft); color: var(--text-muted); }
+
+    /* FORMULARIOS */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.15rem; }
+    .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+    .form-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+
+    .form-control, select, textarea {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color-strong);
+      border-radius: var(--radius-sm);
+      padding: 0.55rem 0.75rem;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .form-control:focus, select:focus, textarea:focus {
+      border-color: var(--color-primary-soft);
+      box-shadow: 0 0 0 3px rgba(100, 166, 157, 0.18);
+    }
+
+    /* MAPA MOCK */
+    .maps-mock {
+      background: var(--bg-surface-soft);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      height: 340px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .maps-grid-bg {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-image:
+        radial-gradient(#CBDBD9 1px, transparent 1px),
+        linear-gradient(rgba(203, 219, 217, 0.5) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(203, 219, 217, 0.5) 1px, transparent 1px);
+      background-size: 20px 20px, 40px 40px, 40px 40px;
+      background-position: center;
+      opacity: 0.6;
+    }
+
+    .map-route-line {
+      position: absolute;
+      stroke: var(--color-primary-soft);
+      stroke-width: 3;
+      stroke-dasharray: 7 5;
+      fill: none;
+      animation: drawRoute 26s linear infinite;
+    }
+
+    @keyframes drawRoute { to { stroke-dashoffset: -120; } }
+
+    .map-marker {
+      position: absolute;
+      width: 26px;
+      height: 26px;
+      background: var(--color-danger);
+      border: 3px solid white;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 6px rgba(27, 43, 42, 0.25);
+      cursor: pointer;
+      transition: transform var(--transition-fast);
+    }
+    .map-marker:hover { transform: rotate(-45deg) scale(1.15); }
+
+    .map-marker-label { transform: rotate(45deg); color: white; font-size: 0.68rem; font-weight: 700; margin-top: -2px; margin-left: -2px; }
+
+    .map-marker.origin { background: var(--color-success); }
+
+    .map-vehicle {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      background: var(--color-primary);
+      border-radius: 50%;
+      border: 2px solid white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(27, 43, 42, 0.3);
+      z-index: 10;
+      transition: all 1.5s ease-in-out;
+    }
+
+    /* CHECKLIST */
+    .checklist-container { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .checklist-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.7rem 0.85rem;
+      background: var(--bg-surface-soft);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+    }
+
+    .checklist-item-info { display: flex; align-items: center; gap: 0.75rem; }
+    .checklist-item-status { font-size: 0.72rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; }
+
+    /* AUDITORÍA */
+    .audit-log-panel { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.4rem; padding-right: 0.4rem; }
+
+    .audit-item {
+      font-size: 0.76rem;
+      padding: 0.55rem 0.7rem;
+      background: var(--bg-surface-soft);
+      border-left: 3px solid var(--color-primary-soft);
+      border-radius: 0 6px 6px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .audit-item span:first-child { color: var(--text-main); }
+    .audit-time { color: var(--text-muted); font-family: monospace; flex-shrink: 0; }
+
+    /* COMPILADOR DE DESCRIPCIONES */
+    .compiler-output {
+      background: var(--bg-code);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 1.15rem;
+      font-family: 'IBM Plex Mono', 'Courier New', monospace;
+      color: var(--text-main);
+      white-space: pre-wrap;
+      font-size: 0.83rem;
+      line-height: 1.55;
+      min-height: 110px;
+      position: relative;
+    }
+
+    .copy-toast {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: var(--color-success);
+      color: white;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+    }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(27, 43, 42, 0.4);
+      backdrop-filter: blur(3px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-card);
+      width: 90%;
+      max-width: 550px;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      box-shadow: var(--shadow-card-hover);
+      animation: modalSlideUp var(--transition-normal) forwards;
+    }
+
+    @keyframes modalSlideUp {
+      from { transform: translateY(16px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.75rem;
+    }
+
+    /* DRAG & DROP */
+    .sortable-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      cursor: grab;
+      margin-bottom: 0.5rem;
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    }
+    .sortable-item:hover { border-color: var(--color-primary-soft); }
+    .sortable-item:active { cursor: grabbing; transform: scale(0.99); box-shadow: var(--shadow-card); }
+
+    .drag-handle { color: var(--text-muted); cursor: grab; }
+
+    /* ALERTAS */
+    .alert-panel {
+      background: var(--color-warning-bg);
+      border: 1px solid rgba(185, 121, 31, 0.3);
+      padding: 1rem;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      color: var(--color-warning);
+      font-size: 0.85rem;
+    }
+
+    .alert-panel.danger { background: var(--color-danger-bg); border: 1px solid rgba(192, 82, 74, 0.3); color: var(--color-danger); }
+
+    .alert-panel-icon { flex-shrink: 0; width: 20px; height: 20px; stroke: currentColor; }
+    .alert-panel-title { font-weight: 700; margin-bottom: 0.25rem; color: var(--text-heading); }
+
+    /* GRÁFICO SVG */
+    .chart-container { width: 100%; height: 190px; margin-top: 0.75rem; }
+    .chart-bar { fill: var(--color-primary-soft); rx: 4; transition: fill 0.3s, height 0.5s, y 0.5s; }
+    .chart-bar:hover { fill: var(--color-primary); }
+    .chart-line { stroke: var(--color-secondary); stroke-width: 2.5; fill: none; }
+    .chart-dot { fill: #FFF; stroke: var(--color-secondary); stroke-width: 2.5; cursor: pointer; transition: r 0.2s; }
+    .chart-dot:hover { r: 6; }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR NAVIGATION -->
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg class="nav-icon" style="color: white; width: 22px; height: 22px;" viewBox="0 0 24 24"><path d="M14 18H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v10m-5 4a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm-8 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm14-12h4l2 4v4h-6v-8zm-2 4h8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="brand-text">Pastor Traslados</span>
+    </div>
+
+    <div class="menu-group-title">Operación Diaria</div>
+    <ul class="nav-list">
+      <li>
+        <a class="nav-item active" onclick="switchView('dashboard')">
+          <svg class="nav-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+          Dashboard
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" onclick="switchView('hojas-ruta')">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M9 20 3 17V4l6 3 6-3 6 3v13l-6-3-6 3zM9 7v13m6-16v13" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Hojas de Ruta
+        </a>
+      </li>
+    </ul>
+
+    <div class="menu-group-title">Administración</div>
+    <ul class="nav-list">
+      <li>
+        <a class="nav-item" onclick="switchView('pacientes')">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2m7-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm11 10v-2a4 4 0 0 0-3-3.87m-4-12a4 4 0 0 1 0 7.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Pacientes
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" onclick="switchView('obras-sociales')">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="m8 3 4 8 5-5 5 15H2L8 3z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Obras Sociales
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" onclick="switchView('facturacion')">
+          <svg class="nav-icon" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Facturación y Cobros
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" onclick="switchView('flota')">
+          <svg class="nav-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+          Flota y Conductores
+        </a>
+      </li>
+    </ul>
+
+    <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+      <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight:700; margin-bottom: 0.5rem; letter-spacing: 0.5px;">Auditoría del Sistema</div>
+      <div class="audit-log-panel" id="sidebar-audit-log"></div>
+    </div>
+  </aside>
+
+  <!-- CONTENT CONTAINER -->
+  <main id="content-wrapper">
+
+    <header>
+      <div>
+        <h1 id="view-title" style="font-size: 1.6rem;">Panel Principal (Dashboard)</h1>
+        <p id="view-subtitle" style="color: var(--text-muted); font-size: 0.88rem; margin-top: 0.25rem;">Vista general del día y alertas críticas del servicio.</p>
+      </div>
+
+      <div class="user-profile">
+        <div class="avatar">AP</div>
+        <div class="user-info">
+          <div class="user-name">Andrea Pastor</div>
+          <div class="user-role">Administradora</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- SECTION: DASHBOARD -->
+    <section id="view-dashboard" class="view-section active">
+      <div class="kpi-grid">
+        <div class="kpi-card danger">
+          <span class="alert-count">3 Vencidas</span>
+          <div class="kpi-icon-wrapper">
+            <svg class="nav-icon" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </div>
+          <div class="kpi-info">
+            <h4>Facturas en Mora</h4>
+            <div class="kpi-value" id="kpi-mora">$845.200</div>
+          </div>
+        </div>
+
+        <div class="kpi-card warning">
+          <span class="alert-count" style="background:var(--color-warning-bg); color:var(--color-warning); border:1px solid rgba(185,121,31,0.25);">2 Alertas</span>
+          <div class="kpi-icon-wrapper">
+            <svg class="nav-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </div>
+          <div class="kpi-info">
+            <h4>CUDs por Vencer</h4>
+            <div class="kpi-value" id="kpi-cud">2 Pacientes</div>
+          </div>
+        </div>
+
+        <div class="kpi-card warning">
+          <span class="alert-count" style="background:var(--color-warning-bg); color:var(--color-warning); border:1px solid rgba(185,121,31,0.25);">1 Crítica</span>
+          <div class="kpi-icon-wrapper">
+            <svg class="nav-icon" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          </div>
+          <div class="kpi-info">
+            <h4>Mantenimientos</h4>
+            <div class="kpi-value" id="kpi-mantenimiento">3 Alertas</div>
+          </div>
+        </div>
+
+        <div class="kpi-card primary">
+          <div class="kpi-icon-wrapper">
+            <svg class="nav-icon" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+          </div>
+          <div class="kpi-info">
+            <h4>Recorridos Hoy</h4>
+            <div class="kpi-value">4 Hojas</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-layout">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">
+              <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><polyline points="12 6 12 12 16 14"/></svg>
+              Recorridos Operativos Clave - Hoy
+            </h3>
+            <button class="btn btn-secondary btn-sm" onclick="switchView('hojas-ruta')">Ir a Hojas de Ruta</button>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Vehículo</th>
+                  <th>Conductor</th>
+                  <th>Pasajeros</th>
+                  <th>Tramo</th>
+                  <th>Horario</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="dashboard-routes-table"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">
+              <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+              Finanzas: Facturado vs Cobrado
+            </h3>
+            <select id="finance-period" onchange="updateFinanceChart()" class="form-control" style="padding: 0.35rem 0.5rem; font-size: 0.8rem; width: auto;">
+              <option value="6">Últimos 6 meses</option>
+              <option value="3">Últimos 3 meses</option>
+            </select>
+          </div>
+
+          <p style="font-size: 0.83rem; color: var(--text-muted);">Comparativa visual de facturación registrada contra ingresos percibidos (en miles ARS).</p>
+
+          <div class="chart-container">
+            <svg id="finance-svg" width="100%" height="100%" viewBox="0 0 300 180" style="overflow: visible;">
+              <line x1="30" y1="10" x2="30" y2="150" stroke="#D3E0DE" stroke-width="1"/>
+              <line x1="30" y1="150" x2="290" y2="150" stroke="#D3E0DE" stroke-width="1"/>
+              <g id="svg-bars"></g>
+              <path id="svg-line" class="chart-line"/>
+              <g id="svg-dots"></g>
+              <g id="svg-labels" font-size="8" fill="#7C8D8B" text-anchor="middle"></g>
+            </svg>
+          </div>
+          <div style="display: flex; gap: 1rem; justify-content: center; font-size: 0.75rem; margin-top: 0.5rem; color: var(--text-muted);">
+            <div style="display: flex; align-items: center; gap: 0.3rem;">
+              <div style="width: 12px; height: 12px; background: var(--color-primary-soft); border-radius: 2px;"></div>
+              <span>Facturado</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.3rem;">
+              <div style="width: 12px; height: 12px; background: var(--color-secondary); border-radius: 50%;"></div>
+              <span>Cobrado</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: HOJAS DE RUTA -->
+    <section id="view-hojas-ruta" class="view-section">
+      <div class="dashboard-layout">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Selector de Recorrido</h3>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-secondary btn-sm" onclick="suggestOptimalOrder()">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                Sugerir Orden por Cercanía
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="printRoute()">
+                <svg class="nav-icon" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Exportar / Imprimir
+              </button>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="route-date">Fecha del Recorrido</label>
+              <input type="date" id="route-date" class="form-control" value="2026-07-23">
+            </div>
+            <div class="form-group">
+              <label for="route-vehicle">Vehículo Asignado</label>
+              <select id="route-vehicle" onchange="onRouteVehicleChange()" class="form-control"></select>
+            </div>
+            <div class="form-group">
+              <label for="route-driver">Conductor Asignado</label>
+              <select id="route-driver" class="form-control"></select>
+            </div>
+            <div class="form-group">
+              <label for="route-shift">Turno / Tramo</label>
+              <select id="route-shift" onchange="onRouteShiftChange()" class="form-control">
+                <option value="ida">Ida CET (Mañana) - 08:00</option>
+                <option value="vuelta">Vuelta CET (Tarde) - 16:00</option>
+                <option value="terapias">Terapias Rotativas - 13:00</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="route-compatibility-alert" style="display:none;"></div>
+
+          <div style="margin-top: 0.5rem;">
+            <h4 style="margin-bottom: 0.75rem; font-size: 0.92rem;">Orden de Recorrido (Secuencia de Paradas)</h4>
+            <div id="route-passengers-list"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="route-notes">Notas al Pie de la Hoja de Ruta</label>
+            <textarea id="route-notes" rows="2" placeholder="Ej: Diana viaja sentada adelante. Romina requiere ayuda con el andador al subir." class="form-control"></textarea>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Mapa de Ruta</h3>
+            <span class="badge badge-info" id="route-distance-badge">Calculando tramos...</span>
+          </div>
+
+          <div class="maps-mock">
+            <div class="maps-grid-bg"></div>
+            <svg width="100%" height="100%" style="position:absolute; top:0; left:0; z-index: 1;">
+              <path id="svg-route-path" class="map-route-line" d="M 50 150 Q 150 70, 250 150" />
+            </svg>
+            <div id="map-vehicle-icon" class="map-vehicle">
+              <svg style="width: 14px; height: 14px; stroke: white; fill: none;" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/></svg>
+            </div>
+            <div id="map-markers-container"></div>
+          </div>
+          <p style="font-size: 0.74rem; color: var(--text-muted); text-align: center;">Simulación de geolocalización basada en Google Maps Platform. Los tramos son 100% editables manualmente.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: PACIENTES -->
+    <section id="view-pacientes" class="view-section">
+      <div class="dashboard-layout">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Padre/Madre/Paciente - Fichas Clínicas</h3>
+            <button class="btn btn-primary btn-sm" onclick="showNewPatientModal()">Nuevo Paciente</button>
+          </div>
+
+          <div class="form-group">
+            <input type="text" id="patient-search" placeholder="Buscar paciente por nombre o DNI..." class="form-control" oninput="filterPatients()">
+          </div>
+
+          <div class="table-container" style="max-height: 440px; overflow-y: auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Paciente</th>
+                  <th>DNI / Afiliado</th>
+                  <th>Obra Social</th>
+                  <th>Accesorio de Movilidad</th>
+                  <th>Estado CUD</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="patients-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel" id="patient-detail-panel">
+          <div class="panel-header">
+            <h3 class="panel-title" id="detail-title">Detalle del Paciente</h3>
+            <span class="badge" id="detail-amparo-badge"></span>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:1.25rem;" id="patient-detail-content"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: OBRAS SOCIALES -->
+    <section id="view-obras-sociales" class="view-section">
+      <div class="dashboard-layout">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Prestadores y Obras Sociales</h3>
+            <button class="btn btn-primary btn-sm" onclick="showNewOSModal()">Agregar Obra Social</button>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Obra Social</th>
+                  <th>CUIT Prestador</th>
+                  <th>Plazo Cobro</th>
+                  <th>Tipo Factura</th>
+                  <th>Checklist Requerido</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="os-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel" id="os-config-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Configuración de Requisitos</h3>
+            <button class="btn btn-success btn-sm" onclick="saveOSConfig()">Guardar Configuración</button>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:1.25rem;" id="os-config-content">
+            <p style="color:var(--text-muted); text-align:center; padding: 2rem;">Selecciona una obra social de la lista para configurar su checklist documental y la plantilla para facturar.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: FACTURACION -->
+    <section id="view-facturacion" class="view-section">
+      <div class="dashboard-layout">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Carga de Factura por Paciente</h3>
+          </div>
+
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="fact-patient">Paciente a Facturar</label>
+              <select id="fact-patient" onchange="onFactPatientChange()" class="form-control"></select>
+            </div>
+            <div class="form-group">
+              <label for="fact-period">Mes de la Prestación</label>
+              <select id="fact-period" onchange="generateInvoiceDescription()" class="form-control">
+                <option value="Julio 2026">Julio 2026</option>
+                <option value="Junio 2026">Junio 2026</option>
+                <option value="Mayo 2026">Mayo 2026</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="fact-days">Cantidad de Días (Manual)</label>
+              <input type="number" id="fact-days" class="form-control" value="20" min="0" max="31" oninput="onDaysOrKmChange()">
+            </div>
+            <div class="form-group">
+              <label for="fact-km-day">Kilómetros por Día</label>
+              <input type="number" id="fact-km-day" class="form-control" value="45" min="0" oninput="onDaysOrKmChange()">
+            </div>
+            <div class="form-group">
+              <label for="fact-km-val">Valor Kilómetro Nom. (Manual)</label>
+              <input type="number" id="fact-km-val" class="form-control" value="385" min="0" oninput="onDaysOrKmChange()">
+            </div>
+          </div>
+
+          <div id="quota-validation-alert" class="alert-panel" style="display:none;">
+            <svg class="alert-panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div>
+              <div class="alert-panel-title">Alerta de Exceso de Cupo Autorizado (RN-FA-02)</div>
+              <div id="quota-validation-text">Estás intentando facturar más días o kilómetros de los aprobados para este paciente.</div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 0.5rem;">
+            <label style="display:flex; justify-content:space-between; align-items:center;">
+              <span>Descripción de Factura Compilada (Según Obra Social)</span>
+              <button class="btn btn-secondary btn-sm" onclick="copyInvoiceDescription()" style="padding:0.2rem 0.5rem; font-size:0.72rem;">Copiar Descripción</button>
+            </label>
+            <div class="compiler-output" id="compiled-desc-output">
+              <span class="copy-toast" id="copy-toast">Copiado!</span>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 0.5rem;">
+            <div>
+              <span style="font-size:0.83rem; color:var(--text-muted);">Total de Factura:</span>
+              <strong id="fact-total-val" style="font-size:1.35rem; color:var(--color-success); font-family:'Plus Jakarta Sans', sans-serif; margin-left: 0.5rem;">$0</strong>
+            </div>
+
+            <button class="btn btn-primary" onclick="createInvoice()">Emitir Factura</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Circuito de Cobros (Auditoría de Pagos)</h3>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Factura Nº</th>
+                  <th>Paciente</th>
+                  <th>Fecha Emisión</th>
+                  <th>Est. Cobro</th>
+                  <th>Monto</th>
+                  <th>Estado</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="invoices-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: FLOTA Y CONDUCTORES -->
+    <section id="view-flota" class="view-section">
+      <div class="dashboard-layout">
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Flota de Vehículos</h3>
+            <button class="btn btn-primary btn-sm" onclick="showNewVehicleModal()">Agregar Vehículo</button>
+          </div>
+
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Patente</th>
+                  <th>Modelo</th>
+                  <th>Capacidad</th>
+                  <th>Accesorios Habilitados</th>
+                  <th>Kilometraje</th>
+                  <th>Estado</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody id="vehicles-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h3 class="panel-title">Mantenimientos y Habilitaciones</h3>
+          </div>
+
+          <p style="font-size: 0.83rem; color: var(--text-muted);">
+            Vigilancia obligatoria de alertas preventivas (VTV cada 6 meses, RTO y cambios de aceite/filtros cada 10.000 km).
+          </p>
+
+          <div style="display:flex; flex-direction:column; gap:1rem;" id="fleet-maintenance-list"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h3 class="panel-title">Conductores Registrados</h3>
+          <button class="btn btn-primary btn-sm" onclick="showNewDriverModal()">Agregar Conductor</button>
+        </div>
+        <p style="font-size: 0.83rem; color: var(--text-muted); margin-top: -0.75rem;">
+          Los conductores se registran para diagramar hojas de ruta y asignar vehículos. <strong>No tienen credenciales de acceso al sistema (RN-GL-03)</strong>.
+        </p>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Conductor</th>
+                <th>DNI / Teléfono</th>
+                <th>Vehículo Semanal</th>
+                <th>Restricciones Clínicas / Perfil</th>
+                <th>Licencia Vence</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody id="drivers-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODALS CONTAINER -->
+  <div class="modal-overlay" id="generic-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">Título del Modal</h3>
+        <button onclick="closeModal()" class="btn btn-secondary btn-sm" style="padding:0.2rem 0.5rem;">✕</button>
+      </div>
+      <div id="modal-body"></div>
+      <div style="display:flex; justify-content:flex-end; gap:0.75rem;" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT DE SOPORTE INTERACTIVO (DATOS DE NEGOCIO Y LÓGICA DE REGISTRO) -->
+  <script>
+    // DATA STORE EN MEMORIA (Iniciado con fixtures representativos)
+    const store = {
+      obrasSociales: [
+        {
+          id: 'osde',
+          nombre: 'OSDE Discapacidad',
+          cuit: '30-54637281-9',
+          plazoCobro: 90,
+          tipoComprobante: 'A',
+          templateDesc: "Traslado especial a favor del afiliado/a {{paciente}}, DNI Nº {{dni}}, afiliado Nº {{afiliado}}. Domicilio: {{domicilio}}. Prestación correspondiente al mes de {{mes}} que consta de {{dias_traslado}} días a razón de {{km_por_dia}} km diarios, haciendo un total de {{km_totales}} km a un valor unitario de ${{valor_km}} por kilómetro.",
+          checklist: ['CUD Vigente', 'CODEM Activo', 'Presupuesto Firmado', 'Autorización de Prestación']
+        },
+        {
+          id: 'pami',
+          nombre: 'PAMI (INSSJP)',
+          cuit: '30-52242577-9',
+          plazoCobro: 60,
+          tipoComprobante: 'B',
+          templateDesc: "Servicio de transporte especial adaptado: {{paciente}}, Beneficiario PAMI Nº {{afiliado}}. Domicilio: {{domicilio}}. Recorrido diario ida y vuelta de {{km_por_dia}} km en el mes de {{mes}}. Total días asistidos: {{dias_traslado}}. Km facturados: {{km_totales}}. Valor nomenclador nacional: ${{valor_km}}.",
+          checklist: ['CUD Vigente', 'Ficha Médica Anual', 'Hoja de Asistencia Certificada', 'Resolución de Derivación']
+        },
+        {
+          id: 'aproce',
+          nombre: 'APROSS Córdoba',
+          cuit: '30-99999999-9',
+          plazoCobro: 45,
+          tipoComprobante: 'C',
+          templateDesc: "Traslado asistencial de {{paciente}} (Afiliado {{afiliado}}). Origen: {{domicilio}} - Destino habitual. Período: {{mes}}. {{dias_traslado}} asistencias en el mes. Kilómetros totales mensuales: {{km_totales}} km. Importe del kilómetro aprobado: ${{valor_km}}.",
+          checklist: ['CUD Vigente', 'Presupuesto Aprobado', 'Ticket de Conformidad Mensual']
+        }
+      ],
+      pacientes: [
+        {
+          id: 'p1',
+          nombre: 'Bautista Gómez',
+          dni: '48.123.456',
+          cuilTitular: '20-48123456-9',
+          afiliadoId: 'OSDE-48123456/01',
+          obraSocialId: 'osde',
+          accesoriosMovilidad: 'Silla de ruedas rígida',
+          cudNumero: 'CUD-2024-99881',
+          cudEmision: '2024-05-10',
+          cudVence: '2026-08-30',
+          amparoJudicial: true,
+          amparoDetalle: 'Expediente Nº 48102 - Juzgado Federal Nº 2',
+          personasCargo: 'Sofía Martínez (Madre) - DNI 23.456.789',
+          telefonoAlternativo: '351-5558901',
+          direcciones: {
+            ida: { origen: 'Domicilio: Bº Jardín, Córdoba', destino: 'Centro Educativo CET La Luciérnaga' },
+            vuelta: { origen: 'Centro Educativo CET La Luciérnaga', destino: 'Domicilio: Bº Jardín, Córdoba' }
+          },
+          autorizaciones: { presupuestoAnual: 3500000, diasMax: 22, kmMax: 1000, estado: 'autorizada' },
+          documentos: [
+            { nombre: 'CUD Vigente', cargado: true, archivo: 'cud_gomez_bautista.pdf' },
+            { nombre: 'CODEM Activo', cargado: true, archivo: 'codem_gomez.png' },
+            { nombre: 'Presupuesto Firmado', cargado: true, archivo: 'presupuesto_firmado_2026.pdf' },
+            { nombre: 'Autorización de Prestación', cargado: false }
+          ]
+        },
+        {
+          id: 'p2',
+          nombre: 'Milagros Rossi',
+          dni: '51.987.654',
+          cuilTitular: '27-51987654-3',
+          afiliadoId: 'PAM-99882233-1',
+          obraSocialId: 'pami',
+          accesoriosMovilidad: 'Silla postural',
+          cudNumero: 'CUD-2025-00122',
+          cudEmision: '2025-01-15',
+          cudVence: '2027-01-15',
+          amparoJudicial: false,
+          personasCargo: 'Gabriel Rossi (Padre) - DNI 18.234.567',
+          telefonoAlternativo: '351-4443210',
+          direcciones: {
+            ida: { origen: 'Domicilio: Bº General Paz, Córdoba', destino: 'Clínica de Rehabilitación Neuropediátrica' },
+            vuelta: { origen: 'Clínica de Rehabilitación Neuropediátrica', destino: 'Domicilio: Bº General Paz, Córdoba' }
+          },
+          autorizaciones: { presupuestoAnual: 2800000, diasMax: 18, kmMax: 700, estado: 'autorizada' },
+          documentos: [
+            { nombre: 'CUD Vigente', cargado: true, archivo: 'cud_rossi_mili.pdf' },
+            { nombre: 'Ficha Médica Anual', cargado: true, archivo: 'ficha_medica_mili.pdf' },
+            { nombre: 'Hoja de Asistencia Certificada', cargado: false },
+            { nombre: 'Resolución de Derivación', cargado: false }
+          ]
+        },
+        {
+          id: 'p3',
+          nombre: 'Tomás Peralta',
+          dni: '53.456.123',
+          cuilTitular: '20-53456123-9',
+          afiliadoId: 'APR-53456123-02',
+          obraSocialId: 'aproce',
+          accesoriosMovilidad: 'Andador',
+          cudNumero: 'CUD-2023-45612',
+          cudEmision: '2023-04-12',
+          cudVence: '2026-04-12',
+          amparoJudicial: false,
+          personasCargo: 'Laura Peralta (Madre) - DNI 25.123.456',
+          telefonoAlternativo: '351-7771234',
+          direcciones: {
+            ida: { origen: 'Domicilio: Bº San Martín, Córdoba', destino: 'Escuela Especial Nº 10' },
+            vuelta: { origen: 'Escuela Especial Nº 10', destino: 'Domicilio: Bº San Martín, Córdoba' }
+          },
+          autorizaciones: { presupuestoAnual: 1900000, diasMax: 20, kmMax: 800, estado: 'pendiente' },
+          documentos: [
+            { nombre: 'CUD Vigente', cargado: true, archivo: 'cud_peralta_tomi_expired.pdf' },
+            { nombre: 'Presupuesto Aprobado', cargado: false },
+            { nombre: 'Ticket de Conformidad Mensual', cargado: false }
+          ]
+        }
+      ],
+      vehiculos: [
+        { Patent: 'AE-982-FF', Modelo: 'Renault Master 2022', Capacidad: 6, Accesorios: ['Silla de ruedas rígida', 'Andador', 'Trípode'], KmActual: 84500, KmUltimoCambio: 79000, ProximoVencVTV: '2026-09-15', ProximoVencRTO: '2026-12-15', Estado: 'Activo' },
+        { Patent: 'AD-441-XX', Modelo: 'Mercedes-Benz Sprinter 2021 (Rampa Elevadora)', Capacidad: 5, Accesorios: ['Silla postural', 'Silla de ruedas rígida', 'Andador'], KmActual: 102100, KmUltimoCambio: 101000, ProximoVencVTV: '2026-07-20', ProximoVencRTO: '2026-10-15', Estado: 'Activo' },
+        { Patent: 'AB-880-HH', Modelo: 'Fiat Ducato 2019', Capacidad: 6, Accesorios: ['Andador', 'Trípode'], KmActual: 145000, KmUltimoCambio: 136000, ProximoVencVTV: '2026-11-20', ProximoVencRTO: '2026-11-20', Estado: 'Fuera de Servicio' }
+      ],
+      conductores: [
+        { nombre: 'Jorge Peralta', dni: '22.345.678', telefono: '351-6112233', vehiculoPatente: 'AE-982-FF', restricciones: 'Ninguna', licenciaVence: '2028-02-14' },
+        { nombre: 'Mario Gómez', dni: '25.678.901', telefono: '351-6889900', vehiculoPatente: 'AD-441-XX', restricciones: 'No traslada pacientes con alta carga de fuerza física (Restricción por edad/lumbalgia)', licenciaVence: '2027-09-30' }
+      ],
+      hojasRuta: [
+        { vehiclePatent: 'AE-982-FF', driver: 'Jorge Peralta', shift: 'ida', passengers: ['p1', 'p3'], notes: 'Coger a Tomás primero.' },
+        { vehiclePatent: 'AD-441-XX', driver: 'Mario Gómez', shift: 'ida', passengers: ['p2'], notes: 'Requiere uso estricto de rampa hidráulica.' }
+      ],
+      facturas: [
+        { id: 'FAC-0001', pacienteId: 'p1', obraSocialId: 'osde', fechaEmision: '2026-04-10', monto: 346500, cobrado: 346500, estado: 'Cobrado' },
+        { id: 'FAC-0002', pacienteId: 'p2', obraSocialId: 'pami', fechaEmision: '2026-05-02', monto: 275000, cobrado: 150000, estado: 'Pagado Parcial' },
+        { id: 'FAC-0003', pacienteId: 'p1', obraSocialId: 'osde', fechaEmision: '2026-05-05', monto: 346500, cobrado: 0, estado: 'Facturado' },
+        { id: 'FAC-0004', pacienteId: 'p3', obraSocialId: 'aproce', fechaEmision: '2026-06-01', monto: 198000, cobrado: 0, estado: 'Facturado' }
+      ],
+      auditLog: [
+        { time: '00:05:12', user: 'Andrea Pastor', action: 'Inicialización de base de datos mock.' },
+        { time: '00:08:45', user: 'Ariana (Facturación)', action: 'Consulta de presupuestos activos.' }
+      ]
+    };
+
+    // FUNCIÓN DE SEGUIMIENTO AUDITORÍA (RN-GL-02)
+    function logAction(action) {
+      const time = new Date().toTimeString().split(' ')[0];
+      const newLog = { time, user: 'Andrea Pastor', action };
+      store.auditLog.unshift(newLog);
+      if (store.auditLog.length > 10) store.auditLog.pop();
+      renderAuditLog();
+    }
+
+    function renderAuditLog() {
+      const sidebarContainer = document.getElementById('sidebar-audit-log');
+      sidebarContainer.innerHTML = store.auditLog.map(item => `
+        <div class="audit-item">
+          <span>${item.action}</span>
+          <span class="audit-time">${item.time}</span>
+        </div>
+      `).join('');
+    }
+
+    // NAVEGACIÓN Y CONTROL DE VISTAS
+    function switchView(viewId) {
+      document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+
+      const targetView = document.getElementById(`view-${viewId}`);
+      if (targetView) targetView.classList.add('active');
+
+      const clickedItem = Array.from(document.querySelectorAll('.nav-item')).find(item => item.getAttribute('onclick').includes(viewId));
+      if (clickedItem) clickedItem.classList.add('active');
+
+      const titleMap = {
+        'dashboard': ['Panel Principal (Dashboard)', 'Vista general del día y alertas críticas del servicio.'],
+        'hojas-ruta': ['Hojas de Ruta Diarias', 'Secuencia de paradas sugeridas por geolocalización y reordenables.'],
+        'pacientes': ['Padre/Madre/Paciente - Fichas Clínicas', 'Base de datos clínica, personas a cargo y documentación.'],
+        'obras-sociales': ['Obras Sociales y Requisitos', 'Definición de plazos, checklists específicos y plantillas de facturación.'],
+        'facturacion': ['Facturación, Asistencias y Cobros', 'Módulo de pre-validación de cupos y emisión de comprobantes.'],
+        'flota': ['Flota y Conductores', 'Control de accesorios de vehículos, alertas de mantenimiento VTV/RTO e historial.']
+      };
+
+      if (titleMap[viewId]) {
+        document.getElementById('view-title').innerText = titleMap[viewId][0];
+        document.getElementById('view-subtitle').innerText = titleMap[viewId][1];
+      }
+
+      logAction(`Acceso al módulo: ${viewId}`);
+
+      if (viewId === 'dashboard') { renderDashboard(); updateFinanceChart(); }
+      else if (viewId === 'hojas-ruta') { initRouteView(); }
+      else if (viewId === 'pacientes') { renderPatientsList(); }
+      else if (viewId === 'obras-sociales') { renderOSList(); }
+      else if (viewId === 'facturacion') { initFacturacionView(); }
+      else if (viewId === 'flota') { renderFlotaView(); }
+    }
+
+    // 1. DASHBOARD
+    function renderDashboard() {
+      let totalMora = 0;
+      let countMora = 0;
+      const today = new Date('2026-07-23');
+
+      store.facturas.forEach(f => {
+        if (f.estado === 'Facturado' || f.estado === 'Pagado Parcial') {
+          const pac = store.pacientes.find(p => p.id === f.pacienteId);
+          const os = store.obrasSociales.find(o => o.id === f.obraSocialId);
+          const diasTerm = pac.amparoJudicial ? 45 : (os ? os.plazoCobro : 90);
+
+          const fechaEmi = new Date(f.fechaEmision);
+          const diffTime = Math.abs(today - fechaEmi);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (diffDays > diasTerm) {
+            totalMora += (f.monto - f.cobrado);
+            countMora++;
+          }
+        }
+      });
+      document.getElementById('kpi-mora').innerText = `$${totalMora.toLocaleString('es-AR')}`;
+
+      let countCUD = 0;
+      store.pacientes.forEach(p => {
+        const vence = new Date(p.cudVence);
+        const diffTime = (vence - today);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays <= 60) countCUD++;
+      });
+      document.getElementById('kpi-cud').innerText = `${countCUD} Pacientes`;
+
+      let countMant = 0;
+      store.vehiculos.forEach(v => {
+        if (v.KmActual - v.KmUltimoCambio >= 10000) countMant++;
+        const vtv = new Date(v.ProximoVencVTV);
+        const diffDays = Math.ceil((vtv - today) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 30) countMant++;
+      });
+      document.getElementById('kpi-mantenimiento').innerText = `${countMant} Alertas`;
+
+      const routesTable = document.getElementById('dashboard-routes-table');
+      routesTable.innerHTML = store.hojasRuta.map(r => {
+        const vehicle = store.vehiculos.find(v => v.Patent === r.vehiclePatent);
+        const passNames = r.passengers.map(pid => store.pacientes.find(p => p.id === pid).nombre).join(', ');
+
+        let tramoTxt = r.shift === 'ida' ? 'Ida a CET' : 'Vuelta a Domicilio';
+        let horaTxt = r.shift === 'ida' ? '08:00 hs' : '16:00 hs';
+
+        return `
+          <tr>
+            <td><strong>${vehicle.Modelo}</strong><br><span style="font-size:0.72rem; color:var(--text-muted);">${r.vehiclePatent}</span></td>
+            <td>${r.driver}</td>
+            <td>${passNames}</td>
+            <td>${tramoTxt}</td>
+            <td>${horaTxt}</td>
+            <td><span class="badge badge-success">${vehicle.Estado}</span></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function updateFinanceChart() {
+      const periodMonths = parseInt(document.getElementById('finance-period').value);
+      const dataFact = [350, 420, 390, 480, 520, 490];
+      const dataCob = [320, 380, 310, 410, 460, 430];
+      const labels = ['Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul'];
+
+      const viewFact = dataFact.slice(-periodMonths);
+      const viewCob = dataCob.slice(-periodMonths);
+      const viewLabels = labels.slice(-periodMonths);
+
+      const maxVal = 600;
+      const chartWidth = 260;
+      const chartHeight = 140;
+      const xStart = 35;
+      const yZero = 150;
+
+      const colWidth = chartWidth / periodMonths;
+
+      let barsHtml = '';
+      let dotsHtml = '';
+      let labelsHtml = '';
+      let linePoints = [];
+
+      for (let i = 0; i < periodMonths; i++) {
+        const xPos = xStart + (i * colWidth) + (colWidth / 2);
+
+        const factVal = viewFact[i];
+        const barHeight = (factVal / maxVal) * chartHeight;
+        const yPosBar = yZero - barHeight;
+
+        barsHtml += `
+          <rect class="chart-bar" x="${xPos - 12}" y="${yPosBar}" width="16" height="${barHeight}" />
+          <text x="${xPos - 4}" y="${yPosBar - 5}" font-size="7" fill="#2E3D3C" text-anchor="middle">$${factVal}k</text>
+        `;
+
+        const cobVal = viewCob[i];
+        const yPosDot = yZero - ((cobVal / maxVal) * chartHeight);
+        linePoints.push(`${xPos},${yPosDot}`);
+
+        dotsHtml += `
+          <circle class="chart-dot" cx="${xPos}" cy="${yPosDot}" r="4" />
+          <text x="${xPos}" y="${yPosDot - 8}" font-size="7" fill="#4C86A0" text-anchor="middle">$${cobVal}k</text>
+        `;
+
+        labelsHtml += `
+          <text x="${xPos}" y="${yZero + 12}" font-size="8" fill="#7C8D8B" text-anchor="middle">${viewLabels[i]}</text>
+        `;
+      }
+
+      document.getElementById('svg-bars').innerHTML = barsHtml;
+      document.getElementById('svg-dots').innerHTML = dotsHtml;
+      document.getElementById('svg-labels').innerHTML = labelsHtml;
+
+      if (linePoints.length > 0) {
+        document.getElementById('svg-line').setAttribute('d', `M ${linePoints.join(' L ')}`);
+      }
+    }
+
+    // 2. HOJAS DE RUTA INTERACTIVAS
+    let currentRouteState = null;
+
+    function initRouteView() {
+      const routeVehicleSelect = document.getElementById('route-vehicle');
+      const routeDriverSelect = document.getElementById('route-driver');
+
+      routeVehicleSelect.innerHTML = store.vehiculos.map(v =>
+        `<option value="${v.Patent}" ${v.Estado !== 'Activo' ? 'disabled' : ''}>${v.Modelo} (${v.Patent}) ${v.Estado !== 'Activo' ? '[Fuera de Servicio]' : ''}</option>`
+      ).join('');
+
+      routeDriverSelect.innerHTML = store.conductores.map(c =>
+        `<option value="${c.nombre}">${c.nombre} [Asig: ${c.vehiculoPatente}]</option>`
+      ).join('');
+
+      onRouteVehicleChange();
+    }
+
+    function onRouteVehicleChange() {
+      const patent = document.getElementById('route-vehicle').value;
+      const driver = store.conductores.find(c => c.vehiculoPatente === patent);
+      if (driver) document.getElementById('route-driver').value = driver.nombre;
+      onRouteShiftChange();
+    }
+
+    function onRouteShiftChange() {
+      const patent = document.getElementById('route-vehicle').value;
+      const shift = document.getElementById('route-shift').value;
+
+      let route = store.hojasRuta.find(r => r.vehiclePatent === patent && r.shift === shift);
+
+      if (!route) {
+        const vehicle = store.vehiculos.find(v => v.Patent === patent);
+        const candidateIds = store.pacientes.filter(p =>
+          vehicle.Accesorios.includes(p.accesoriosMovilidad)
+        ).map(p => p.id);
+
+        route = { vehiclePatent: patent, driver: document.getElementById('route-driver').value, shift: shift, passengers: candidateIds, notes: '' };
+        store.hojasRuta.push(route);
+      }
+
+      currentRouteState = route;
+      renderRouteList();
+      checkRouteCompatibility();
+    }
+
+    function renderRouteList() {
+      const listContainer = document.getElementById('route-passengers-list');
+      const routeNotes = document.getElementById('route-notes');
+
+      routeNotes.value = currentRouteState.notes;
+
+      if (currentRouteState.passengers.length === 0) {
+        listContainer.innerHTML = `<p style="color:var(--text-muted); font-size:0.88rem; text-align:center; padding:1rem; border:1px dashed var(--border-color-strong); border-radius:8px;">Sin pasajeros en este tramo.</p>`;
+        return;
+      }
+
+      listContainer.innerHTML = currentRouteState.passengers.map((pid, index) => {
+        const patient = store.pacientes.find(p => p.id === pid);
+        const locationTxt = currentRouteState.shift === 'ida' ? patient.direcciones.ida.origen : patient.direcciones.vuelta.origen;
+        const destTxt = currentRouteState.shift === 'ida' ? patient.direcciones.ida.destino : patient.direcciones.vuelta.destino;
+
+        return `
+          <div class="sortable-item" draggable="true" ondragstart="drag(event, ${index})" ondragover="allowDrop(event)" ondrop="drop(event, ${index})">
+            <span class="drag-handle">☰</span>
+            <div style="flex-grow:1;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong style="color:var(--text-heading); font-size:0.88rem;">${index + 1}. ${patient.nombre}</strong>
+                <span class="badge badge-info" style="font-size:0.68rem;">${patient.accesoriosMovilidad}</span>
+              </div>
+              <div style="font-size:0.74rem; color:var(--text-muted); margin-top:0.25rem;">
+                <strong>Tramo:</strong> ${locationTxt} ➔ ${destTxt}
+              </div>
+            </div>
+            <div style="display:flex; gap:0.25rem;">
+              <button class="btn btn-secondary btn-sm" onclick="movePassenger(${index}, -1)" style="padding:0.15rem 0.35rem;">▲</button>
+              <button class="btn btn-secondary btn-sm" onclick="movePassenger(${index}, 1)" style="padding:0.15rem 0.35rem;">▼</button>
+              <button class="btn btn-danger btn-sm" onclick="removePassengerFromRoute(${index})" style="padding:0.15rem 0.35rem;">✕</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      renderRouteMap();
+    }
+
+    function checkRouteCompatibility() {
+      const alertContainer = document.getElementById('route-compatibility-alert');
+      const vehicle = store.vehiculos.find(v => v.Patent === currentRouteState.vehiclePatent);
+
+      let incompatibleList = [];
+      currentRouteState.passengers.forEach(pid => {
+        const patient = store.pacientes.find(p => p.id === pid);
+        if (!vehicle.Accesorios.includes(patient.accesoriosMovilidad)) {
+          incompatibleList.push(`${patient.nombre} (${patient.accesoriosMovilidad})`);
+        }
+      });
+
+      if (incompatibleList.length > 0) {
+        alertContainer.style.display = 'flex';
+        alertContainer.className = 'alert-panel danger';
+        alertContainer.innerHTML = `
+          <svg class="alert-panel-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div>
+            <div class="alert-panel-title">Incompatibilidad de Accesorio Detectada (RN-VE-01)</div>
+            <div>El vehículo <strong>${vehicle.Modelo}</strong> no admite los siguientes accesorios requeridos por pasajeros de la ruta: <br>${incompatibleList.join(', ')}</div>
+          </div>
+        `;
+      } else {
+        alertContainer.style.display = 'none';
+      }
+    }
+
+    function movePassenger(index, dir) {
+      const list = currentRouteState.passengers;
+      const targetIndex = index + dir;
+      if (targetIndex >= 0 && targetIndex < list.length) {
+        const temp = list[index];
+        list[index] = list[targetIndex];
+        list[targetIndex] = temp;
+        logAction(`Hojas de ruta: Reordenamiento manual de pasajeros.`);
+        renderRouteList();
+      }
+    }
+
+    function removePassengerFromRoute(index) {
+      const removed = currentRouteState.passengers.splice(index, 1);
+      const name = store.pacientes.find(p => p.id === removed[0]).nombre;
+      logAction(`Hojas de ruta: Quitó a ${name} de la ruta.`);
+      renderRouteList();
+      checkRouteCompatibility();
+    }
+
+    function suggestOptimalOrder() {
+      if (currentRouteState.passengers.length < 2) return;
+
+      currentRouteState.passengers.sort((a, b) => {
+        const patA = store.pacientes.find(p => p.id === a);
+        const patB = store.pacientes.find(p => p.id === b);
+        return patA.nombre.localeCompare(patB.nombre);
+      });
+
+      logAction(`Hojas de ruta: Sugirió y aplicó orden por cercanía.`);
+      renderRouteList();
+
+      const vIcon = document.getElementById('map-vehicle-icon');
+      vIcon.style.transform = 'scale(1.2)';
+      setTimeout(() => { vIcon.style.transform = 'scale(1)'; }, 900);
+
+      document.getElementById('route-distance-badge').innerText = 'Orden optimizado: 12.8 Km totales';
+      document.getElementById('route-distance-badge').className = 'badge badge-success';
+    }
+
+    function renderRouteMap() {
+      const markersContainer = document.getElementById('map-markers-container');
+      const routePath = document.getElementById('svg-route-path');
+
+      markersContainer.innerHTML = '';
+
+      if (currentRouteState.passengers.length === 0) {
+        routePath.setAttribute('d', '');
+        return;
+      }
+
+      const coords = [
+        { x: 50, y: 150 },
+        { x: 120, y: 80 },
+        { x: 220, y: 100 },
+        { x: 270, y: 50 }
+      ];
+
+      let pathD = `M ${coords[0].x} ${coords[0].y}`;
+
+      markersContainer.innerHTML += `
+        <div class="map-marker origin" style="left:${coords[0].x - 13}px; top:${coords[0].y - 26}px;">
+          <div class="map-marker-label">O</div>
+        </div>
+      `;
+
+      currentRouteState.passengers.forEach((pid, index) => {
+        const c = coords[index + 1] || { x: 200, y: 120 };
+        pathD += ` Q ${c.x - 30} ${c.y + 40}, ${c.x} ${c.y}`;
+
+        markersContainer.innerHTML += `
+          <div class="map-marker" style="left:${c.x - 13}px; top:${c.y - 26}px;" title="${store.pacientes.find(p => p.id === pid).nombre}">
+            <div class="map-marker-label">${index + 1}</div>
+          </div>
+        `;
+      });
+
+      routePath.setAttribute('d', pathD);
+
+      const vIcon = document.getElementById('map-vehicle-icon');
+      vIcon.style.left = `${coords[0].x - 12}px`;
+      vIcon.style.top = `${coords[0].y - 12}px`;
+    }
+
+    function printRoute() {
+      logAction(`Hojas de ruta: Exportó ruta diaria.`);
+      alert(`Exportando Hoja de Ruta para Conductor: ${currentRouteState.driver} (${currentRouteState.vehiclePatent}).\nEnviando planilla en formato compatible para impresión y WhatsApp.`);
+    }
+
+    let dragStartIndex = null;
+    function drag(ev, index) { dragStartIndex = index; }
+    function allowDrop(ev) { ev.preventDefault(); }
+    function drop(ev, index) {
+      ev.preventDefault();
+      const list = currentRouteState.passengers;
+      const dragItem = list[dragStartIndex];
+      list.splice(dragStartIndex, 1);
+      list.splice(index, 0, dragItem);
+      logAction(`Hojas de ruta: Reordenó secuencia vía drag and drop.`);
+      renderRouteList();
+    }
+
+    // 3. PACIENTES
+    let selectedPatientId = 'p1';
+
+    function renderPatientsList() {
+      const tableBody = document.getElementById('patients-table-body');
+      const searchVal = document.getElementById('patient-search').value.toLowerCase();
+
+      const filtered = store.pacientes.filter(p =>
+        p.nombre.toLowerCase().includes(searchVal) ||
+        p.dni.includes(searchVal)
+      );
+
+      tableBody.innerHTML = filtered.map(p => {
+        const os = store.obrasSociales.find(o => o.id === p.obraSocialId);
+
+        const today = new Date('2026-07-23');
+        const vence = new Date(p.cudVence);
+        const diffDays = Math.ceil((vence - today) / (1000 * 60 * 60 * 24));
+
+        let cudBadge = '';
+        if (diffDays < 0) cudBadge = '<span class="badge badge-danger">Vencido</span>';
+        else if (diffDays <= 60) cudBadge = `<span class="badge badge-warning">Vence en ${diffDays}d</span>`;
+        else cudBadge = `<span class="badge badge-success">Vigente (${p.cudVence})</span>`;
+
+        return `
+          <tr style="cursor:pointer;" onclick="selectPatient('${p.id}')">
+            <td><strong>${p.nombre}</strong></td>
+            <td>DNI: ${p.dni}<br><span style="font-size:0.72rem; color:var(--text-muted);">${p.afiliadoId}</span></td>
+            <td>${os ? os.nombre : 'Sin OS'}</td>
+            <td>${p.accesoriosMovilidad}</td>
+            <td>${cudBadge}</td>
+            <td>
+              <button class="btn btn-secondary btn-sm" onclick="selectPatient('${p.id}'); event.stopPropagation();">Ver Ficha</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      selectPatient(selectedPatientId);
+    }
+
+    function filterPatients() { renderPatientsList(); }
+
+    function selectPatient(id) {
+      selectedPatientId = id;
+
+      const p = store.pacientes.find(pat => pat.id === id);
+      const os = store.obrasSociales.find(o => o.id === p.obraSocialId);
+
+      const amparoBadge = document.getElementById('detail-amparo-badge');
+      if (p.amparoJudicial) {
+        amparoBadge.innerText = 'CON AMPARO JUDICIAL (RN-FA-04)';
+        amparoBadge.className = 'badge badge-danger';
+      } else {
+        amparoBadge.innerText = 'Cobro Plazo Normal';
+        amparoBadge.className = 'badge badge-secondary';
+      }
+
+      let docsHtml = '';
+      if (os) {
+        docsHtml = `
+          <div style="margin-top:0.5rem;">
+            <h4 style="font-size:0.88rem; margin-bottom:0.5rem;">Documentación Obligatoria (Requisitos: ${os.nombre})</h4>
+            <div class="checklist-container">
+              ${p.documentos.map((doc, idx) => `
+                <div class="checklist-item">
+                  <div class="checklist-item-info">
+                    <input type="checkbox" ${doc.cargado ? 'checked' : ''} onchange="toggleDocumentStatus('${p.id}', ${idx})">
+                    <span>${doc.nombre}</span>
+                  </div>
+                  <div>
+                    ${doc.cargado ?
+                      `<span class="badge badge-success" onclick="previewDoc('${doc.archivo}')" style="cursor:pointer;">📄 ${doc.archivo}</span>` :
+                      `<button class="btn btn-secondary btn-sm" onclick="uploadDocSim('${p.id}', ${idx})">Subir</button>`
+                    }
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      document.getElementById('patient-detail-content').innerHTML = `
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Titular CUIL (RN-ID-01)</label>
+            <input type="text" class="form-control" value="${p.cuilTitular}" readonly>
+          </div>
+          <div class="form-group">
+            <label>Nº de CUD</label>
+            <input type="text" class="form-control" value="${p.cudNumero}" readonly>
+          </div>
+          <div class="form-group">
+            <label>Vencimiento CUD</label>
+            <input type="date" class="form-control" value="${p.cudVence}" readonly>
+          </div>
+        </div>
+
+        <div style="background:var(--bg-surface-soft); padding:1rem; border-radius:var(--radius-md); border:1px solid var(--border-color);">
+          <h4 style="font-size:0.88rem; margin-bottom:0.5rem;">Tramos de Recorrido Configurados (Ida / Vuelta Independientes - RN-HR-02)</h4>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; font-size:0.84rem;">
+            <div>
+              <strong style="color:var(--color-secondary);">Dirección Ida:</strong>
+              <div style="margin-top:0.25rem;"><strong>Desde:</strong> ${p.direcciones.ida.origen}</div>
+              <div><strong>Hacia:</strong> ${p.direcciones.ida.destino}</div>
+            </div>
+            <div>
+              <strong style="color:var(--color-secondary);">Dirección Vuelta (No inversa obligada):</strong>
+              <div style="margin-top:0.25rem;"><strong>Desde:</strong> ${p.direcciones.vuelta.origen}</div>
+              <div><strong>Hacia:</strong> ${p.direcciones.vuelta.destino}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Persona a Cargo / Tutor</label>
+            <input type="text" class="form-control" value="${p.personasCargo}" readonly>
+          </div>
+          <div class="form-group">
+            <label>Teléfono Alternativo de Contacto</label>
+            <input type="text" class="form-control" value="${p.telefonoAlternativo}" readonly>
+          </div>
+        </div>
+
+        <div style="background:var(--color-primary-softer); padding:1rem; border-radius:var(--radius-md); border:1px solid rgba(63,125,115,0.2);">
+          <h4 style="font-size:0.88rem; margin-bottom:0.25rem; color:var(--text-heading);">Cupo Autorizado Mensual (RN-PA-03)</h4>
+          <div style="display:flex; justify-content:space-between; font-size:0.84rem; flex-wrap:wrap; gap:0.5rem;">
+            <span><strong>Presupuesto Anual:</strong> $${p.autorizaciones.presupuestoAnual.toLocaleString('es-AR')}</span>
+            <span><strong>Días Autorizados/Mes:</strong> ${p.autorizaciones.diasMax}</span>
+            <span><strong>Km Máx Autorizado:</strong> ${p.autorizaciones.kmMax} Km</span>
+          </div>
+        </div>
+
+        ${docsHtml}
+      `;
+    }
+
+    function toggleDocumentStatus(pId, docIndex) {
+      const p = store.pacientes.find(pat => pat.id === pId);
+      p.documentos[docIndex].cargado = !p.documentos[docIndex].cargado;
+      logAction(`Fichas clínicas: Modificó estado de documento en checklist.`);
+      selectPatient(pId);
+    }
+
+    function uploadDocSim(pId, docIndex) {
+      const p = store.pacientes.find(pat => pat.id === pId);
+      const docName = p.documentos[docIndex].nombre;
+      p.documentos[docIndex].cargado = true;
+      p.documentos[docIndex].archivo = docName.toLowerCase().replace(/ /g, '_') + '_cargado.pdf';
+      logAction(`Fichas clínicas: Cargó documento: ${docName}.`);
+      selectPatient(pId);
+    }
+
+    function previewDoc(filename) {
+      alert(`Abriendo visualizador documental para: ${filename}\nArchivo alojado en Supabase Storage (RF-900).`);
+    }
+
+    function showNewPatientModal() {
+      document.getElementById('modal-title').innerText = 'Nuevo Paciente (Alta de Ficha)';
+      document.getElementById('modal-body').innerHTML = `
+        <form id="new-patient-form" class="form-grid" style="grid-template-columns:1fr 1fr;">
+          <div class="form-group">
+            <label>Apellido y Nombre</label>
+            <input type="text" id="np-name" class="form-control" placeholder="Ej: Diana Pastor" required>
+          </div>
+          <div class="form-group">
+            <label>DNI del Paciente</label>
+            <input type="text" id="np-dni" class="form-control" placeholder="Ej: 54.123.987" required>
+          </div>
+          <div class="form-group">
+            <label>CUIL Titular (RN-ID-01)</label>
+            <input type="text" id="np-cuil" class="form-control" placeholder="CUIL de padre/madre/tutor" required>
+          </div>
+          <div class="form-group">
+            <label>Identificador Afiliado (RN-ID-02)</label>
+            <input type="text" id="np-afil" class="form-control" placeholder="Ej: PAMI-29911" required>
+          </div>
+          <div class="form-group">
+            <label>Obra Social</label>
+            <select id="np-os" class="form-control">
+              ${store.obrasSociales.map(os => `<option value="${os.id}">${os.nombre}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Accesorio de Movilidad</label>
+            <select id="np-acc" class="form-control">
+              <option value="Silla de ruedas rígida">Silla de ruedas rígida</option>
+              <option value="Silla postural">Silla postural</option>
+              <option value="Andador">Andador</option>
+              <option value="Trípode">Trípode</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Nº de CUD</label>
+            <input type="text" id="np-cud" class="form-control" placeholder="Nº CUD" required>
+          </div>
+          <div class="form-group">
+            <label>Vencimiento CUD</label>
+            <input type="date" id="np-cud-vence" class="form-control" required>
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Dirección habitual IDA (Tramo origen/destino)</label>
+            <div style="display:flex; gap:0.5rem;">
+              <input type="text" id="np-ida-origen" class="form-control" placeholder="Desde..." style="width:50%;">
+              <input type="text" id="np-ida-dest" class="form-control" placeholder="Hacia..." style="width:50%;">
+            </div>
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>Dirección habitual VUELTA (Tramo origen/destino - RN-HR-02)</label>
+            <div style="display:flex; gap:0.5rem;">
+              <input type="text" id="np-vuelta-origen" class="form-control" placeholder="Desde..." style="width:50%;">
+              <input type="text" id="np-vuelta-dest" class="form-control" placeholder="Hacia..." style="width:50%;">
+            </div>
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label>
+              <input type="checkbox" id="np-amparo"> Posee Amparo Judicial (Reduce plazo de cobro a 45 días)
+            </label>
+          </div>
+        </form>
+      `;
+      document.getElementById('modal-footer').innerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveNewPatient()">Crear Paciente</button>
+      `;
+      document.getElementById('generic-modal').style.display = 'flex';
+    }
+
+    function saveNewPatient() {
+      const name = document.getElementById('np-name').value;
+      const dni = document.getElementById('np-dni').value;
+      const cuil = document.getElementById('np-cuil').value;
+      const afil = document.getElementById('np-afil').value;
+      const osId = document.getElementById('np-os').value;
+      const acc = document.getElementById('np-acc').value;
+      const cud = document.getElementById('np-cud').value;
+      const cudVence = document.getElementById('np-cud-vence').value;
+      const idaO = document.getElementById('np-ida-origen').value;
+      const idad = document.getElementById('np-ida-dest').value;
+      const vO = document.getElementById('np-vuelta-origen').value;
+      const vD = document.getElementById('np-vuelta-dest').value;
+      const amparo = document.getElementById('np-amparo').checked;
+
+      if (!name || !dni || !cuil) {
+        alert('Por favor complete los campos obligatorios.');
+        return;
+      }
+
+      const newP = {
+        id: 'p' + (store.pacientes.length + 1),
+        nombre: name,
+        dni: dni,
+        cuilTitular: cuil,
+        afiliadoId: afil,
+        obraSocialId: osId,
+        accesoriosMovilidad: acc,
+        cudNumero: cud,
+        cudEmision: '2026-07-23',
+        cudVence: cudVence,
+        amparoJudicial: amparo,
+        personasCargo: 'Tutor a definir',
+        telefonoAlternativo: '351-000000',
+        direcciones: { ida: { origen: idaO, destino: idad }, vuelta: { origen: vO, destino: vD } },
+        autorizaciones: { presupuestoAnual: 2000000, diasMax: 20, kmMax: 800, estado: 'pendiente' },
+        documentos: store.obrasSociales.find(os => os.id === osId).checklist.map(item => ({ nombre: item, cargado: false }))
+      };
+
+      store.pacientes.push(newP);
+      logAction(`Fichas clínicas: Creó nuevo paciente: ${name}.`);
+      closeModal();
+      renderPatientsList();
+    }
+
+    // 4. OBRAS SOCIALES
+    let selectedOSId = 'osde';
+
+    function renderOSList() {
+      const tableBody = document.getElementById('os-table-body');
+      tableBody.innerHTML = store.obrasSociales.map(os => `
+        <tr style="cursor:pointer;" onclick="selectOS('${os.id}')">
+          <td><strong>${os.nombre}</strong></td>
+          <td>${os.cuit}</td>
+          <td>${os.plazoCobro} días</td>
+          <td>Tipo ${os.tipoComprobante}</td>
+          <td>${os.checklist.length} requisitos</td>
+          <td><button class="btn btn-secondary btn-sm" onclick="selectOS('${os.id}')">Configurar</button></td>
+        </tr>
+      `).join('');
+
+      selectOS(selectedOSId);
+    }
+
+    function selectOS(id) {
+      selectedOSId = id;
+      const os = store.obrasSociales.find(o => o.id === id);
+
+      document.getElementById('os-config-content').innerHTML = `
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Plazo de Cobro (Días desde Factura)</label>
+            <input type="number" id="os-edit-plazo" class="form-control" value="${os.plazoCobro}">
+          </div>
+          <div class="form-group">
+            <label>Tipo de Comprobante Requerido</label>
+            <select id="os-edit-comprobante" class="form-control">
+              <option value="A" ${os.tipoComprobante === 'A' ? 'selected' : ''}>Tipo A (Responsable Inscripto)</option>
+              <option value="B" ${os.tipoComprobante === 'B' ? 'selected' : ''}>Tipo B (Exento / Consumidor Final)</option>
+              <option value="C" ${os.tipoComprobante === 'C' ? 'selected' : ''}>Tipo C (Monotributista)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Plantilla de Descripción de Factura (Campos Dinámicos)</label>
+          <p style="font-size:0.72rem; color:var(--text-muted); margin-top:-0.25rem;">
+            Usa placeholders como {{paciente}}, {{dni}}, {{afiliado}}, {{domicilio}}, {{mes}}, {{dias_traslado}}, {{km_por_dia}}, {{km_totales}}, {{valor_km}} para armar descripciones automatizadas en facturación.
+          </p>
+          <textarea id="os-edit-template" rows="4" class="form-control" style="font-family:monospace; font-size:0.83rem;">${os.templateDesc}</textarea>
+        </div>
+
+        <div>
+          <h4 style="font-size:0.88rem; margin-bottom:0.5rem;">Checklist Documental Requerido por la Obra Social (Reordenables / Editables)</h4>
+          <div id="os-checklist-editor">
+            ${os.checklist.map((item, idx) => `
+              <div class="sortable-item" draggable="true" ondragstart="dragOSChecklist(${idx})" style="padding: 0.5rem 0.75rem;">
+                <span class="drag-handle">☰</span>
+                <input type="text" class="form-control checklist-input-val" value="${item}" style="flex-grow:1; padding:0.3rem 0.5rem;">
+                <button class="btn btn-danger btn-sm" onclick="removeOSChecklistItem(${idx})" style="padding:0.2rem 0.4rem;">✕</button>
+              </div>
+            `).join('')}
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="addOSChecklistItem()" style="margin-top:0.5rem;">+ Agregar Requisito</button>
+        </div>
+      `;
+    }
+
+    let dragChecklistIdx = null;
+    function dragOSChecklist(idx) { dragChecklistIdx = idx; }
+
+    function removeOSChecklistItem(idx) {
+      const os = store.obrasSociales.find(o => o.id === selectedOSId);
+      os.checklist.splice(idx, 1);
+      logAction(`Obras sociales: Eliminó requisito del checklist.`);
+      selectOS(selectedOSId);
+    }
+
+    function addOSChecklistItem() {
+      const os = store.obrasSociales.find(o => o.id === selectedOSId);
+      os.checklist.push('Nuevo Requisito Documental');
+      logAction(`Obras sociales: Agregó requisito al checklist.`);
+      selectOS(selectedOSId);
+    }
+
+    function saveOSConfig() {
+      const os = store.obrasSociales.find(o => o.id === selectedOSId);
+      os.plazoCobro = parseInt(document.getElementById('os-edit-plazo').value);
+      os.tipoComprobante = document.getElementById('os-edit-comprobante').value;
+      os.templateDesc = document.getElementById('os-edit-template').value;
+
+      const inputs = document.querySelectorAll('.checklist-input-val');
+      os.checklist = Array.from(inputs).map(inp => inp.value);
+
+      logAction(`Obras sociales: Guardó configuración de ${os.nombre}.`);
+      alert(`Configuración de ${os.nombre} actualizada correctamente.`);
+      renderOSList();
+    }
+
+    function showNewOSModal() {
+      document.getElementById('modal-title').innerText = 'Nueva Obra Social';
+      document.getElementById('modal-body').innerHTML = `
+        <form id="new-os-form" class="form-grid">
+          <div class="form-group">
+            <label>Nombre de la Obra Social / Prestador</label>
+            <input type="text" id="nos-name" class="form-control" placeholder="Ej: Galeno Discapacidad" required>
+          </div>
+          <div class="form-group">
+            <label>CUIT Receptora</label>
+            <input type="text" id="nos-cuit" class="form-control" placeholder="Ej: 30-99988822-1" required>
+          </div>
+          <div class="form-group">
+            <label>Plazo de Pago (Días)</label>
+            <input type="number" id="nos-plazo" class="form-control" value="90">
+          </div>
+          <div class="form-group">
+            <label>Tipo Factura</label>
+            <select id="nos-tipo" class="form-control">
+              <option value="A">Factura A</option>
+              <option value="B">Factura B</option>
+              <option value="C">Factura C</option>
+            </select>
+          </div>
+        </form>
+      `;
+      document.getElementById('modal-footer').innerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveNewOS()">Crear Prestador</button>
+      `;
+      document.getElementById('generic-modal').style.display = 'flex';
+    }
+
+    function saveNewOS() {
+      const name = document.getElementById('nos-name').value;
+      const cuit = document.getElementById('nos-cuit').value;
+      const plazo = document.getElementById('nos-plazo').value;
+      const tipo = document.getElementById('nos-tipo').value;
+
+      if (!name || !cuit) {
+        alert('Por favor complete los campos obligatorios.');
+        return;
+      }
+
+      const newOS = {
+        id: name.toLowerCase().replace(/ /g, '_'),
+        nombre: name,
+        cuit: cuit,
+        plazoCobro: parseInt(plazo),
+        tipoComprobante: tipo,
+        templateDesc: "Traslado de {{paciente}} (afiliado {{afiliado}}). Mes: {{mes}}. Total días: {{dias_traslado}}. Valor km: ${{valor_km}}.",
+        checklist: ['CUD Vigente']
+      };
+
+      store.obrasSociales.push(newOS);
+      logAction(`Obras sociales: Creó prestador: ${name}.`);
+      closeModal();
+      renderOSList();
+    }
+
+    // 5. FACTURACIÓN Y PRE-VALIDACIÓN
+    function initFacturacionView() {
+      const factPatientSelect = document.getElementById('fact-patient');
+      factPatientSelect.innerHTML = store.pacientes.map(p =>
+        `<option value="${p.id}">${p.nombre} [Af: ${p.afiliadoId}]</option>`
+      ).join('');
+
+      onFactPatientChange();
+      renderInvoicesList();
+    }
+
+    function onFactPatientChange() {
+      const pId = document.getElementById('fact-patient').value;
+      const p = store.pacientes.find(pat => pat.id === pId);
+
+      document.getElementById('fact-days').value = p.autorizaciones.diasMax;
+      document.getElementById('fact-km-day').value = (p.autorizaciones.kmMax / p.autorizaciones.diasMax).toFixed(0);
+
+      generateInvoiceDescription();
+    }
+
+    function onDaysOrKmChange() { generateInvoiceDescription(); }
+
+    function generateInvoiceDescription() {
+      const pId = document.getElementById('fact-patient').value;
+      const p = store.pacientes.find(pat => pat.id === pId);
+      const os = store.obrasSociales.find(o => o.id === p.obraSocialId);
+
+      const mes = document.getElementById('fact-period').value;
+      const dias = parseInt(document.getElementById('fact-days').value) || 0;
+      const kmDia = parseInt(document.getElementById('fact-km-day').value) || 0;
+      const valKm = parseFloat(document.getElementById('fact-km-val').value) || 0;
+
+      const kmTotales = dias * kmDia;
+      const total = kmTotales * valKm;
+
+      document.getElementById('fact-total-val').innerText = `$${total.toLocaleString('es-AR')}`;
+
+      const warningAlert = document.getElementById('quota-validation-alert');
+      let excessFound = false;
+      let alertMsg = '';
+
+      if (dias > p.autorizaciones.diasMax) {
+        excessFound = true;
+        alertMsg += `Exceso de días: Autorizados ${p.autorizaciones.diasMax} mensuales, intentando facturar ${dias}. `;
+      }
+      if (kmTotales > p.autorizaciones.kmMax) {
+        excessFound = true;
+        alertMsg += `Exceso de Kilómetros: Autorizado máx ${p.autorizaciones.kmMax} Km mensuales, intentando facturar ${kmTotales} Km (${dias} días x ${kmDia} km/día).`;
+      }
+
+      if (excessFound) {
+        warningAlert.style.display = 'flex';
+        document.getElementById('quota-validation-text').innerHTML = `<strong>Atención Ariana:</strong> ${alertMsg}<br><span style="color:var(--text-heading); font-size:0.72rem;">Si emitís esta factura con excedente de cupo, podría ser rechazada por la obra social.</span>`;
+      } else {
+        warningAlert.style.display = 'none';
+      }
+
+      if (os) {
+        let desc = os.templateDesc;
+        desc = desc.replace(/\{\{paciente\}\}/g, p.nombre);
+        desc = desc.replace(/\{\{dni\}\}/g, p.dni);
+        desc = desc.replace(/\{\{afiliado\}\}/g, p.afiliadoId);
+        desc = desc.replace(/\{\{domicilio\}\}/g, p.direcciones.ida.origen.replace('Domicilio: ', ''));
+        desc = desc.replace(/\{\{mes\}\}/g, mes);
+        desc = desc.replace(/\{\{dias_traslado\}\}/g, dias);
+        desc = desc.replace(/\{\{km_por_dia\}\}/g, kmDia);
+        desc = desc.replace(/\{\{km_totales\}\}/g, kmTotales);
+        desc = desc.replace(/\{\{valor_km\}\}/g, valKm.toFixed(2));
+
+        document.getElementById('compiled-desc-output').innerHTML = `
+          ${desc}
+          <span class="copy-toast" id="copy-toast">Copiado!</span>
+        `;
+      }
+    }
+
+    function copyInvoiceDescription() {
+      const text = document.getElementById('compiled-desc-output').innerText.replace('Copiado!', '').trim();
+      navigator.clipboard.writeText(text);
+
+      const toast = document.getElementById('copy-toast');
+      toast.style.opacity = '1';
+      setTimeout(() => { toast.style.opacity = '0'; }, 1500);
+
+      logAction(`Facturación: Copió descripción compilada al portapapeles.`);
+    }
+
+    function createInvoice() {
+      const pId = document.getElementById('fact-patient').value;
+      const p = store.pacientes.find(pat => pat.id === pId);
+
+      const dias = parseInt(document.getElementById('fact-days').value) || 0;
+      const kmDia = parseInt(document.getElementById('fact-km-day').value) || 0;
+      const valKm = parseFloat(document.getElementById('fact-km-val').value) || 0;
+      const total = dias * kmDia * valKm;
+
+      const newFact = {
+        id: `FAC-${(store.facturas.length + 1001)}`,
+        pacienteId: pId,
+        obraSocialId: p.obraSocialId,
+        fechaEmision: new Date().toISOString().split('T')[0],
+        monto: total,
+        cobrado: 0,
+        estado: 'Facturado'
+      };
+
+      store.facturas.push(newFact);
+      logAction(`Facturación: Emitió factura ${newFact.id} por $${total.toLocaleString('es-AR')}.`);
+      alert(`Factura ${newFact.id} emitida y registrada.\nSe autocalculó la fecha estimada de cobro para ${p.amparoJudicial ? '45' : '90'} días.`);
+      renderInvoicesList();
+    }
+
+    function renderInvoicesList() {
+      const tableBody = document.getElementById('invoices-table-body');
+
+      tableBody.innerHTML = store.facturas.map(f => {
+        const p = store.pacientes.find(pat => pat.id === f.pacienteId);
+        const os = store.obrasSociales.find(o => o.id === f.obraSocialId);
+
+        const fechaEmi = new Date(f.fechaEmision);
+        const diasPlazo = p.amparoJudicial ? 45 : (os ? os.plazoCobro : 90);
+        const estCobro = new Date(fechaEmi);
+        estCobro.setDate(fechaEmi.getDate() + diasPlazo);
+        const estCobroStr = estCobro.toISOString().split('T')[0];
+
+        const today = new Date('2026-07-23');
+        const isOverdue = (f.estado === 'Facturado' || f.estado === 'Pagado Parcial') && (today > estCobro);
+
+        let estCobroBadge = `<span>${estCobroStr}</span>`;
+        if (isOverdue) estCobroBadge = `<span class="badge badge-danger" title="Mora activa">${estCobroStr} ⚠️</span>`;
+
+        let stateBadge = '';
+        if (f.estado === 'Cobrado') stateBadge = '<span class="badge badge-success">Cobrado</span>';
+        else if (f.estado === 'Pagado Parcial') stateBadge = '<span class="badge badge-warning">Pago Parcial</span>';
+        else stateBadge = '<span class="badge badge-info">Facturado</span>';
+
+        return `
+          <tr>
+            <td><strong>${f.id}</strong></td>
+            <td>${p.nombre}</td>
+            <td>${f.fechaEmision}</td>
+            <td>${estCobroBadge}</td>
+            <td>$${f.monto.toLocaleString('es-AR')}</td>
+            <td>${stateBadge}</td>
+            <td>
+              ${f.estado !== 'Cobrado' ?
+                `<button class="btn btn-success btn-sm" onclick="registrarCobroSim('${f.id}')">Registrar Pago</button>` :
+                `<button class="btn btn-secondary btn-sm" disabled>Cerrado</button>`
+              }
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function registrarCobroSim(fId) {
+      const f = store.facturas.find(fact => fact.id === fId);
+      const inputMonto = prompt(`Monto total a cobrar de la factura ($${f.monto.toLocaleString('es-AR')}):`, f.monto - f.cobrado);
+
+      if (inputMonto === null) return;
+
+      const cobro = parseFloat(inputMonto);
+      if (isNaN(cobro) || cobro <= 0) {
+        alert('Monto inválido.');
+        return;
+      }
+
+      f.cobrado += cobro;
+      f.estado = f.cobrado >= f.monto ? 'Cobrado' : 'Pagado Parcial';
+
+      logAction(`Facturación: Registró cobro de $${cobro.toLocaleString('es-AR')} para ${fId}.`);
+      renderInvoicesList();
+      renderDashboard();
+    }
+
+    // 6. FLOTA Y VEHÍCULOS
+    function renderFlotaView() {
+      const vehicleTable = document.getElementById('vehicles-table-body');
+
+      vehicleTable.innerHTML = store.vehiculos.map(v => {
+        let statusBadge = v.Estado === 'Activo' ? '<span class="badge badge-success">Activo</span>' : '<span class="badge badge-danger">Fuera de Servicio</span>';
+
+        return `
+          <tr>
+            <td><strong>${v.Patent}</strong></td>
+            <td>${v.Modelo}</td>
+            <td>Capacidad: ${v.Capacidad} pasajeros</td>
+            <td><span style="font-size:0.78rem; color:var(--text-muted);">${v.Accesorios.join(', ')}</span></td>
+            <td>${v.KmActual.toLocaleString('es-AR')} Km</td>
+            <td>${statusBadge}</td>
+            <td>
+              <button class="btn btn-secondary btn-sm" onclick="toggleVehicleStatus('${v.Patent}')">
+                ${v.Estado === 'Activo' ? 'Inhabilitar' : 'Activar'}
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      const maintenanceList = document.getElementById('fleet-maintenance-list');
+      const today = new Date('2026-07-23');
+
+      maintenanceList.innerHTML = store.vehiculos.map(v => {
+        const oilKm = v.KmActual - v.KmUltimoCambio;
+        const vtv = new Date(v.ProximoVencVTV);
+        const vtvDiff = Math.ceil((vtv - today) / (1000 * 60 * 60 * 24));
+
+        let alerts = [];
+
+        if (oilKm >= 10000) alerts.push(`<span class="badge badge-danger">Cambio de Aceite Requerido: +${(oilKm - 10000)} Km excedidos</span>`);
+        else if (oilKm >= 5000) alerts.push(`<span class="badge badge-warning">Aviso Cambio Aceite: Transcurridos ${oilKm} Km (Límite 10K)</span>`);
+
+        if (vtvDiff < 0) alerts.push(`<span class="badge badge-danger">VTV Vencida hace ${Math.abs(vtvDiff)} días (Excluido de operación si vence)</span>`);
+        else if (vtvDiff <= 30) alerts.push(`<span class="badge badge-warning">VTV Vence pronto: en ${vtvDiff} días</span>`);
+
+        return `
+          <div style="background:var(--bg-surface-soft); border:1px solid var(--border-color); padding:1rem; border-radius:var(--radius-sm);">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+              <strong style="color:var(--text-heading);">${v.Modelo} (${v.Patent})</strong>
+              <button class="btn btn-secondary btn-sm" onclick="recordMaintenanceSim('${v.Patent}')" style="padding:0.2rem 0.5rem; font-size:0.72rem;">Actualizar Km / VTV</button>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:0.5rem; margin-top:0.75rem;">
+              ${alerts.length > 0 ? alerts.join('') : '<span class="badge badge-success">Todo al día</span>'}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const driversTable = document.getElementById('drivers-table-body');
+      driversTable.innerHTML = store.conductores.map(c => `
+        <tr>
+          <td><strong>${c.nombre}</strong></td>
+          <td>DNI: ${c.dni}<br>Tel: ${c.telefono}</td>
+          <td><strong>${c.vehiculoPatente}</strong></td>
+          <td><span style="font-size:0.78rem; color:var(--color-warning);">${c.restricciones}</span></td>
+          <td>${c.licenciaVence}</td>
+          <td><button class="btn btn-secondary btn-sm" onclick="editDriverSim('${c.nombre}')">Editar</button></td>
+        </tr>
+      `).join('');
+    }
+
+    function toggleVehicleStatus(patent) {
+      const v = store.vehiculos.find(veh => veh.Patent === patent);
+      v.Estado = v.Estado === 'Activo' ? 'Fuera de Servicio' : 'Activo';
+      logAction(`Flota: Modificó estado de servicio del vehículo: ${patent}.`);
+      renderFlotaView();
+    }
+
+    function recordMaintenanceSim(patent) {
+      const v = store.vehiculos.find(veh => veh.Patent === patent);
+      const newKmStr = prompt(`Actualizar Kilometraje del vehículo ${v.Modelo} (Actual: ${v.KmActual} Km):`, v.KmActual);
+      if (newKmStr === null) return;
+
+      const newKm = parseInt(newKmStr);
+      if (isNaN(newKm) || newKm < v.KmActual) {
+        alert('Kilometraje incorrecto.');
+        return;
+      }
+
+      v.KmActual = newKm;
+
+      const didChangeOil = confirm('¿Se realizó el cambio de aceite y filtros en esta actualización?');
+      if (didChangeOil) v.KmUltimoCambio = newKm;
+
+      const didRenewVTV = confirm('¿Se renovó la oblea de VTV/RTO?');
+      if (didRenewVTV) {
+        const nextVence = prompt('Ingrese nueva fecha de vencimiento VTV (YYYY-MM-DD):', '2027-01-30');
+        if (nextVence) v.ProximoVencVTV = nextVence;
+      }
+
+      logAction(`Flota: Actualizó datos de mantenimiento del vehículo: ${patent}.`);
+      renderFlotaView();
+      renderDashboard();
+    }
+
+    function showNewVehicleModal() {
+      document.getElementById('modal-title').innerText = 'Nuevo Vehículo de Flota';
+      document.getElementById('modal-body').innerHTML = `
+        <form id="new-vehicle-form" class="form-grid">
+          <div class="form-group">
+            <label>Matrícula / Patente</label>
+            <input type="text" id="nv-patent" class="form-control" placeholder="Ej: AF-990-ZZ" required>
+          </div>
+          <div class="form-group">
+            <label>Modelo / Descripción</label>
+            <input type="text" id="nv-model" class="form-control" placeholder="Ej: Mercedes Sprinter" required>
+          </div>
+          <div class="form-group">
+            <label>Capacidad (Max 6)</label>
+            <input type="number" id="nv-cap" class="form-control" value="6" min="1" max="6">
+          </div>
+          <div class="form-group">
+            <label>Kilometraje Inicial</label>
+            <input type="number" id="nv-km" class="form-control" value="50000">
+          </div>
+        </form>
+      `;
+      document.getElementById('modal-footer').innerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveNewVehicle()">Registrar Vehículo</button>
+      `;
+      document.getElementById('generic-modal').style.display = 'flex';
+    }
+
+    function saveNewVehicle() {
+      const patent = document.getElementById('nv-patent').value;
+      const model = document.getElementById('nv-model').value;
+      const cap = parseInt(document.getElementById('nv-cap').value);
+      const km = parseInt(document.getElementById('nv-km').value);
+
+      if (!patent || !model) {
+        alert('Complete patente y modelo.');
+        return;
+      }
+
+      const newV = {
+        Patent: patent, Modelo: model, Capacidad: cap, Accesorios: ['Andador'],
+        KmActual: km, KmUltimoCambio: km, ProximoVencVTV: '2027-01-20', ProximoVencRTO: '2027-04-10', Estado: 'Activo'
+      };
+
+      store.vehiculos.push(newV);
+      logAction(`Flota: Registró nuevo vehículo: ${model} (${patent}).`);
+      closeModal();
+      renderFlotaView();
+    }
+
+    function showNewDriverModal() {
+      document.getElementById('modal-title').innerText = 'Nuevo Conductor';
+      document.getElementById('modal-body').innerHTML = `
+        <form id="new-driver-form" class="form-grid">
+          <div class="form-group">
+            <label>Nombre Completo</label>
+            <input type="text" id="nd-name" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>DNI</label>
+            <input type="text" id="nd-dni" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Teléfono</label>
+            <input type="text" id="nd-phone" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label>Licencia Vencimiento</label>
+            <input type="date" id="nd-vence" class="form-control" required>
+          </div>
+        </form>
+      `;
+      document.getElementById('modal-footer').innerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveNewDriver()">Crear Conductor</button>
+      `;
+      document.getElementById('generic-modal').style.display = 'flex';
+    }
+
+    function saveNewDriver() {
+      const name = document.getElementById('nd-name').value;
+      const dni = document.getElementById('nd-dni').value;
+      const phone = document.getElementById('nd-phone').value;
+      const vence = document.getElementById('nd-vence').value;
+
+      if (!name || !dni) {
+        alert('Complete nombre y DNI.');
+        return;
+      }
+
+      const newD = { nombre: name, dni: dni, telefono: phone, vehiculoPatente: 'AE-982-FF', restricciones: 'Ninguna', licenciaVence: vence };
+
+      store.conductores.push(newD);
+      logAction(`Flota: Creó ficha de conductor: ${name}.`);
+      closeModal();
+      renderFlotaView();
+    }
+
+    function closeModal() { document.getElementById('generic-modal').style.display = 'none'; }
+
+    window.onload = function() {
+      renderAuditLog();
+      renderDashboard();
+      updateFinanceChart();
+    }
+  </script>
+</body>
+</html>
