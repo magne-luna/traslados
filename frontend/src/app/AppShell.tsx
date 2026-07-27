@@ -121,12 +121,14 @@ export function AppShell() {
 
       <aside
         id="sidebar"
-        className={`fixed top-0 bottom-0 left-0 z-40 flex shrink-0 flex-col gap-xs border-r border-sidebar-border bg-sidebar-bg p-lg transition-[transform,width] duration-200 ease-[ease] md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'w-18' : 'w-56'}`}
+        className={`fixed top-0 bottom-0 left-0 z-40 flex shrink-0 flex-col gap-xs overflow-hidden border-r border-sidebar-border bg-sidebar-bg p-lg transition-[transform,width] duration-200 ease-[ease] md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'w-18' : 'w-56'}`}
       >
         <div
           className={`mt-1 mb-lg flex items-center gap-sm ${collapsed ? 'justify-center' : 'justify-between'}`}
         >
-          {!collapsed && <div className="font-heading text-base font-bold text-ink">Pastor Traslados</div>}
+          {!collapsed && (
+            <div className="font-heading text-base font-bold whitespace-nowrap text-ink">Pastor Traslados</div>
+          )}
 
           <button
             type="button"
@@ -151,7 +153,7 @@ export function AppShell() {
                 className={`flex items-center gap-sm pb-sm ${collapsed ? 'justify-center px-sm' : 'px-md'}`}
               >
                 {!collapsed && (
-                  <span className="font-body text-[10px] font-bold tracking-[0.08em] text-muted uppercase">
+                  <span className="font-body text-[10px] font-bold whitespace-nowrap tracking-[0.08em] text-muted uppercase">
                     {section}
                   </span>
                 )}
@@ -166,7 +168,7 @@ export function AppShell() {
                       aria-label={collapsed ? route.label : undefined}
                       title={collapsed ? route.label : undefined}
                       className={({ isActive }) =>
-                        `nav-item flex items-center gap-sm rounded-sm px-md py-sm font-body text-[13px] font-semibold no-underline ${
+                        `nav-item flex items-center gap-sm rounded-sm px-md py-sm font-body text-[13px] font-semibold whitespace-nowrap no-underline ${
                           collapsed ? 'justify-center' : 'justify-start'
                         } ${
                           isActive
