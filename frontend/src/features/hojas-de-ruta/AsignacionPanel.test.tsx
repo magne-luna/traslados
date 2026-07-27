@@ -1,0 +1,221 @@
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type { Paciente } from '../../shared/types/paciente';
+import type { Recorrido } from '../../shared/types/hojaDeRuta';
+import type { Vehiculo } from '../../shared/types/vehiculo';
+import { AsignacionPanel } from './AsignacionPanel';
+
+// RN-VE-01 (accesorio incompatible) y capacidad de vehículo (tasks.md 5.3, 9.2): la asignación
+// se bloquea en la UI con un mensaje visible y nunca llega a `onAgregar` (no se persiste).
+
+const vehiculoConSillaPlegable: Vehiculo = {
+  id: 'vehiculo-1',
+  patente: 'AA111AA',
+  modelo: 'Test',
+  tipo: 'sedan',
+  capacidad: 2,
+  accesoriosCompatibles: ['silla-plegable'],
+  estado: 'habilitado',
+  kilometraje: 0,
+  kilometrajeUltimoService: 0,
+  fechaUltimoService: '2026-01-01',
+  habilitaciones: [],
+  gastos: [],
+};
+
+function buildPaciente(overrides: Partial<Paciente> = {}): Paciente {
+  return {
+    id: 'paciente-1',
+    apellido: 'Gómez',
+    nombre: 'Martina',
+    fechaNacimiento: '2015-01-01',
+    dni: '1',
+    cuilTitular: '20-1-1',
+    diagnostico: 'Test',
+    accesorioMovilidad: [],
+    obraSocialId: null,
+    numeroAfiliado: { formato: 'numero-documento', valor: '1' },
+    cud: null,
+    direcciones: [
+      { id: 'dir-ida', tipo: 'domicilio', calle: 'Calle 1', localidad: 'CABA' },
+      { id: 'dir-vuelta', tipo: 'escuela', calle: 'Calle 2', localidad: 'CABA' },
+    ],
+    personasACargo: [],
+    amparoJudicial: false,
+    ...overrides,
+  };
+}
+
+function buildRecorrido(overrides: Partial<Recorrido> = {}): Recorrido {
+  return {
+    id: 'recorrido-1',
+    vehiculoId: 'vehiculo-1',
+    conductorId: 'conductor-1',
+    manual: false,
+    paradas: [],
+    ...overrides,
+  };
+}
+
+describe('AsignacionPanel', () => {
+  it('bloquea la asignación cuando el paciente requiere un accesorio incompatible con el vehículo (RN-VE-01)', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+    const pacienteIncompatible = buildPaciente({
+      id: 'paciente-incompatible',
+      apellido: 'Pereyra',
+      accesorioMovilidad: ['silla-rigida'],
+    });
+
+    render(
+      <AsignacionPanel
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[pacienteIncompatible]}
+        onAgregar={onAgregar}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-incompatible');
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/silla-rigida/i);
+    expect(onAgregar).not.toHaveBeenCalled();
+  });
+
+  it('bloquea la asignación cuando el vehículo no tiene lugar disponible (capacidad)', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+    const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+    // Vehículo con capacidad 2 ya con 2 paradas: lleno.
+    const recorridoLleno = buildRecorrido({
+      paradas: [
+        { id: 'p1', pacienteId: 'x', tramo: 'ida', direccionOrigenId: 'a', direccionDestinoId: 'b', orden: 0 },
+        { id: 'p2', pacienteId: 'y', tramo: 'ida', direccionOrigenId: 'a', direccionDestinoId: 'b', orden: 1 },
+      ],
+    });
+
+    render(
+      <AsignacionPanel
+        recorrido={recorridoLleno}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[compatible]}
+        onAgregar={onAgregar}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/lugar|capacidad/i);
+    expect(onAgregar).not.toHaveBeenCalled();
+  });
+
+  it('agrega la parada cuando el paciente es compatible y hay lugar disponible', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+    const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+
+    render(
+      <AsignacionPanel
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[compatible]}
+        onAgregar={onAgregar}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await user.selectOptions(screen.getByLabelText(/dirección de origen/i), 'dir-ida');
+    await user.selectOptions(screen.getByLabelText(/dirección de destino/i), 'dir-vuelta');
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+
+    expect(onAgregar).toHaveBeenCalledTimes(1);
+    const parada = onAgregar.mock.calls[0]?.[0];
+    expect(parada).toMatchObject({
+      pacienteId: 'paciente-1',
+      direccionOrigenId: 'dir-ida',
+      direccionDestinoId: 'dir-vuelta',
+      orden: 0,
+    });
+  });
+
+  it('al elegir un paciente con accesorios, los muestra como chips (feedback de usuario: mismo formulario que Nuevo recorrido)', async () => {
+    const conAccesorio = buildPaciente({ id: 'paciente-acc', apellido: 'Ledesma', accesorioMovilidad: ['silla-plegable'] });
+
+    render(
+      <AsignacionPanel
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[conAccesorio]}
+        onAgregar={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText(/silla plegable/i).length).toBeGreaterThan(0);
+  });
+
+  it('permite cargar la hora estimada del tramo y la incluye en la parada creada', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+    const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+
+    render(
+      <AsignacionPanel
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[compatible]}
+        onAgregar={onAgregar}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await user.type(screen.getByLabelText(/hora/i), '08:30');
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+
+    const parada = onAgregar.mock.calls[0]?.[0];
+    expect(parada).toMatchObject({ horaEstimada: '08:30' });
+  });
+
+  it('sin hora cargada, la parada no lleva horaEstimada (borde)', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+    const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+
+    render(
+      <AsignacionPanel
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[compatible]}
+        onAgregar={onAgregar}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+
+    const parada = onAgregar.mock.calls[0]?.[0];
+    expect(parada.horaEstimada).toBeUndefined();
+  });
+
+  it('paciente sin accesorios de movilidad se acepta en cualquier vehículo (borde)', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+    const sinAccesorios = buildPaciente({ accesorioMovilidad: [] });
+
+    render(
+      <AsignacionPanel
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[sinAccesorios]}
+        onAgregar={onAgregar}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+
+    expect(onAgregar).toHaveBeenCalledTimes(1);
+  });
+});

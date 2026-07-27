@@ -1,0 +1,86 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens del proyecto, expuestos como variables de theme de Tailwind v4 (antes vivían
+ * como objeto JS en design-system/tokens.ts, consumido vía style={{}} inline — ver Reglas
+ * Duras en CLAUDE.md: SIEMPRE Tailwind, NUNCA inline styles). Los nombres semánticos
+ * (sidebarTextActive, surfaceSoft, borderStrong, etc.) se preservan tal cual, solo en
+ * kebab-case para seguir la convención de variables CSS de Tailwind v4.
+ *
+ * Paleta validada por el cliente (Andrea/equipo) — ver ../../prototype.html. No hardcodear
+ * estos valores sueltos en componentes: usar siempre las clases utilitarias generadas acá
+ * (bg-ink, text-muted, border-border-strong, p-lg, rounded-md, shadow-card, font-heading, etc.).
+ */
+@theme {
+  /* Superficie — tema claro, sobrio, profesional */
+  --color-bg: #F2F6F5;
+  --color-surface: #FFFFFF;
+  --color-surface-soft: #EEF4F3;
+  --color-border: #E1E9E8;
+  --color-border-strong: #CBDBD9;
+  --color-code: #F7FAF9;
+
+  --color-ink: #1B2B2A; /* texto de títulos */
+  --color-text: #2E3D3C; /* texto de cuerpo */
+  --color-muted: #6C7C7A;
+  --color-faint: #93A19E;
+
+  /* Sidebar: claro, con estado activo marcado por acento (no fondo oscuro fijo) */
+  --color-sidebar-bg: #FFFFFF;
+  --color-sidebar-border: #E1E9E8;
+  --color-sidebar-text: #6C7C7A;
+  --color-sidebar-text-active: #3F7D73;
+
+  /* Marca / acciones primarias — paleta teal provista por el cliente */
+  --color-primary: #3F7D73; /* profundizado de #64a69d — botones/texto interactivo, AA sobre blanco */
+  --color-primary-soft: #64A69D; /* valor original de paleta — íconos, acentos, barras de gráfico */
+  --color-primary-softer: #A3D6E5; /* fondo suave de acento (chips, cajas informativas) */
+  --color-secondary: #4C86A0; /* profundizado de #7bb6c6 — enlaces/info secundaria con AA */
+  --color-secondary-soft: #7BB6C6;
+  --color-highlight: #2FB6C4; /* derivado de #81eeff — detalles puntuales, nunca grandes superficies */
+
+  /* Eje semántico de estado — success/warning/danger/info */
+  --color-success: #2F9E6E;
+  --color-success-soft: #E4F5EC;
+  --color-warning: #B9791F;
+  --color-warning-soft: #FBF1DF;
+  --color-danger: #C0524A;
+  --color-danger-soft: #FBEAE8;
+  --color-info: #3E7D91;
+  --color-info-soft: #E7F2F5;
+
+  /* Spacing (px, calcado de space en tokens.ts) */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-xxl: 32px;
+  --spacing-xxxl: 48px;
+
+  /* Radios */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Sombras */
+  --shadow-sm: 0 1px 2px rgba(27, 43, 42, 0.05);
+  --shadow-card: 0 1px 2px rgba(27, 43, 42, 0.05), 0 10px 24px -14px rgba(27, 43, 42, 0.14);
+  --shadow-card-hover: 0 4px 10px rgba(27, 43, 42, 0.07), 0 18px 32px -16px rgba(27, 43, 42, 0.18);
+
+  /* Tipografía: Plus Jakarta Sans (títulos) + IBM Plex Sans (cuerpo) + IBM Plex Mono (datos
+     que alinean en columna: DNI, CUIL, patentes, montos) */
+  --font-heading: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: 'IBM Plex Sans', sans-serif;
+}

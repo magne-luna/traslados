@@ -1,0 +1,270 @@
+import { useEffect, useState } from 'react';
+import { Button, Chip, InlineIcon, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
+import { Alert } from '../../design-system/feedback';
+import { Card } from '../../design-system/layout';
+import { iconCalendario, iconLapiz, iconMoneda } from '../../design-system/icons';
+import { ESTADO_AUTORIZACION_CHIP_KIND, ESTADO_AUTORIZACION_LABEL } from '../../shared/lib/presupuestos/estadoAutorizacionCopy';
+import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import type { ObraSocial } from '../../shared/types/obraSocial';
+import type { Paciente } from '../../shared/types/paciente';
+import type { ActualizacionPresupuesto, Autorizacion, NuevoPresupuesto, Presupuesto } from '../../shared/types/presupuesto';
+import { AutorizacionForm, type AutorizacionFormValues } from './AutorizacionForm';
+import { PresupuestoForm, type PresupuestoFormValues } from './PresupuestoForm';
+import { PresupuestoResumen } from './PresupuestoResumen';
+
+interface PresupuestoDetailProps {
+  /** null = alta de un presupuesto nuevo; la sección de autorización solo aplica en edición. */
+  presupuesto: Presupuesto | null;
+  crear: (data: NuevoPresupuesto) => Promise<Presupuesto>;
+  actualizar: (id: string, data: ActualizacionPresupuesto) => Promise<Presupuesto>;
+  /** Se puebla desde PacienteRepository.list() en el composition root — solo lectura (design.md Decisión 8). */
+  pacientes: Paciente[];
+  /** Se puebla desde ObraSocialRepository.list() en el composition root — solo lectura (design.md Decisión 8). */
+  obrasSociales: ObraSocial[];
+  autorizacionRepository: AutorizacionRepository;
+  onCreated: (presupuesto: Presupuesto) => void;
+  onBack: () => void;
+}
+
+function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'Ocurrió un error inesperado.';
+}
+
+function nombrePaciente(paciente: Paciente | undefined): string {
+  return paciente ? `${paciente.apellido}, ${paciente.nombre}` : 'Paciente desconocido';
+}
+
+// PresupuestoForm ya bloqueó el submit si pacienteId/obraSocialId son null (validatePresupuestoForm,
+// tasks.md 5.3) — acá solo se angosta el tipo sin `as`, lanzando si igualmente llegaran nulos.
+function toPersistedValues(values: PresupuestoFormValues): NuevoPresupuesto {
+  if (values.pacienteId === null || values.obraSocialId === null) {
+    throw new Error('El presupuesto requiere paciente y obra social seleccionados.');
+  }
+  return {
+    pacienteId: values.pacienteId,
+    obraSocialId: values.obraSocialId,
+    monto: values.monto,
+    fechaEmision: values.fechaEmision,
+    archivo: values.archivo,
+  };
+}
+
+// Composición de la pantalla de detalle (tasks.md 5.5, 5.6, 6.3): wire de PresupuestoForm contra
+// crear/actualizar (usePresupuestos), con manejo de error visible y sin loading infinito, más la
+// sección de Autorización asociada — resuelta vía AutorizacionRepository.getByPresupuestoId
+// (spec presupuesto-crud, Scenario "La autorización se crea sobre un presupuesto existente") y
+// persistida vía AutorizacionRepository directamente (Decisión 10), sin pasar por un hook de
+// lista completa. Solo aplica una vez que el presupuesto existe (tiene id) — mismo criterio que
+// VehiculoDetail/PacienteDetail (mantenimiento/CUD solo en edición).
+export function PresupuestoDetail({
+  presupuesto,
+  crear,
+  actualizar,
+  pacientes,
+  obrasSociales,
+  autorizacionRepository,
+  onCreated,
+  onBack,
+}: PresupuestoDetailProps) {
+  // Sin resumen posible en alta (presupuesto null): el form arranca visible directamente.
+  const [editing, setEditing] = useState(presupuesto === null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const [autorizacion, setAutorizacion] = useState<Autorizacion | null>(null);
+  const [autorizacionLoading, setAutorizacionLoading] = useState(false);
+  const [autorizacionEditing, setAutorizacionEditing] = useState(false);
+  const [autorizacionSubmitting, setAutorizacionSubmitting] = useState(false);
+  const [autorizacionError, setAutorizacionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (presupuesto === null) {
+      setAutorizacion(null);
+      return;
+    }
+    let cancelled = false;
+    setAutorizacionLoading(true);
+    autorizacionRepository
+      .getByPresupuestoId(presupuesto.id)
+      .then((found) => {
+        if (cancelled) return;
+        setAutorizacion(found);
+        setAutorizacionEditing(found === null);
+        setAutorizacionLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setAutorizacionError(toErrorMessage(err));
+        setAutorizacionLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [presupuesto, autorizacionRepository]);
+
+  async function handleSubmitGeneral(values: PresupuestoFormValues) {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const persisted = toPersistedValues(values);
+      if (presupuesto === null) {
+        const creado = await crear(persisted);
+        onCreated(creado);
+      } else {
+        await actualizar(presupuesto.id, persisted);
+        setEditing(false);
+      }
+    } catch (err) {
+      setSubmitError(toErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleSubmitAutorizacion(values: AutorizacionFormValues) {
+    if (presupuesto === null) return;
+    setAutorizacionSubmitting(true);
+    setAutorizacionError(null);
+    try {
+      if (autorizacion === null) {
+        const creada = await autorizacionRepository.create({ presupuestoId: presupuesto.id, ...values });
+        setAutorizacion(creada);
+      } else {
+        const actualizada = await autorizacionRepository.update(autorizacion.id, values);
+        setAutorizacion(actualizada);
+      }
+      setAutorizacionEditing(false);
+    } catch (err) {
+      setAutorizacionError(toErrorMessage(err));
+    } finally {
+      setAutorizacionSubmitting(false);
+    }
+  }
+
+  const paciente = presupuesto ? pacientes.find((p) => p.id === presupuesto.pacienteId) : undefined;
+  const obraSocial = presupuesto ? obrasSociales.find((o) => o.id === presupuesto.obraSocialId) : undefined;
+
+  return (
+    <div className="flex flex-col gap-xl py-xxl px-xl">
+      <VolverAlListadoLink onClick={onBack} />
+
+      <Section label="Presupuesto" title={presupuesto ? nombrePaciente(paciente) : 'Nuevo presupuesto'}>
+        {presupuesto && !editing ? (
+          <PresupuestoResumen
+            presupuesto={presupuesto}
+            paciente={paciente}
+            obraSocial={obraSocial}
+            onEdit={() => setEditing(true)}
+          />
+        ) : (
+          <PresupuestoForm
+            initial={
+              presupuesto
+                ? {
+                    pacienteId: presupuesto.pacienteId,
+                    obraSocialId: presupuesto.obraSocialId,
+                    monto: presupuesto.monto,
+                    fechaEmision: presupuesto.fechaEmision,
+                    archivo: presupuesto.archivo,
+                  }
+                : undefined
+            }
+            pacientes={pacientes}
+            obrasSociales={obrasSociales}
+            onSubmit={handleSubmitGeneral}
+            onCancel={presupuesto ? () => setEditing(false) : onBack}
+            submitting={submitting}
+            submitError={submitError}
+          />
+        )}
+      </Section>
+
+      {presupuesto && (
+        <Section label="Autorización" title="Respuesta de la obra social">
+          {autorizacionError && (
+            <div className="mb-md">
+              <Alert tone="danger">{autorizacionError}</Alert>
+            </div>
+          )}
+
+          {autorizacionLoading ? (
+            <p className="font-body text-sm text-muted">Cargando autorización…</p>
+          ) : autorizacion && !autorizacionEditing ? (
+            <Card>
+              <div className="flex flex-wrap items-center justify-between gap-sm">
+                <Chip kind={ESTADO_AUTORIZACION_CHIP_KIND[autorizacion.estado]}>
+                  {ESTADO_AUTORIZACION_LABEL[autorizacion.estado]}
+                </Chip>
+              </div>
+
+              <div className="grid grid-cols-2 gap-md border-y border-border py-md md:grid-cols-4">
+                <div className="flex flex-col gap-0.5">
+                  <span className="flex items-center gap-xs font-body text-[11px] text-muted">
+                    <InlineIcon>{iconMoneda}</InlineIcon>
+                    Monto autorizado
+                  </span>
+                  <span className="font-mono text-[13px] font-semibold text-ink">
+                    {autorizacion.montoAutorizado !== undefined ? `$${autorizacion.montoAutorizado.toLocaleString('es-AR')}` : 'Sin definir'}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-body text-[11px] text-muted">Cupo mensual</span>
+                  <span className="font-body text-[13px] font-semibold text-ink">
+                    {autorizacion.cupoMensualDias ?? '—'} días · {autorizacion.cupoMensualKm ?? '—'} km
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="flex items-center gap-xs font-body text-[11px] text-muted">
+                    <InlineIcon>{iconCalendario}</InlineIcon>
+                    Fecha de respuesta
+                  </span>
+                  <span className="font-body text-[13px] font-semibold text-ink">{autorizacion.fechaRespuesta ?? 'Sin definir'}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="flex items-center gap-xs font-body text-[11px] text-muted">
+                    <InlineIcon>{iconCalendario}</InlineIcon>
+                    Vigencia desde
+                  </span>
+                  <span className="font-body text-[13px] font-semibold text-ink">{autorizacion.vigenciaDesde ?? 'Sin definir'}</span>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button variant="secondary" onClick={() => setAutorizacionEditing(true)}>
+                  <InlineIcon>{iconLapiz}</InlineIcon>
+                  Editar autorización
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            <div className="flex flex-col gap-md">
+              {autorizacion === null && <p className="m-0 font-body text-sm text-muted">No hay autorización cargada todavía.</p>}
+              <AutorizacionForm
+                initial={
+                  autorizacion
+                    ? {
+                        estado: autorizacion.estado,
+                        montoAutorizado: autorizacion.montoAutorizado,
+                        cupoMensualDias: autorizacion.cupoMensualDias,
+                        cupoMensualKm: autorizacion.cupoMensualKm,
+                        fechaRespuesta: autorizacion.fechaRespuesta,
+                        vigenciaDesde: autorizacion.vigenciaDesde,
+                        archivo: autorizacion.archivo,
+                      }
+                    : undefined
+                }
+                montoPresupuesto={presupuesto.monto}
+                onSubmit={handleSubmitAutorizacion}
+                onCancel={autorizacion ? () => setAutorizacionEditing(false) : onBack}
+                submitting={autorizacionSubmitting}
+                submitError={null}
+              />
+            </div>
+          )}
+        </Section>
+      )}
+
+      <VolverAlListadoButton onClick={onBack} />
+    </div>
+  );
+}

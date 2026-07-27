@@ -1,0 +1,113 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { NuevoVehiculo } from '../../types/vehiculo';
+import { mockVehiculoRepository } from './mockVehiculoRepository';
+
+const STORAGE_KEY = 'vehiculos';
+
+async function flushLatency<T>(promise: Promise<T>): Promise<T> {
+  const result = promise;
+  await vi.runAllTimersAsync();
+  return result;
+}
+
+function buildNuevoVehiculo(overrides: Partial<NuevoVehiculo> = {}): NuevoVehiculo {
+  return {
+    patente: 'ZZ000ZZ',
+    modelo: 'Fiat Fiorino',
+    tipo: 'furgon',
+    capacidad: 2,
+    accesoriosCompatibles: [],
+    estado: 'habilitado',
+    kilometraje: 0,
+    kilometrajeUltimoService: 0,
+    fechaUltimoService: '2026-01-01',
+    habilitaciones: [],
+    gastos: [],
+    ...overrides,
+  };
+}
+
+describe('mockVehiculoRepository', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('siembra el fixture de 3 vehículos cuando no hay datos previos en localStorage', async () => {
+    const vehiculos = await flushLatency(mockVehiculoRepository.list());
+
+    expect(vehiculos).toHaveLength(3);
+    expect(vehiculos.map((v) => v.modelo)).toContain('Toyota Etios');
+  });
+
+  it('list() resuelve una promesa con latencia simulada (loading states reales)', async () => {
+    let resolved = false;
+    mockVehiculoRepository.list().then(() => {
+      resolved = true;
+    });
+
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    await vi.runAllTimersAsync();
+    expect(resolved).toBe(true);
+  });
+
+  it('create() persiste un nuevo vehículo recuperable por list() (persistencia entre "recargas")', async () => {
+    await flushLatency(mockVehiculoRepository.list());
+
+    const creado = await flushLatency(mockVehiculoRepository.create(buildNuevoVehiculo({ patente: 'NEW111' })));
+
+    expect(creado.id).toBeTruthy();
+
+    const vehiculos = await flushLatency(mockVehiculoRepository.list());
+    expect(vehiculos.map((v) => v.patente)).toContain('NEW111');
+  });
+
+  it('getById resuelve null cuando el id no existe', async () => {
+    const found = await flushLatency(mockVehiculoRepository.getById('no-existe'));
+
+    expect(found).toBeNull();
+  });
+
+  it('update() persiste los cambios y devuelve la entidad actualizada', async () => {
+    const [primero] = await flushLatency(mockVehiculoRepository.list());
+    if (!primero) throw new Error('Debería existir al menos un vehículo tras el seed inicial');
+
+    const actualizado = await flushLatency(mockVehiculoRepository.update(primero.id, { kilometraje: 999_999 }));
+
+    expect(actualizado.kilometraje).toBe(999_999);
+    expect(actualizado.modelo).toBe(primero.modelo);
+
+    const releido = await flushLatency(mockVehiculoRepository.getById(primero.id));
+    expect(releido?.kilometraje).toBe(999_999);
+  });
+
+  it('update() lanza un error explícito si el id no existe (borde)', async () => {
+    await flushLatency(mockVehiculoRepository.list());
+
+    // update() rechaza sincrónicamente (no pasa por withLatency), así que se espera
+    // directamente sin envolver en flushLatency para no dejar la rejection sin handler.
+    await expect(mockVehiculoRepository.update('no-existe', { kilometraje: 1 })).rejects.toThrow();
+  });
+
+  it('re-siembra desde el fixture si el schemaVersion en localStorage no coincide (dato corrupto/viejo)', async () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ schemaVersion: 0, vehiculos: [{ id: 'x' }] }));
+
+    const vehiculos = await flushLatency(mockVehiculoRepository.list());
+
+    expect(vehiculos).toHaveLength(3);
+  });
+
+  it('re-siembra desde el fixture si el payload de localStorage está corrupto (JSON inválido)', async () => {
+    localStorage.setItem(STORAGE_KEY, 'no-es-json{{{');
+
+    const vehiculos = await flushLatency(mockVehiculoRepository.list());
+
+    expect(vehiculos).toHaveLength(3);
+  });
+});
