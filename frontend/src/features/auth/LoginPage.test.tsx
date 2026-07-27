@@ -27,4 +27,21 @@ describe('LoginPage', () => {
     expect(signIn).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
   });
+
+  it('muestra los campos de email y contraseña precargados con datos de demo', () => {
+    mockedUseAuth.mockReturnValue({ session: null, signIn: vi.fn(), signOut: vi.fn() });
+
+    const router = createMemoryRouter([{ path: '/login', element: <LoginPage /> }], {
+      initialEntries: ['/login'],
+    });
+
+    render(<RouterProvider router={router} />);
+
+    const emailInput = screen.getByLabelText(/email/i) as HTMLInputElement;
+    const passwordInput = screen.getByLabelText(/contraseña/i) as HTMLInputElement;
+
+    expect(emailInput.value).not.toBe('');
+    expect(passwordInput.value).not.toBe('');
+    expect(passwordInput.type).toBe('password');
+  });
 });

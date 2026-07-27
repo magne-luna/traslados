@@ -60,4 +60,32 @@ describe('AuthProvider / useAuth', () => {
 
     consoleError.mockRestore();
   });
+
+  it('con VITE_DEMO_MODE=true arranca deslogueado, para mostrar el login en la demo', () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    expect(screen.getByTestId('session-state').textContent).toBe('logged-out');
+
+    vi.unstubAllEnvs();
+  });
+
+  it('con VITE_DEMO_MODE en cualquier otro valor arranca logueado (comportamiento normal de dev)', () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'false');
+
+    render(
+      <AuthProvider>
+        <AuthProbe />
+      </AuthProvider>,
+    );
+
+    expect(screen.getByTestId('session-state').textContent).toMatch(/^logged-in:/);
+
+    vi.unstubAllEnvs();
+  });
 });
