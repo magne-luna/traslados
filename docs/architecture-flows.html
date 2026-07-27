@@ -1,0 +1,1717 @@
+<!doctype html>
+<html lang="es" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Traslados — Arquitectura &amp; Flujos</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { color-scheme: dark; }
+  body { background:#0a0f1a; }
+  ::-webkit-scrollbar { height:10px; width:10px; }
+  ::-webkit-scrollbar-track { background:#0f1729; }
+  ::-webkit-scrollbar-thumb { background:#2b3a55; border-radius:6px; }
+  ::-webkit-scrollbar-thumb:hover { background:#3d5277; }
+
+  #canvas-wrap { background:
+    radial-gradient(circle at 1px 1px, #1b263b 1px, transparent 1px) 0 0/24px 24px,
+    #0d1526; }
+
+  .node {
+    position:absolute; display:flex; flex-direction:column; justify-content:center;
+    border-radius:12px; padding:8px 12px; font-size:12.5px; line-height:1.25;
+    cursor:pointer; transition:transform .18s ease, opacity .18s ease, box-shadow .18s ease, filter .18s ease;
+    border-width:1.5px; box-shadow:0 1px 3px rgba(0,0,0,.4);
+  }
+  .node:hover { transform:translateY(-2px); }
+  .node .lbl { font-weight:600; color:#f1f5f9; }
+  .node .tag { font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; opacity:.75; margin-top:2px; }
+
+  .node.t-client, .node.t-auth  { background:#111a2e; border-color:#3b4a6b; }
+  .node.t-module                { background:#0b2a2c; border-color:#14b8a6; }
+  .node.t-repository            { background:#101a33; border-color:#3b82f6; }
+  .node.t-business-rule         { background:#1c1533; border-color:#a78bfa; }
+  .node.t-shared-ui             { background:#0e2230; border-color:#38bdf8; }
+  .node.t-persistence           { background:#122317; border-color:#4ade80; }
+  .node.t-backend-planned       { background:#241a0d; border-color:#f59e0b; border-style:dashed; }
+  .node.t-integration-planned   { background:#241a0d; border-color:#f59e0b; border-style:dashed; }
+
+  .node.dimmed   { opacity:.18; filter:grayscale(.6); }
+  .node.in-flow  { opacity:1; box-shadow:0 0 0 2px rgba(56,189,248,.55), 0 4px 14px rgba(0,0,0,.5); }
+  .node.cur-step { opacity:1; transform:translateY(-3px) scale(1.045);
+    box-shadow:0 0 0 3px rgba(245,158,11,.85), 0 0 24px rgba(245,158,11,.45); z-index:20; }
+
+  .badge-mock, .badge-planned {
+    position:absolute; top:-8px; right:-6px; font-size:8.5px; font-weight:700; letter-spacing:.03em;
+    padding:1px 5px; border-radius:999px; color:#0a0f1a;
+  }
+  .badge-mock { background:#facc15; }
+  .badge-planned { background:#f59e0b; }
+
+  .step-badge {
+    position:absolute; top:-8px; left:-8px; width:18px; height:18px; border-radius:999px;
+    background:#22d3ee; color:#062;
+    color:#04222a; font-size:10px; font-weight:800; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 1px 4px rgba(0,0,0,.5); z-index:21;
+  }
+
+  .edge { stroke:#3b4a6b; stroke-width:1.4; fill:none; opacity:.55; transition:opacity .18s ease, stroke .18s ease, stroke-width .18s ease; }
+  .edge.k-planned { stroke:#b45309; stroke-dasharray:5 4; opacity:.4; }
+  .edge.k-read    { stroke:#22c55e; opacity:.45; }
+  .edge.k-write   { stroke:#3b82f6; opacity:.5; }
+  .edge.k-persist { stroke:#4ade80; opacity:.4; }
+  .edge.k-uses    { stroke:#a78bfa; opacity:.45; }
+  .edge.dimmed    { opacity:.06 !important; }
+  .edge.in-flow   { stroke:#38bdf8; stroke-width:2.4; opacity:.95 !important; }
+
+  .flow-card { transition:border-color .15s ease, background .15s ease, transform .15s ease; }
+  .flow-card.active { border-color:#22d3ee; background:#0e2230; }
+
+  .step-row { transition:background .15s ease, border-color .15s ease; }
+  .step-row.cur { background:#241a0d; border-color:#f59e0b; }
+
+  .zoom-shell { transform-origin: top left; transition: transform .15s ease; }
+
+  details.node-panel[open] summary { color:#22d3ee; }
+</style>
+</head>
+<body class="min-h-screen text-slate-200 antialiased">
+
+<div class="max-w-[1760px] mx-auto px-4 sm:px-6 py-6">
+
+  <!-- Header -->
+  <header class="mb-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-bold text-white tracking-tight">Traslados — Arquitectura &amp; Flujos</h1>
+        <p class="text-slate-400 text-sm mt-1 max-w-2xl">Sistema de gestión integral para traslado de personas con discapacidad (Andrea Pastor / Magne Studios). Generado el 2026-07-26 a partir de <code class="text-slate-300">knowledge-base/</code>, <code class="text-slate-300">CHANGES.md</code> y el código real de <code class="text-slate-300">frontend/src</code>.</p>
+      </div>
+      <div class="flex gap-2 text-xs">
+        <span class="px-3 py-1.5 rounded-full bg-teal-950 border border-teal-700 text-teal-300">● Implementado (frontend mock)</span>
+        <span class="px-3 py-1.5 rounded-full bg-amber-950 border border-amber-700 border-dashed text-amber-300">┄ Planeado (no implementado)</span>
+      </div>
+    </div>
+
+    <div class="mt-4 rounded-xl border border-amber-800/60 bg-amber-950/30 px-4 py-3 text-sm text-amber-200/90">
+      <strong class="text-amber-300">Nota de alcance:</strong> los 8 módulos de dominio son <strong>frontend real</strong> corriendo contra repositories mock (localStorage + fixtures) — ningún módulo tiene backend real hoy. Supabase (Auth + Postgres + Storage) y las integraciones externas (Google Maps, Google Drive, ARCA) están <strong>diseñadas pero no implementadas</strong>: en <code>CHANGES.md</code> todos los changes C-01 a C-11 siguen <code>[ ]</code> pendientes, salvo C-10 (hojas de ruta) marcado <code>[x]</code> pero explícitamente <em>"FE-5 frontend-only"</em>.
+    </div>
+  </header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
+
+  <!-- ARCHITECTURE -->
+  <section>
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+      <h2 class="text-lg font-semibold text-white flex items-center gap-2">
+        <span class="w-1.5 h-5 bg-cyan-400 rounded-full"></span> Diagrama de arquitectura
+      </h2>
+      <div class="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+        <div class="flex items-center rounded-lg border border-slate-700 overflow-hidden text-slate-400">
+          <button id="viewSimple" class="px-3 py-1.5 border-r border-slate-700 transition-colors">Vista simple</button>
+          <button id="viewFull" class="px-3 py-1.5 transition-colors">Vista completa</button>
+        </div>
+        <label class="flex items-center gap-1.5 cursor-pointer select-none">
+          <input id="togglePlanned" type="checkbox" class="accent-amber-500 w-3.5 h-3.5">
+          Mostrar diseño planeado
+        </label>
+        <input id="searchBox" type="search" placeholder="Buscar nodo…" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500 w-40">
+        <div class="flex items-center gap-1">
+          <button id="zoomOut" class="w-7 h-7 rounded-md bg-slate-800 border border-slate-700 hover:border-cyan-500">−</button>
+          <span id="zoomLabel" class="w-12 text-center">100%</span>
+          <button id="zoomIn" class="w-7 h-7 rounded-md bg-slate-800 border border-slate-700 hover:border-cyan-500">+</button>
+        </div>
+        <button id="clearFlow" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 hover:border-slate-500 hidden">Limpiar selección</button>
+      </div>
+    </div>
+
+    <div id="canvas-wrap" class="relative rounded-2xl border border-slate-800 overflow-auto" style="max-height:70vh;">
+      <div id="zoomShell" class="zoom-shell">
+        <div id="canvas" class="relative" style="width:1800px; height:600px;">
+          <svg id="edgeLayer" width="1800" height="600" class="absolute inset-0 pointer-events-none"></svg>
+          <div id="nodeLayer" class="absolute inset-0"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-slate-400">
+      <span class="flex items-center gap-1.5"><i class="inline-block w-3 h-3 rounded border border-teal-500 bg-[#0b2a2c]"></i> Módulo de dominio</span>
+      <span class="flex items-center gap-1.5"><i class="inline-block w-3 h-3 rounded border border-blue-500 bg-[#101a33]"></i> Repository (mock)</span>
+      <span class="flex items-center gap-1.5"><i class="inline-block w-3 h-3 rounded border border-violet-400 bg-[#1c1533]"></i> Regla de negocio pura</span>
+      <span class="flex items-center gap-1.5"><i class="inline-block w-3 h-3 rounded border border-sky-400 bg-[#0e2230]"></i> UI / Design system</span>
+      <span class="flex items-center gap-1.5"><i class="inline-block w-3 h-3 rounded border border-green-400 bg-[#122317]"></i> Persistencia actual</span>
+      <span class="flex items-center gap-1.5"><i class="inline-block w-3 h-3 rounded border border-dashed border-amber-500 bg-[#241a0d]"></i> Backend / integración planeada</span>
+    </div>
+
+    <!-- Detail panel -->
+    <div id="detailPanel" class="mt-4 hidden rounded-xl border border-slate-700 bg-slate-900/60 p-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 id="detailTitle" class="font-semibold text-white text-sm"></h3>
+          <div id="detailDesc" class="text-slate-400 text-xs mt-1 leading-relaxed"></div>
+          <p id="detailSource" class="text-slate-500 text-[11px] mt-2 font-mono"></p>
+        </div>
+        <button id="closeDetail" class="text-slate-500 hover:text-slate-300 text-sm">✕</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FLOWS (sidebar) -->
+  <aside id="flowsPanel" class="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900/30 p-4">
+    <h2 class="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+      <span class="w-1.5 h-5 bg-amber-400 rounded-full"></span> Flujos principales
+    </h2>
+    <p class="text-slate-400 text-xs mb-3">Elegí un flujo para resaltar su recorrido en el diagrama. Fuente: <code class="text-slate-300">07_flujos_principales.md</code>.</p>
+
+    <div id="flowList" class="grid grid-cols-1 gap-2 mb-4"></div>
+
+    <div id="flowDetail" class="hidden rounded-xl border border-slate-800 bg-slate-900/40 p-3.5">
+      <div class="flex flex-wrap items-start justify-between gap-2 mb-3">
+        <div>
+          <h3 id="flowName" class="text-white font-semibold text-sm"></h3>
+          <p class="text-[11px] text-slate-400 mt-1"><span id="flowActor"></span> · Disparador: <span id="flowTrigger" class="text-slate-300"></span></p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 mb-3">
+        <button id="prevStep" class="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 hover:border-cyan-500 disabled:opacity-30 text-sm">‹</button>
+        <span id="stepCounter" class="text-xs text-slate-400 flex-1 text-center">Paso 1/1</span>
+        <button id="nextStep" class="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 hover:border-cyan-500 disabled:opacity-30 text-sm">›</button>
+        <button id="playStep" class="px-2.5 h-7 rounded-lg bg-cyan-900/60 border border-cyan-700 text-cyan-300 hover:bg-cyan-900 text-[11px] font-medium whitespace-nowrap">▶ Reproducir</button>
+      </div>
+
+      <ol id="stepList" class="space-y-2 mb-4"></ol>
+
+      <div id="errorCases" class="rounded-xl border border-rose-900/60 bg-rose-950/20 p-3">
+        <p class="text-rose-300 text-xs font-semibold mb-1.5">⚠ Casos de error</p>
+        <ul id="errorList" class="space-y-1 text-xs text-rose-200/80 list-disc list-inside"></ul>
+      </div>
+    </div>
+  </aside>
+
+  </div>
+
+  <footer class="mt-6 pb-4 text-center text-[11px] text-slate-600">
+    Datos completos en <code class="text-slate-500">architecture-flows.json</code> (mismo directorio) — pensado para ser consumido por agentes IA.
+  </footer>
+</div>
+
+<script>
+const DATA = {
+  "meta": {
+    "proyecto": "Traslados (Andrea Pastor / Magne Studios)",
+    "descripcion": "Sistema de gestión integral para servicio de traslado personalizado de personas con discapacidad. Uso interno exclusivo del personal, no multi-tenant.",
+    "generado": "2026-07-26",
+    "fuentes": [
+      "traslados-app/knowledge-base/02_descripcion_general.md",
+      "traslados-app/knowledge-base/03_actores_y_roles.md",
+      "traslados-app/knowledge-base/04_modelo_de_datos.md",
+      "traslados-app/knowledge-base/06_funcionalidades.md",
+      "traslados-app/knowledge-base/07_flujos_principales.md",
+      "traslados-app/knowledge-base/08_arquitectura_propuesta.md",
+      "traslados-app/CHANGES.md",
+      "traslados-app/frontend/src/app/router.tsx",
+      "traslados-app/frontend/src/app/routes.ts",
+      "traslados-app/frontend/src/App.tsx"
+    ],
+    "nota_estado": "El frontend (React + TypeScript) está implementado como mock: los 8 módulos de dominio existen y funcionan contra repositories en memoria/localStorage con fixtures, sin backend real todavía. Supabase (Auth + Postgres + Storage) y las integraciones externas (Google Maps, Google Drive, ARCA) están DISEÑADAS pero NO implementadas — todos los changes C-01 a C-11 de CHANGES.md siguen en estado `[ ]` pendiente salvo C-10 (hojas-de-ruta-recorridos), marcado `[x]` completado pero explícitamente como 'FE-5 frontend-only'. Cualquier nodo con status 'planned' es diseño documentado, no código existente."
+  },
+  "nodes": [
+    {
+      "id": "browser",
+      "label": "Navegador (SPA)",
+      "type": "client",
+      "layer": 0,
+      "status": "implemented",
+      "module": null,
+      "description": "Acceso vía navegador, sin instalación del lado del cliente (RNF-01); diseño responsive (RNF-08).",
+      "source": "knowledge-base/02_descripcion_general.md"
+    },
+    {
+      "id": "bootstrap",
+      "label": "main.tsx → App.tsx",
+      "type": "client",
+      "layer": 1,
+      "status": "implemented",
+      "module": null,
+      "description": "Punto de composición: AuthProvider (sesión mock en memoria) envolviendo RouterProvider.",
+      "source": "frontend/src/App.tsx, frontend/src/main.tsx"
+    },
+    {
+      "id": "router",
+      "label": "router.tsx + routes.ts",
+      "type": "client",
+      "layer": 1,
+      "status": "implemented",
+      "module": null,
+      "description": "createBrowserRouter; routes.ts (APP_ROUTES) es la lista declarativa de los 8 módulos del roadmap (path, label, ícono, sección de navegación).",
+      "source": "frontend/src/app/router.tsx, frontend/src/app/routes.ts"
+    },
+    {
+      "id": "login",
+      "label": "LoginPage (/login)",
+      "type": "auth",
+      "layer": 2,
+      "status": "implemented",
+      "module": null,
+      "description": "Única ruta pública del sistema — no hay acceso público ni de cara a pacientes/conductores. Auth mock, sin Supabase Auth real.",
+      "source": "frontend/src/features/auth/LoginPage.tsx; knowledge-base/03_actores_y_roles.md"
+    },
+    {
+      "id": "guard",
+      "label": "RequireAuth (guard)",
+      "type": "auth",
+      "layer": 2,
+      "status": "implemented",
+      "module": null,
+      "description": "Guard de rutas protegidas. useAuth() solo modela sesión sí/no, sin roles ni matriz Cuenta→Módulos todavía (a propósito — eso lo resuelve C-02).",
+      "source": "frontend/src/shared/auth"
+    },
+    {
+      "id": "shell",
+      "label": "AppShell (nav + layout)",
+      "type": "client",
+      "layer": 3,
+      "status": "implemented",
+      "module": null,
+      "description": "Layout compartido y navegación, generada recorriendo routes.ts.",
+      "source": "frontend/src/app/AppShell.tsx"
+    },
+    {
+      "id": "mod-dashboard",
+      "label": "Dashboard ( / )",
+      "type": "module",
+      "layer": 4,
+      "status": "implemented-mock",
+      "module": "dashboard",
+      "description": "C-11 panel-principal-reportes. Solo lectura/agregación — no crea, edita ni borra nada (verificado con test de espías). 59/60 tasks, pendiente de archivar.",
+      "source": "frontend/src/features/dashboard/DashboardRoute.tsx; CHANGES.md C-11"
+    },
+    {
+      "id": "mod-pacientes",
+      "label": "Pacientes (/pacientes)",
+      "type": "module",
+      "layer": 4,
+      "status": "implemented-mock",
+      "module": "pacientes",
+      "description": "C-05 pacientes-fichas-clinicas, implementado como 'pacientes-ui'. Governance CRÍTICO — datos de salud y de menores.",
+      "source": "frontend/src/features/pacientes/PacientesRoute.tsx; CHANGES.md C-05"
+    },
+    {
+      "id": "mod-obras-sociales",
+      "label": "Obras Sociales (/obras-sociales)",
+      "type": "module",
+      "layer": 4,
+      "status": "implemented-mock",
+      "module": "obras-sociales",
+      "description": "C-04 obras-sociales-prestadores, 23/24 tasks, archivado 2026-07-24.",
+      "source": "frontend/src/features/obras-sociales/ObraSocialesRoute.tsx; CHANGES.md C-04"
+    },
+    {
+      "id": "mod-vehiculos",
+      "label": "Vehículos (/vehiculos)",
+      "type": "module",
+      "layer": 4,
+      "status": "implemented-mock",
+      "module": "vehiculos",
+      "description": "C-08 vehiculos-mantenimiento, 24/24 tasks, archivado 2026-07-24, verificación manual en navegador confirmada.",
+      "source": "frontend/src/features/vehiculos/VehiculosRoute.tsx; CHANGES.md C-08"
+    },
+    {
+      "id": "mod-conductores",
+      "label": "Conductores (/conductores)",
+      "type": "module",
+      "layer": 4,
+      "status": "implemented-mock",
+      "module": "conductores",
+      "description": "C-09 conductores. Los conductores no operan el sistema — solo se registran como datos.",
+      "source": "frontend/src/features/conductores/ConductoresRoute.tsx; CHANGES.md C-09"
+    },
+    {
+      "id": "mod-presupuestos",
+      "label": "Presupuestos (/presupuestos)",
+      "type": "module",
+      "layer": 4,
+      "status": "implemented-mock",
+      "module": "presupuestos",
+      "description": "C-06 presupuestos-autorizaciones, 32/32 tasks incluida verificación manual, archivado 2026-07-24.",
+      "source": "frontend/src/features/presupuestos/PresupuestosRoute.tsx; CHANGES.md C-06"
+    },
+    {
+      "id": "mod-hojas-de-ruta",
+      "label": "Hojas de Ruta (/hojas-de-ruta)",
+      "type": "module",
+      "layer": 4,
+      "status": "implemented-mock",
+      "module": "hojas-de-ruta",
+      "description": "C-10 hojas-de-ruta-recorridos. Único change marcado [x] completado en CHANGES.md, explícitamente 'FE-5 frontend-only' (2026-07-25).",
+      "source": "frontend/src/features/hojas-de-ruta/HojaDeRutaRoute.tsx; CHANGES.md C-10"
+    },
+    {
+      "id": "mod-facturacion",
+      "label": "Facturación (/facturacion)",
+      "type": "module",
+      "layer": 4,
+      "status": "implemented-mock",
+      "module": "facturacion",
+      "description": "C-07 facturacion-asistencias-cobros, governance CRÍTICO, 61/61 tasks, pendiente de archivar.",
+      "source": "frontend/src/features/facturacion/FacturacionRoute.tsx; CHANGES.md C-07"
+    },
+    {
+      "id": "repo-paciente",
+      "label": "PacienteRepository (mock)",
+      "type": "repository",
+      "layer": 5,
+      "status": "implemented-mock",
+      "module": "pacientes",
+      "description": "Repository mock con fixtures/localStorage. Futuro respaldo real: tabla `paciente`.",
+      "source": "frontend/src/shared/lib/pacientes/PacienteRepository.ts"
+    },
+    {
+      "id": "repo-obra-social",
+      "label": "ObraSocialRepository (mock)",
+      "type": "repository",
+      "layer": 5,
+      "status": "implemented-mock",
+      "module": "obras-sociales",
+      "description": "Futuro respaldo real: tablas `obra_social`, `checklist_documentacion_obra_social`, `plantilla_facturacion`.",
+      "source": "frontend/src/shared/lib/obrasSociales/ObraSocialRepository.ts"
+    },
+    {
+      "id": "repo-vehiculo",
+      "label": "VehiculoRepository (mock)",
+      "type": "repository",
+      "layer": 5,
+      "status": "implemented-mock",
+      "module": "vehiculos",
+      "description": "Futuro respaldo real: tabla `vehiculo`.",
+      "source": "frontend/src/shared/lib/vehiculos/VehiculoRepository.ts"
+    },
+    {
+      "id": "repo-conductor",
+      "label": "ConductorRepository (mock)",
+      "type": "repository",
+      "layer": 5,
+      "status": "implemented-mock",
+      "module": "conductores",
+      "description": "Futuro respaldo real: tablas `conductor`, `asignacion_semanal`.",
+      "source": "frontend/src/shared/lib/conductores/ConductorRepository.ts"
+    },
+    {
+      "id": "repo-presupuesto",
+      "label": "PresupuestoRepository (mock)",
+      "type": "repository",
+      "layer": 5,
+      "status": "implemented-mock",
+      "module": "presupuestos",
+      "description": "Futuro respaldo real: tabla `presupuesto`.",
+      "source": "frontend/src/shared/lib/presupuestos/PresupuestoRepository.ts"
+    },
+    {
+      "id": "repo-autorizacion",
+      "label": "AutorizacionRepository (mock)",
+      "type": "repository",
+      "layer": 5,
+      "status": "implemented-mock",
+      "module": "presupuestos",
+      "description": "Futuro respaldo real: tabla `autorizacion`. Bloqueante conocido: sin campo numérico comparable al Monto del Presupuesto en el docx real.",
+      "source": "frontend/src/shared/lib/presupuestos/AutorizacionRepository.ts"
+    },
+    {
+      "id": "repo-hoja-de-ruta",
+      "label": "HojaDeRutaRepository (mock)",
+      "type": "repository",
+      "layer": 5,
+      "status": "implemented-mock",
+      "module": "hojas-de-ruta",
+      "description": "Futuro respaldo real: tablas `hoja_de_ruta`, `recorrido` — 'Hoja de Ruta' y el campo `conductorId` son agregados sobre el docx real, pendientes de confirmar con backend.",
+      "source": "frontend/src/shared/lib/hojas-de-ruta/HojaDeRutaRepository.ts"
+    },
+    {
+      "id": "repo-factura",
+      "label": "FacturaRepository (mock)",
+      "type": "repository",
+      "layer": 5,
+      "status": "implemented-mock",
+      "module": "facturacion",
+      "description": "Futuro respaldo real: tablas `factura`, `asistencia_prestacion` (esta última no existe en el docx real).",
+      "source": "frontend/src/shared/lib/facturacion/FacturaRepository.ts"
+    },
+    {
+      "id": "repo-cobro",
+      "label": "CobroRepository (mock)",
+      "type": "repository",
+      "layer": 5,
+      "status": "implemented-mock",
+      "module": "facturacion",
+      "description": "Futuro respaldo real: tabla `cobro` (admite pagos parciales).",
+      "source": "frontend/src/shared/lib/facturacion/CobroRepository.ts"
+    },
+    {
+      "id": "repo-documento",
+      "label": "DocumentoRepository (mock, transversal)",
+      "type": "repository",
+      "layer": 5,
+      "status": "implemented-mock",
+      "module": null,
+      "description": "Reutilizado por Pacientes, Vehículos, Conductores y Facturación (US-900). Futuro respaldo real: tabla `documento_{entidad}` + 4 buckets de Supabase Storage.",
+      "source": "frontend/src/shared/lib/documentos/DocumentoRepository.ts, mockDocumentoRepository.ts"
+    },
+    {
+      "id": "rules-facturacion",
+      "label": "shared/lib/facturacion/* (reglas puras)",
+      "type": "business-rule",
+      "layer": 6,
+      "status": "implemented-mock",
+      "module": "facturacion",
+      "description": "9 funciones puras test-first: descripción según plantilla, días facturables (excluye feriados), cupo consumido, fecha estimada de cobro (90d default / 45d amparo judicial), vencimiento, totales, estado derivado.",
+      "source": "frontend/src/shared/lib/facturacion/*.ts"
+    },
+    {
+      "id": "rules-presupuestos",
+      "label": "shared/lib/presupuestos/* (reglas puras)",
+      "type": "business-rule",
+      "layer": 6,
+      "status": "implemented-mock",
+      "module": "presupuestos",
+      "description": "cupoAutorizado, validarAutorizacion (RN-PA-01: autorización nunca mayor al presupuesto).",
+      "source": "frontend/src/shared/lib/presupuestos/*.ts"
+    },
+    {
+      "id": "rules-hoja-de-ruta",
+      "label": "shared/lib/hojas-de-ruta/* (reglas puras)",
+      "type": "business-rule",
+      "layer": 6,
+      "status": "implemented-mock",
+      "module": "hojas-de-ruta",
+      "description": "Compatibilidad de accesorios de movilidad (RN-VE-01), capacidad disponible, sugerencia de orden por cercanía (fixture, sin Google Maps real todavía).",
+      "source": "frontend/src/shared/lib/hojas-de-ruta/*.ts"
+    },
+    {
+      "id": "rules-mantenimiento",
+      "label": "shared/lib/mantenimiento/* (reglas puras)",
+      "type": "business-rule",
+      "layer": 6,
+      "status": "implemented-mock",
+      "module": "vehiculos",
+      "description": "estadoServicePreventivo (10.000km / 2-3 meses), estadoHabilitacion (VTV 6 meses / RTO).",
+      "source": "frontend/src/shared/lib/mantenimiento/*.ts"
+    },
+    {
+      "id": "rules-reportes",
+      "label": "shared/lib/reportes/* (reglas puras)",
+      "type": "business-rule",
+      "layer": 6,
+      "status": "implemented-mock",
+      "module": "dashboard",
+      "description": "6 funciones puras: facturadoVsCobrado, resumenAnual, facturasEnMora, cudPorVencer, alertasMantenimiento, resumenDelDia. Invocan las reglas dueñas de cada módulo en vez de duplicarlas.",
+      "source": "frontend/src/shared/lib/reportes/*.ts"
+    },
+    {
+      "id": "design-system",
+      "label": "design-system/ (tokens Tailwind v4 + componentes)",
+      "type": "shared-ui",
+      "layer": 7,
+      "status": "implemented",
+      "module": null,
+      "description": "Button, Chip, Section, Table, Input, Alert, ProgressBar, SectionBadge, InlineIcon. Catálogo vivo en DesignSystem.tsx (/design-system). Regla dura: nunca style={{}} inline, nunca emojis como ícono.",
+      "source": "frontend/src/design-system/*.tsx; CLAUDE.md Reglas Duras"
+    },
+    {
+      "id": "local-storage",
+      "label": "localStorage (persistencia actual)",
+      "type": "persistence",
+      "layer": 7,
+      "status": "implemented",
+      "module": null,
+      "description": "Única persistencia real hoy: todos los repositories mock leen/escriben acá con fixtures y latencia simulada. No hay base de datos real todavía.",
+      "source": "frontend/src/shared/lib/mocks/*"
+    },
+    {
+      "id": "supabase-auth",
+      "label": "Supabase Auth",
+      "type": "backend-planned",
+      "layer": 8,
+      "status": "planned",
+      "module": null,
+      "description": "PLANEADO, no implementado (C-02 usuarios-permisos-auditoria, estado [ ] pendiente). Email + contraseña, sin registro público.",
+      "source": "CHANGES.md C-02; knowledge-base/08_arquitectura_propuesta.md §Seguridad"
+    },
+    {
+      "id": "supabase-db",
+      "label": "PostgreSQL + RLS por módulo",
+      "type": "backend-planned",
+      "layer": 8,
+      "status": "planned",
+      "module": null,
+      "description": "PLANEADO. Una tabla por entidad de dominio, con Row Level Security ligada a permisos_modulo (RBAC flexible, sin roles fijos — con una discrepancia sin resolver contra el docx real, que sí describe un campo Rol fijo).",
+      "source": "CHANGES.md C-02..C-11; knowledge-base/03_actores_y_roles.md"
+    },
+    {
+      "id": "supabase-storage",
+      "label": "Supabase Storage (4 buckets)",
+      "type": "backend-planned",
+      "layer": 8,
+      "status": "planned",
+      "module": null,
+      "description": "PLANEADO (C-01/C-03). Buckets privados: documentos-pacientes, documentos-vehiculos, documentos-conductores, documentos-facturas.",
+      "source": "CHANGES.md C-01, C-03; knowledge-base/08_arquitectura_propuesta.md"
+    },
+    {
+      "id": "ext-maps",
+      "label": "Google Maps / Geometry API",
+      "type": "integration-planned",
+      "layer": 9,
+      "status": "planned",
+      "module": "hojas-de-ruta",
+      "description": "PLANEADO (RF-701). Sugerencia de orden de recogida por cercanía — siempre como propuesta editable, nunca ruta impuesta (RN-HR-01). Hoy el frontend usa un fixture, sin llamar a la API real.",
+      "source": "knowledge-base/02_descripcion_general.md; knowledge-base/07_flujos_principales.md Flujo 2"
+    },
+    {
+      "id": "ext-drive",
+      "label": "Google Drive",
+      "type": "integration-planned",
+      "layer": 9,
+      "status": "planned",
+      "module": "facturacion",
+      "description": "PLANEADO. Vinculación con el Drive de facturación existente del cliente, para traer/adjuntar documentos.",
+      "source": "knowledge-base/02_descripcion_general.md"
+    },
+    {
+      "id": "ext-arca",
+      "label": "ARCA",
+      "type": "integration-planned",
+      "layer": 9,
+      "status": "planned",
+      "module": "facturacion",
+      "description": "PLANEADO, nivel de integración A CONFIRMAR con el cliente (API automática vs. carga/descarga manual del comprobante). La arquitectura debe soportar ambos escenarios.",
+      "source": "knowledge-base/02_descripcion_general.md; knowledge-base/08_arquitectura_propuesta.md §Nota sobre integración con ARCA"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-browser-bootstrap",
+      "from": "browser",
+      "to": "bootstrap",
+      "kind": "flow"
+    },
+    {
+      "id": "e-bootstrap-router",
+      "from": "bootstrap",
+      "to": "router",
+      "kind": "flow"
+    },
+    {
+      "id": "e-router-login",
+      "from": "router",
+      "to": "login",
+      "kind": "route",
+      "label": "ruta pública"
+    },
+    {
+      "id": "e-router-guard",
+      "from": "router",
+      "to": "guard",
+      "kind": "route"
+    },
+    {
+      "id": "e-guard-shell",
+      "from": "guard",
+      "to": "shell",
+      "kind": "route"
+    },
+    {
+      "id": "e-shell-designsystem",
+      "from": "shell",
+      "to": "design-system",
+      "kind": "uses",
+      "label": "usa design system"
+    },
+    {
+      "id": "e-login-supaauth",
+      "from": "login",
+      "to": "supabase-auth",
+      "kind": "planned",
+      "label": "reemplaza mock"
+    },
+    {
+      "id": "e-guard-supaauth",
+      "from": "guard",
+      "to": "supabase-auth",
+      "kind": "planned",
+      "label": "reemplaza mock"
+    },
+    {
+      "id": "e-shell-dashboard",
+      "from": "shell",
+      "to": "mod-dashboard",
+      "kind": "route"
+    },
+    {
+      "id": "e-shell-pacientes",
+      "from": "shell",
+      "to": "mod-pacientes",
+      "kind": "route"
+    },
+    {
+      "id": "e-shell-obras",
+      "from": "shell",
+      "to": "mod-obras-sociales",
+      "kind": "route"
+    },
+    {
+      "id": "e-shell-vehiculos",
+      "from": "shell",
+      "to": "mod-vehiculos",
+      "kind": "route"
+    },
+    {
+      "id": "e-shell-conductores",
+      "from": "shell",
+      "to": "mod-conductores",
+      "kind": "route"
+    },
+    {
+      "id": "e-shell-presupuestos",
+      "from": "shell",
+      "to": "mod-presupuestos",
+      "kind": "route"
+    },
+    {
+      "id": "e-shell-hojas",
+      "from": "shell",
+      "to": "mod-hojas-de-ruta",
+      "kind": "route"
+    },
+    {
+      "id": "e-shell-facturacion",
+      "from": "shell",
+      "to": "mod-facturacion",
+      "kind": "route"
+    },
+    {
+      "id": "e-dash-repofactura",
+      "from": "mod-dashboard",
+      "to": "repo-factura",
+      "kind": "read"
+    },
+    {
+      "id": "e-dash-repocobro",
+      "from": "mod-dashboard",
+      "to": "repo-cobro",
+      "kind": "read"
+    },
+    {
+      "id": "e-dash-repopaciente",
+      "from": "mod-dashboard",
+      "to": "repo-paciente",
+      "kind": "read"
+    },
+    {
+      "id": "e-dash-repovehiculo",
+      "from": "mod-dashboard",
+      "to": "repo-vehiculo",
+      "kind": "read"
+    },
+    {
+      "id": "e-dash-repohoja",
+      "from": "mod-dashboard",
+      "to": "repo-hoja-de-ruta",
+      "kind": "read"
+    },
+    {
+      "id": "e-dash-repoconductor",
+      "from": "mod-dashboard",
+      "to": "repo-conductor",
+      "kind": "read"
+    },
+    {
+      "id": "e-dash-rules",
+      "from": "mod-dashboard",
+      "to": "rules-reportes",
+      "kind": "uses"
+    },
+    {
+      "id": "e-pac-repopaciente",
+      "from": "mod-pacientes",
+      "to": "repo-paciente",
+      "kind": "write"
+    },
+    {
+      "id": "e-pac-repoobra",
+      "from": "mod-pacientes",
+      "to": "repo-obra-social",
+      "kind": "read"
+    },
+    {
+      "id": "e-pac-repodoc",
+      "from": "mod-pacientes",
+      "to": "repo-documento",
+      "kind": "write"
+    },
+    {
+      "id": "e-obras-repoobra",
+      "from": "mod-obras-sociales",
+      "to": "repo-obra-social",
+      "kind": "write"
+    },
+    {
+      "id": "e-veh-repoveh",
+      "from": "mod-vehiculos",
+      "to": "repo-vehiculo",
+      "kind": "write"
+    },
+    {
+      "id": "e-veh-repodoc",
+      "from": "mod-vehiculos",
+      "to": "repo-documento",
+      "kind": "write"
+    },
+    {
+      "id": "e-veh-rules",
+      "from": "mod-vehiculos",
+      "to": "rules-mantenimiento",
+      "kind": "uses"
+    },
+    {
+      "id": "e-cond-repocond",
+      "from": "mod-conductores",
+      "to": "repo-conductor",
+      "kind": "write"
+    },
+    {
+      "id": "e-cond-repoveh",
+      "from": "mod-conductores",
+      "to": "repo-vehiculo",
+      "kind": "read"
+    },
+    {
+      "id": "e-presu-repopresu",
+      "from": "mod-presupuestos",
+      "to": "repo-presupuesto",
+      "kind": "write"
+    },
+    {
+      "id": "e-presu-repoauto",
+      "from": "mod-presupuestos",
+      "to": "repo-autorizacion",
+      "kind": "write"
+    },
+    {
+      "id": "e-presu-repopaciente",
+      "from": "mod-presupuestos",
+      "to": "repo-paciente",
+      "kind": "read"
+    },
+    {
+      "id": "e-presu-repoobra",
+      "from": "mod-presupuestos",
+      "to": "repo-obra-social",
+      "kind": "read"
+    },
+    {
+      "id": "e-presu-rules",
+      "from": "mod-presupuestos",
+      "to": "rules-presupuestos",
+      "kind": "uses"
+    },
+    {
+      "id": "e-hoja-repohoja",
+      "from": "mod-hojas-de-ruta",
+      "to": "repo-hoja-de-ruta",
+      "kind": "write"
+    },
+    {
+      "id": "e-hoja-repopaciente",
+      "from": "mod-hojas-de-ruta",
+      "to": "repo-paciente",
+      "kind": "read"
+    },
+    {
+      "id": "e-hoja-repoveh",
+      "from": "mod-hojas-de-ruta",
+      "to": "repo-vehiculo",
+      "kind": "read"
+    },
+    {
+      "id": "e-hoja-repocond",
+      "from": "mod-hojas-de-ruta",
+      "to": "repo-conductor",
+      "kind": "read"
+    },
+    {
+      "id": "e-hoja-rules",
+      "from": "mod-hojas-de-ruta",
+      "to": "rules-hoja-de-ruta",
+      "kind": "uses"
+    },
+    {
+      "id": "e-hoja-maps",
+      "from": "mod-hojas-de-ruta",
+      "to": "ext-maps",
+      "kind": "planned",
+      "label": "orden por cercanía (RF-701)"
+    },
+    {
+      "id": "e-fact-repofactura",
+      "from": "mod-facturacion",
+      "to": "repo-factura",
+      "kind": "write"
+    },
+    {
+      "id": "e-fact-repocobro",
+      "from": "mod-facturacion",
+      "to": "repo-cobro",
+      "kind": "write"
+    },
+    {
+      "id": "e-fact-repopaciente",
+      "from": "mod-facturacion",
+      "to": "repo-paciente",
+      "kind": "read"
+    },
+    {
+      "id": "e-fact-repoobra",
+      "from": "mod-facturacion",
+      "to": "repo-obra-social",
+      "kind": "read"
+    },
+    {
+      "id": "e-fact-repopresu",
+      "from": "mod-facturacion",
+      "to": "repo-presupuesto",
+      "kind": "read"
+    },
+    {
+      "id": "e-fact-repoauto",
+      "from": "mod-facturacion",
+      "to": "repo-autorizacion",
+      "kind": "read"
+    },
+    {
+      "id": "e-fact-repodoc",
+      "from": "mod-facturacion",
+      "to": "repo-documento",
+      "kind": "write"
+    },
+    {
+      "id": "e-fact-rules",
+      "from": "mod-facturacion",
+      "to": "rules-facturacion",
+      "kind": "uses"
+    },
+    {
+      "id": "e-fact-drive",
+      "from": "mod-facturacion",
+      "to": "ext-drive",
+      "kind": "planned",
+      "label": "Drive de facturación existente"
+    },
+    {
+      "id": "e-fact-arca",
+      "from": "mod-facturacion",
+      "to": "ext-arca",
+      "kind": "planned",
+      "label": "comprobante — nivel a confirmar"
+    },
+    {
+      "id": "e-repopaciente-ls",
+      "from": "repo-paciente",
+      "to": "local-storage",
+      "kind": "persist"
+    },
+    {
+      "id": "e-repoobra-ls",
+      "from": "repo-obra-social",
+      "to": "local-storage",
+      "kind": "persist"
+    },
+    {
+      "id": "e-repoveh-ls",
+      "from": "repo-vehiculo",
+      "to": "local-storage",
+      "kind": "persist"
+    },
+    {
+      "id": "e-repocond-ls",
+      "from": "repo-conductor",
+      "to": "local-storage",
+      "kind": "persist"
+    },
+    {
+      "id": "e-repopresu-ls",
+      "from": "repo-presupuesto",
+      "to": "local-storage",
+      "kind": "persist"
+    },
+    {
+      "id": "e-repoauto-ls",
+      "from": "repo-autorizacion",
+      "to": "local-storage",
+      "kind": "persist"
+    },
+    {
+      "id": "e-repohoja-ls",
+      "from": "repo-hoja-de-ruta",
+      "to": "local-storage",
+      "kind": "persist"
+    },
+    {
+      "id": "e-repofactura-ls",
+      "from": "repo-factura",
+      "to": "local-storage",
+      "kind": "persist"
+    },
+    {
+      "id": "e-repocobro-ls",
+      "from": "repo-cobro",
+      "to": "local-storage",
+      "kind": "persist"
+    },
+    {
+      "id": "e-repodoc-ls",
+      "from": "repo-documento",
+      "to": "local-storage",
+      "kind": "persist"
+    },
+    {
+      "id": "e-repopaciente-db",
+      "from": "repo-paciente",
+      "to": "supabase-db",
+      "kind": "planned",
+      "label": "tabla paciente (C-05)"
+    },
+    {
+      "id": "e-repoobra-db",
+      "from": "repo-obra-social",
+      "to": "supabase-db",
+      "kind": "planned",
+      "label": "tabla obra_social (C-04)"
+    },
+    {
+      "id": "e-repoveh-db",
+      "from": "repo-vehiculo",
+      "to": "supabase-db",
+      "kind": "planned",
+      "label": "tabla vehiculo (C-08)"
+    },
+    {
+      "id": "e-repocond-db",
+      "from": "repo-conductor",
+      "to": "supabase-db",
+      "kind": "planned",
+      "label": "tabla conductor (C-09)"
+    },
+    {
+      "id": "e-repopresu-db",
+      "from": "repo-presupuesto",
+      "to": "supabase-db",
+      "kind": "planned",
+      "label": "tabla presupuesto (C-06)"
+    },
+    {
+      "id": "e-repoauto-db",
+      "from": "repo-autorizacion",
+      "to": "supabase-db",
+      "kind": "planned",
+      "label": "tabla autorizacion (C-06)"
+    },
+    {
+      "id": "e-repohoja-db",
+      "from": "repo-hoja-de-ruta",
+      "to": "supabase-db",
+      "kind": "planned",
+      "label": "tablas hoja_de_ruta/recorrido (C-10)"
+    },
+    {
+      "id": "e-repofactura-db",
+      "from": "repo-factura",
+      "to": "supabase-db",
+      "kind": "planned",
+      "label": "tablas factura/asistencia_prestacion (C-07)"
+    },
+    {
+      "id": "e-repocobro-db",
+      "from": "repo-cobro",
+      "to": "supabase-db",
+      "kind": "planned",
+      "label": "tabla cobro (C-07)"
+    },
+    {
+      "id": "e-repodoc-db",
+      "from": "repo-documento",
+      "to": "supabase-db",
+      "kind": "planned",
+      "label": "tabla documento_{entidad} (C-03)"
+    },
+    {
+      "id": "e-repodoc-storage",
+      "from": "repo-documento",
+      "to": "supabase-storage",
+      "kind": "planned",
+      "label": "4 buckets (C-01/C-03)"
+    }
+  ],
+  "flows": [
+    {
+      "id": "flow-1-alta-paciente",
+      "name": "Alta de paciente y asignación de obra social",
+      "actor": "Operadora o administradora",
+      "trigger": "Ingreso de un nuevo paciente al servicio",
+      "sourceRef": "knowledge-base/07_flujos_principales.md §Flujo 1",
+      "steps": [
+        {
+          "n": 1,
+          "text": "Operadora crea la ficha del paciente (datos personales, clínicos, CUD, accesorio de movilidad).",
+          "nodes": [
+            "mod-pacientes",
+            "repo-paciente"
+          ]
+        },
+        {
+          "n": 2,
+          "text": "Operadora asocia al paciente su obra social; el sistema adapta el campo de identificador de afiliado según la obra social elegida.",
+          "nodes": [
+            "mod-pacientes",
+            "repo-obra-social"
+          ],
+          "ruleRefs": [
+            "RN-ID-02"
+          ]
+        },
+        {
+          "n": 3,
+          "text": "Operadora carga las direcciones habituales (domicilio, escuela, terapias, CISET), definiendo ida y vuelta de forma independiente.",
+          "nodes": [
+            "mod-pacientes",
+            "repo-paciente"
+          ]
+        },
+        {
+          "n": 4,
+          "text": "Operadora registra personas a cargo y teléfono alternativo.",
+          "nodes": [
+            "mod-pacientes",
+            "repo-paciente"
+          ]
+        },
+        {
+          "n": 5,
+          "text": "Operadora adjunta la documentación exigida por el checklist de esa obra social (DNI, CUD, CODEM, RHC, etc.).",
+          "nodes": [
+            "mod-pacientes",
+            "repo-documento",
+            "supabase-storage"
+          ]
+        },
+        {
+          "n": 6,
+          "text": "Facturación carga el presupuesto anual para ese paciente/prestación y, al recibirla, la autorización de la obra social.",
+          "nodes": [
+            "mod-presupuestos",
+            "repo-presupuesto",
+            "repo-autorizacion",
+            "rules-presupuestos"
+          ]
+        }
+      ],
+      "errorCases": [
+        {
+          "text": "Obra social sin checklist configurado → bloquear la carga de documentación hasta configurarlo.",
+          "ruleRef": "Épica 4, US-300"
+        },
+        {
+          "text": "Autorización cargada mayor al presupuesto → el sistema debe rechazar o alertar.",
+          "ruleRef": "RN-PA-01"
+        }
+      ]
+    },
+    {
+      "id": "flow-2-hoja-de-ruta",
+      "name": "Armado de la hoja de ruta diaria",
+      "actor": "Administradora u operadora",
+      "trigger": "Inicio de la jornada operativa",
+      "sourceRef": "knowledge-base/07_flujos_principales.md §Flujo 2",
+      "steps": [
+        {
+          "n": 1,
+          "text": "Se cargan los viajes/traslados del día (aprox. 8:00-20:00).",
+          "nodes": [
+            "mod-hojas-de-ruta",
+            "repo-hoja-de-ruta"
+          ]
+        },
+        {
+          "n": 2,
+          "text": "El sistema agrupa pasajeros por vehículo/conductor según capacidad y compatibilidad de accesorios.",
+          "nodes": [
+            "mod-hojas-de-ruta",
+            "rules-hoja-de-ruta",
+            "repo-vehiculo",
+            "repo-conductor"
+          ],
+          "ruleRefs": [
+            "RN-VE-01"
+          ]
+        },
+        {
+          "n": 3,
+          "text": "El sistema sugiere un orden de recogida por cercanía (Google Maps/Geometry), como propuesta editable.",
+          "nodes": [
+            "mod-hojas-de-ruta",
+            "rules-hoja-de-ruta",
+            "ext-maps"
+          ],
+          "ruleRefs": [
+            "RN-HR-01"
+          ]
+        },
+        {
+          "n": 4,
+          "text": "El operador ajusta manualmente el orden, agrega o quita pasajeros, y resuelve cancelaciones o cambios de horario.",
+          "nodes": [
+            "mod-hojas-de-ruta",
+            "repo-hoja-de-ruta"
+          ]
+        },
+        {
+          "n": 5,
+          "text": "Se agregan notas al pie si hace falta aclarar combinaciones entre pasajeros.",
+          "nodes": [
+            "mod-hojas-de-ruta",
+            "repo-hoja-de-ruta"
+          ]
+        },
+        {
+          "n": 6,
+          "text": "Administradora revisa la vista global del día para detectar conflictos (vehículo/conductor fuera de servicio) y reasigna si es necesario.",
+          "nodes": [
+            "mod-hojas-de-ruta",
+            "repo-vehiculo"
+          ]
+        },
+        {
+          "n": 7,
+          "text": "Se imprime o exporta la hoja de ruta y se entrega al conductor (papel o WhatsApp).",
+          "nodes": [
+            "mod-hojas-de-ruta"
+          ]
+        }
+      ],
+      "errorCases": [
+        {
+          "text": "Vehículo fuera de servicio asignado a un recorrido → excluir del listado de vehículos disponibles.",
+          "ruleRef": "RN-VE-02"
+        },
+        {
+          "text": "Paciente con accesorio incompatible con el vehículo asignado → bloquear la asignación.",
+          "ruleRef": "RF-502"
+        }
+      ]
+    },
+    {
+      "id": "flow-3-facturacion-cobro",
+      "name": "Ciclo de facturación y cobro",
+      "actor": "Facturación (remoto)",
+      "trigger": "Cierre de mes o acumulación de prestaciones a facturar",
+      "sourceRef": "knowledge-base/07_flujos_principales.md §Flujo 3",
+      "steps": [
+        {
+          "n": 1,
+          "text": "Facturación revisa las asistencias/prestaciones declaradas del período por paciente.",
+          "nodes": [
+            "mod-facturacion",
+            "repo-factura"
+          ]
+        },
+        {
+          "n": 2,
+          "text": "Se genera la descripción de factura según la plantilla configurada para la obra social del paciente.",
+          "nodes": [
+            "mod-facturacion",
+            "repo-obra-social",
+            "rules-facturacion"
+          ],
+          "ruleRefs": [
+            "RF-400"
+          ]
+        },
+        {
+          "n": 3,
+          "text": "Se cargan manualmente cantidad de días y valor del km (nomenclador).",
+          "nodes": [
+            "mod-facturacion",
+            "repo-factura"
+          ]
+        },
+        {
+          "n": 4,
+          "text": "El sistema valida contra el cupo autorizado y alerta si se supera.",
+          "nodes": [
+            "mod-facturacion",
+            "repo-autorizacion",
+            "repo-presupuesto",
+            "rules-facturacion"
+          ],
+          "ruleRefs": [
+            "RN-FA-02"
+          ]
+        },
+        {
+          "n": 5,
+          "text": "Se excluyen feriados (salvo excepciones de sábado según prestación).",
+          "nodes": [
+            "rules-facturacion"
+          ]
+        },
+        {
+          "n": 6,
+          "text": "Se emite la factura (tipo de comprobante según obra social) y se adjunta la documentación de respaldo (comprobante ARCA, asistencia, CODEM).",
+          "nodes": [
+            "mod-facturacion",
+            "repo-documento",
+            "ext-arca"
+          ]
+        },
+        {
+          "n": 7,
+          "text": "El sistema calcula la fecha estimada de cobro (90 días por defecto, o 45 si hay amparo judicial).",
+          "nodes": [
+            "rules-facturacion"
+          ]
+        },
+        {
+          "n": 8,
+          "text": "Se registran cobros o pagos parciales a medida que ingresan.",
+          "nodes": [
+            "mod-facturacion",
+            "repo-cobro"
+          ]
+        },
+        {
+          "n": 9,
+          "text": "Si se supera el plazo esperado (ej. 60 días), el sistema alerta para hacer seguimiento ante la Superintendencia.",
+          "nodes": [
+            "rules-facturacion"
+          ]
+        },
+        {
+          "n": 10,
+          "text": "Se imprime/exporta la factura y asistencia para subir al portal de la obra social o enviar por mail.",
+          "nodes": [
+            "mod-facturacion",
+            "ext-drive"
+          ]
+        }
+      ],
+      "errorCases": [
+        {
+          "text": "Días/km facturados exceden lo autorizado → alerta antes de confirmar.",
+          "ruleRef": "RF-402"
+        },
+        {
+          "text": "Factura vencida sin cobro registrado → alerta de cobro vencido.",
+          "ruleRef": "RF-406"
+        }
+      ]
+    },
+    {
+      "id": "flow-4-mantenimiento-vehiculos",
+      "name": "Mantenimiento y habilitación de vehículos",
+      "actor": "Administradora",
+      "trigger": "Vencimiento próximo de VTV/RTO, o alcance de kilometraje de mantenimiento preventivo",
+      "sourceRef": "knowledge-base/07_flujos_principales.md §Flujo 4",
+      "steps": [
+        {
+          "n": 1,
+          "text": "El sistema alerta por proximidad de cambio de aceite/filtros (10.000 km o 2-3 meses) o vencimiento de VTV (6 meses)/RTO.",
+          "nodes": [
+            "mod-vehiculos",
+            "rules-mantenimiento"
+          ]
+        },
+        {
+          "n": 2,
+          "text": "Administradora actualiza kilometraje manualmente (con alerta intermedia a los 5.000 km).",
+          "nodes": [
+            "mod-vehiculos",
+            "repo-vehiculo"
+          ]
+        },
+        {
+          "n": 3,
+          "text": "Se realiza el mantenimiento o la habilitación correspondiente y se registra en el historial (preventivo o correctivo).",
+          "nodes": [
+            "mod-vehiculos",
+            "repo-vehiculo"
+          ]
+        },
+        {
+          "n": 4,
+          "text": "Se adjunta documentación actualizada (VTV, RTO, seguro).",
+          "nodes": [
+            "mod-vehiculos",
+            "repo-documento",
+            "supabase-storage"
+          ]
+        },
+        {
+          "n": 5,
+          "text": "Si el vehículo queda inhabilitado durante el proceso, se marca 'fuera de servicio' y queda excluido de las hojas de ruta hasta reactivarlo.",
+          "nodes": [
+            "mod-vehiculos",
+            "repo-vehiculo",
+            "rules-mantenimiento"
+          ],
+          "ruleRefs": [
+            "RN-VE-02",
+            "RN-VE-04"
+          ]
+        }
+      ],
+      "errorCases": [
+        {
+          "text": "Vehículo sin VTV/RTO vigente sigue apareciendo como disponible → debe excluirse automáticamente de la hoja de ruta.",
+          "ruleRef": "RN-VE-02, RN-VE-04"
+        }
+      ]
+    }
+  ]
+};
+
+const NODE_BY_ID = Object.fromEntries(DATA.nodes.map(n => [n.id, n]));
+
+/* ---------- simple-mode aggregation (progressive disclosure) ---------- */
+const AGGREGATES = {
+  'g-app': { label:'App (SPA) — bootstrap + router', type:'client', status:'implemented',
+    description:'Punto de entrada del cliente: carga del navegador, composición de React (AuthProvider mock) y el router (createBrowserRouter + routes.ts).',
+    children:['browser','bootstrap','router'] },
+  'g-auth': { label:'Autenticación (mock)', type:'auth', status:'implemented',
+    description:'LoginPage (única ruta pública) + guard RequireAuth. Sesión mock en memoria, sin roles ni matriz Cuenta→Módulos todavía (eso lo resuelve C-02).',
+    children:['login','guard'] },
+  'g-shared': { label:'Capa compartida — repos, reglas, UI, localStorage', type:'shared-ui', status:'mixed',
+    description:'Repositories mock (uno por entidad), funciones puras de reglas de negocio, design system y localStorage como persistencia actual. Cada elemento tiene su propio estado real — ver detalle.',
+    children:['repo-paciente','repo-obra-social','repo-vehiculo','repo-conductor','repo-presupuesto','repo-autorizacion','repo-hoja-de-ruta','repo-factura','repo-cobro','repo-documento','rules-facturacion','rules-presupuestos','rules-hoja-de-ruta','rules-mantenimiento','rules-reportes','design-system','local-storage'] },
+  'g-planned': { label:'Backend & integraciones (planeado)', type:'backend-planned', status:'planned',
+    description:'Nada de esto existe en código todavía — es diseño documentado en CHANGES.md / knowledge-base. Supabase (Auth + DB + Storage) y las tres integraciones externas.',
+    children:['supabase-auth','supabase-db','supabase-storage','ext-maps','ext-drive','ext-arca'] },
+};
+const MODULE_IDS = DATA.nodes.filter(n => n.layer === 4).map(n => n.id);
+const SIMPLE_ROWS = [ ['g-app'], ['g-auth'], ['shell'], MODULE_IDS, ['g-shared'], ['g-planned'] ];
+
+const CHILD_TO_GROUP = {};
+Object.entries(AGGREGATES).forEach(([gid, g]) => g.children.forEach(cid => CHILD_TO_GROUP[cid] = gid));
+function toSimpleId(id){ return CHILD_TO_GROUP[id] || id; }
+
+function simpleNodeObj(id){
+  if (AGGREGATES[id]) {
+    const g = AGGREGATES[id];
+    return { id, label:g.label, type:g.type, status:g.status, description:g.description,
+      source:'Nodo agregado — clic para ver cada elemento real', isGroup:true, children:g.children };
+  }
+  return NODE_BY_ID[id];
+}
+
+/* ---------- generic row layout ---------- */
+const CANVAS_WIDTH = 1800;
+function layoutRows(rows){
+  const pos = {}; let y = 20;
+  rows.forEach(row => {
+    const rowH = row.length > 8 ? 72 : 66;
+    const colW = CANVAS_WIDTH / row.length;
+    row.forEach((id,i) => {
+      const w = Math.min(colW*0.82, 460);
+      pos[id] = { x: i*colW + (colW-w)/2, y, w, h: rowH };
+    });
+    y += rowH + 62;
+  });
+  return { pos, height: Math.max(y - 62 + 40, 300) };
+}
+
+function buildFullRows(){
+  const byLayer = {};
+  DATA.nodes.forEach(n => (byLayer[n.layer] ??= []).push(n.id));
+  return Object.keys(byLayer).map(Number).sort((a,b)=>a-b).map(k => byLayer[k]);
+}
+
+function elbow(a,b){
+  const x1=a.x+a.w/2, y1=a.y+a.h, x2=b.x+b.w/2, y2=b.y;
+  const ym = y1 + (y2-y1)*0.5;
+  if (Math.abs(x1-x2) < 2) return `M ${x1},${y1} L ${x2},${y2}`;
+  return `M ${x1},${y1} L ${x1},${ym} L ${x2},${ym} L ${x2},${y2}`;
+}
+
+function tagFor(n){
+  const map = {client:'Cliente', auth:'Auth', module:'Módulo', repository:'Repository',
+    'business-rule':'Reglas', 'shared-ui':'UI compartida', persistence:'Persistencia',
+    'backend-planned':'Backend', 'integration-planned':'Integración'};
+  return map[n.type] || n.type;
+}
+
+function computeEdgesFor(nodeIds, mapFn){
+  const idSet = new Set(nodeIds);
+  const priority = {write:1, route:2, read:3, uses:4, persist:5, planned:6};
+  const byPair = new Map();
+  DATA.edges.forEach(e => {
+    const f = mapFn(e.from), t = mapFn(e.to);
+    if (f === t) return;
+    if (!idSet.has(f) || !idSet.has(t)) return;
+    const key = f+'->'+t;
+    const cur = byPair.get(key);
+    if (!cur || priority[e.kind] < priority[cur.kind]) byPair.set(key, {id:key, from:f, to:t, kind:e.kind});
+  });
+  return [...byPair.values()];
+}
+
+/* ---------- state & render ---------- */
+let viewMode = 'simple';
+let showPlanned = false;
+let POS = {};
+const nodeLayer = document.getElementById('nodeLayer');
+const edgeSvg = document.getElementById('edgeLayer');
+const canvasEl = document.getElementById('canvas');
+
+function render(){
+  stopPlay();
+  let rows;
+  if (viewMode === 'simple') {
+    rows = showPlanned ? SIMPLE_ROWS : SIMPLE_ROWS.filter(r => r[0] !== 'g-planned');
+  } else {
+    rows = buildFullRows().filter(row => showPlanned || !row.some(id => NODE_BY_ID[id].status === 'planned'));
+  }
+  const flatIds = rows.flat();
+  const { pos, height } = layoutRows(rows);
+  POS = pos;
+  const renderNodes = flatIds.map(id => viewMode === 'simple' ? simpleNodeObj(id) : NODE_BY_ID[id]);
+  const mapFn = viewMode === 'simple' ? toSimpleId : (id => id);
+  const renderEdges = computeEdgesFor(flatIds, mapFn);
+
+  canvasEl.style.width = CANVAS_WIDTH+'px';
+  canvasEl.style.height = height+'px';
+  edgeSvg.setAttribute('width', CANVAS_WIDTH);
+  edgeSvg.setAttribute('height', height);
+
+  nodeLayer.innerHTML = '';
+  renderNodes.forEach(n => {
+    const p = POS[n.id];
+    const el = document.createElement('div');
+    el.className = `node t-${n.type}`;
+    el.style.left = p.x+'px'; el.style.top = p.y+'px'; el.style.width = p.w+'px'; el.style.height = p.h+'px';
+    el.dataset.id = n.id;
+    el.dataset.status = n.status;
+    el.innerHTML = `<span class="lbl">${n.label}</span><span class="tag">${n.isGroup ? 'Grupo · '+n.children.length+' elementos' : tagFor(n)}</span>`;
+    if (n.status === 'implemented-mock') { const b=document.createElement('span'); b.className='badge-mock'; b.textContent='MOCK'; el.appendChild(b); }
+    else if (n.status === 'planned') { const b=document.createElement('span'); b.className='badge-planned'; b.textContent='PLANEADO'; el.appendChild(b); }
+    el.addEventListener('click', () => showDetail(n));
+    nodeLayer.appendChild(el);
+  });
+
+  edgeSvg.innerHTML = '';
+  renderEdges.forEach(e => {
+    const a = POS[e.from], b = POS[e.to];
+    if (!a || !b) return;
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', elbow(a,b));
+    path.setAttribute('class', `edge k-${e.kind}`);
+    path.dataset.id = e.id; path.dataset.from = e.from; path.dataset.to = e.to;
+    edgeSvg.appendChild(path);
+  });
+
+  if (currentFlow) applyFlowHighlight();
+}
+
+/* ---------- view controls ---------- */
+function setViewMode(mode){
+  viewMode = mode;
+  const simpleBtn = document.getElementById('viewSimple');
+  const fullBtn = document.getElementById('viewFull');
+  ['bg-cyan-900/60','text-cyan-300','font-semibold'].forEach(c => {
+    simpleBtn.classList.toggle(c, mode==='simple');
+    fullBtn.classList.toggle(c, mode==='full');
+  });
+  render();
+}
+document.getElementById('viewSimple').addEventListener('click', () => setViewMode('simple'));
+document.getElementById('viewFull').addEventListener('click', () => setViewMode('full'));
+
+const togglePlanned = document.getElementById('togglePlanned');
+togglePlanned.addEventListener('change', () => { showPlanned = togglePlanned.checked; render(); });
+
+/* ---------- detail panel ---------- */
+const detailPanel = document.getElementById('detailPanel');
+function showDetail(n){
+  document.getElementById('detailTitle').textContent = n.label + (n.status==='planned' ? '  ·  planeado' : n.status==='implemented-mock' ? '  ·  frontend mock' : '');
+  if (n.isGroup) {
+    const items = n.children.map(cid => {
+      const c = NODE_BY_ID[cid];
+      const tag = c.status === 'planned' ? 'planeado' : c.status === 'implemented-mock' ? 'frontend mock' : 'implementado';
+      return `<li><span class="text-slate-200">${c.label}</span> <span class="text-slate-500">— ${tag}</span></li>`;
+    }).join('');
+    document.getElementById('detailDesc').innerHTML = `<p>${n.description}</p><ul class="list-disc list-inside mt-2 space-y-0.5">${items}</ul>`;
+    document.getElementById('detailSource').textContent = 'Clic en "Vista completa" para ver cada elemento por separado en el diagrama.';
+  } else {
+    document.getElementById('detailDesc').textContent = n.description;
+    document.getElementById('detailSource').textContent = 'Fuente: ' + n.source;
+  }
+  detailPanel.classList.remove('hidden');
+}
+document.getElementById('closeDetail').addEventListener('click', () => detailPanel.classList.add('hidden'));
+
+/* ---------- search ---------- */
+document.getElementById('searchBox').addEventListener('input', (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('.node').forEach(el => {
+    if (!q) { el.style.outline=''; return; }
+    const match = el.querySelector('.lbl').textContent.toLowerCase().includes(q);
+    el.style.outline = match ? '2px solid #22d3ee' : '';
+  });
+});
+
+/* ---------- zoom ---------- */
+let zoom = 1;
+const zoomShell = document.getElementById('zoomShell');
+const zoomLabel = document.getElementById('zoomLabel');
+function setZoom(z){ zoom = Math.min(1.3, Math.max(0.5, z)); zoomShell.style.transform = `scale(${zoom})`; zoomLabel.textContent = Math.round(zoom*100)+'%'; }
+document.getElementById('zoomIn').addEventListener('click', () => setZoom(zoom+0.1));
+document.getElementById('zoomOut').addEventListener('click', () => setZoom(zoom-0.1));
+
+/* ---------- flows ---------- */
+const flowListEl = document.getElementById('flowList');
+const flowDetail = document.getElementById('flowDetail');
+let currentFlow = null;
+let currentStepIdx = 0;
+let playTimer = null;
+
+DATA.flows.forEach(f => {
+  const card = document.createElement('button');
+  card.className = 'flow-card text-left rounded-xl border border-slate-800 bg-slate-900/50 p-3.5 hover:border-slate-600';
+  card.innerHTML = `<p class="text-sm font-semibold text-slate-100">${f.name}</p>
+    <p class="text-[11px] text-slate-500 mt-1">${f.actor}</p>
+    <p class="text-[11px] text-slate-600 mt-2">${f.steps.length} pasos · ${f.errorCases.length} casos de error</p>`;
+  card.addEventListener('click', () => selectFlow(f.id));
+  card.dataset.flowId = f.id;
+  flowListEl.appendChild(card);
+});
+
+function selectFlow(id){
+  stopPlay();
+  currentFlow = DATA.flows.find(f => f.id === id);
+  currentStepIdx = 0;
+  document.querySelectorAll('.flow-card').forEach(c => c.classList.toggle('active', c.dataset.flowId === id));
+  document.getElementById('clearFlow').classList.remove('hidden');
+  flowDetail.classList.remove('hidden');
+  document.getElementById('flowName').textContent = currentFlow.name;
+  document.getElementById('flowActor').textContent = currentFlow.actor;
+  document.getElementById('flowTrigger').textContent = currentFlow.trigger;
+  renderSteps();
+  renderErrors();
+  applyFlowHighlight();
+  flowDetail.scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function renderSteps(){
+  const ol = document.getElementById('stepList');
+  ol.innerHTML = '';
+  currentFlow.steps.forEach((s, i) => {
+    const li = document.createElement('li');
+    li.className = 'step-row flex gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 cursor-pointer';
+    li.dataset.idx = i;
+    const rules = s.ruleRefs ? `<span class="ml-2 text-violet-400 font-mono text-[10px]">${s.ruleRefs.join(', ')}</span>` : '';
+    li.innerHTML = `<span class="shrink-0 w-6 h-6 rounded-full bg-slate-800 text-slate-300 text-xs font-bold flex items-center justify-center">${s.n}</span>
+      <span class="text-xs text-slate-300 leading-relaxed pt-0.5">${s.text}${rules}</span>`;
+    li.addEventListener('mouseenter', () => highlightStep(i, false));
+    li.addEventListener('mouseleave', () => highlightStep(currentStepIdx, false));
+    li.addEventListener('click', () => { currentStepIdx = i; highlightStep(i, true); });
+    ol.appendChild(li);
+  });
+  updateCounter();
+}
+
+function renderErrors(){
+  const ul = document.getElementById('errorList');
+  ul.innerHTML = '';
+  currentFlow.errorCases.forEach(ec => {
+    const li = document.createElement('li');
+    li.innerHTML = `${ec.text} <span class="font-mono text-rose-400/70">(${ec.ruleRef})</span>`;
+    ul.appendChild(li);
+  });
+}
+
+function allFlowNodes(){
+  const raw = new Set(currentFlow.steps.flatMap(s => s.nodes));
+  if (viewMode === 'simple') return new Set([...raw].map(toSimpleId));
+  return raw;
+}
+
+function applyFlowHighlight(){
+  const active = allFlowNodes();
+  document.querySelectorAll('.node').forEach(el => {
+    el.classList.remove('in-flow','dimmed','cur-step');
+    const qOld = el.querySelector('.step-badge'); if (qOld) qOld.remove();
+    if (active.has(el.dataset.id)) el.classList.add('in-flow'); else el.classList.add('dimmed');
+  });
+  document.querySelectorAll('.edge').forEach(el => {
+    el.classList.remove('in-flow','dimmed');
+    if (active.has(el.dataset.from) && active.has(el.dataset.to)) el.classList.add('in-flow');
+    else el.classList.add('dimmed');
+  });
+  highlightStep(currentStepIdx, true);
+}
+
+function highlightStep(idx, persist){
+  document.querySelectorAll('.node.cur-step').forEach(el => el.classList.remove('cur-step'));
+  document.querySelectorAll('.step-row.cur').forEach(el => el.classList.remove('cur'));
+  const step = currentFlow.steps[idx];
+  if (!step) return;
+  const ids = viewMode === 'simple' ? step.nodes.map(toSimpleId) : step.nodes;
+  [...new Set(ids)].forEach(id => {
+    const el = nodeLayer.querySelector(`.node[data-id="${id}"]`);
+    if (el) {
+      el.classList.add('cur-step');
+      if (!el.querySelector('.step-badge')) {
+        const b = document.createElement('span'); b.className='step-badge'; b.textContent = step.n;
+        el.appendChild(b);
+      } else { el.querySelector('.step-badge').textContent = step.n; }
+    }
+  });
+  const row = document.querySelector(`.step-row[data-idx="${idx}"]`);
+  if (row) row.classList.add('cur');
+  if (persist) currentStepIdx = idx;
+  updateCounter();
+}
+
+function updateCounter(){
+  document.getElementById('stepCounter').textContent = `Paso ${currentStepIdx+1}/${currentFlow.steps.length}`;
+  document.getElementById('prevStep').disabled = currentStepIdx === 0;
+  document.getElementById('nextStep').disabled = currentStepIdx === currentFlow.steps.length - 1;
+}
+
+document.getElementById('prevStep').addEventListener('click', () => { if (currentStepIdx>0){ currentStepIdx--; highlightStep(currentStepIdx,true);} });
+document.getElementById('nextStep').addEventListener('click', () => { if (currentStepIdx < currentFlow.steps.length-1){ currentStepIdx++; highlightStep(currentStepIdx,true);} });
+
+function stopPlay(){
+  if (typeof playTimer !== 'undefined' && playTimer) { clearInterval(playTimer); playTimer = null; }
+  const btn = document.getElementById('playStep'); if (btn) btn.textContent = '▶ Reproducir';
+}
+document.getElementById('playStep').addEventListener('click', () => {
+  if (playTimer) { stopPlay(); return; }
+  document.getElementById('playStep').textContent = '⏸ Pausar';
+  playTimer = setInterval(() => {
+    currentStepIdx = (currentStepIdx + 1) % currentFlow.steps.length;
+    highlightStep(currentStepIdx, true);
+  }, 1600);
+});
+
+document.getElementById('clearFlow').addEventListener('click', () => {
+  stopPlay();
+  currentFlow = null;
+  flowDetail.classList.add('hidden');
+  document.getElementById('clearFlow').classList.add('hidden');
+  document.querySelectorAll('.flow-card').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.node').forEach(el => { el.classList.remove('in-flow','dimmed','cur-step'); const b=el.querySelector('.step-badge'); if(b) b.remove(); });
+  document.querySelectorAll('.edge').forEach(el => el.classList.remove('in-flow','dimmed'));
+});
+
+setViewMode('simple');
+</script>
+</body>
+</html>
