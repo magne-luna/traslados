@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet } from 'react-router';
 import { NavIcon } from '../design-system/components';
 import { APP_ROUTES, type AppRoute, type IconKey, type NavSection } from './routes';
@@ -79,14 +79,36 @@ const navGroups: Array<[NavSection, AppRoute[]]> = Array.from(
 );
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed';
+// Breakpoint `md` de Tailwind (768px): el toggle de colapso solo existe en desktop
+// (RNF-08 / Requirement "Sidebar colapsable en desktop", escenario "Sin efecto en mobile").
+const MD_BREAKPOINT_PX = 768;
 
 function readCollapsedPreference(): boolean {
   return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
 }
 
+function useIsDesktop(): boolean {
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= MD_BREAKPOINT_PX);
+
+  useEffect(() => {
+    function handleResize() {
+      setIsDesktop(window.innerWidth >= MD_BREAKPOINT_PX);
+    }
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return isDesktop;
+}
+
 export function AppShell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsedPreference);
+  const isDesktop = useIsDesktop();
+  // La preferencia de colapso persiste en localStorage, pero solo debe afectar el layout
+  // en desktop — el drawer off-canvas de mobile siempre se muestra expandido.
+  const effectiveCollapsed = collapsed && isDesktop;
 
   function toggleCollapsed() {
     setCollapsed((value) => {
@@ -106,27 +128,31 @@ export function AppShell() {
         />
       )}
 
-      <button
-        type="button"
-        onClick={() => setMobileNavOpen((open) => !open)}
-        className="fixed top-md left-md z-50 h-10 w-10 cursor-pointer rounded-md border border-border-strong bg-surface text-ink md:hidden"
-        aria-label={mobileNavOpen ? 'Cerrar navegación' : 'Abrir navegación'}
-      >
-        <NavIcon>
-          <line x1={3} y1={6} x2={21} y2={6} />
-          <line x1={3} y1={12} x2={21} y2={12} />
-          <line x1={3} y1={18} x2={21} y2={18} />
-        </NavIcon>
-      </button>
+      {/* Barra superior móvil: aloja el botón de menú dentro de una franja fija en vez de
+          flotarlo suelto, para que el espacio reservado en <main> tenga un propósito visible. */}
+      <header className="fixed top-0 inset-x-0 z-50 flex h-14 items-center bg-surface px-md md:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileNavOpen((open) => !open)}
+          className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-md text-ink"
+          aria-label={mobileNavOpen ? 'Cerrar navegación' : 'Abrir navegación'}
+        >
+          <NavIcon>
+            <line x1={3} y1={6} x2={21} y2={6} />
+            <line x1={3} y1={12} x2={21} y2={12} />
+            <line x1={3} y1={18} x2={21} y2={18} />
+          </NavIcon>
+        </button>
+      </header>
 
       <aside
         id="sidebar"
-        className={`fixed top-0 bottom-0 left-0 z-40 flex shrink-0 flex-col gap-xs overflow-hidden border-r border-sidebar-border bg-sidebar-bg p-lg transition-[transform,width] duration-200 ease-[ease] md:translate-x-0 ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'w-18' : 'w-56'}`}
+        className={`fixed top-0 bottom-0 left-0 z-40 flex shrink-0 flex-col gap-xs overflow-hidden border-r border-sidebar-border bg-sidebar-bg px-lg pt-14 pb-lg transition-[transform,width] duration-200 ease-[ease] md:translate-x-0 md:pt-lg ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} ${effectiveCollapsed ? 'w-18' : 'w-56'}`}
       >
         <div
-          className={`mt-1 mb-lg flex items-center gap-sm ${collapsed ? 'justify-center' : 'justify-between'}`}
+          className={`mt-1 mb-lg flex items-center gap-sm ${effectiveCollapsed ? 'justify-center' : 'justify-between'}`}
         >
-          {!collapsed && (
+          {!effectiveCollapsed && (
             <div className="font-heading text-base font-bold whitespace-nowrap text-ink">Pastor Traslados</div>
           )}
 
@@ -150,14 +176,14 @@ export function AppShell() {
           {navGroups.map(([section, routes]) => (
             <div key={section}>
               <div
-                className={`flex items-center gap-sm pb-sm ${collapsed ? 'justify-center px-sm' : 'px-md'}`}
+                className={`flex items-center gap-sm pb-sm ${effectiveCollapsed ? 'justify-center px-sm' : 'px-md'}`}
               >
-                {!collapsed && (
+                {!effectiveCollapsed && (
                   <span className="font-body text-[10px] font-bold whitespace-nowrap tracking-[0.08em] text-muted uppercase">
                     {section}
                   </span>
                 )}
-                <span className={`h-px bg-sidebar-border ${collapsed ? 'w-8' : 'flex-1'}`} />
+                <span className={`h-px bg-sidebar-border ${effectiveCollapsed ? 'w-8' : 'flex-1'}`} />
               </div>
               <ul className="nav-list m-0 flex list-none flex-col gap-md p-0">
                 {routes.map((route) => (
@@ -165,11 +191,11 @@ export function AppShell() {
                     <NavLink
                       to={route.path}
                       end={route.path === '/'}
-                      aria-label={collapsed ? route.label : undefined}
-                      title={collapsed ? route.label : undefined}
+                      aria-label={effectiveCollapsed ? route.label : undefined}
+                      title={effectiveCollapsed ? route.label : undefined}
                       className={({ isActive }) =>
                         `nav-item flex items-center gap-sm rounded-sm px-md py-sm font-body text-[13px] font-semibold whitespace-nowrap no-underline ${
-                          collapsed ? 'justify-center' : 'justify-start'
+                          effectiveCollapsed ? 'justify-center' : 'justify-start'
                         } ${
                           isActive
                             ? 'bg-surface-soft text-sidebar-text-active shadow-[inset_2px_0_0_var(--color-primary-soft)]'
@@ -179,7 +205,7 @@ export function AppShell() {
                       onClick={() => setMobileNavOpen(false)}
                     >
                       <NavIcon>{iconPaths[route.icon]}</NavIcon>
-                      {!collapsed && route.label}
+                      {!effectiveCollapsed && route.label}
                     </NavLink>
                   </li>
                 ))}
@@ -189,7 +215,12 @@ export function AppShell() {
         </nav>
       </aside>
 
-      <main className={`min-w-0 flex-1 ${collapsed ? 'md:ml-18' : 'md:ml-56'}`}>
+      {/* pt-14: mismo alto que la barra superior móvil (h-14), liberado en desktop. El borde
+          separador va acá (no en el header, que es `fixed` y quedaría pintado por encima del
+          drawer abierto) — al estar `main` en flujo normal, el drawer opaco lo tapa sin costuras. */}
+      <main
+        className={`min-w-0 flex-1 border-t border-border-strong pt-14 md:border-t-0 md:pt-0 ${effectiveCollapsed ? 'md:ml-18' : 'md:ml-56'}`}
+      >
         <Outlet />
       </main>
     </div>
