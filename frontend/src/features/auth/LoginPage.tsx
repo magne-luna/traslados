@@ -50,9 +50,11 @@ export function LoginPage() {
           />
         </Field>
 
-        <Button type="submit" variant="primary">
-          Ingresar
-        </Button>
+        <div className="flex justify-center">
+          <Button type="submit" variant="primary">
+            Ingresar
+          </Button>
+        </div>
       </form>
     </div>
   );
