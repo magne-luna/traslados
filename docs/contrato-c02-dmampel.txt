@@ -1,0 +1,49 @@
+Backend C-02 (usuarios/permisos/auditoria) - contrato para frontend
+
+usuarios.usuarios (fila por cuenta):
+  id: uuid (= auth.users.id)
+  email: text
+  nombre: text
+  apellido: text
+  rol: 'admin' | 'empleado'
+  ingreso_at: timestamptz | null   // auto, ultimo login
+  egreso_at: timestamptz | null    // auto, ultimo logout
+  created_at: timestamptz
+
+Modulos reales (catalogo modulos.modulos.tipo_modulo): pacientes, obra_social, facturacion, conductores.
+(Ojo: no son los 9 nombres de carpeta del frontend - Presupuesto/Autorizacion van con facturacion, Vehiculo/Mantenimiento van con conductores.)
+
+POST /functions/v1/create-user  (admin-only)
+Authorization: Bearer <JWT del admin>
+
+Body:
+{
+  "email": string,
+  "password": string,
+  "nombre": string,
+  "apellido": string,
+  "permisos"?: [{ "modulo": string, "nivel_acceso": "read"|"write"|"admin" }]
+}
+
+200 -> { "id": string, "email": string }
+403 -> { "error": "solo administradores pueden crear cuentas" }
+400 -> { "error": string }
+
+POST /functions/v1/update-permisos  (admin-only, reemplazo completo del set de permisos)
+Authorization: Bearer <JWT del admin>
+
+Body:
+{
+  "usuario_id": string,
+  "permisos": [{ "modulo": string, "nivel_acceso": "read"|"write"|"admin" }]
+}
+
+Lo que no se incluye en "permisos" se REVOCA (no es un patch, es el estado final deseado).
+
+200 -> { "usuario_id": string, "permisos": [...] }
+403 -> { "error": "solo administradores pueden editar permisos" }
+404 -> { "error": "no existe una cuenta con ese usuario_id" }
+400 -> { "error": string }
+
+No hay registro publico - toda alta de cuenta pasa por create-user.
+Detalle completo en openspec/changes/C-02-usuarios-permisos-auditoria/design.md.
