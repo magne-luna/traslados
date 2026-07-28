@@ -1,0 +1,70 @@
+# openspec/config.yaml
+schema: spec-driven
+
+context: |
+  Project: Traslados (Andrea Pastor) — Sistema de Gestión Integral para servicio de
+  traslado personalizado de personas con discapacidad. Cliente: Magne Studios.
+  Stack: React 19 + TypeScript strict (tsc -b --noEmit) + Vite 8 + Tailwind CSS v4
+  (utility classes via @theme, never inline styles) + react-router 8.
+  Backend: Supabase (Auth + PostgreSQL + Storage, RLS per module, no roles fixed).
+  Integrations: Google Maps/Geometry API (via @vis.gl/react-google-maps), Google Drive,
+  ARCA (pending confirmation).
+  Frontend already built with mocks (190 tests, 10 changes archived).
+  supabase/ directory is empty — no backend exists yet.
+  Architecture: Screaming Architecture with feature-based modules in frontend/src/features/,
+  shared lib in frontend/src/shared/, design system in frontend/src/design-system/.
+  UI convention: list+detail pattern, 100% clickable rows, inline edit (never modal).
+  Test approach: Strict TDD (RED-GREEN-REFACTOR) for all feature code.
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Read CHANGES.md and knowledge-base/ before proposing
+    - Always identify dependencies between changes
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Structure from docs/core/Traslados-Modelo-Datos.docx; business rules from knowledge-base/
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+    - NEVER use any — type strictly (tsconfig strict mode)
+    - NEVER use inline styles — always Tailwind v4 utility classes
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+    - Each change from docx structure + KB business rules
+  apply:
+    guidelines:
+      - Follow existing code patterns (repository mock + hook + context + components)
+      - Bump SCHEMA_VERSION in mock repositories when changing persisted shape
+      - Reuse design system components from frontend/src/design-system/components.tsx
+      - Verify types with tsc -b --noEmit inside frontend/ before committing
+    tdd: true
+    test_command: "cd frontend && npx vitest run"
+  verify:
+    test_command: "cd frontend && npx vitest run"
+    build_command: "cd frontend && npx tsc -b --noEmit"
+    coverage_threshold: 80
+  archive:
+    - Warn before merging destructive deltas
+    - Verify openspec list --json shows change no longer active
+    - Sync delta specs into main specs/ directory
+
+testing:
+  strict_tdd: true
+  runner:
+    command: "cd frontend && npx vitest run"
+    watch: "cd frontend && npx vitest"
+    framework: vitest
+  layers:
+    unit: { available: true, tool: "vitest + @testing-library/react + @testing-library/user-event" }
+    integration: { available: true, tool: "vitest + React Testing Library" }
+    e2e: { available: false, tool: "—" }
+  coverage:
+    available: true
+    command: "npx vitest run --coverage"
+  quality:
+    linter: { available: true, command: "cd frontend && npx oxlint" }
+    type_checker: { available: true, command: "cd frontend && npx tsc -b --noEmit" }
+    formatter: { available: false, tool: "—" }
