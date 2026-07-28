@@ -32,7 +32,8 @@ export function LoginPage() {
         onSubmit={handleSubmit}
         className="flex w-full max-w-90 flex-col gap-lg rounded-lg border border-border bg-surface p-xxl shadow-card"
       >
-        <div>
+        <div className="flex flex-col items-center gap-sm text-center">
+          <img src="/logo.jpeg" alt="Pastor Traslados" className="h-16 w-16 rounded-full object-cover" />
           <h1 className="m-0 font-heading text-[22px] font-bold text-ink">Pastor Traslados</h1>
           <p className="mt-xs font-body text-[13px] text-muted">Ingresá para continuar.</p>
         </div>

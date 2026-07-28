@@ -149,27 +149,17 @@ export function AppShell() {
         id="sidebar"
         className={`fixed top-0 bottom-0 left-0 z-40 flex shrink-0 flex-col gap-xs overflow-hidden border-r border-sidebar-border bg-sidebar-bg px-lg pt-14 pb-lg transition-[transform,width] duration-200 ease-[ease] md:translate-x-0 md:pt-lg ${mobileNavOpen ? 'translate-x-0' : '-translate-x-full'} ${effectiveCollapsed ? 'w-18' : 'w-56'}`}
       >
-        <div
-          className={`mt-1 mb-lg flex items-center gap-sm ${effectiveCollapsed ? 'justify-center' : 'justify-between'}`}
-        >
-          {!effectiveCollapsed && (
-            <div className="font-heading text-base font-bold whitespace-nowrap text-ink">Pastor Traslados</div>
-          )}
-
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            className="hidden h-7 w-7 cursor-pointer items-center justify-center rounded-sm border border-sidebar-border bg-transparent text-sidebar-text md:inline-flex"
-            aria-label={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
-          >
-            <NavIcon>
-              {collapsed ? (
-                <polyline points="9 6 15 12 9 18" />
-              ) : (
-                <polyline points="15 6 9 12 15 18" />
-              )}
-            </NavIcon>
-          </button>
+        <div className={`mt-1 mb-lg flex items-center gap-sm ${effectiveCollapsed ? 'justify-center' : ''}`}>
+          <div className="flex min-w-0 items-center gap-sm">
+            <img
+              src="/logo.jpeg"
+              alt="Pastor Traslados"
+              className="h-8 w-8 shrink-0 rounded-full object-cover"
+            />
+            {!effectiveCollapsed && (
+              <span className="truncate font-heading text-base font-bold text-ink">Pastor Traslados</span>
+            )}
+          </div>
         </div>
 
         <nav className="flex flex-col gap-xl">
@@ -214,6 +204,20 @@ export function AppShell() {
           ))}
         </nav>
       </aside>
+
+      {/* Chevron de colapso, a caballo entre el borde del sidebar y el contenido — vive fuera
+          del <aside> (que tiene overflow-hidden) para no quedar recortado, y se posiciona en
+          `left` según el ancho actual del sidebar. */}
+      <button
+        type="button"
+        onClick={toggleCollapsed}
+        className={`fixed top-9 z-50 hidden h-7 w-7 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border border-sidebar-border bg-surface text-sidebar-text shadow-card transition-[left] duration-200 ease-[ease] md:inline-flex ${effectiveCollapsed ? 'left-18' : 'left-56'}`}
+        aria-label={collapsed ? 'Expandir navegación' : 'Colapsar navegación'}
+      >
+        <NavIcon>
+          {collapsed ? <polyline points="9 6 15 12 9 18" /> : <polyline points="15 6 9 12 15 18" />}
+        </NavIcon>
+      </button>
 
       {/* pt-14: mismo alto que la barra superior móvil (h-14), liberado en desktop. El borde
           separador va acá (no en el header, que es `fixed` y quedaría pintado por encima del
