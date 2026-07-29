@@ -1,39 +1,76 @@
-import { createContext, useCallback, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import type { AuthRepository } from '../lib/auth/AuthRepository';
+import type { EstadoAuth } from '../types/usuario';
 
-// Auth mock — Decisión 3 de openspec/changes/app-shell-navegacion/design.md: Context en
-// memoria, solo presencia/ausencia de sesión + usuario falso (SIN roles ni permisos por
-// módulo, eso lo resuelve el backend real en FE-8). Arranca logueado por defecto para no
-// bloquear el desarrollo del resto del frontend. Excepción: con VITE_DEMO_MODE=true (build de
-// demo) arranca deslogueado para mostrar el LoginPage al entrar; el dev normal no se ve afectado.
+// Reescritura completa (tasks.md 4.4, design.md D1/D2): reemplaza el mock en memoria (session
+// falsa siempre activa salvo VITE_DEMO_MODE) por un AuthRepository inyectado por prop, con la
+// máquina de 3 estados (loading/anonymous/authenticated) — nunca session | null. La restauración
+// de sesión con Supabase es asíncrona; sin el estado `loading` explícito, un refresh de página
+// expulsaría al usuario a /login antes de que la sesión se rehidrate.
 
-export interface Session {
-  user: {
-    id: string;
-    nombre: string;
-    email: string;
-  };
-}
+export type SignInResult = { ok: true } | { ok: false; error: string };
 
-export interface AuthContextValue {
-  session: Session | null;
-  signIn: () => void;
-  signOut: () => void;
-}
-
-const FAKE_SESSION: Session = {
-  user: { id: 'mock-user-1', nombre: 'Andrea Pastor', email: 'andrea@traslados.mock' },
+export type AuthContextValue = EstadoAuth & {
+  signIn: (email: string, password: string) => Promise<SignInResult>;
+  signOut: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const startsLoggedIn = import.meta.env.VITE_DEMO_MODE !== 'true';
-  const [session, setSession] = useState<Session | null>(startsLoggedIn ? FAKE_SESSION : null);
+interface AuthProviderProps {
+  /** Inyectado por el composition root (design.md D1): SupabaseAuthRepository en producción
+   * (ver App.tsx), createMockAuthRepository(...) en tests (ver renderConSesion). */
+  repository: AuthRepository;
+  children: ReactNode;
+}
 
-  const signIn = useCallback(() => setSession(FAKE_SESSION), []);
-  const signOut = useCallback(() => setSession(null), []);
+export function AuthProvider({ repository, children }: AuthProviderProps) {
+  const [estado, setEstado] = useState<EstadoAuth>({ status: 'loading' });
 
-  const value = useMemo<AuthContextValue>(() => ({ session, signIn, signOut }), [session, signIn, signOut]);
+  useEffect(() => {
+    let montado = true;
+
+    function aplicarSesion(sesion: Awaited<ReturnType<AuthRepository['getSesionActual']>>) {
+      if (!montado) return;
+      setEstado(
+        sesion ? { status: 'authenticated', usuario: sesion.usuario, permisos: sesion.permisos } : { status: 'anonymous' },
+      );
+    }
+
+    repository.getSesionActual().then(aplicarSesion);
+
+    // tasks.md 4.6: la suscripción se registra al montar y se cancela al desmontar — react-
+    // best-practices exige nunca dejar listeners colgados.
+    const unsubscribe = repository.onCambioDeSesion(aplicarSesion);
+
+    return () => {
+      montado = false;
+      unsubscribe();
+    };
+  }, [repository]);
+
+  const signIn = useCallback(
+    async (email: string, password: string): Promise<SignInResult> => {
+      try {
+        const sesion = await repository.signIn(email, password);
+        setEstado({ status: 'authenticated', usuario: sesion.usuario, permisos: sesion.permisos });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'No se pudo iniciar sesión.' };
+      }
+    },
+    [repository],
+  );
+
+  const signOut = useCallback(async () => {
+    await repository.signOut();
+    setEstado({ status: 'anonymous' });
+  }, [repository]);
+
+  const value = useMemo<AuthContextValue>(
+    () => ({ ...estado, signIn, signOut }),
+    [estado, signIn, signOut],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

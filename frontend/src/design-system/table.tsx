@@ -98,18 +98,39 @@ const trEmphasisClasses: Record<TrEmphasis, string> = {
   total: 'border-t-2 border-border-strong font-semibold',
 };
 
+// `interactive` (cuentas-gestion, tasks.md 7.2): "fila 100% clickeable, como el resto de la app"
+// — mismo criterio de click-por-conveniencia-de-mouse que `Card interactive` (./layout.tsx): el
+// `onClick` en el `<tr>` es un atajo de mouse, no la vía de accesibilidad; la fila NO toma
+// `role="button"`/`tabIndex` (un `<tr>` no es semánticamente un botón) — la operación por teclado
+// la resuelve un control real dentro de la fila (ver CuentasList.tsx, que pone el nombre como
+// `<button>`), exactamente como las Card interactive de listado resuelven su "Ver detalle".
+const TR_INTERACTIVE_CLASSES = 'cursor-pointer transition-colors hover:bg-surface-soft';
+
 export function Tr({
   divided,
   emphasis,
+  interactive,
+  onClick,
   children,
 }: {
   divided?: boolean;
   /** 'total' — borde superior de 2px + negrita, fila de cierre en `tfoot`. */
   emphasis?: TrEmphasis;
+  /** Default false. Agrega `cursor-pointer`/hover y cablea `onClick` sobre el `<tr>`. */
+  interactive?: boolean;
+  /** Solo se cablea cuando `interactive` es true (evita filas "clickeables" por accidente). */
+  onClick?: () => void;
   children: ReactNode;
 }): ReactElement {
-  const className = emphasis ? trEmphasisClasses[emphasis] : divided ? 'border-t border-border' : undefined;
-  return <tr className={className}>{children}</tr>;
+  const className =
+    [emphasis ? trEmphasisClasses[emphasis] : divided ? 'border-t border-border' : '', interactive ? TR_INTERACTIVE_CLASSES : '']
+      .filter(Boolean)
+      .join(' ') || undefined;
+  return (
+    <tr className={className} onClick={interactive ? onClick : undefined}>
+      {children}
+    </tr>
+  );
 }
 
 export function Th({

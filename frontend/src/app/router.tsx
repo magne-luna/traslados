@@ -66,11 +66,34 @@ export const router = createBrowserRouter([
     children: [
       {
         element: <AppShell />,
-        children: APP_ROUTES.map((route) => ({
-          index: route.path === '/',
-          path: route.path === '/' ? undefined : route.path.slice(1),
-          element: ROUTE_ELEMENTS[route.path]?.() ?? <PlaceholderPage moduleName={route.label} />,
-        })),
+        children: [
+          ...APP_ROUTES.map((route) => ({
+            index: route.path === '/',
+            path: route.path === '/' ? undefined : route.path.slice(1),
+            element: ROUTE_ELEMENTS[route.path]?.() ?? <PlaceholderPage moduleName={route.label} />,
+          })),
+          // /cuentas (auth-frontend-real, tasks.md 7.9, design.md D4): admin-only, `modulo: null`
+          // — no forma parte de APP_ROUTES/la navegación de módulos (se gobierna por rol, no por
+          // módulo), pero SÍ vive dentro de AppShell (a diferencia de /design-system, que es una
+          // vitrina fuera del shell). RequireAuth ya exige rol admin vía `requiereRolAdmin('/cuentas')`
+          // (routes.ts, sección 5 de este tasks.md). Filtrar la entrada del sidebar es tarea de la
+          // sección 8 (AppShell), fuera de alcance de este batch.
+          //
+          // `lazy` (no `element` estático): a diferencia del resto de los módulos, CuentasRoute
+          // importa `SupabaseCuentaRepository` (y transitivamente `supabaseClient`, que valida
+          // `SUPABASE_URL`/`SUPABASE_ANON_KEY` al importarse — tasks.md 1.2/1.3) a nivel de
+          // módulo. Un `element: <CuentasRoute />` estático forzaría esa validación en TODOS los
+          // tests que importan `router.tsx` (ej. `router.test.tsx`, que nunca visita `/cuentas`),
+          // rompiéndolos si esas env vars no están definidas en el entorno de test. `lazy` difiere
+          // la importación hasta que la ruta efectivamente se visita.
+          {
+            path: 'cuentas',
+            lazy: async () => {
+              const { CuentasRoute } = await import('../features/cuentas/CuentasRoute');
+              return { Component: CuentasRoute };
+            },
+          },
+        ],
       },
       { path: '/design-system', element: <DesignSystem /> },
     ],

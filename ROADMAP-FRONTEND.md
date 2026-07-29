@@ -128,7 +128,7 @@ No es una fase que arrancás vos sola/o de una — se va haciendo módulo por m�
 | Backend archivado | Reemplazás el mock de... |
 |---|---|
 | `C-01` foundation-setup | Cliente Supabase real disponible (`shared/lib/supabaseClient.ts`) |
-| `C-02` usuarios-permisos-auditoria | `useAuth()` mock → Supabase Auth real; guard de rutas con permisos reales |
+| `C-02` usuarios-permisos-auditoria | ✅ **Completado** (`auth-frontend-real`, 2026-07-29) — `useAuth()` mock → Supabase Auth real (sesión de 3 estados); guard de rutas con permisos reales (`tienePermiso`/`moduloDeRuta`/`requiereRolAdmin`); pantalla de gestión de cuentas y matriz de permisos; navegación del `AppShell` filtrada por permisos + cierre de sesión real. Pendiente solo la verificación manual end-to-end (a cargo de la usuaria) |
 | `C-03` gestion-documental-core | Upload mock → buckets reales de Storage |
 | `C-04` obras-sociales-prestadores | `ObraSocialRepository` mock → Supabase |
 | `C-08` vehiculos-mantenimiento | `VehiculoRepository` mock → Supabase |

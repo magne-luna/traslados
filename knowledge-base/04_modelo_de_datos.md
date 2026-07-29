@@ -43,6 +43,11 @@ Recorrido N---1 Paciente (por tramo, con dirección de ida y de vuelta independi
 
 ## Entidades
 
+### Usuario (cuenta)
+- Atributos: nombre, apellido, email, `rol` (`rol_enum`: `admin` / `empleado`, fijo — sin roles adicionales), `ingreso_at`/`egreso_at` (RF-004, derivados por trigger de `auth.users.last_sign_in_at` y `auth.audit_log_entries`).
+- Relaciones: N registros en log de auditoría (`auditoria.logs`); N permisos por módulo (`modulos.permisos`) — solo aplica a cuentas `empleado`, un `admin` no necesita filas en `permisos` porque tiene acceso total.
+- Constraint: `admin` tiene acceso total sin pasar por chequeo de `modulos.permisos`; una cuenta `empleado` no puede autopromoverse a `admin` (bloqueado por trigger a nivel de BD). Alta de cuentas únicamente vía Edge Function `create-user` (no hay registro público); toda cuenta nueva nace `empleado`, el único `admin` se asigna a mano una vez (bootstrap, ver `CHANGES.md` §C-02).
+
 ### Paciente
 - Atributos: apellido(s), nombre(s), fecha de nacimiento, DNI, CUIL del titular, diagnóstico/condición, accesorio de movilidad (silla plegable/rígida, silla postural, andador, trípode), teléfono alternativo del responsable.
 - Relaciones: N direcciones (domicilio, escuela, terapias, CISET — catálogo reutilizable, sin tramo propio), N personas a cargo, 1 obra social, N documentos, N presupuestos.

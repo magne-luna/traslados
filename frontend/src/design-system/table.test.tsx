@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Table, Tr, Th, Td } from './table';
 
 function classSet(className: string): string[] {
@@ -204,5 +205,46 @@ describe('Tr', () => {
     );
     const tfootRow = screen.getByText('Total del rango').closest('tr') as HTMLElement;
     expect(classSet(tfootRow.className)).toEqual(classSet('border-t-2 border-border-strong font-semibold'));
+  });
+
+  // cuentas-gestion (tasks.md 7.2): "fila 100% clickeable, como el resto de la app" — mismo
+  // criterio de click-por-conveniencia-de-mouse que Card interactive (design-system/layout.tsx),
+  // sin asumir el rol semántico de "button" en un <tr> (la accesibilidad por teclado la resuelve
+  // un control real dentro de la fila, ver CuentasList.tsx).
+  it('interactive agrega cursor-pointer/hover y dispara onClick al hacer click en la fila', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <table>
+        <tbody>
+          <Tr interactive onClick={onClick}>
+            <Td>Fila clickeable</Td>
+          </Tr>
+        </tbody>
+      </table>,
+    );
+
+    const row = screen.getByText('Fila clickeable').closest('tr') as HTMLElement;
+    expect(classSet(row.className)).toEqual(classSet('cursor-pointer transition-colors hover:bg-surface-soft'));
+
+    await user.click(row);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin interactive, onClick no se cablea aunque se pase (triangulación)', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    render(
+      <table>
+        <tbody>
+          <Tr onClick={onClick}>
+            <Td>Fila no clickeable</Td>
+          </Tr>
+        </tbody>
+      </table>,
+    );
+
+    await user.click(screen.getByText('Fila no clickeable'));
+    expect(onClick).not.toHaveBeenCalled();
   });
 });

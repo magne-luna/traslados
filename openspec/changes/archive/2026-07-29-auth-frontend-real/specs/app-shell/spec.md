@@ -1,0 +1,37 @@
+## ADDED Requirements
+
+### Requirement: Identidad de la cuenta y cierre de sesión en el shell
+El sistema SHALL mostrar en el shell la identidad de la cuenta autenticada (nombre y email) junto con una indicación de su rol, y un control de cierre de sesión. El control MUST invocar el cierre de sesión real contra Supabase Auth y llevar al usuario a `/login`. La composición MUST reutilizar los componentes y tokens del design system, sin estilos en línea.
+
+#### Scenario: Identidad visible con sesión activa
+- **WHEN** hay una sesión activa y se renderiza el shell
+- **THEN** se muestran el nombre y el email de la cuenta autenticada y una indicación de su rol
+
+#### Scenario: Cierre de sesión desde el shell
+- **WHEN** el usuario activa el control de cerrar sesión
+- **THEN** la sesión se cierra contra Supabase Auth y el usuario es llevado a `/login`
+
+#### Scenario: Identidad en modo colapsado
+- **WHEN** el sidebar está colapsado en escritorio
+- **THEN** el control de cierre de sesión sigue siendo accesible y anuncia su propósito mediante una etiqueta accesible
+
+## MODIFIED Requirements
+
+### Requirement: Layout shell con navegación
+El sistema SHALL proveer un layout raíz (shell) que envuelve todas las pantallas de módulo, compuesto por una navegación lateral (sidebar) persistente y un área de contenido con un `<Outlet>`. El shell MUST construirse reutilizando los primitivos del design system existentes (`NavIcon`, `tokens`, `components.tsx`) y NO recrear primitivos. La navegación MUST listar únicamente los módulos sobre los que la cuenta autenticada tiene al menos nivel `read`, más las rutas sin módulo asociado; la entrada de administración de cuentas MUST aparecer solo para cuentas con rol `admin`.
+
+#### Scenario: Shell presente en pantallas de módulo
+- **WHEN** el usuario está en cualquier ruta de módulo protegida
+- **THEN** se muestra la navegación lateral junto con la pantalla del módulo en el área de contenido
+
+#### Scenario: Navegación construida sobre el design system
+- **WHEN** se renderiza la navegación del shell
+- **THEN** los íconos e ítems usan los primitivos y tokens del design system existente, sin estilos ni componentes duplicados
+
+#### Scenario: Navegación recortada por permisos
+- **WHEN** la cuenta autenticada no tiene permiso sobre un módulo
+- **THEN** ese módulo no aparece en la navegación lateral
+
+#### Scenario: Cuenta sin ningún módulo habilitado
+- **WHEN** la cuenta autenticada no tiene permiso sobre ningún módulo
+- **THEN** el shell muestra un mensaje indicando que debe solicitar acceso a la administradora, en vez de una navegación vacía sin explicación

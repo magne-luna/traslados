@@ -3,6 +3,17 @@
 // path, la etiqueta de navegación y el ícono de cada módulo. AppShell.tsx la recorre para
 // construir la navegación, y router.tsx la recorre para montar las rutas placeholder.
 // Cada FE-N reemplaza únicamente el `element` de su ruta en router.tsx — esta lista no cambia.
+//
+// Campo `modulo` (auth-frontend-real, design.md D4): a qué módulo del backend corresponde cada
+// ruta a efectos del guard de permisos (`RequireAuth`) — 8 rutas de frontend contra los 4
+// módulos reales seedeados (`pacientes`, `obra_social`, `facturacion`, `conductores`), agrupados
+// según la RLS real de cada tabla de dominio (ver supabase/migrations/2026072410000{3,4,5,6}_
+// schema_*.sql): Vehículos bajo `conductores`, Hojas de Ruta bajo `pacientes` (no `conductores` —
+// corregido, ver comentario en la entrada de abajo), Presupuestos bajo `facturacion`. `null` =
+// ruta declarada sin gate de módulo propio (solo requiere sesión activa) — el Dashboard es
+// agregación pura sin tabla propia.
+
+import type { Modulo } from '../shared/types/usuario';
 
 export type IconKey =
   | 'dashboard'
@@ -12,24 +23,99 @@ export type IconKey =
   | 'conductores'
   | 'presupuestos'
   | 'hojasDeRuta'
-  | 'facturacion';
+  | 'facturacion'
+  | 'cuentas';
 
 export type NavSection = 'General' | 'Operación' | 'Administración';
 
-export interface AppRoute {
+/** Campos comunes de cualquier entrada de navegación del sidebar (AppShell.tsx, tasks.md 8.2).
+ * `AppRoute` y `ADMIN_NAV_ROUTES` comparten esta forma para poder agruparse y renderizarse juntos
+ * pese a tener criterios de visibilidad distintos (módulo vs. rol). */
+export interface NavItem {
   path: string;
   label: string;
   icon: IconKey;
   section: NavSection;
 }
 
+export interface AppRoute extends NavItem {
+  /** Módulo del backend requerido (nivel mínimo `read`) para acceder a esta ruta, o `null` si
+   * la ruta no tiene módulo propio (ver design.md D4). */
+  modulo: Modulo | null;
+}
+
 export const APP_ROUTES: readonly AppRoute[] = [
-  { path: '/', label: 'Dashboard', icon: 'dashboard', section: 'General' },
-  { path: '/pacientes', label: 'Pacientes', icon: 'pacientes', section: 'Operación' },
-  { path: '/obras-sociales', label: 'Obras Sociales', icon: 'obrasSociales', section: 'Operación' },
-  { path: '/conductores', label: 'Conductores', icon: 'conductores', section: 'Operación' },
-  { path: '/vehiculos', label: 'Vehículos', icon: 'vehiculos', section: 'Operación' },
-  { path: '/hojas-de-ruta', label: 'Hojas de Ruta', icon: 'hojasDeRuta', section: 'Operación' },
-  { path: '/presupuestos', label: 'Presupuestos', icon: 'presupuestos', section: 'Administración' },
-  { path: '/facturacion', label: 'Facturación', icon: 'facturacion', section: 'Administración' },
+  { path: '/', label: 'Dashboard', icon: 'dashboard', section: 'General', modulo: null },
+  { path: '/pacientes', label: 'Pacientes', icon: 'pacientes', section: 'Operación', modulo: 'pacientes' },
+  {
+    path: '/obras-sociales',
+    label: 'Obras Sociales',
+    icon: 'obrasSociales',
+    section: 'Operación',
+    modulo: 'obra_social',
+  },
+  { path: '/conductores', label: 'Conductores', icon: 'conductores', section: 'Operación', modulo: 'conductores' },
+  { path: '/vehiculos', label: 'Vehículos', icon: 'vehiculos', section: 'Operación', modulo: 'conductores' },
+  {
+    // Corregido (antes 'conductores'): las tablas reales de recorridos (pacientes.recorridos,
+    // pacientes.historial_recorridos) están gateadas por RLS con tiene_permiso('pacientes', ...)
+    // — ver supabase/migrations/20260724100004_schema_pacientes.sql. Con 'conductores' el sidebar
+    // y el guard quedaban desalineados con lo que la RLS realmente permite en ambos sentidos.
+    path: '/hojas-de-ruta',
+    label: 'Hojas de Ruta',
+    icon: 'hojasDeRuta',
+    section: 'Operación',
+    modulo: 'pacientes',
+  },
+  {
+    path: '/presupuestos',
+    label: 'Presupuestos',
+    icon: 'presupuestos',
+    section: 'Administración',
+    modulo: 'facturacion',
+  },
+  { path: '/facturacion', label: 'Facturación', icon: 'facturacion', section: 'Administración', modulo: 'facturacion' },
 ] as const;
+
+// Rutas transversales que no forman parte de la navegación de módulos (no aparecen en el
+// sidebar generado desde APP_ROUTES) pero sí necesitan resolver su módulo para el guard:
+// /cuentas se gobierna por rol (ver `requiereRolAdmin` y route-guard spec), no por módulo;
+// /design-system es la vitrina interna del design system.
+const RUTAS_SIN_MODULO_PROPIO: ReadonlyArray<{ path: string; modulo: null }> = [
+  { path: '/cuentas', modulo: null },
+  { path: '/design-system', modulo: null },
+];
+
+const MODULO_POR_RUTA: Record<string, Modulo | null> = Object.fromEntries(
+  [...APP_ROUTES, ...RUTAS_SIN_MODULO_PROPIO].map((route) => [route.path, route.modulo]),
+);
+
+/**
+ * Resuelve el módulo del backend asociado a una ruta del frontend (design.md D4). Devuelve:
+ * - `Modulo`: la ruta requiere al menos nivel `read` sobre ese módulo (ver `tienePermiso`).
+ * - `null`: la ruta está declarada pero no requiere ningún módulo (solo sesión activa).
+ * - `undefined`: la ruta no está declarada en ningún punto de verdad — el guard MUST tratar
+ *   esto como **sin acceso**, nunca como "sin módulo": una ruta no reconocida no debe otorgar
+ *   acceso implícito solo porque no matchea ninguna entrada conocida.
+ */
+export function moduloDeRuta(path: string): Modulo | null | undefined {
+  return MODULO_POR_RUTA[path];
+}
+
+// /cuentas es la única ruta que exige además rol === 'admin' (design.md D4): no es un módulo,
+// se gobierna por rol. Declarado acá, junto al resto del mapeo ruta→acceso, para que RequireAuth
+// no tenga que hardcodear el path en otro archivo.
+const RUTAS_SOLO_ADMIN = new Set<string>(['/cuentas']);
+
+export function requiereRolAdmin(path: string): boolean {
+  return RUTAS_SOLO_ADMIN.has(path);
+}
+
+// Entrada de navegación de /cuentas (design.md D4/D10, tasks.md 8.2): NO forma parte de
+// APP_ROUTES a propósito — ese arreglo también alimenta el mapeo de placeholders de router.tsx,
+// y /cuentas ya tiene su propia ruta `lazy` registrada ahí (tasks.md 7.9). Se gobierna por rol,
+// no por módulo (modulo: null en RUTAS_SIN_MODULO_PROPIO de arriba), así que AppShell la muestra
+// solo cuando `usuario.rol === 'admin'`, nunca vía `tienePermiso`.
+export const ADMIN_NAV_ROUTES: readonly NavItem[] = [
+  { path: '/cuentas', label: 'Cuentas', icon: 'cuentas', section: 'Administración' },
+];
