@@ -3,6 +3,7 @@ import { DocumentChecklist } from '../../shared/components/DocumentChecklist';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { useDocumentChecklist } from '../../shared/lib/documentos/useDocumentChecklist';
 import type { ChecklistItem } from '../../shared/types/documento';
+import { usePuedeEscribir } from '../../shared/auth/usePuedeEscribir';
 
 interface FacturaDocumentosProps {
   facturaId: string;
@@ -17,8 +18,14 @@ interface FacturaDocumentosProps {
 // ítems salen del checklist de la obra social del paciente, respetando su orden (RN-FA-08); el
 // comprobante ARCA es un ítem más, sin cliente HTTP ni campo de modelo propio (design.md
 // Decisión 9) — solo se informa el estado de completitud, no bloquea la emisión.
+// gateo-facturacion (design.md D4, tasks.md 6.3): solo la carga/baja se gatea, vía la prop
+// `readOnly` que `DocumentChecklist` ya expone — se reutiliza tal cual, sin tocar el componente
+// compartido. La consulta de `items`/`documentos` no pasa por acá, así que sigue disponible con
+// solo `read`: el gateo del cliente nunca debe ser más restrictivo que la RLS del servidor, que
+// ya autoriza esa lectura.
 export function FacturaDocumentos({ facturaId, items, repository }: FacturaDocumentosProps) {
   const { documentos, upload, remove } = useDocumentChecklist('factura', facturaId, items, repository);
+  const puedeEscribir = usePuedeEscribir();
 
   return (
     <div className="flex flex-col gap-sm">
@@ -26,7 +33,7 @@ export function FacturaDocumentos({ facturaId, items, repository }: FacturaDocum
         El docx no modela ninguna tabla de documentos por Factura (Discrepancia 2). El backend
         `C-07` debe crear <code>documento_factura</code>.
       </AvisoModeloDatos>
-      <DocumentChecklist items={items} documentos={documentos} onUpload={upload} onRemove={remove} />
+      <DocumentChecklist items={items} documentos={documentos} onUpload={upload} onRemove={remove} readOnly={!puedeEscribir} />
     </div>
   );
 }

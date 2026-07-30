@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import type { Cobro, Factura } from '../../shared/types/factura';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { FacturaImprimible } from './FacturaImprimible';
 
 const paciente: Paciente = {
@@ -81,5 +82,33 @@ describe('FacturaImprimible', () => {
   it('sin cobros, no muestra la sección de cobros', () => {
     render(<FacturaImprimible factura={factura} asistencias={factura.asistencias} paciente={paciente} obraSocial={obraSocial} cobros={[]} />);
     expect(screen.queryByText(/cobros registrados/i)).not.toBeInTheDocument();
+  });
+});
+
+// Lectura preservada (gateo-facturacion, tasks.md 6.1/6.2, design.md D4). `FacturaImprimible` es
+// puramente presentacional (recibe todo por props, sin `usePuedeEscribir`) — bloquear la vista
+// imprimible a una cuenta de solo `read` sería una regresión muy visible (design.md riesgos). Se
+// verifica que el gateo de escritura del módulo NUNCA llega a este componente.
+describe('FacturaImprimible — lectura preservada en modo solo lectura', () => {
+  it('con solo `read` sobre facturacion: se renderiza completa y utilizable', () => {
+    render(
+      <PuedeEscribirContext.Provider value={false}>
+        <FacturaImprimible factura={factura} asistencias={factura.asistencias} paciente={paciente} obraSocial={obraSocial} cobros={cobros} />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    expect(screen.getByText(/prestación: kinesiología/i)).toBeInTheDocument();
+    expect(screen.getByText(/saldo/i)).toBeInTheDocument();
+    expect(screen.getByText('2026-08-20')).toBeInTheDocument();
+  });
+
+  it('con `write`: se renderiza igual (triangulación) — el gateo de escritura nunca llega acá', () => {
+    render(
+      <PuedeEscribirContext.Provider value={true}>
+        <FacturaImprimible factura={factura} asistencias={factura.asistencias} paciente={paciente} obraSocial={obraSocial} cobros={cobros} />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    expect(screen.getByText(/prestación: kinesiología/i)).toBeInTheDocument();
   });
 });

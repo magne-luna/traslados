@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { AlertaCupo } from './AlertaCupo';
 
 describe('AlertaCupo', () => {
@@ -29,6 +30,19 @@ describe('AlertaCupo', () => {
   it('muestra el mensaje de "dentro del cupo" cuando no hay exceso (persistente, no un toast)', () => {
     render(
       <AlertaCupo resultado={{ cupoDisponible: true, excedeDias: false, excedeKm: false, mensaje: 'Dentro del cupo autorizado.' }} />,
+    );
+    expect(screen.getByText(/dentro del cupo autorizado/i)).toBeInTheDocument();
+  });
+});
+
+// Lectura preservada (gateo-facturacion, tasks.md 6.1, design.md D4). `AlertaCupo` es puramente
+// presentacional (sin `usePuedeEscribir`) — debe seguir renderizándose completa con nivel `read`.
+describe('AlertaCupo — lectura preservada en modo solo lectura', () => {
+  it('con solo `read`: se renderiza completa', () => {
+    render(
+      <PuedeEscribirContext.Provider value={false}>
+        <AlertaCupo resultado={{ cupoDisponible: true, excedeDias: false, excedeKm: false, mensaje: 'Dentro del cupo autorizado.' }} />
+      </PuedeEscribirContext.Provider>,
     );
     expect(screen.getByText(/dentro del cupo autorizado/i)).toBeInTheDocument();
   });
