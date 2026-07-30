@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AvisoSoloLectura } from '../../design-system/components';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { Presupuesto } from '../../shared/types/presupuesto';
@@ -53,29 +54,35 @@ export function PresupuestosPage({ pacienteRepository, obraSocialRepository }: P
       view.presupuestoId === null ? null : (presupuestos.find((p) => p.id === view.presupuestoId) ?? null);
 
     return (
-      <PresupuestoDetail
-        presupuesto={presupuesto}
-        crear={crear}
-        actualizar={actualizar}
-        pacientes={pacientes}
-        obrasSociales={obrasSociales}
-        autorizacionRepository={autorizacionRepository}
-        onCreated={(creado) => setView({ kind: 'detail', presupuestoId: creado.id })}
-        onBack={() => setView({ kind: 'list' })}
-      />
+      <>
+        <AvisoSoloLectura />
+        <PresupuestoDetail
+          presupuesto={presupuesto}
+          crear={crear}
+          actualizar={actualizar}
+          pacientes={pacientes}
+          obrasSociales={obrasSociales}
+          autorizacionRepository={autorizacionRepository}
+          onCreated={(creado) => setView({ kind: 'detail', presupuestoId: creado.id })}
+          onBack={() => setView({ kind: 'list' })}
+        />
+      </>
     );
   }
 
   return (
-    <PresupuestosList
-      presupuestos={presupuestos}
-      loading={loading}
-      error={error}
-      nombrePaciente={nombrePaciente}
-      nombreObraSocial={nombreObraSocial}
-      estadoAutorizacion={estadoAutorizacion}
-      onSelect={(presupuesto) => setView({ kind: 'detail', presupuestoId: presupuesto.id })}
-      onCreateNew={() => setView({ kind: 'detail', presupuestoId: null })}
-    />
+    <>
+      <AvisoSoloLectura />
+      <PresupuestosList
+        presupuestos={presupuestos}
+        loading={loading}
+        error={error}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        estadoAutorizacion={estadoAutorizacion}
+        onSelect={(presupuesto) => setView({ kind: 'detail', presupuestoId: presupuesto.id })}
+        onCreateNew={() => setView({ kind: 'detail', presupuestoId: null })}
+      />
+    </>
   );
 }

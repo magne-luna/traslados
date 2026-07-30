@@ -10,6 +10,7 @@ import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoR
 import type { FacturaRepository } from '../../shared/lib/facturacion/FacturaRepository';
 import type { Factura } from '../../shared/types/factura';
 import type { Paciente } from '../../shared/types/paciente';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { CobroRepositoryProvider } from './CobroRepositoryContext';
 import { FacturaRepositoryProvider } from './FacturaRepositoryContext';
 import { FacturacionPage } from './FacturacionPage';
@@ -125,5 +126,47 @@ describe('FacturacionPage', () => {
     await userEvent.click(volverArriba);
 
     expect(await screen.findByRole('button', { name: /nueva factura/i })).toBeInTheDocument();
+  });
+});
+
+function renderPageConPermiso(puedeEscribir: boolean) {
+  const props = buildProps();
+  return render(
+    <PuedeEscribirContext.Provider value={puedeEscribir}>
+      <FacturaRepositoryProvider repository={buildFacturaRepository()}>
+        <CobroRepositoryProvider repository={buildCobroRepository()}>
+          <FacturacionPage {...props} feriados={[]} />
+        </CobroRepositoryProvider>
+      </FacturaRepositoryProvider>
+    </PuedeEscribirContext.Provider>,
+  );
+}
+
+// Gateo de escritura (gateo-facturacion, tasks.md 7.2/7.3, design.md D5). Mismo patrón que
+// ObraSocialesPage/PresupuestosPage: una sola inserción de `<AvisoSoloLectura />` cubre listado y
+// detalle.
+describe('FacturacionPage — gateo de escritura', () => {
+  it('sin permiso de escritura: muestra el aviso de modo solo lectura en el listado', async () => {
+    renderPageConPermiso(false);
+
+    await screen.findByText('Gómez, Martina', { selector: 'span' });
+    expect(screen.getByText(/solo lectura/i)).toBeInTheDocument();
+  });
+
+  it('sin permiso de escritura: muestra el aviso también en el detalle', async () => {
+    renderPageConPermiso(false);
+
+    await userEvent.click(await screen.findByText('Gómez, Martina', { selector: 'span' }));
+
+    await screen.findByRole('button', { name: /^emitir/i });
+    const notas = screen.getAllByRole('note').map((nota) => nota.textContent ?? '');
+    expect(notas.some((texto) => /modo solo lectura/i.test(texto))).toBe(true);
+  });
+
+  it('con permiso de escritura: no muestra ningún aviso', async () => {
+    renderPageConPermiso(true);
+
+    await screen.findByText('Gómez, Martina', { selector: 'span' });
+    expect(screen.queryByText(/solo lectura/i)).not.toBeInTheDocument();
   });
 });

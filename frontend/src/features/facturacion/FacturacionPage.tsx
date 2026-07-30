@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AvisoSoloLectura } from '../../design-system/components';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
@@ -56,33 +57,39 @@ export function FacturacionPage({
     const factura: Factura | null = view.facturaId === null ? null : (facturas.find((f) => f.id === view.facturaId) ?? null);
 
     return (
-      <FacturaDetail
-        factura={factura}
-        crear={crear}
-        actualizar={actualizar}
-        facturasExistentes={facturas}
-        pacientes={pacientes}
-        obrasSociales={obrasSociales}
-        feriados={feriados}
-        presupuestoRepository={presupuestoRepository}
-        autorizacionRepository={autorizacionRepository}
-        cobroRepository={cobroRepository}
-        documentoRepository={documentoRepository}
-        onCreated={(creada) => setView({ kind: 'detail', facturaId: creada.id })}
-        onBack={() => setView({ kind: 'list' })}
-      />
+      <>
+        <AvisoSoloLectura />
+        <FacturaDetail
+          factura={factura}
+          crear={crear}
+          actualizar={actualizar}
+          facturasExistentes={facturas}
+          pacientes={pacientes}
+          obrasSociales={obrasSociales}
+          feriados={feriados}
+          presupuestoRepository={presupuestoRepository}
+          autorizacionRepository={autorizacionRepository}
+          cobroRepository={cobroRepository}
+          documentoRepository={documentoRepository}
+          onCreated={(creada) => setView({ kind: 'detail', facturaId: creada.id })}
+          onBack={() => setView({ kind: 'list' })}
+        />
+      </>
     );
   }
 
   return (
-    <FacturasList
-      facturas={facturas}
-      loading={loading}
-      error={error}
-      nombrePaciente={nombrePaciente}
-      pacientesDisponibles={pacientes.map((p) => ({ id: p.id, nombre: `${p.apellido}, ${p.nombre}` }))}
-      onSelect={(factura) => setView({ kind: 'detail', facturaId: factura.id })}
-      onCreateNew={() => setView({ kind: 'detail', facturaId: null })}
-    />
+    <>
+      <AvisoSoloLectura />
+      <FacturasList
+        facturas={facturas}
+        loading={loading}
+        error={error}
+        nombrePaciente={nombrePaciente}
+        pacientesDisponibles={pacientes.map((p) => ({ id: p.id, nombre: `${p.apellido}, ${p.nombre}` }))}
+        onSelect={(factura) => setView({ kind: 'detail', facturaId: factura.id })}
+        onCreateNew={() => setView({ kind: 'detail', facturaId: null })}
+      />
+    </>
   );
 }

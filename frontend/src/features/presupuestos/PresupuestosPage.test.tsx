@@ -8,6 +8,7 @@ import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepo
 import type { Presupuesto } from '../../shared/types/presupuesto';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { AutorizacionRepositoryProvider } from './AutorizacionRepositoryContext';
 import { PresupuestoRepositoryProvider } from './PresupuestoRepositoryContext';
 import { PresupuestosPage } from './PresupuestosPage';
@@ -96,6 +97,22 @@ function renderPage(presupuestoRepository: PresupuestoRepository, autorizacionRe
   );
 }
 
+function renderPageConPermiso(
+  puedeEscribir: boolean,
+  presupuestoRepository: PresupuestoRepository,
+  autorizacionRepository: AutorizacionRepository,
+) {
+  return render(
+    <PuedeEscribirContext.Provider value={puedeEscribir}>
+      <PresupuestoRepositoryProvider repository={presupuestoRepository}>
+        <AutorizacionRepositoryProvider repository={autorizacionRepository}>
+          <PresupuestosPage pacienteRepository={buildFakePacienteRepository()} obraSocialRepository={buildFakeObraSocialRepository()} />
+        </AutorizacionRepositoryProvider>
+      </PresupuestoRepositoryProvider>
+    </PuedeEscribirContext.Provider>,
+  );
+}
+
 describe('PresupuestosPage', () => {
   it('carga y muestra el listado con paciente y obra social resueltos', async () => {
     renderPage(buildFakePresupuestoRepository(), buildFakeAutorizacionRepository());
@@ -122,5 +139,37 @@ describe('PresupuestosPage', () => {
     await user.click(screen.getByRole('button', { name: /editar gómez, martina/i }));
 
     expect((await screen.findAllByText('Gómez, Martina')).length).toBeGreaterThan(0);
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 7.1/7.3, design.md D5). Mismo patrón que
+// ObraSocialesPage/gateo-obrasocial: una sola inserción de `<AvisoSoloLectura />` cubre listado y
+// detalle.
+describe('PresupuestosPage — gateo de escritura', () => {
+  it('sin permiso de escritura: muestra el aviso de modo solo lectura en el listado', async () => {
+    renderPageConPermiso(false, buildFakePresupuestoRepository(), buildFakeAutorizacionRepository());
+
+    await screen.findByText('Gómez, Martina');
+    expect(screen.getByText(/solo lectura/i)).toBeInTheDocument();
+  });
+
+  it('sin permiso de escritura: muestra el aviso también en el detalle', async () => {
+    const user = userEvent.setup();
+    renderPageConPermiso(false, buildFakePresupuestoRepository(), buildFakeAutorizacionRepository());
+
+    await screen.findByText('Gómez, Martina');
+    // "Editar" queda deshabilitado por el gateo — se navega al detalle por la tarjeta, no por el botón.
+    await user.click(screen.getByText('Gómez, Martina'));
+
+    expect((await screen.findAllByText('Gómez, Martina')).length).toBeGreaterThan(0);
+    const notas = screen.getAllByRole('note').map((nota) => nota.textContent ?? '');
+    expect(notas.some((texto) => /modo solo lectura/i.test(texto))).toBe(true);
+  });
+
+  it('con permiso de escritura: no muestra ningún aviso', async () => {
+    renderPageConPermiso(true, buildFakePresupuestoRepository(), buildFakeAutorizacionRepository());
+
+    await screen.findByText('Gómez, Martina');
+    expect(screen.queryByText(/solo lectura/i)).not.toBeInTheDocument();
   });
 });
