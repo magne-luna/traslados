@@ -18,9 +18,9 @@
 
 ## 0. Compuertas de gobernanza (bloqueantes)
 
-- [ ] 0.1 Obtener **aprobación humana explícita** para escribir código en este change (gobernanza CRÍTICO — dominio auth/permisos). Sin esto, ninguna tarea posterior arranca. **No marcar sin la aprobación de la usuaria.**
-- [ ] 0.2 Confirmar que el **mecanismo compartido** de `gateo-obrasocial` está disponible y **se consume sin modificarlo**: `PuedeEscribirContext` poblado por `RequireAuth`, `usePuedeEscribir()` (`shared/auth/usePuedeEscribir.ts`), `CamposSoloLectura` y `AvisoSoloLectura` (`design-system/components.tsx`), y la prop opt-in `requiereEscritura` de `Button`. **Si falta alguna pieza o alguna resultara insuficiente, detenerse**: se corrige en `gateo-obrasocial`, no acá. Ningún archivo del mecanismo puede aparecer en el diff de este change.
-- [ ] 0.3 Confirmar que el **descope de `/hojas-de-ruta` en `gateo-conductores`** está hecho: su `proposal.md`, `design.md`, `specs/` y `tasks.md` ya no reclaman esta pantalla. Dos deltas no pueden reclamar la misma superficie. **No modificar esos archivos desde este change** — solo verificar.
+- [x] 0.1 Obtener **aprobación humana explícita** para escribir código en este change (gobernanza CRÍTICO — dominio auth/permisos). Aprobación explícita obtenida de la usuaria el 2026-07-30.
+- [x] 0.2 Confirmar que el **mecanismo compartido** de `gateo-obrasocial` está disponible y **se consume sin modificarlo**: `PuedeEscribirContext` poblado por `RequireAuth`, `usePuedeEscribir()` (`shared/auth/usePuedeEscribir.ts`), `CamposSoloLectura` y `AvisoSoloLectura` (`design-system/components.tsx`), y la prop opt-in `requiereEscritura` de `Button`. **Verificado**: los cinco existen en el árbol tal cual se esperaba.
+- [x] 0.3 Confirmar que el **descope de `/hojas-de-ruta` en `gateo-conductores`** está hecho: su `proposal.md`, `design.md`, `specs/` y `tasks.md` ya no reclaman esta pantalla. **Verificado** contra el change ya archivado en `openspec/changes/archive/2026-07-30-gateo-conductores/`.
 
 ## 1. Red de seguridad, línea base y premisa del módulo
 
