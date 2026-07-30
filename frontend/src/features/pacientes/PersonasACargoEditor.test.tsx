@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PersonaACargo } from '../../shared/types/paciente';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PersonasACargoEditor } from './PersonasACargoEditor';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const laura: PersonaACargo = { id: 'pac-1', nombre: 'Laura', apellido: 'Gómez', dni: '30111222' };
 
@@ -105,5 +110,67 @@ describe('PersonasACargoEditor', () => {
     render(<PersonasACargoEditor personasACargo={[roberto]} onChange={vi.fn()} />);
 
     expect(screen.getByText(/221-555-6666/)).toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-pacientes, design.md D2, tasks.md 4.4). PersonasACargoEditor cuelga
+// de PacienteDetail, fuera de PacienteForm — un único <CamposSoloLectura> cubre los 3 <button>
+// nativos ("Editar", "Quitar" por fila y "Cancelar" del form inline) más los 5 campos y el
+// Button "Agregar/Guardar cambios". A diferencia de CudFields (design.md D2), acá no se talla
+// una excepción para el "Cancelar" del form inline: tasks.md 4.4 lo agrupa explícitamente con
+// los otros 2 <button> nativos.
+describe('PersonasACargoEditor — gateo de escritura', () => {
+  it('sin permiso de escritura: "Agregar/Editar" (submit) y los 3 <button> nativos quedan inertes, y las personas a cargo siguen legibles', async () => {
+    const user = userEvent.setup();
+
+    renderConPermiso(false, <PersonasACargoEditor personasACargo={[laura]} onChange={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: /agregar persona a cargo/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /editar laura gómez/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /quitar laura gómez/i })).toBeDisabled();
+    expect(screen.getByLabelText(/^nombre$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^apellido$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^dni$/i)).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/^nombre$/i), 'Intento bloqueado');
+    expect(screen.getByLabelText(/^nombre$/i)).toHaveValue('');
+
+    // Las personas a cargo ya cargadas siguen siendo legibles (design.md Goals).
+    expect(screen.getByText(/laura/i)).toBeInTheDocument();
+  });
+
+  it('sin permiso de escritura: el "Cancelar" del form inline (al editar) también queda inerte, sin excepción (a diferencia de CudFields)', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    // Se llega al form inline de edición con escritura habilitada (mismo motivo que
+    // CudFields.test.tsx: "Editar" ya está bloqueado sin permiso, así que es la única forma de
+    // alcanzar ese estado interno) y luego se retira el permiso para afirmar sobre "Cancelar".
+    const { rerender } = renderConPermiso(true, <PersonasACargoEditor personasACargo={[laura]} onChange={onChange} />);
+    await user.click(screen.getByRole('button', { name: /editar laura gómez/i }));
+    expect(screen.getByRole('button', { name: /^cancelar$/i })).toBeInTheDocument();
+
+    rerender(
+      <PuedeEscribirContext.Provider value={false}>
+        <PersonasACargoEditor personasACargo={[laura]} onChange={onChange} />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    expect(screen.getByRole('button', { name: /^cancelar$/i })).toBeDisabled();
+  });
+
+  it('con permiso de escritura: "Agregar/Editar", los 3 <button> nativos y los campos están activables (triangulación)', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    renderConPermiso(true, <PersonasACargoEditor personasACargo={[laura]} onChange={onChange} />);
+
+    expect(screen.getByRole('button', { name: /agregar persona a cargo/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /editar laura gómez/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /quitar laura gómez/i })).toBeEnabled();
+    expect(screen.getByLabelText(/^nombre$/i)).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: /editar laura gómez/i }));
+    expect(screen.getByRole('button', { name: /^cancelar$/i })).toBeEnabled();
   });
 });

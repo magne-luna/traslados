@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Direccion } from '../../shared/types/paciente';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { DireccionesEditor } from './DireccionesEditor';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const domicilio: Direccion = {
   id: 'dir-1',
@@ -92,5 +97,39 @@ describe('DireccionesEditor', () => {
   it('renderiza cada fila con key estable por id', () => {
     const { container } = render(<DireccionesEditor direcciones={[domicilio]} onChange={vi.fn()} />);
     expect(container.querySelector('li[data-direccion-id="dir-1"]')).not.toBeNull();
+  });
+});
+
+// Gateo de escritura (gateo-pacientes, design.md D2, tasks.md 4.3). DireccionesEditor cuelga de
+// PacienteDetail, fuera de PacienteForm — un único <CamposSoloLectura> cubre el <button> nativo
+// "Quitar" de cada fila, los 3 campos de "Agregar nueva dirección" y el Button "+ Agregar
+// dirección", sin que el componente reciba el módulo por props ni importe el literal 'pacientes'
+// (usePuedeEscribir() resuelve el permiso).
+describe('DireccionesEditor — gateo de escritura', () => {
+  it('sin permiso de escritura: "+ Agregar dirección", el <button> nativo "Quitar" y los campos quedan inertes, pero las direcciones existentes siguen legibles', async () => {
+    const user = userEvent.setup();
+
+    renderConPermiso(false, <DireccionesEditor direcciones={[domicilio]} onChange={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: /agregar dirección/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /quitar domicilio/i })).toBeDisabled();
+    expect(screen.getByLabelText(/tipo de lugar/i)).toBeDisabled();
+    expect(screen.getByLabelText(/calle y número/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^localidad$/i)).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/calle y número/i), 'Intento bloqueado');
+    expect(screen.getByLabelText(/calle y número/i)).toHaveValue('');
+
+    // Las direcciones existentes siguen siendo legibles (design.md Goals — nunca más
+    // restrictivo que la lectura que ya autoriza el nivel `read`).
+    expect(screen.getByText(/av\. rivadavia 4500, caba/i)).toBeInTheDocument();
+  });
+
+  it('con permiso de escritura: "+ Agregar dirección", "Quitar" y los campos están activables (triangulación)', () => {
+    renderConPermiso(true, <DireccionesEditor direcciones={[domicilio]} onChange={vi.fn()} />);
+
+    expect(screen.getByRole('button', { name: /agregar dirección/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /quitar domicilio/i })).toBeEnabled();
+    expect(screen.getByLabelText(/calle y número/i)).toBeEnabled();
   });
 });

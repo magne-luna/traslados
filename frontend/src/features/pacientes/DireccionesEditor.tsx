@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Button, InlineIcon } from '../../design-system/components';
+import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { iconTacho } from '../../design-system/icons';
 import { Field, Input, Select } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
@@ -42,6 +42,13 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
 
   return (
     <Card radius="md" gap="lg">
+      {/* gateo-pacientes (design.md D2): cuelga de PacienteDetail, fuera de PacienteForm, así que
+          no lo alcanza el envoltorio de la sección de datos personales — tiene el suyo propio.
+          Una sola inserción cubre el <button> nativo "Quitar" de cada fila y el bloque de
+          "Agregar nueva dirección" completo (campos + Button); las direcciones ya cargadas
+          siguen legibles porque el fieldset solo deshabilita controles, no oculta contenido. */}
+      <CamposSoloLectura>
+      <div className="flex flex-col gap-lg">
       {direcciones.length === 0 ? (
         <p className="m-0 font-body text-sm text-muted">No hay direcciones registradas todavía.</p>
       ) : (
@@ -125,6 +132,8 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
           </Button>
         </div>
       </div>
+      </div>
+      </CamposSoloLectura>
     </Card>
   );
 }

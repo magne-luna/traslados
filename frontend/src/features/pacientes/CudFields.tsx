@@ -50,7 +50,7 @@ export function CudFields({ value, onChange }: CudFieldsProps) {
 
   if (value === null && !editing) {
     return (
-      <Button variant="secondary" onClick={empezarEdicion}>
+      <Button variant="secondary" requiereEscritura onClick={empezarEdicion}>
         Agregar CUD
       </Button>
     );
@@ -87,10 +87,10 @@ export function CudFields({ value, onChange }: CudFieldsProps) {
           </div>
 
           <div className="flex justify-end gap-sm">
-            <Button variant="secondary" onClick={empezarEdicion}>
+            <Button variant="secondary" requiereEscritura onClick={empezarEdicion}>
               Editar
             </Button>
-            <Button variant="danger" onClick={() => onChange(null)}>
+            <Button variant="danger" requiereEscritura onClick={() => onChange(null)}>
               <InlineIcon>{iconTacho}</InlineIcon>
               Quitar CUD
             </Button>
@@ -160,10 +160,13 @@ export function CudFields({ value, onChange }: CudFieldsProps) {
         </div>
 
         <div className="flex justify-end gap-sm">
+          {/* gateo-pacientes (design.md D2): Cancelar NUNCA lleva requiereEscritura — no persiste
+              nada, solo descarta los cambios locales y vuelve a la vista de solo lectura. Es el
+              punto más fácil de gatear de más de todo el change. */}
           <Button variant="secondary" onClick={() => setEditing(false)}>
             Cancelar
           </Button>
-          <Button variant="primary" onClick={handleGuardar}>
+          <Button variant="primary" requiereEscritura onClick={handleGuardar}>
             Guardar
           </Button>
         </div>

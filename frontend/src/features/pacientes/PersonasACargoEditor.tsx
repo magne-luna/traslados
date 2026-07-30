@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Button, InlineIcon } from '../../design-system/components';
+import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { iconTacho } from '../../design-system/icons';
 import { Field, Input } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
@@ -79,6 +79,14 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
 
   return (
     <Card radius="md" gap="lg">
+      {/* gateo-pacientes (design.md D2, tasks.md 4.4): cuelga de PacienteDetail, fuera de
+          PacienteForm — un único envoltorio cubre los 3 <button> nativos ("Editar", "Quitar" por
+          fila y "Cancelar" del form inline), los 5 campos y el Button "Agregar/Guardar cambios".
+          A diferencia de CudFields (D2), acá NO se talla una excepción para "Cancelar": queda
+          agrupado con los otros 2 <button> nativos, tal como lo pide tasks.md 4.4. Las personas a
+          cargo ya cargadas siguen legibles, el fieldset solo deshabilita controles. */}
+      <CamposSoloLectura>
+      <div className="flex flex-col gap-lg">
       {personasACargo.length === 0 ? (
         <p className="m-0 font-body text-sm text-muted">No hay personas a cargo registradas todavía.</p>
       ) : (
@@ -206,6 +214,8 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
           </div>
         </div>
       </div>
+      </div>
+      </CamposSoloLectura>
     </Card>
   );
 }
