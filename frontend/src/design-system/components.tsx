@@ -1,7 +1,8 @@
-import type { MouseEvent, ReactNode } from 'react';
+import type { MouseEvent, ReactElement, ReactNode } from 'react';
 import type { SemanticStatus } from './tokens';
 import { chipColors } from './semanticColors';
 import { Alert } from './feedback';
+import { usePuedeEscribir } from '../shared/auth/usePuedeEscribir';
 
 // Primitivos reutilizables del design system. DesignSystem.tsx los importa para el catálogo
 // visual; el resto de la app (src/shared, src/features) los importa para construir pantallas
@@ -11,6 +12,13 @@ import { Alert } from './feedback';
 // diseño que antes vivían en ./tokens.ts como objeto JS ahora son variables de @theme en
 // src/index.css (--color-ink, --spacing-lg, --radius-sm, --shadow-card, --font-heading, etc.),
 // consumidas acá como clases utilitarias (text-ink, p-lg, rounded-sm, shadow-card, font-heading).
+//
+// Excepción de capa (gateo-obrasocial, design.md D3/D5): `Button`, `CamposSoloLectura` y
+// `AvisoSoloLectura` son las únicas primitivas de este archivo que dependen de
+// shared/auth/usePuedeEscribir — una excepción deliberada a "design-system es puramente
+// presentacional", decidida en design.md para que un componente exprese "esto requiere
+// escritura" sin que el caller tenga que resolver el permiso y pasarlo por props. No agregar
+// esta dependencia a ninguna otra primitiva sin pasar por el mismo proceso de diseño.
 
 export function Section({
   label,
@@ -93,6 +101,7 @@ export function Button({
   variant = 'primary',
   size = 'md',
   disabled = false,
+  requiereEscritura = false,
   children,
   onClick,
   type = 'button',
@@ -101,6 +110,16 @@ export function Button({
   variant?: ButtonVariant;
   size?: ButtonSize;
   disabled?: boolean;
+  // Prop opt-in de escritura (gateo-obrasocial, design.md D5): declara que la acción de este
+  // botón escribe datos. Nunca automática — de los ~78 usos de Button en el proyecto, varios
+  // (Cancelar, Volver al listado, conmutadores de vista, Reintentar) no escriben y deben seguir
+  // funcionando para una cuenta de solo lectura, así que su ausencia (default false) preserva el
+  // comportamiento actual sin excepción.
+  //
+  // IMPORTANTE (security-review): esto es UX, no una frontera de seguridad — la autorización
+  // efectiva de escritura la impone la RLS del servidor vía modulos.tiene_permiso(modulo,
+  // 'write'). Ver mismo comentario en permisos.ts y PuedeEscribirContext.tsx.
+  requiereEscritura?: boolean;
   children: ReactNode;
   // Acepta el evento nativo (backward-compatible: los ~40 call sites existentes pasan
   // funciones sin parámetros, siguen siendo asignables) porque los botones mini dentro de una
@@ -113,19 +132,66 @@ export function Button({
   // migrar los botones mini de listado sin perder accesibilidad, no un capricho).
   ariaLabel?: string;
 }) {
+  // Hook llamado incondicionalmente (regla de hooks): requiereEscritura=false simplemente
+  // ignora el valor devuelto en el cálculo de abajo, sin condicionar la llamada al hook.
+  const puedeEscribir = usePuedeEscribir();
+  // Disyunción (design.md D5): el gateo de permiso nunca *habilita* un botón que su propia
+  // lógica (`disabled`) ya quería bloquear; solo puede agregar una razón más para bloquearlo.
+  const bloqueadoPorGateo = requiereEscritura && !puedeEscribir;
+  const deshabilitado = disabled || bloqueadoPorGateo;
+
   const className = [
     buttonBaseClasses,
     buttonSizeClasses[size],
     buttonVariantClasses[variant],
-    disabled ? BUTTON_DISABLED_CLASSES : '',
+    deshabilitado ? BUTTON_DISABLED_CLASSES : '',
   ]
     .filter(Boolean)
     .join(' ');
 
   return (
-    <button type={type} disabled={disabled} className={className} onClick={onClick} aria-label={ariaLabel}>
+    <button type={type} disabled={deshabilitado} className={className} onClick={onClick} aria-label={ariaLabel}>
       {children}
     </button>
+  );
+}
+
+// Envoltorio de solo lectura sobre <fieldset disabled> nativo (gateo-obrasocial, design.md D3):
+// deshabilita de una vez todos los controles descendientes (input, select, textarea, button),
+// incluidos los <button> nativos de subcomponentes anidados que este envoltorio no conoce —
+// ChecklistItemRow y PlantillaCampoRow son el caso que motivó esta primitiva. Es HTML nativo, no
+// una emulación: los lectores de pantalla anuncian los controles como deshabilitados, el foco los
+// saltea y los submit no disparan.
+//
+// `min-w-0 border-0 p-0 m-0` neutraliza los estilos de agente de usuario del <fieldset> (borde,
+// padding, min-width: min-content) para no mover el layout ni un píxel — cero estilos inline
+// (Regla Dura del proyecto).
+//
+// Sin props: como Button, se auto-resuelve contra usePuedeEscribir() — ningún caller tiene que
+// saber a qué módulo pertenece la pantalla en la que está montado.
+export function CamposSoloLectura({ children }: { children: ReactNode }): ReactElement {
+  const puedeEscribir = usePuedeEscribir();
+  return <fieldset disabled={!puedeEscribir} className="min-w-0 border-0 p-0 m-0">{children}</fieldset>;
+}
+
+// Aviso visible de modo solo lectura (gateo-obrasocial, design.md D6): controles deshabilitados
+// sin explicación se leen como una aplicación rota (decisión 2 de la usuaria). Reutiliza Alert —
+// no se crea un componente de aviso desde cero — con el mismo molde tone="info" que
+// AvisoPendienteCliente. No aparece cuando la cuenta sí puede escribir, ni fuera de un
+// RequireAuth (fallback true de usePuedeEscribir).
+//
+// Patrón de referencia para los otros 3 changes del split (gateo-pacientes, gateo-facturacion,
+// gateo-conductores): cada uno monta este mismo componente, sin argumentos, en su propia página
+// de módulo.
+export function AvisoSoloLectura(): ReactElement | null {
+  const puedeEscribir = usePuedeEscribir();
+  if (puedeEscribir) return null;
+
+  return (
+    <Alert tone="info" emphasis="accent" role="note" title="Modo solo lectura:">
+      Tu cuenta no tiene permiso de escritura sobre este módulo. Podés consultar los datos, pero
+      las acciones que crean, editan o eliminan están deshabilitadas.
+    </Alert>
   );
 }
 

@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
 import type { SemanticStatus } from './tokens';
-import { Section, Swatch, Button, Chip, NavIcon, chipColors } from './components';
+import { Section, Swatch, Button, Chip, NavIcon, chipColors, CamposSoloLectura, AvisoSoloLectura } from './components';
 import { Field, Input, Select, Textarea } from './form';
 import { Alert, Pill, EmptyState } from './feedback';
 import { Card, Panel } from './layout';
@@ -9,6 +9,7 @@ import { DocumentChecklist } from '../shared/components/DocumentChecklist';
 import { useDocumentChecklist } from '../shared/lib/documentos/useDocumentChecklist';
 import { mockDocumentoRepository } from '../shared/lib/documentos/mockDocumentoRepository';
 import type { ChecklistItem } from '../shared/types/documento';
+import { PuedeEscribirContext } from '../shared/auth/PuedeEscribirContext';
 
 const ALL_TONES: SemanticStatus[] = ['success', 'warning', 'danger', 'info', 'secondary'];
 
@@ -386,6 +387,48 @@ export default function DesignSystem() {
       <Section label="16" title="Button (variantes × tamaños)">
         <ButtonCatalog />
       </Section>
+
+      <Section label="17" title="Gateo de escritura (CamposSoloLectura / Button opt-in / AvisoSoloLectura)">
+        <GateoEscrituraCatalog />
+      </Section>
+    </div>
+  );
+}
+
+// Catálogo de las primitivas del mecanismo compartido de gateo de escritura (gateo-obrasocial,
+// design.md D3/D5/D6; tasks.md 3.7). PuedeEscribirContext.Provider se monta acá a mano, con los
+// dos valores posibles, únicamente para poder mostrar ambos estados en la misma vitrina — en el
+// resto de la app el proveedor real lo siembra RequireAuth, ninguna pantalla lo hace por su
+// cuenta. Patrón de referencia para gateo-pacientes, gateo-facturacion y gateo-conductores.
+function GateoEscrituraCatalog() {
+  return (
+    <div className="flex flex-col gap-lg">
+      <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
+        <div className="flex flex-col gap-sm">
+          <p className="m-0 font-body text-xs font-semibold text-muted">Sin permiso de escritura</p>
+          <PuedeEscribirContext.Provider value={false}>
+            <AvisoSoloLectura />
+            <CamposSoloLectura>
+              <div className="flex flex-col gap-sm rounded-sm border border-border bg-surface p-md">
+                <Input density="comfortable" placeholder="Campo de ejemplo" value="" onChange={() => {}} />
+                <Button requiereEscritura>Guardar</Button>
+              </div>
+            </CamposSoloLectura>
+          </PuedeEscribirContext.Provider>
+        </div>
+        <div className="flex flex-col gap-sm">
+          <p className="m-0 font-body text-xs font-semibold text-muted">Con permiso de escritura</p>
+          <PuedeEscribirContext.Provider value={true}>
+            <AvisoSoloLectura />
+            <CamposSoloLectura>
+              <div className="flex flex-col gap-sm rounded-sm border border-border bg-surface p-md">
+                <Input density="comfortable" placeholder="Campo de ejemplo" value="" onChange={() => {}} />
+                <Button requiereEscritura>Guardar</Button>
+              </div>
+            </CamposSoloLectura>
+          </PuedeEscribirContext.Provider>
+        </div>
+      </div>
     </div>
   );
 }
