@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button } from '../../design-system/components';
+import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { CardForm } from '../../design-system/layout';
 import type { ObraSocial } from '../../shared/types/obraSocial';
@@ -80,6 +80,15 @@ export function PacienteForm({
     <CardForm onSubmit={handleSubmit} gap="md" radius="sm" padding="lg">
       {submitError && <Alert tone="danger">{submitError}</Alert>}
 
+      {/* gateo-pacientes (design.md D1): una sola inserción cubre los dos bloques de campos —
+          PacienteDatosPersonalesFields y PacienteCoberturaFields (que a su vez compone
+          IdentificadorAfiliadoField) — sin que ninguno de los tres reciba una prop nueva. El
+          <div gap-md> interno reproduce el espaciado que CardForm aplicaba entre estos dos
+          hijos directos antes de agruparlos (el <fieldset> no hereda el `gap` del flex de
+          CardForm). El envoltorio NO cubre la barra de acciones: Cancelar debe seguir operativo
+          para una cuenta de solo lectura. */}
+      <CamposSoloLectura>
+      <div className="flex flex-col gap-md">
       <PacienteDatosPersonalesFields
         formId={formId}
         values={values}
@@ -93,12 +102,14 @@ export function PacienteForm({
         obrasSociales={obrasSociales}
         onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
       />
+      </div>
+      </CamposSoloLectura>
 
       <div className="flex items-center justify-end gap-sm">
         <Button variant="secondary" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" variant="primary">
+        <Button type="submit" variant="primary" requiereEscritura>
           {submitting ? 'Guardando…' : 'Guardar'}
         </Button>
       </div>

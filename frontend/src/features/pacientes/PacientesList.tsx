@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Chip, SearchInput } from '../../design-system/components';
+import { Button, CamposSoloLectura, Chip, SearchInput } from '../../design-system/components';
 import { Alert, EmptyState, Pill } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import { CUD_CHIP_KIND, CUD_CHIP_LABEL } from '../../shared/lib/pacientes/cudCopy';
@@ -57,7 +57,7 @@ export function PacientesList({
     <div className="flex flex-col gap-lg py-xxl px-xl">
       <div className="flex flex-wrap items-center justify-between gap-md">
         <h1 className="m-0 font-heading text-[21px] font-bold text-ink">Pacientes</h1>
-        <Button variant="primary" onClick={onCreateNew}>
+        <Button variant="primary" requiereEscritura onClick={onCreateNew}>
           + Nuevo paciente
         </Button>
       </div>
@@ -79,7 +79,7 @@ export function PacientesList({
         <EmptyState
           message="No hay pacientes cargados todavía."
           action={
-            <Button variant="secondary" onClick={onCreateNew}>
+            <Button variant="secondary" requiereEscritura onClick={onCreateNew}>
               Crear el primer paciente
             </Button>
           }
@@ -145,6 +145,13 @@ export function PacientesList({
                     : `${paciente.personasACargo.length} persona${paciente.personasACargo.length === 1 ? '' : 's'} a cargo`}
                 </span>
 
+                {/* gateo-pacientes (design.md D2/riesgos, tasks.md 3.3): "Ver detalle" es un
+                    <button> nativo, no un componente Button — el envoltorio de solo lectura lo
+                    cubre igual que a "Editar", verificando que el <fieldset disabled> del
+                    mecanismo compartido alcanza también a los <button> nativos. La fila (Card,
+                    más arriba) tiene su propio onClick por fuera de este envoltorio y sigue
+                    navegando al detalle aunque los dos botones queden inertes. */}
+                <CamposSoloLectura>
                 <div className="flex items-center justify-end gap-md pt-xs">
                   <button
                     type="button"
@@ -168,6 +175,7 @@ export function PacientesList({
                     Editar
                   </Button>
                 </div>
+                </CamposSoloLectura>
               </Card>
             );
           })}

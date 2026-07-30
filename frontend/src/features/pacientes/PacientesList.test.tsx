@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Paciente } from '../../shared/types/paciente';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PacientesList } from './PacientesList';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const martina: Paciente = {
   id: 'paciente-martina',
@@ -129,5 +134,159 @@ describe('PacientesList', () => {
     await user.click(screen.getByRole('button', { name: /editar gómez, martina/i }));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(martina);
+  });
+});
+
+// Gateo de escritura (gateo-pacientes, tasks.md 3.1-3.4). "Crear paciente"/"Crear el primero"
+// nunca se ocultan (decisión 1 de la usuaria) — solo quedan deshabilitados. El <button> nativo
+// "Ver detalle" (no es un componente Button) cae dentro del mismo envoltorio de solo lectura que
+// "Editar" — se verifica acá que el <fieldset disabled> del mecanismo compartido lo alcanza,
+// igual que alcanza a los <button> nativos de ChecklistItemRow en gateo-obrasocial.
+describe('PacientesList — gateo de escritura', () => {
+  it('sin permiso de escritura: "+ Nuevo paciente" queda visible y no se puede activar (sigue en el DOM, decisión 1)', () => {
+    renderConPermiso(
+      false,
+      <PacientesList
+        pacientes={[martina]}
+        loading={false}
+        error={null}
+        nombreObraSocial={nombreObraSocial}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    const crear = screen.getByRole('button', { name: /\+ nuevo paciente/i });
+    expect(crear).toBeInTheDocument();
+    expect(crear).toBeVisible();
+    expect(crear).toBeDisabled();
+  });
+
+  it('sin permiso de escritura: "Crear el primer paciente" (estado vacío) queda visible y no se puede activar (triangulación con la lista no vacía)', () => {
+    renderConPermiso(
+      false,
+      <PacientesList
+        pacientes={[]}
+        loading={false}
+        error={null}
+        nombreObraSocial={nombreObraSocial}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    const crearPrimero = screen.getByRole('button', { name: /crear el primer paciente/i });
+    expect(crearPrimero).toBeInTheDocument();
+    expect(crearPrimero).toBeDisabled();
+  });
+
+  it('con permiso de escritura: "+ Nuevo paciente" y "Crear el primer paciente" están activables (triangulación)', () => {
+    renderConPermiso(
+      true,
+      <PacientesList
+        pacientes={[martina]}
+        loading={false}
+        error={null}
+        nombreObraSocial={nombreObraSocial}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /\+ nuevo paciente/i })).toBeEnabled();
+  });
+
+  it('sin permiso de escritura: "Editar" por fila queda visible y no se puede activar, y la fila sigue navegando al detalle', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+
+    renderConPermiso(
+      false,
+      <PacientesList
+        pacientes={[martina]}
+        loading={false}
+        error={null}
+        nombreObraSocial={nombreObraSocial}
+        onSelect={onSelect}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    const editar = screen.getByRole('button', { name: /editar gómez, martina/i });
+    expect(editar).toBeVisible();
+    expect(editar).toBeDisabled();
+
+    await user.click(screen.getByText(/gómez, martina/i));
+    expect(onSelect).toHaveBeenCalledWith(martina);
+  });
+
+  it('con permiso de escritura: "Editar" por fila está activable (triangulación)', () => {
+    renderConPermiso(
+      true,
+      <PacientesList
+        pacientes={[martina]}
+        loading={false}
+        error={null}
+        nombreObraSocial={nombreObraSocial}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /editar gómez, martina/i })).toBeEnabled();
+  });
+
+  it('sin permiso de escritura: el <button> nativo "Ver detalle" queda deshabilitado por el envoltorio', () => {
+    renderConPermiso(
+      false,
+      <PacientesList
+        pacientes={[martina]}
+        loading={false}
+        error={null}
+        nombreObraSocial={nombreObraSocial}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /^ver detalle$/i })).toBeDisabled();
+  });
+
+  it('con permiso de escritura: el <button> nativo "Ver detalle" está activable (triangulación)', () => {
+    renderConPermiso(
+      true,
+      <PacientesList
+        pacientes={[martina]}
+        loading={false}
+        error={null}
+        nombreObraSocial={nombreObraSocial}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /^ver detalle$/i })).toBeEnabled();
+  });
+});
+
+// Rol admin sin filas de permisos (design.md D5): el contexto ya resolvió el short-circuit de
+// admin (probado de punta a punta en usePuedeEscribir.test.tsx, gateo-obrasocial tasks.md 2.2) —
+// acá solo se verifica que PacientesList consume ese resultado, mismo criterio que
+// ObrasSocialesList.test.tsx para el mismo escenario.
+describe('PacientesList — rol admin sin filas de permisos', () => {
+  it('con puedeEscribir true (equivalente al short-circuit de admin sin filas): la acción de alta está activable', () => {
+    renderConPermiso(
+      true,
+      <PacientesList
+        pacientes={[]}
+        loading={false}
+        error={null}
+        nombreObraSocial={nombreObraSocial}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /crear el primer paciente/i })).toBeEnabled();
   });
 });
