@@ -3,7 +3,12 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PresupuestoForm, type PresupuestoFormValues } from './PresupuestoForm';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const martina: Paciente = {
   id: 'paciente-martina',
@@ -129,6 +134,66 @@ describe('PresupuestoForm', () => {
     render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={onCancel} />);
 
     await user.click(screen.getByRole('button', { name: /cancelar/i }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 2.3/2.4, design.md D3). Un único envoltorio
+// cubre todo el bloque de campos; Guardar declara `requiereEscritura`; Cancelar queda fuera del
+// envoltorio y sigue operativo siempre (mismo criterio que PacienteForm/gateo-pacientes).
+describe('PresupuestoForm — gateo de escritura', () => {
+  it('sin permiso de escritura: ningún campo acepta entrada', async () => {
+    const user = userEvent.setup();
+
+    renderConPermiso(false, <PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.getByLabelText(/paciente/i)).toBeDisabled();
+    expect(screen.getByLabelText(/obra social/i)).toBeDisabled();
+    expect(screen.getByLabelText(/monto/i)).toBeDisabled();
+    expect(screen.getByLabelText(/fecha de emisión/i)).toBeDisabled();
+    expect(screen.getByLabelText(/archivo/i)).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/monto/i), '5');
+    expect(screen.getByLabelText(/monto/i)).toHaveValue(0);
+  });
+
+  it('sin permiso de escritura: Guardar no se puede activar y el repositorio (onSubmit) no recibe ninguna llamada', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    renderConPermiso(false, <PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    const guardar = screen.getByRole('button', { name: /guardar/i });
+    expect(guardar).toBeDisabled();
+    await user.click(guardar);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('con permiso de escritura: todo editable y guardable (triangulación)', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    renderConPermiso(true, <PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    expect(screen.getByLabelText(/paciente/i)).toBeEnabled();
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac');
+    await user.type(screen.getByLabelText(/monto/i), '150000');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin permiso de escritura: Cancelar sigue activable y dispara onCancel, y el formulario se cierra', async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+
+    renderConPermiso(false, <PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={onCancel} />);
+
+    const cancelar = screen.getByRole('button', { name: /cancelar/i });
+    expect(cancelar).toBeEnabled();
+    await user.click(cancelar);
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });

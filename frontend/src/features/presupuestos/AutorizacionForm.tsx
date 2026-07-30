@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Button, InlineIcon } from '../../design-system/components';
+import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Select, Input } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
@@ -111,6 +111,9 @@ export function AutorizacionForm({
         </ul>
       </div>
 
+      {/* gateo-facturacion (design.md D3, tasks.md 3.2): un solo envoltorio cubre todo el bloque
+          de campos. NO cubre la barra de acciones — Cancelar debe seguir operativo. */}
+      <CamposSoloLectura>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
         <Field label="Estado" htmlFor={`${formId}-estado`}>
           <Select
@@ -218,12 +221,13 @@ export function AutorizacionForm({
           )}
         </div>
       </div>
+      </CamposSoloLectura>
 
       <div className="flex justify-end gap-sm">
         <Button variant="secondary" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" variant="primary">
+        <Button type="submit" variant="primary" requiereEscritura>
           {submitting ? 'Guardando…' : 'Guardar respuesta'}
         </Button>
       </div>

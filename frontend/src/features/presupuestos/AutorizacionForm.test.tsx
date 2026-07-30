@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { AutorizacionForm, type AutorizacionFormValues } from './AutorizacionForm';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 describe('AutorizacionForm', () => {
   it('el selector de estado ofrece exactamente los 4 valores de EstadoAutorizacion', () => {
@@ -139,6 +144,64 @@ describe('AutorizacionForm', () => {
     render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={onCancel} />);
 
     await user.click(screen.getByRole('button', { name: /cancelar/i }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 3.2/3.3, design.md D3/D6). Mismo criterio que
+// PresupuestoForm: un solo envoltorio sobre el bloque de campos, Guardar declara
+// `requiereEscritura`, Cancelar queda fuera y sigue operativo.
+describe('AutorizacionForm — gateo de escritura', () => {
+  it('sin permiso de escritura: ningún campo acepta entrada y Guardar no se puede activar, sin escrituras al repositorio', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    renderConPermiso(false, <AutorizacionForm montoPresupuesto={100_000} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    expect(screen.getByLabelText(/^estado$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/monto autorizado/i)).toBeDisabled();
+    expect(screen.getByLabelText(/cupo mensual de días/i)).toBeDisabled();
+    expect(screen.getByLabelText(/cupo mensual de.*km/i)).toBeDisabled();
+    expect(screen.getByLabelText(/fecha de respuesta/i)).toBeDisabled();
+    expect(screen.getByLabelText(/vigencia desde/i)).toBeDisabled();
+
+    const guardar = screen.getByRole('button', { name: /guardar/i });
+    expect(guardar).toBeDisabled();
+    await user.click(guardar);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('con permiso de escritura: todo operativo y los datos ya cargados siguen siendo legibles (triangulación)', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    renderConPermiso(
+      true,
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        initial={{ estado: 'autorizada', montoAutorizado: 90_000 }}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/^estado$/i)).toBeEnabled();
+    expect(screen.getByLabelText(/^estado$/i)).toHaveValue('autorizada');
+    expect(screen.getByLabelText(/monto autorizado/i)).toHaveValue(90_000);
+
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin permiso de escritura: Cancelar sigue activable y dispara onCancel', async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+
+    renderConPermiso(false, <AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={onCancel} />);
+
+    const cancelar = screen.getByRole('button', { name: /cancelar/i });
+    expect(cancelar).toBeEnabled();
+    await user.click(cancelar);
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });

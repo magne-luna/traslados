@@ -56,7 +56,7 @@ export function PresupuestoResumen({ presupuesto, paciente, obraSocial, onEdit }
       </div>
 
       <div className="flex justify-end">
-        <Button variant="secondary" onClick={onEdit}>
+        <Button variant="secondary" requiereEscritura onClick={onEdit}>
           Editar datos
         </Button>
       </div>

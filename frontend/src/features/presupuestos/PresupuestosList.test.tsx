@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Presupuesto } from '../../shared/types/presupuesto';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PresupuestosList } from './PresupuestosList';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const presupuestoMartina: Presupuesto = {
   id: 'presupuesto-martina-1',
@@ -200,5 +205,132 @@ describe('PresupuestosList', () => {
     await user.click(screen.getByRole('button', { name: /editar gómez, martina/i }));
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(presupuestoMartina);
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 2.1/2.2, design.md D1). "+ Nuevo
+// presupuesto"/"Crear el primero" nunca se ocultan (decisión 1 de la usuaria) — solo quedan
+// deshabilitados. El <button> nativo "Ver detalle" cae dentro del mismo envoltorio de solo
+// lectura que "Editar" (mismo patrón que PacientesList/gateo-pacientes).
+describe('PresupuestosList — gateo de escritura', () => {
+  it('sin permiso de escritura: "+ Nuevo presupuesto" queda visible y no se puede activar', () => {
+    renderConPermiso(
+      false,
+      <PresupuestosList
+        presupuestos={[presupuestoMartina]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    const crear = screen.getByRole('button', { name: /\+ nuevo presupuesto/i });
+    expect(crear).toBeInTheDocument();
+    expect(crear).toBeVisible();
+    expect(crear).toBeDisabled();
+  });
+
+  it('sin permiso de escritura: "Crear el primer presupuesto" (estado vacío) queda visible y no se puede activar (triangulación)', () => {
+    renderConPermiso(
+      false,
+      <PresupuestosList
+        presupuestos={[]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /crear el primer presupuesto/i })).toBeDisabled();
+  });
+
+  it('con permiso de escritura: "+ Nuevo presupuesto" y "Crear el primero" están activables (triangulación)', () => {
+    renderConPermiso(
+      true,
+      <PresupuestosList
+        presupuestos={[presupuestoMartina]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /\+ nuevo presupuesto/i })).toBeEnabled();
+  });
+
+  it('sin permiso de escritura: "Editar" por fila y el <button> nativo "Ver detalle" quedan inertes, y la fila sigue navegando al detalle', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+
+    renderConPermiso(
+      false,
+      <PresupuestosList
+        presupuestos={[presupuestoMartina]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={onSelect}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    const editar = screen.getByRole('button', { name: /editar gómez, martina/i });
+    expect(editar).toBeVisible();
+    expect(editar).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^ver detalle$/i })).toBeDisabled();
+
+    await user.click(screen.getByText(/gómez, martina/i));
+    expect(onSelect).toHaveBeenCalledWith(presupuestoMartina);
+  });
+
+  it('con permiso de escritura: "Editar" y "Ver detalle" están activables (triangulación)', () => {
+    renderConPermiso(
+      true,
+      <PresupuestosList
+        presupuestos={[presupuestoMartina]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /editar gómez, martina/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^ver detalle$/i })).toBeEnabled();
+  });
+
+  it('rol admin sin filas de permisos (equivalente puedeEscribir=true): la acción de alta está activable', () => {
+    renderConPermiso(
+      true,
+      <PresupuestosList
+        presupuestos={[]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /crear el primer presupuesto/i })).toBeEnabled();
   });
 });

@@ -1,5 +1,5 @@
 import { useId, useState, type ChangeEvent, type FormEvent } from 'react';
-import { AvisoModeloDatos, Button } from '../../design-system/components';
+import { AvisoModeloDatos, Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Select, Input } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
@@ -79,6 +79,10 @@ export function PresupuestoForm({
     <CardForm onSubmit={handleSubmit}>
       {submitError && <Alert tone="danger">{submitError}</Alert>}
 
+      {/* gateo-facturacion (design.md D3, tasks.md 2.3): un solo envoltorio cubre todo el
+          bloque de campos (formulario de un solo bloque, sin sub-bloques como PacienteForm).
+          NO cubre la barra de acciones de abajo — Cancelar debe seguir operativo. */}
+      <CamposSoloLectura>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
         <Field label="Paciente" htmlFor={`${formId}-paciente`} error={errors.pacienteId}>
           <Select
@@ -150,12 +154,13 @@ export function PresupuestoForm({
           </Field>
         </div>
       </div>
+      </CamposSoloLectura>
 
       <div className="flex justify-end gap-sm">
         <Button variant="secondary" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" variant="primary">
+        <Button type="submit" variant="primary" requiereEscritura>
           {submitting ? 'Guardando…' : 'Guardar'}
         </Button>
       </div>

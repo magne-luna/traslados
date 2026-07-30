@@ -230,7 +230,7 @@ export function PresupuestoDetail({
               </div>
 
               <div className="flex justify-end">
-                <Button variant="secondary" onClick={() => setAutorizacionEditing(true)}>
+                <Button variant="secondary" requiereEscritura onClick={() => setAutorizacionEditing(true)}>
                   <InlineIcon>{iconLapiz}</InlineIcon>
                   Editar autorización
                 </Button>

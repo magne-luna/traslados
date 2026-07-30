@@ -5,7 +5,12 @@ import type { Paciente } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Autorizacion, Presupuesto } from '../../shared/types/presupuesto';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PresupuestoDetail } from './PresupuestoDetail';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const martina: Paciente = {
   id: 'paciente-martina',
@@ -241,5 +246,53 @@ describe('PresupuestoDetail — modo edición', () => {
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(await screen.findByText('no se pudo crear la autorización')).toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 3.1, design.md D1). La entrada a la edición de
+// autorización ("Editar autorización") queda visible pero no activable sin permiso de escritura.
+describe('PresupuestoDetail — gateo de escritura de la entrada a autorización', () => {
+  function buildRepoConAutorizacionExistente(): AutorizacionRepository {
+    return buildFakeAutorizacionRepository({ getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionMartina) });
+  }
+
+  it('sin permiso de escritura: "Editar autorización" queda visible y no se puede activar', async () => {
+    renderConPermiso(
+      false,
+      <PresupuestoDetail
+        presupuesto={presupuestoMartina}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        pacientes={[martina]}
+        obrasSociales={[osecac]}
+        autorizacionRepository={buildRepoConAutorizacionExistente()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const editarAutorizacion = await screen.findByRole('button', { name: /editar autorización/i });
+    expect(editarAutorizacion).toBeVisible();
+    expect(editarAutorizacion).toBeDisabled();
+    // Los datos de la autorización siguen siendo legibles con solo `read`.
+    expect(screen.getByText(/autorizada/i)).toBeInTheDocument();
+  });
+
+  it('con permiso de escritura: "Editar autorización" está activable (triangulación)', async () => {
+    renderConPermiso(
+      true,
+      <PresupuestoDetail
+        presupuesto={presupuestoMartina}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        pacientes={[martina]}
+        obrasSociales={[osecac]}
+        autorizacionRepository={buildRepoConAutorizacionExistente()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole('button', { name: /editar autorización/i })).toBeEnabled();
   });
 });
