@@ -87,9 +87,9 @@
 
 > Spec: escenario "Aviso de modo solo lectura en las tres vistas". Ver `design.md` D7.
 
-- [ ] 7.1 **Ciclo TDD — aviso en `HojaDeRutaPage`.** RED: con solo `read`, la pantalla informa el modo solo lectura con `AvisoSoloLectura`, sin props. TRIANGULATE: con `write` no aparece; con rol `admin` sin filas, tampoco.
-- [ ] 7.2 **Ciclo TDD — el aviso sobrevive al conmutador.** RED: con solo `read`, el aviso **sigue visible** al pasar de armado a global y a imprimir — está arriba del switch de vistas, no dentro de una rama (`design.md` D7). TRIANGULATE: con `write` no aparece en ninguna de las tres.
-- [ ] 7.3 `tsc -b --noEmit` + `oxlint` limpios. Suite completa contra la línea base.
+- [x] 7.1 **Ciclo TDD — aviso en `HojaDeRutaPage`.** RED: con solo `read`, la pantalla informa el modo solo lectura con `AvisoSoloLectura`, sin props. TRIANGULATE: con `write` no aparece; con rol `admin` sin filas, tampoco. **Implementado**: `<AvisoSoloLectura />` justo después del `<h1>`.
+- [x] 7.2 **Ciclo TDD — el aviso sobrevive al conmutador.** RED: con solo `read`, el aviso **sigue visible** al pasar de armado a global y a imprimir — está arriba del switch de vistas, no dentro de una rama (`design.md` D7). TRIANGULATE: con `write` no aparece en ninguna de las tres. **Verificado**: se mantiene visible en las tres vistas (test recorre las tres).
+- [x] 7.3 `tsc -b --noEmit` + `oxlint` limpios. Suite completa contra la línea base. **`tsc -b --noEmit`: exit 0. `oxlint`: solo el warning preexistente. Suite de la feature: 11 archivos, 101 tests, todos pasan.**
 
 ## 8. Coherencia, verificación y cierre
 

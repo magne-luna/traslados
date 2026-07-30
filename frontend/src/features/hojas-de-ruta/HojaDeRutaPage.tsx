@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { AvisoModeloDatos, Button, Chip, Section } from '../../design-system/components';
+import { AvisoModeloDatos, AvisoSoloLectura, Button, Chip, Section } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { generateId } from '../../shared/lib/id';
 import { agregarParada, quitarParada } from '../../shared/lib/hojas-de-ruta/paradasHelpers';
@@ -93,6 +93,12 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
   return (
     <div className="flex flex-col gap-lg py-xxl px-xl">
       <h1 className="m-0 font-heading text-[21px] font-bold text-ink">Hoja de ruta del día</h1>
+
+      {/* gateo-hojas-de-ruta (design.md D7, tasks.md 7.1/7.2): una sola inserción, arriba del
+          switch de vistas (:129-144, más abajo) — nunca dentro de una rama — para que sobreviva
+          al conmutar entre armado, global e imprimir. Mismo patrón que ObraSocialesPage/
+          PacientesPage. */}
+      <AvisoSoloLectura />
 
       <AvisoModeloDatos>
         El modelo real (Traslados-Modelo-Datos.docx) no tiene entidad "Hoja de Ruta" y su

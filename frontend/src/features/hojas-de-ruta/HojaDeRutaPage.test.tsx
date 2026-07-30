@@ -292,3 +292,59 @@ describe('HojaDeRutaPage — vistas de solo lectura no se bloquean', () => {
     expect(screen.getByText(/franja horaria 08:00 a 20:00/i)).toBeInTheDocument();
   });
 });
+
+// Aviso de modo solo lectura (gateo-hojas-de-ruta, design.md D7, tasks.md 7.1-7.2): una sola
+// inserción de AvisoSoloLectura, arriba del switch de vistas, para que sobreviva al conmutar
+// entre armado, global e imprimir — mismo patrón que ObraSocialesPage/PacientesPage.
+describe('HojaDeRutaPage — aviso de modo solo lectura', () => {
+  const hojaConRecorrido: HojaDeRuta = {
+    id: 'hoja-1',
+    fecha: HOY,
+    franjaInicio: '08:00',
+    franjaFin: '20:00',
+    recorridos: [{ id: 'r-1', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
+  };
+
+  it('sin permiso de escritura: la pantalla informa el modo solo lectura', async () => {
+    renderPageConPermiso(false, buildFakeHojaRepo());
+
+    await screen.findByRole('heading', { name: /hoja de ruta del día/i });
+    const notas = screen.getAllByRole('note').map((nota) => nota.textContent ?? '');
+    expect(notas.some((texto) => /modo solo lectura/i.test(texto))).toBe(true);
+  });
+
+  it('con permiso de escritura: no aparece ningún aviso', async () => {
+    renderPageConPermiso(true, buildFakeHojaRepo());
+
+    await screen.findByRole('heading', { name: /hoja de ruta del día/i });
+    expect(screen.queryByText(/modo solo lectura/i)).not.toBeInTheDocument();
+  });
+
+  it('rol admin sin filas (puedeEscribir=true): no aparece ningún aviso', async () => {
+    renderPageConPermiso(true, buildFakeHojaRepo());
+
+    await screen.findByRole('heading', { name: /hoja de ruta del día/i });
+    expect(screen.queryByText(/modo solo lectura/i)).not.toBeInTheDocument();
+  });
+
+  it('sin permiso de escritura: el aviso sigue visible al conmutar entre armado, global e imprimir', async () => {
+    const user = userEvent.setup();
+    renderPageConPermiso(false, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hojaConRecorrido]) }));
+
+    function avisoVisible(): boolean {
+      return screen.getAllByRole('note').some((nota) => /modo solo lectura/i.test(nota.textContent ?? ''));
+    }
+
+    await screen.findByRole('button', { name: /vista global/i });
+    expect(avisoVisible()).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: /vista global/i }));
+    expect(avisoVisible()).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: /imprimir/i }));
+    expect(avisoVisible()).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: /^armado$/i }));
+    expect(avisoVisible()).toBe(true);
+  });
+});
