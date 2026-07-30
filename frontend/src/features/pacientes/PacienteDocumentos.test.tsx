@@ -4,7 +4,12 @@ import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { DocumentoAdjunto } from '../../shared/types/documento';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PacienteDocumentos } from './PacienteDocumentos';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const osecac: ObraSocial = {
   id: 'osecac',
@@ -116,5 +121,78 @@ describe('PacienteDocumentos', () => {
 
     expect(await screen.findByText(/rhc\.pdf/i)).toBeInTheDocument();
     expect(documentoRepository.listByEntity).toHaveBeenCalledWith('paciente', 'paciente-1');
+  });
+});
+
+// Gateo de escritura (gateo-pacientes, design.md D3, tasks.md 5.1/5.2). Solo la carga y baja de
+// documentos (DocumentChecklist.readOnly, ya existente y reutilizado tal cual — el mecanismo
+// compartido de gateo-obrasocial NO se toca) se gatea; consultar/descargar sigue disponible con
+// `read` porque la RLS del servidor ya autoriza esa lectura — el gateo del cliente nunca debe ser
+// más restrictivo que eso (design.md riesgos).
+describe('PacienteDocumentos — gateo de escritura', () => {
+  it('sin permiso de escritura: "Subir" y "Quitar" quedan deshabilitados, pero el documento ya cargado sigue siendo consultable', async () => {
+    const doc: DocumentoAdjunto = { itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01' };
+    const documentoRepository = buildDocumentoRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
+
+    renderConPermiso(
+      false,
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+      />,
+    );
+
+    // Consultar sigue disponible con solo `read` (D3): el archivo cargado sigue visible.
+    expect(await screen.findByText(/rhc\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reemplazar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /quitar rhc/i })).toBeDisabled();
+    // El ítem sin cargar todavía ("Consentimiento informado") también sigue legible.
+    expect(screen.getByText('Consentimiento informado')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /subir/i })).toBeDisabled();
+  });
+
+  it('con permiso de escritura: "Subir", "Reemplazar" y "Quitar" están activables (triangulación), y el checklist se renderiza completo', async () => {
+    const doc: DocumentoAdjunto = { itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01' };
+    const documentoRepository = buildDocumentoRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
+
+    renderConPermiso(
+      true,
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+      />,
+    );
+
+    expect(await screen.findByText(/rhc\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reemplazar/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /quitar rhc/i })).toBeEnabled();
+    expect(screen.getByText('Consentimiento informado')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /subir/i })).toBeEnabled();
+  });
+});
+
+// Rol admin sin filas de permisos (design.md D5): el contexto ya resolvió el short-circuit de
+// admin (probado de punta a punta en usePuedeEscribir.test.tsx, gateo-obrasocial tasks.md 2.2) —
+// acá solo se confirma que PacienteDocumentos consume ese resultado.
+describe('PacienteDocumentos — rol admin sin filas de permisos', () => {
+  it('con puedeEscribir true (equivalente al short-circuit de admin sin filas): carga y baja de documentos operativas', async () => {
+    renderConPermiso(
+      true,
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={buildDocumentoRepository()}
+      />,
+    );
+
+    expect(await screen.findByText('RHC')).toBeInTheDocument();
+    for (const boton of screen.getAllByRole('button', { name: /^subir$/i })) {
+      expect(boton).toBeEnabled();
+    }
   });
 });

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AvisoSoloLectura } from '../../design-system/components';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { Paciente } from '../../shared/types/paciente';
@@ -36,27 +37,33 @@ export function PacientesPage({ obraSocialRepository, documentoRepository }: Pac
       view.pacienteId === null ? null : (pacientes.find((p) => p.id === view.pacienteId) ?? null);
 
     return (
-      <PacienteDetail
-        paciente={paciente}
-        crear={crear}
-        actualizar={actualizar}
-        obrasSociales={obrasSociales}
-        obraSocialRepository={obraSocialRepository}
-        documentoRepository={documentoRepository}
-        onCreated={(creado) => setView({ kind: 'detail', pacienteId: creado.id })}
-        onBack={() => setView({ kind: 'list' })}
-      />
+      <>
+        <AvisoSoloLectura />
+        <PacienteDetail
+          paciente={paciente}
+          crear={crear}
+          actualizar={actualizar}
+          obrasSociales={obrasSociales}
+          obraSocialRepository={obraSocialRepository}
+          documentoRepository={documentoRepository}
+          onCreated={(creado) => setView({ kind: 'detail', pacienteId: creado.id })}
+          onBack={() => setView({ kind: 'list' })}
+        />
+      </>
     );
   }
 
   return (
-    <PacientesList
-      pacientes={pacientes}
-      loading={loading}
-      error={error}
-      nombreObraSocial={nombreObraSocial}
-      onSelect={(paciente) => setView({ kind: 'detail', pacienteId: paciente.id })}
-      onCreateNew={() => setView({ kind: 'detail', pacienteId: null })}
-    />
+    <>
+      <AvisoSoloLectura />
+      <PacientesList
+        pacientes={pacientes}
+        loading={loading}
+        error={error}
+        nombreObraSocial={nombreObraSocial}
+        onSelect={(paciente) => setView({ kind: 'detail', pacienteId: paciente.id })}
+        onCreateNew={() => setView({ kind: 'detail', pacienteId: null })}
+      />
+    </>
   );
 }
