@@ -8,6 +8,7 @@ import type { VehiculoRepository } from '../../shared/lib/vehiculos/VehiculoRepo
 import type { HojaDeRuta } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import type { Conductor } from '../../shared/types/conductor';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { HojaDeRutaRepositoryProvider } from './HojaDeRutaRepositoryContext';
 import { HojaDeRutaPage } from './HojaDeRutaPage';
 
@@ -84,6 +85,20 @@ function renderPage(hojaRepo: HojaDeRutaRepository) {
   );
 }
 
+function renderPageConPermiso(puedeEscribir: boolean, hojaRepo: HojaDeRutaRepository) {
+  return render(
+    <PuedeEscribirContext.Provider value={puedeEscribir}>
+      <HojaDeRutaRepositoryProvider repository={hojaRepo}>
+        <HojaDeRutaPage
+          pacienteRepository={buildFakePacienteRepo()}
+          vehiculoRepository={buildFakeVehiculoRepo()}
+          conductorRepository={buildFakeConductorRepo()}
+        />
+      </HojaDeRutaRepositoryProvider>
+    </PuedeEscribirContext.Provider>,
+  );
+}
+
 describe('HojaDeRutaPage', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'demo-key');
@@ -146,5 +161,49 @@ describe('HojaDeRutaPage', () => {
 
     await waitFor(() => expect(screen.getAllByText(/ac123de/i).length).toBeGreaterThan(0));
     expect(screen.getAllByText(/gonzález/i).length).toBeGreaterThan(0);
+  });
+});
+
+// Gateo de escritura — alta de la hoja del día (gateo-hojas-de-ruta, tasks.md 2.1, design.md
+// D8/D9): "Crear hoja de ruta para este día" es la única acción de escritura del estado vacío.
+// Mismo criterio que ObraSocialesPage/PacientesPage: visible pero deshabilitada sin permiso,
+// sin ocultar el mensaje de estado vacío.
+describe('HojaDeRutaPage — gateo de escritura (alta de la hoja del día)', () => {
+  it('sin permiso de escritura: el botón de crear la hoja del día queda visible y deshabilitado, y no llama al repositorio', async () => {
+    const user = userEvent.setup();
+    const create = vi.fn();
+    renderPageConPermiso(false, buildFakeHojaRepo({ create }));
+
+    const boton = await screen.findByRole('button', { name: /crear hoja de ruta/i });
+    expect(boton).toBeDisabled();
+    expect(screen.getByText(new RegExp(`no hay hoja de ruta cargada para el ${HOY}`, 'i'))).toBeInTheDocument();
+
+    await user.click(boton);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('con permiso de escritura: el botón crea la hoja del día con normalidad', async () => {
+    const user = userEvent.setup();
+    const create = vi.fn().mockResolvedValue({
+      id: 'hoja-nueva',
+      fecha: HOY,
+      franjaInicio: '08:00',
+      franjaFin: '20:00',
+      recorridos: [],
+    } satisfies HojaDeRuta);
+    renderPageConPermiso(true, buildFakeHojaRepo({ create }));
+
+    const boton = await screen.findByRole('button', { name: /crear hoja de ruta/i });
+    expect(boton).toBeEnabled();
+    expect(screen.getByText(new RegExp(`no hay hoja de ruta cargada para el ${HOY}`, 'i'))).toBeInTheDocument();
+
+    await user.click(boton);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ fecha: HOY }));
+  });
+
+  it('rol admin sin filas en la matriz (puedeEscribir=true equivalente al short-circuit del servidor): el botón es activable', async () => {
+    renderPageConPermiso(true, buildFakeHojaRepo());
+
+    expect(await screen.findByRole('button', { name: /crear hoja de ruta/i })).toBeEnabled();
   });
 });

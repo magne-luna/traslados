@@ -158,7 +158,13 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
       ) : !hojaDelDia ? (
         <div className="flex flex-col items-start gap-md rounded-sm border border-border bg-surface-soft p-xl">
           <p className="m-0 font-body text-sm text-muted">No hay hoja de ruta cargada para el {fecha}.</p>
-          <Button variant="secondary" onClick={handleCrearHoja}>
+          {/* gateo-hojas-de-ruta (design.md D9, tasks.md 2.1): única acción de escritura del
+              estado vacío — sin campos que envolver acá, alcanza con la prop opt-in del Button.
+              IMPORTANTE (security-review): esto es UX, no una frontera de seguridad — la
+              autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes',
+              'write'). Mismo comentario que permisos.ts, usePuedeEscribir.ts y las pantallas ya
+              cableadas. */}
+          <Button variant="secondary" requiereEscritura onClick={handleCrearHoja}>
             Crear hoja de ruta para este día
           </Button>
         </div>
