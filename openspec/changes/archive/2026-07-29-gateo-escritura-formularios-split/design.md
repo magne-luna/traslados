@@ -199,7 +199,7 @@ Las cinco viven resueltas en `proposal.md` §Open Questions. Impacto sobre este 
 
 ## Estado de este documento
 
-Este design es el **análisis paraguas**. Por la decisión 3 no se implementa como un solo change: su contenido se reparte entre los cuatro changes del split, con D1-D5 (el mecanismo compartido) viviendo en `gateo-escritura-obra-social` y los otros tres consumiéndolo. Se conserva como registro del análisis completo de la superficie (~40 componentes) y de las alternativas descartadas.
+Este design es el **análisis paraguas**. Por la decisión 3 no se implementa como un solo change: su contenido se reparte entre los cuatro changes del split, con D1-D5 (el mecanismo compartido) viviendo en `gateo-obrasocial` y los otros tres consumiéndolo. Se conserva como registro del análisis completo de la superficie (~40 componentes) y de las alternativas descartadas.
 
 ## Governance
 

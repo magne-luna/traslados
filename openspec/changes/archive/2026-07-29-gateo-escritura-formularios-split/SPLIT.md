@@ -8,10 +8,10 @@ Se archiva acá para conservar el análisis completo de la superficie (~40 compo
 
 | # | Change | Módulo | Pantallas | Puntos de escritura | Depende de |
 |---|---|---|---|---|---|
-| 1 | `gateo-escritura-obra-social` | `obra_social` | `/obras-sociales` | ~8 | — (**construye la plomería compartida**) |
-| 2 | `gateo-escritura-pacientes` | `pacientes` | `/pacientes` | ~13 | 1 |
-| 3 | `gateo-escritura-facturacion` | `facturacion` | `/presupuestos`, `/facturacion` | ~20 | 1 |
-| 4 | `gateo-escritura-conductores` | `conductores` | `/conductores`, `/vehiculos`, `/hojas-de-ruta` | ~26 | 1 |
+| 1 | `gateo-obrasocial` | `obra_social` | `/obras-sociales` | ~8 | — (**construye la plomería compartida**) |
+| 2 | `gateo-pacientes` | `pacientes` | `/pacientes` | ~13 | 1 |
+| 3 | `gateo-facturacion` | `facturacion` | `/presupuestos`, `/facturacion` | ~20 | 1 |
+| 4 | `gateo-conductores` | `conductores` | `/conductores`, `/vehiculos`, `/hojas-de-ruta` | ~26 | 1 |
 
 El change 1 construye el mecanismo compartido (contexto en `RequireAuth`, `usePuedeEscribir()`, envoltorio de solo lectura sobre `<fieldset disabled>`, prop opt-in en `Button`, aviso con `Alert`) y lo estrena sobre la superficie más chica. Los changes 2, 3 y 4 **solo consumen** ese mecanismo y son independientes entre sí — pueden aplicarse en cualquier orden, o en paralelo, una vez cerrado el 1.
 
@@ -31,13 +31,13 @@ Quedaron heredadas por los cuatro changes derivados. No re-abrir sin hablar con 
 
 | Secciones de `tasks.md` | Change destino |
 |---|---|
-| 1, 2, 3 (red de seguridad, contexto/hook, primitivas) + 5 | `gateo-escritura-obra-social` |
-| 4 | `gateo-escritura-pacientes` |
-| 7 | `gateo-escritura-facturacion` |
-| 6 | `gateo-escritura-conductores` |
+| 1, 2, 3 (red de seguridad, contexto/hook, primitivas) + 5 | `gateo-obrasocial` |
+| 4 | `gateo-pacientes` |
+| 7 | `gateo-facturacion` |
+| 6 | `gateo-conductores` |
 | 8 | repartida: lo transversal en el change 1, la verificación por módulo en cada uno |
 
-`design.md` D1-D5 (el mecanismo compartido) vive en `gateo-escritura-obra-social`; los otros tres changes lo consumen y solo documentan lo específico de su módulo.
+`design.md` D1-D5 (el mecanismo compartido) vive en `gateo-obrasocial`; los otros tres changes lo consumen y solo documentan lo específico de su módulo.
 
 ## Gobernanza
 

@@ -85,10 +85,10 @@ Por la decisión 3, este change **no se implementa como tal**: se divide en cuat
 
 | # | Change | Módulo | Pantallas | Depende de |
 |---|---|---|---|---|
-| 1 | `gateo-escritura-obra-social` | `obra_social` | `/obras-sociales` | — (**construye la plomería compartida**) |
-| 2 | `gateo-escritura-pacientes` | `pacientes` | `/pacientes` | 1 |
-| 3 | `gateo-escritura-facturacion` | `facturacion` | `/presupuestos`, `/facturacion` | 1 |
-| 4 | `gateo-escritura-conductores` | `conductores` | `/conductores`, `/vehiculos`, `/hojas-de-ruta` | 1 |
+| 1 | `gateo-obrasocial` | `obra_social` | `/obras-sociales` | — (**construye la plomería compartida**) |
+| 2 | `gateo-pacientes` | `pacientes` | `/pacientes` | 1 |
+| 3 | `gateo-facturacion` | `facturacion` | `/presupuestos`, `/facturacion` | 1 |
+| 4 | `gateo-conductores` | `conductores` | `/conductores`, `/vehiculos`, `/hojas-de-ruta` | 1 |
 
 El change 1 construye el mecanismo compartido (contexto en `RequireAuth`, `usePuedeEscribir()`, envoltorio de solo lectura, prop opt-in en `Button`, aviso de solo lectura) y lo estrena sobre la superficie más chica. Los changes 2, 3 y 4 solo consumen ese mecanismo y son **independientes entre sí** — pueden aplicarse en cualquier orden, o en paralelo, una vez cerrado el 1.
 

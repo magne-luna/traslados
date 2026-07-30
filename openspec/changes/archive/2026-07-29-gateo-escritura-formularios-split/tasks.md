@@ -16,10 +16,10 @@ Por la decisión 3 de la sección 0, **estas tareas no se ejecutan desde acá**.
 
 | Secciones de este archivo | Change destino |
 |---|---|
-| 1, 2, 3 (red de seguridad, contexto/hook, primitivas) + 5 | `gateo-escritura-obra-social` |
-| 4 | `gateo-escritura-pacientes` |
-| 7 | `gateo-escritura-facturacion` |
-| 6 | `gateo-escritura-conductores` |
+| 1, 2, 3 (red de seguridad, contexto/hook, primitivas) + 5 | `gateo-obrasocial` |
+| 4 | `gateo-pacientes` |
+| 7 | `gateo-facturacion` |
+| 6 | `gateo-conductores` |
 | 8 | repartida: la parte transversal en el change 1, la verificación por módulo en cada uno |
 
 Se conserva como registro del desglose completo. La compuerta de gobernanza CRÍTICO sigue vigente **en cada uno de los cuatro changes**.
@@ -28,7 +28,7 @@ Se conserva como registro del desglose completo. La compuerta de gobernanza CRÍ
 
 - [ ] 0.1 Obtener aprobación humana explícita para escribir código (gobernanza CRÍTICO — dominio auth/permisos). **Sigue pendiente, y aplica a cada uno de los cuatro changes del split por separado.**
 - [x] 0.2 Open Question 1 — **DESHABILITAR, nunca ocultar**. Las acciones de escritura siguen visibles en el DOM pero bloqueadas; los campos quedan no editables. Se descarta el criterio mixto de ocultar los puntos de entrada.
-- [x] 0.3 Open Question 2 — **SÍ al indicador visible** de modo solo lectura, con `Alert` del design system. Tono, texto y ubicación exactos se fijan en el change 1 (`gateo-escritura-obra-social`) y los otros tres los reutilizan.
+- [x] 0.3 Open Question 2 — **SÍ al indicador visible** de modo solo lectura, con `Alert` del design system. Tono, texto y ubicación exactos se fijan en el change 1 (`gateo-obrasocial`) y los otros tres los reutilizan.
 - [x] 0.4 Open Question 3 — **cuatro changes, uno por módulo real del backend**, cada uno proponible/aplicable/revisable de forma independiente. Ver `proposal.md` §Split para el orden y las dependencias.
 - [x] 0.5 Open Question 4 — **agrupación confirmada tal cual**: `conductores` gatea Conductores + Vehículos + Hojas de Ruta; `facturacion` gatea Presupuestos + Facturación. Misma agrupación que la RLS de `seed_modulos.sql`.
 - [x] 0.6 Open Question 5 — **nivel `write` para todas las acciones no-CRUD** (emitir factura, registrar cobro, corregir estado de asistencia, reordenar paradas). Ninguna requiere `admin`.
