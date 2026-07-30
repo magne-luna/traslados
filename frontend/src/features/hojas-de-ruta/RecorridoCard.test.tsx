@@ -5,7 +5,12 @@ import type { Conductor } from '../../shared/types/conductor';
 import type { Paciente } from '../../shared/types/paciente';
 import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { RecorridoCard } from './RecorridoCard';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 // RecorridoCard compone ParadasList/AsignacionPanel/RecorridoMapa (ya testeados por separado) y
 // conecta sugerirOrdenPorCercania al botón "Sugerir orden" (tasks.md 6.3, RN-HR-01): aplica la
@@ -408,5 +413,274 @@ describe('RecorridoCard', () => {
     );
 
     expect(screen.getByText(/sin notas/i)).toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-hojas-de-ruta, design.md D3/D5, tasks.md 4.1-4.6): "Sugerir orden" y
+// "Editar" se gatean con Button.requiereEscritura; "Listo" NO se gatea (no persiste, análogo de
+// "Cancelar" en gateo-pacientes); notas (onBlur) y vehículo/conductor (onChange) son los caminos
+// de escritura silenciosa que la prop opt-in de Button no alcanza — los cubre CamposSoloLectura.
+describe('RecorridoCard — gateo de escritura', () => {
+  it('sin permiso de escritura: "Sugerir orden" y "Editar" quedan visibles y deshabilitados, y el resumen sigue legible', () => {
+    renderConPermiso(
+      false,
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={vi.fn()}
+      />,
+    );
+
+    // El resumen (modo solo-lectura) no muestra "Sugerir orden" — solo aparece en modo edición
+    // (baseline ya verificado). Acá solo hay "Editar" visible en el resumen.
+    expect(screen.getByRole('button', { name: /editar/i })).toBeDisabled();
+    expect(screen.getByText(/ac123de/i)).toBeInTheDocument();
+    expect(screen.getByText(/gonzález/i)).toBeInTheDocument();
+    expect(screen.getByText('Nota existente')).toBeInTheDocument();
+  });
+
+  it('con permiso de escritura: "Editar" habilita el modo edición y "Sugerir orden" reordena', async () => {
+    const user = userEvent.setup();
+    const onUpdateRecorrido = vi.fn();
+    renderConPermiso(
+      true,
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={onUpdateRecorrido}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+    expect(screen.getByRole('button', { name: /sugerir orden/i })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: /sugerir orden/i }));
+    expect(onUpdateRecorrido).toHaveBeenCalledTimes(1);
+  });
+
+  it('rol admin sin filas (puedeEscribir=true): "Editar" es activable', () => {
+    renderConPermiso(
+      true,
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /editar/i })).toBeEnabled();
+  });
+
+  it('con la tarjeta forzada al modo de edición y sin permiso de escritura, "Listo" es activable y vuelve al resumen (D3 — no persiste, mismo criterio que "Cancelar")', async () => {
+    const user = userEvent.setup();
+    const onUpdateRecorrido = vi.fn();
+    const { rerender } = renderConPermiso(
+      true,
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={onUpdateRecorrido}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+
+    rerender(
+      <PuedeEscribirContext.Provider value={false}>
+        <RecorridoCard
+          recorrido={buildRecorrido()}
+          vehiculo={vehiculo}
+          conductor={conductor}
+          vehiculos={[vehiculo]}
+          conductores={[conductor]}
+          pacientes={[pacienteA, pacienteB]}
+          onUpdateRecorrido={onUpdateRecorrido}
+        />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    const botonListo = screen.getByRole('button', { name: /listo/i });
+    expect(botonListo).toBeEnabled();
+
+    await user.click(botonListo);
+    expect(screen.getByRole('button', { name: /editar/i })).toBeInTheDocument();
+    expect(onUpdateRecorrido).not.toHaveBeenCalled();
+  });
+
+  it('con la tarjeta forzada al modo de edición y sin permiso de escritura, la textarea de notas no acepta entrada y el repositorio no recibe ninguna escritura al perder foco', async () => {
+    const user = userEvent.setup();
+    const onUpdateRecorrido = vi.fn();
+    const { rerender } = renderConPermiso(
+      true,
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={onUpdateRecorrido}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+
+    rerender(
+      <PuedeEscribirContext.Provider value={false}>
+        <RecorridoCard
+          recorrido={buildRecorrido()}
+          vehiculo={vehiculo}
+          conductor={conductor}
+          vehiculos={[vehiculo]}
+          conductores={[conductor]}
+          pacientes={[pacienteA, pacienteB]}
+          onUpdateRecorrido={onUpdateRecorrido}
+        />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    const textarea = screen.getByLabelText(/notas del recorrido/i);
+    expect(textarea).toBeDisabled();
+
+    await user.type(textarea, 'Intento de nota sin permiso');
+    await user.tab();
+
+    expect(onUpdateRecorrido).not.toHaveBeenCalled();
+  });
+
+  it('con permiso de escritura: la nota se escribe y persiste al perder el foco (baseline ya cubre este caso, se re-declara acá para simetría del ciclo)', async () => {
+    const user = userEvent.setup();
+    const onUpdateRecorrido = vi.fn();
+    renderConPermiso(
+      true,
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={onUpdateRecorrido}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+    const textarea = screen.getByLabelText(/notas del recorrido/i);
+    await user.clear(textarea);
+    await user.type(textarea, 'Nota con permiso');
+    await user.tab();
+
+    expect(onUpdateRecorrido).toHaveBeenCalledWith(expect.objectContaining({ notas: 'Nota con permiso' }));
+  });
+
+  it('con la tarjeta forzada al modo de edición y sin permiso de escritura, los selects de vehículo y conductor no aceptan cambios y el repositorio no recibe ninguna llamada', async () => {
+    const user = userEvent.setup();
+    const onUpdateRecorrido = vi.fn();
+    const { rerender } = renderConPermiso(
+      true,
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo, vehiculoAlternativo]}
+        conductores={[conductor, conductorAlternativo]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={onUpdateRecorrido}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+
+    rerender(
+      <PuedeEscribirContext.Provider value={false}>
+        <RecorridoCard
+          recorrido={buildRecorrido()}
+          vehiculo={vehiculo}
+          conductor={conductor}
+          vehiculos={[vehiculo, vehiculoAlternativo]}
+          conductores={[conductor, conductorAlternativo]}
+          pacientes={[pacienteA, pacienteB]}
+          onUpdateRecorrido={onUpdateRecorrido}
+        />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    const selectVehiculo = screen.getByLabelText(/vehículo/i);
+    const selectConductor = screen.getByLabelText(/^conductor$/i);
+    expect(selectVehiculo).toBeDisabled();
+    expect(selectConductor).toBeDisabled();
+
+    expect(onUpdateRecorrido).not.toHaveBeenCalled();
+  });
+
+  it('con permiso de escritura: vehículo y conductor cambian y persisten (baseline ya cubre este caso, se re-declara acá para simetría del ciclo)', async () => {
+    const user = userEvent.setup();
+    const onUpdateRecorrido = vi.fn();
+    renderConPermiso(
+      true,
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo, vehiculoAlternativo]}
+        conductores={[conductor, conductorAlternativo]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={onUpdateRecorrido}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+    await user.selectOptions(screen.getByLabelText(/vehículo/i), 'vehiculo-kangoo');
+
+    expect(onUpdateRecorrido).toHaveBeenCalledWith(expect.objectContaining({ vehiculoId: 'vehiculo-kangoo' }));
+  });
+
+  it('la rama de solo lectura de vehículo/conductor no sufre regresión: con read y con write muestra texto plano', () => {
+    const { unmount } = renderConPermiso(
+      false,
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/ac123de/i)).toBeInTheDocument();
+    expect(screen.getByText(/gonzález/i)).toBeInTheDocument();
+    unmount();
+
+    renderConPermiso(
+      true,
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/ac123de/i)).toBeInTheDocument();
+    expect(screen.getByText(/gonzález/i)).toBeInTheDocument();
   });
 });

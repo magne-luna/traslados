@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { AvisoModeloDatos, Button, Chip } from '../../design-system/components';
+import { AvisoModeloDatos, Button, CamposSoloLectura, Chip } from '../../design-system/components';
 import { Label, Textarea } from '../../design-system/form';
 import { conductoresDisponibles, vehiculosDisponibles } from '../../shared/lib/hojas-de-ruta/disponibilidad';
 import { agregarParada, quitarParada } from '../../shared/lib/hojas-de-ruta/paradasHelpers';
@@ -139,9 +139,17 @@ export function RecorridoCard({
             {recorrido.manual && <Chip kind="info">Manual</Chip>}
             {vehiculo?.estado === 'fuera-de-servicio' && <Chip kind="danger">⛔ Vehículo fuera de servicio</Chip>}
             {conductor?.estado === 'fuera-de-servicio' && <Chip kind="danger">⛔ Conductor fuera de servicio</Chip>}
+            {/* gateo-hojas-de-ruta (design.md D3, tasks.md 4.1-4.3): "Sugerir orden" y "Editar"
+                persisten (Editar es la única puerta al bloque de escritura de la tarjeta) y se
+                gatean con la prop opt-in. "Listo" NO se gatea — sale del modo de edición sin
+                persistir nada, mismo criterio que "Cancelar" en gateo-pacientes. Esta barra de
+                acciones queda deliberadamente fuera de cualquier CamposSoloLectura.
+                IMPORTANTE (security-review): esto es UX, no una frontera de seguridad — la
+                autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes',
+                'write'). Mismo comentario que permisos.ts y usePuedeEscribir.ts. */}
             {editing ? (
               <>
-                <Button variant="secondary" onClick={handleSugerirOrden}>
+                <Button variant="secondary" requiereEscritura onClick={handleSugerirOrden}>
                   Sugerir orden
                 </Button>
                 <Button variant="primary" onClick={() => setEditing(false)}>
@@ -149,7 +157,7 @@ export function RecorridoCard({
                 </Button>
               </>
             ) : (
-              <Button variant="secondary" onClick={() => setEditing(true)}>
+              <Button variant="secondary" requiereEscritura onClick={() => setEditing(true)}>
                 Editar
               </Button>
             )}
@@ -183,7 +191,15 @@ export function RecorridoCard({
         )}
 
         {editing ? (
-          <>
+          /* gateo-hojas-de-ruta (design.md D5, tasks.md 4.4/4.5): estos dos caminos persisten
+             sin pasar por un Button (notas en onBlur, vehículo/conductor en onChange) — la prop
+             opt-in de Button no los alcanza, así que los cubre CamposSoloLectura directamente
+             acá. RecorridoVehiculoConductor.tsx no cambia ni una línea: el envoltorio va en el
+             caller, no en el componente compartido.
+             IMPORTANTE (security-review): esto es UX, no una frontera de seguridad — la
+             autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes',
+             'write'). Mismo comentario que permisos.ts y usePuedeEscribir.ts. */
+          <CamposSoloLectura>
             <RecorridoVehiculoConductor
               formId={formId}
               recorrido={recorrido}
@@ -211,7 +227,7 @@ export function RecorridoCard({
                 {notas.length}/{NOTAS_MAX_LENGTH}
               </span>
             </div>
-          </>
+          </CamposSoloLectura>
         ) : (
           <div className="flex flex-wrap divide-x divide-border border-t border-t-border pt-md">
             <RecorridoVehiculoConductor
