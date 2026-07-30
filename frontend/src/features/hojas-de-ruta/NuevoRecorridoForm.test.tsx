@@ -4,7 +4,12 @@ import userEvent from '@testing-library/user-event';
 import type { Conductor } from '../../shared/types/conductor';
 import type { Paciente } from '../../shared/types/paciente';
 import type { Vehiculo } from '../../shared/types/vehiculo';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { NuevoRecorridoForm } from './NuevoRecorridoForm';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 // RN-VE-02 (tasks.md 5.2, 7.3): solo vehículos habilitados y conductores operando aparecen como
 // opciones; permite marcar el recorrido como manual (RN-HR-03).
@@ -302,5 +307,66 @@ describe('NuevoRecorridoForm', () => {
         { pacienteId: 'p-a', tramo: 'ida', direccionOrigenId: 'dir-ida', direccionDestinoId: 'dir-vuelta', orden: 0, horaEstimada: '08:30' },
       ],
     });
+  });
+});
+
+// Gateo de escritura (gateo-hojas-de-ruta, design.md D4/D9, tasks.md 3.1/3.2): una sola
+// inserción de CamposSoloLectura cubre SelectorPaciente + PacienteTramoCampos + los selects de
+// vehículo/conductor + el checkbox "manual" + la textarea de notas; "Crear recorrido" queda
+// deshabilitado por el mismo envoltorio (mismo criterio que AsignacionSemanalTabla). El caso de
+// PacienteTramoCampos no se prueba con un paciente ya elegido porque, con SelectorPaciente
+// deshabilitado, la cuenta de solo lectura no puede llegar a elegir uno — queda cubierto
+// estructuralmente por el mismo <fieldset disabled>, no por una aserción redundante por campo.
+describe('NuevoRecorridoForm — gateo de escritura', () => {
+  const paciente = buildPaciente({ id: 'p-1' });
+
+  it('sin permiso de escritura: ningún campo acepta entrada, "Crear recorrido" queda deshabilitado, y no se emite ninguna escritura', async () => {
+    const user = userEvent.setup();
+    const onCrear = vi.fn();
+
+    renderConPermiso(
+      false,
+      <NuevoRecorridoForm vehiculos={[buildVehiculo()]} conductores={[buildConductor()]} pacientes={[paciente]} onCrear={onCrear} />,
+    );
+
+    expect(screen.getByLabelText(/^paciente$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/vehículo/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^conductor$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/manual/i)).toBeDisabled();
+    expect(screen.getByLabelText(/notas/i)).toBeDisabled();
+
+    const boton = screen.getByRole('button', { name: /crear recorrido/i });
+    expect(boton).toBeDisabled();
+
+    await user.click(boton);
+    expect(onCrear).not.toHaveBeenCalled();
+  });
+
+  it('con permiso de escritura: todos los campos operativos y "Crear recorrido" da de alta el recorrido', async () => {
+    const user = userEvent.setup();
+    const onCrear = vi.fn();
+
+    renderConPermiso(
+      true,
+      <NuevoRecorridoForm vehiculos={[buildVehiculo()]} conductores={[buildConductor()]} pacientes={[paciente]} onCrear={onCrear} />,
+    );
+
+    expect(screen.getByLabelText(/^paciente$/i)).toBeEnabled();
+    expect(screen.getByLabelText(/vehículo/i)).toBeEnabled();
+    expect(screen.getByLabelText(/^conductor$/i)).toBeEnabled();
+    expect(screen.getByLabelText(/manual/i)).toBeEnabled();
+    expect(screen.getByLabelText(/notas/i)).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+    expect(onCrear).toHaveBeenCalledTimes(1);
+  });
+
+  it('rol admin sin filas en la matriz (puedeEscribir=true): "Crear recorrido" es activable', () => {
+    renderConPermiso(
+      true,
+      <NuevoRecorridoForm vehiculos={[buildVehiculo()]} conductores={[buildConductor()]} pacientes={[paciente]} onCrear={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /crear recorrido/i })).toBeEnabled();
   });
 });

@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Button } from '../../design-system/components';
+import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Label, Textarea } from '../../design-system/form';
 import { conductoresDisponibles, vehiculosDisponibles } from '../../shared/lib/hojas-de-ruta/disponibilidad';
 import { vehiculosCompatibles } from '../../shared/lib/hojas-de-ruta/vehiculosCompatibles';
@@ -125,6 +125,14 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
         </div>
       </div>
 
+      {/* gateo-hojas-de-ruta (design.md D4/D9, tasks.md 3.1/3.2): una sola inserción cubre
+          SelectorPaciente, PacienteTramoCampos (ninguno de los dos cambia ni una línea ni recibe
+          props nuevas), los selects de vehículo/conductor, el checkbox "manual", la textarea de
+          notas y la acción "Crear recorrido" — <fieldset disabled> alcanza a todo el subárbol.
+          IMPORTANTE (security-review): esto es UX, no una frontera de seguridad — la
+          autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes', 'write').
+          Mismo comentario que permisos.ts, usePuedeEscribir.ts y las pantallas ya cableadas. */}
+      <CamposSoloLectura>
       <div className="grid grid-cols-1 gap-md sm:grid-cols-2 lg:grid-cols-5">
         {pacientes.length > 0 && (
           <SelectorPaciente
@@ -209,7 +217,7 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
           </label>
 
           <div className="ml-auto">
-            <Button variant="primary" onClick={handleSubmit}>
+            <Button variant="primary" requiereEscritura onClick={handleSubmit}>
               <PlusIcon />
               Crear recorrido
             </Button>
@@ -231,6 +239,7 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
           {notas.length}/{NOTAS_MAX_LENGTH}
         </span>
       </div>
+      </CamposSoloLectura>
     </div>
   );
 }
