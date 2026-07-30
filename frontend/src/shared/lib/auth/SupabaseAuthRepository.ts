@@ -41,11 +41,19 @@ function isNivelAcceso(value: unknown): value is NivelAcceso {
 }
 
 function isModulo(value: unknown): value is Modulo {
-  return value === 'pacientes' || value === 'obra_social' || value === 'facturacion' || value === 'conductores';
+  return (
+    value === 'pacientes' ||
+    value === 'hojas_de_ruta' ||
+    value === 'obra_social' ||
+    value === 'facturacion' ||
+    value === 'presupuestos' ||
+    value === 'conductores' ||
+    value === 'vehiculos'
+  );
 }
 
 /** Fila cruda de `modulos.permisos` × `modulos.modulos` (embed anidado de PostgREST). Devuelve
- * `null` si la fila no tiene la forma esperada o el módulo embebido no es uno de los 4 válidos —
+ * `null` si la fila no tiene la forma esperada o el módulo embebido no es uno de los 7 válidos —
  * se descarta en silencio en vez de reventar toda la carga de permisos por una fila rara. */
 function parsePermisoRow(value: unknown): { nivelAcceso: NivelAcceso; modulo: Modulo } | null {
   if (typeof value !== 'object' || value === null) return null;

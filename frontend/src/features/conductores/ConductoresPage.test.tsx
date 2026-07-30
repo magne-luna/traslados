@@ -141,19 +141,15 @@ describe('ConductoresPage — rol admin sin filas de permisos', () => {
   });
 });
 
-// Coherencia del permiso entre rutas (gateo-conductores, design.md D2, tasks.md 7.1). Monta
-// ConductoresPage y VehiculosPage detrás de RequireAuth real, en sus rutas reales, para probar
-// de punta a punta que el permiso se resuelve contra el módulo de la ruta activa — no contra el
-// mecanismo compartido stubeado.
-//
-// ⚠️ ALCANCE REDUCIDO (hallazgo de tasks.md 1.5): esta suite cubre únicamente /conductores y
-// /vehiculos, que `moduloDeRuta()` resuelve correctamente contra 'conductores' (app/routes.ts).
-// NO incluye /hojas-de-ruta: esa ruta resuelve 'pacientes', no 'conductores' (corrección
-// deliberada y ya documentada en app/routes.ts, verificada contra la RLS real de
-// pacientes.recorridos/historial_recorridos) — la premisa de este change de que "las tres rutas
-// comparten módulo" es incorrecta para /hojas-de-ruta. Afirmar coherencia allí con una sesión de
-// permiso 'conductores' sería codificar una aserción falsa en la suite. Ver reporte de cierre de
-// sdd-apply para el detalle completo y la recomendación de decisión humana.
+// Coherencia del permiso entre rutas — REESCRITO por permisos-modulos-granulares (tasks.md,
+// hallazgo durante 5.7): hasta este change (gateo-conductores, design.md D2, ya archivado)
+// `/conductores` y `/vehiculos` resolvían el mismo módulo del backend (`conductores`). Desde la
+// migración `20260730140000_split_modulos_permisos.sql` y el `APP_ROUTES` nuevo, `/vehiculos`
+// resuelve su propio módulo `vehiculos` — las dos pantallas ya NO comparten permiso (spec de este
+// change, escenario "Permiso sobre conductores no habilita vehículos"). Monta ConductoresPage y
+// VehiculosPage detrás de RequireAuth real, en sus rutas reales, para probar de punta a punta que
+// el permiso se resuelve contra el módulo de la ruta activa — no contra el mecanismo compartido
+// stubeado.
 function renderRutasConductoresYVehiculosProtegidas(
   permisos: MapaPermisos,
   conductorRepository: ConductorRepository,
@@ -195,8 +191,8 @@ function renderRutasConductoresYVehiculosProtegidas(
 
 const EMPLEADO: Usuario = { id: 'u-empleado', nombre: 'Juan', apellido: 'Pérez', email: 'juan@x.com', rol: 'empleado' };
 
-describe('Coherencia del permiso "conductores" entre /conductores y /vehiculos', () => {
-  it('con write en conductores: escritura habilitada en ambas rutas, sin aviso de solo lectura', async () => {
+describe('/conductores y /vehiculos resuelven módulos propios e independientes (permisos-modulos-granulares)', () => {
+  it('con write en conductores: escritura habilitada en /conductores', async () => {
     renderRutasConductoresYVehiculosProtegidas({ conductores: 'write' }, buildFakeRepository(), buildFakeVehiculoRepository(), '/conductores');
 
     await screen.findByText('Pérez');
@@ -204,7 +200,7 @@ describe('Coherencia del permiso "conductores" entre /conductores y /vehiculos',
     expect(screen.getByRole('button', { name: /nuevo conductor/i })).toBeEnabled();
   });
 
-  it('con solo read en conductores: ambas rutas quedan en modo solo lectura', async () => {
+  it('con solo read en conductores: /conductores queda en modo solo lectura', async () => {
     renderRutasConductoresYVehiculosProtegidas({ conductores: 'read' }, buildFakeRepository(), buildFakeVehiculoRepository(), '/conductores');
 
     await screen.findByText('Pérez');
@@ -212,9 +208,33 @@ describe('Coherencia del permiso "conductores" entre /conductores y /vehiculos',
     expect(screen.getByRole('button', { name: /nuevo conductor/i })).toBeDisabled();
   });
 
-  it('write en otro módulo (facturacion) no habilita conductores: ambas rutas siguen en solo lectura (triangulación)', async () => {
+  it('con write en vehiculos: escritura habilitada en /vehiculos', async () => {
+    renderRutasConductoresYVehiculosProtegidas({ vehiculos: 'write' }, buildFakeRepository(), buildFakeVehiculoRepository(), '/vehiculos');
+
+    await screen.findByRole('button', { name: /nuevo vehículo/i });
+    expect(screen.queryByText(/solo lectura/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /nuevo vehículo/i })).toBeEnabled();
+  });
+
+  // Spec (permisos-modulo-frontend, escenario "Permiso sobre conductores no habilita vehículos" /
+  // "Permiso sobre vehículos no habilita conductores"): desde este change son módulos
+  // independientes — write en uno no habilita el otro.
+  it('write en conductores no habilita /vehiculos: sigue en modo solo lectura (triangulación)', async () => {
     renderRutasConductoresYVehiculosProtegidas(
-      { facturacion: 'write', conductores: 'read' },
+      { conductores: 'write', vehiculos: 'read' },
+      buildFakeRepository(),
+      buildFakeVehiculoRepository(),
+      '/vehiculos',
+    );
+
+    await screen.findByRole('button', { name: /nuevo vehículo/i });
+    expect(screen.getByText(/solo lectura/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /nuevo vehículo/i })).toBeDisabled();
+  });
+
+  it('write en otro módulo (facturacion) no habilita conductores ni vehículos (triangulación)', async () => {
+    renderRutasConductoresYVehiculosProtegidas(
+      { facturacion: 'write', vehiculos: 'read' },
       buildFakeRepository(),
       buildFakeVehiculoRepository(),
       '/vehiculos',

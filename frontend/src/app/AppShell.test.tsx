@@ -79,15 +79,15 @@ describe('AppShell', () => {
   });
 });
 
-describe('AppShell — navegación filtrada por permisos (tasks.md 8.1/8.2)', () => {
+describe('AppShell — navegación filtrada por permisos (tasks.md 8.1/8.2, permisos-modulos-granulares tasks.md 5.6)', () => {
   it('oculta los módulos sobre los que la cuenta activa no tiene permiso', async () => {
     renderShellAt('/', { usuario: EMPLEADO_SOLO_PACIENTES, permisos: { pacientes: 'read' } });
 
     expect(await screen.findByRole('link', { name: /Dashboard/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Pacientes/ })).toBeInTheDocument();
-    // Hojas de Ruta cuelga del módulo 'pacientes', no 'conductores' (routes.ts, corregido para
-    // alinear con la RLS real de pacientes.recorridos) — con solo permiso de Pacientes, se ve.
-    expect(screen.getByRole('link', { name: /Hojas de Ruta/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Pacientes/ })).toBeInTheDocument();
+    // Desde este change, 'pacientes' y 'hojas_de_ruta' son módulos independientes (design.md D1)
+    // — tener uno ya no implica tener el otro, a diferencia del comportamiento agrupado anterior.
+    expect(screen.queryByRole('link', { name: /Hojas de Ruta/ })).not.toBeInTheDocument();
 
     expect(screen.queryByRole('link', { name: /Obras Sociales/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^Conductores/ })).not.toBeInTheDocument();
@@ -96,13 +96,35 @@ describe('AppShell — navegación filtrada por permisos (tasks.md 8.1/8.2)', ()
     expect(screen.queryByRole('link', { name: /Facturación/ })).not.toBeInTheDocument();
   });
 
-  it('con permiso solo de Conductores, ve Conductores/Vehículos pero NO Hojas de Ruta (triangulación del caso anterior)', async () => {
+  it('con permiso solo de Conductores, ve Conductores pero NO Vehículos (triangulación del caso anterior)', async () => {
     renderShellAt('/', { usuario: EMPLEADO_SOLO_PACIENTES, permisos: { conductores: 'read' } });
 
     expect(await screen.findByRole('link', { name: /^Conductores/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Vehículos/ })).toBeInTheDocument();
+    // Desde este change, 'conductores' y 'vehiculos' son módulos independientes.
+    expect(screen.queryByRole('link', { name: /Vehículos/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Hojas de Ruta/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^Pacientes/ })).not.toBeInTheDocument();
+  });
+
+  it('con permiso solo de Hojas de Ruta, ve Hojas de Ruta pero NO Pacientes (los 3 pares padre→hijo quedan desacoplados)', async () => {
+    renderShellAt('/', { usuario: EMPLEADO_SOLO_PACIENTES, permisos: { hojas_de_ruta: 'read' } });
+
+    expect(await screen.findByRole('link', { name: /Hojas de Ruta/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Pacientes/ })).not.toBeInTheDocument();
+  });
+
+  it('con permiso solo de Presupuestos, ve Presupuestos pero NO Facturación', async () => {
+    renderShellAt('/', { usuario: EMPLEADO_SOLO_PACIENTES, permisos: { presupuestos: 'read' } });
+
+    expect(await screen.findByRole('link', { name: /Presupuestos/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Facturación/ })).not.toBeInTheDocument();
+  });
+
+  it('con permiso solo de Vehículos, ve Vehículos pero NO Conductores', async () => {
+    renderShellAt('/', { usuario: EMPLEADO_SOLO_PACIENTES, permisos: { vehiculos: 'read' } });
+
+    expect(await screen.findByRole('link', { name: /Vehículos/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Conductores/ })).not.toBeInTheDocument();
   });
 
   it('una cuenta con rol admin ve la entrada de administración de cuentas', async () => {

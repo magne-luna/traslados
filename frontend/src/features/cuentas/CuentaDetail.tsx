@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Chip, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
+import { AvisoModeloDatos, Chip, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import type { Cuenta } from '../../shared/lib/cuentas/CuentaRepository';
@@ -91,6 +91,16 @@ export function CuentaDetail({ cuenta, onActualizarPermisos, onBack }: CuentaDet
       </Section>
 
       <Section label="Permisos" title="Matriz de permisos por módulo">
+        {/* tasks.md 1.3 (permisos-modulos-granulares), regla dura del proyecto sobre
+            discrepancias docx↔KB: el catálogo de 7 módulos (antes 4) no es un pedido del cliente
+            — es una decisión de UX confirmada con la usuaria, documentada también en
+            knowledge-base/04_modelo_de_datos.md §Discrepancias y en CHANGES.md. */}
+        <AvisoModeloDatos>
+          El catálogo pasó de 4 a 7 módulos (se separaron Hojas de Ruta, Presupuestos y Vehículos
+          de sus módulos padre). Esto no es un pedido del cliente: es una decisión de UX confirmada
+          con la usuaria, pendiente de confirmar con quien mantiene{' '}
+          <code>Traslados-Modelo-Datos.docx</code>, que nombra 4 módulos.
+        </AvisoModeloDatos>
         {cuenta.rol === 'admin' ? (
           // tienePermiso (shared/lib/auth/permisos.ts) da acceso total a cualquier cuenta admin
           // sin mirar la matriz — no se muestra editable para no confundir (si más adelante se le

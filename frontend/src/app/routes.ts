@@ -4,12 +4,13 @@
 // construir la navegación, y router.tsx la recorre para montar las rutas placeholder.
 // Cada FE-N reemplaza únicamente el `element` de su ruta en router.tsx — esta lista no cambia.
 //
-// Campo `modulo` (auth-frontend-real, design.md D4): a qué módulo del backend corresponde cada
-// ruta a efectos del guard de permisos (`RequireAuth`) — 8 rutas de frontend contra los 4
-// módulos reales seedeados (`pacientes`, `obra_social`, `facturacion`, `conductores`), agrupados
-// según la RLS real de cada tabla de dominio (ver supabase/migrations/2026072410000{3,4,5,6}_
-// schema_*.sql): Vehículos bajo `conductores`, Hojas de Ruta bajo `pacientes` (no `conductores` —
-// corregido, ver comentario en la entrada de abajo), Presupuestos bajo `facturacion`. `null` =
+// Campo `modulo` (auth-frontend-real, design.md D4; permisos-modulos-granulares design.md D4,
+// tasks.md 3.5): a qué módulo del backend corresponde cada ruta a efectos del guard de permisos
+// (`RequireAuth`) — 8 rutas de frontend contra los 7 módulos reales seedeados (`pacientes`,
+// `hojas_de_ruta`, `obra_social`, `facturacion`, `presupuestos`, `conductores`, `vehiculos`),
+// cada ruta 1:1 con su propio módulo desde este change (antes 3 pares de rutas compartían módulo
+// con otra: Vehículos con Conductores, Hojas de Ruta con Pacientes, Presupuestos con
+// Facturación — ver supabase/migrations/20260730140000_split_modulos_permisos.sql). `null` =
 // ruta declarada sin gate de módulo propio (solo requiere sesión activa) — el Dashboard es
 // agregación pura sin tabla propia.
 
@@ -55,24 +56,38 @@ export const APP_ROUTES: readonly AppRoute[] = [
     modulo: 'obra_social',
   },
   { path: '/conductores', label: 'Conductores', icon: 'conductores', section: 'Operación', modulo: 'conductores' },
-  { path: '/vehiculos', label: 'Vehículos', icon: 'vehiculos', section: 'Operación', modulo: 'conductores' },
   {
-    // Corregido (antes 'conductores'): las tablas reales de recorridos (pacientes.recorridos,
-    // pacientes.historial_recorridos) están gateadas por RLS con tiene_permiso('pacientes', ...)
-    // — ver supabase/migrations/20260724100004_schema_pacientes.sql. Con 'conductores' el sidebar
-    // y el guard quedaban desalineados con lo que la RLS realmente permite en ambos sentidos.
+    // Módulo propio 'vehiculos' desde permisos-modulos-granulares (antes agrupado bajo
+    // 'conductores' — ver supabase/migrations/20260730140000_split_modulos_permisos.sql, que
+    // reescribe la RLS de conductores.vehiculo/accesorios_vehiculo/documentacion_vehiculo/
+    // mantenimiento/conductores_vehiculos para exigir tiene_permiso('vehiculos', ...)).
+    path: '/vehiculos',
+    label: 'Vehículos',
+    icon: 'vehiculos',
+    section: 'Operación',
+    modulo: 'vehiculos',
+  },
+  {
+    // Módulo propio 'hojas_de_ruta' desde permisos-modulos-granulares (antes agrupado bajo
+    // 'pacientes' — ver supabase/migrations/20260730140000_split_modulos_permisos.sql, que
+    // reescribe la RLS de pacientes.recorridos/historial_recorridos para exigir
+    // tiene_permiso('hojas_de_ruta', ...)).
     path: '/hojas-de-ruta',
     label: 'Hojas de Ruta',
     icon: 'hojasDeRuta',
     section: 'Operación',
-    modulo: 'pacientes',
+    modulo: 'hojas_de_ruta',
   },
   {
+    // Módulo propio 'presupuestos' desde permisos-modulos-granulares (antes agrupado bajo
+    // 'facturacion' — ver supabase/migrations/20260730140000_split_modulos_permisos.sql, que
+    // reescribe la RLS de facturacion.presupuesto/autorizacion para exigir
+    // tiene_permiso('presupuestos', ...)).
     path: '/presupuestos',
     label: 'Presupuestos',
     icon: 'presupuestos',
     section: 'Administración',
-    modulo: 'facturacion',
+    modulo: 'presupuestos',
   },
   { path: '/facturacion', label: 'Facturación', icon: 'facturacion', section: 'Administración', modulo: 'facturacion' },
 ] as const;

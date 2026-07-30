@@ -1,15 +1,7 @@
 import { chipColors, InlineIcon } from '../../design-system/components';
 import { Field, Select } from '../../design-system/form';
 import type { Modulo } from '../../shared/types/usuario';
-import {
-  ETIQUETA_MODULO,
-  ETIQUETA_NIVEL,
-  MODULO_COLOR,
-  MODULOS,
-  ORDEN_NIVELES,
-  SUBMODULOS_MODULO,
-  type NivelDeFila,
-} from './modulos';
+import { ETIQUETA_MODULO, ETIQUETA_NIVEL, MODULO_COLOR, MODULOS, ORDEN_NIVELES, type NivelDeFila } from './modulos';
 import { MODULO_ICON_PATH } from './moduloIcons';
 
 interface PermisosMatrizFieldsProps {
@@ -21,11 +13,13 @@ interface PermisosMatrizFieldsProps {
   idPrefix: string;
 }
 
-// Matriz de permisos por módulo (design.md D9, tasks.md 7.3/7.4/7.5): 4 filas × <Select> de nivel,
-// cada una con el ícono de identidad del módulo (mismo path que app/navIcons.tsx, ver
-// moduloIcons.tsx) en un badge de color fijo por módulo (MODULO_COLOR) — así el módulo se
-// reconoce visualmente igual acá y en el Chip de CuentasList. Compartida entre MatrizPermisos
-// (edición de una cuenta existente) y CuentaForm (permisos iniciales de alta).
+// Matriz de permisos por módulo (design.md D9, tasks.md 7.3/7.4/7.5): 7 filas × <Select> de nivel
+// (antes 4 — ver permisos-modulos-granulares design.md D4/D9, cada módulo pasa a ser 1:1 con una
+// pantalla, ya no hace falta el hint "incluye X e Y" de SUBMODULOS_MODULO), cada una con el ícono
+// de identidad del módulo (mismo path que app/navIcons.tsx, ver moduloIcons.tsx) en un badge de
+// color fijo por módulo (MODULO_COLOR) — así el módulo se reconoce visualmente igual acá y en el
+// Chip de CuentasList. Compartida entre MatrizPermisos (edición de una cuenta existente) y
+// CuentaForm (permisos iniciales de alta).
 export function PermisosMatrizFields({ valores, onCambiarNivel, disabled = false, idPrefix }: PermisosMatrizFieldsProps) {
   return (
     <div className="grid grid-cols-1 gap-md md:grid-cols-2">
@@ -38,7 +32,7 @@ export function PermisosMatrizFields({ valores, onCambiarNivel, disabled = false
               <InlineIcon size={20}>{MODULO_ICON_PATH[modulo]}</InlineIcon>
             </span>
             <div className="min-w-0 flex-1">
-              <Field label={ETIQUETA_MODULO[modulo]} htmlFor={fieldId} hint={SUBMODULOS_MODULO[modulo]}>
+              <Field label={ETIQUETA_MODULO[modulo]} htmlFor={fieldId}>
                 <Select
                   id={fieldId}
                   density="comfortable"

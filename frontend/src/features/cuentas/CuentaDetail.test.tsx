@@ -33,7 +33,7 @@ describe('CuentaDetail', () => {
     expect(screen.getByRole('combobox', { name: /pacientes/i })).toHaveValue('admin');
   });
 
-  it('cuenta sin ningún permiso muestra los 4 módulos en "Sin acceso" (triangulación)', () => {
+  it('cuenta sin ningún permiso muestra los 7 módulos en "Sin acceso" (triangulación)', () => {
     const sinPermisos: Cuenta = { ...CUENTA, permisos: {} };
     render(<CuentaDetail cuenta={sinPermisos} onActualizarPermisos={vi.fn()} onBack={vi.fn()} />);
 
@@ -41,7 +41,7 @@ describe('CuentaDetail', () => {
     // opción "Sin acceso" en cada <select>, que no debe contarse acá.
     const seccionCuenta = screen.getByRole('heading', { name: 'Andrea Pastor' }).closest('section');
     if (!seccionCuenta) throw new Error('No se encontró la sección "Cuenta"');
-    expect(within(seccionCuenta).getAllByText('Sin acceso')).toHaveLength(4);
+    expect(within(seccionCuenta).getAllByText('Sin acceso')).toHaveLength(7);
   });
 
   it('guardar en la matriz invoca onActualizarPermisos con el id de la cuenta y el conjunto de permisos', async () => {
@@ -84,5 +84,23 @@ describe('CuentaDetail', () => {
     const [primerLink] = screen.getAllByText(/volver al listado/i);
     await user.click(primerLink as HTMLElement);
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+// tasks.md 1.3 (permisos-modulos-granulares): la separación del catálogo de módulos de 4 a 7 no
+// es un pedido del cliente (docx nombra 4 módulos de ejemplo) — regla dura del proyecto sobre
+// discrepancias docx↔KB, cartel visible en la pantalla de Cuentas para quien administra permisos.
+describe('CuentaDetail — aviso de discrepancia del catálogo de módulos (tasks.md 1.3)', () => {
+  it('muestra un AvisoModeloDatos en la sección de Permisos explicando la separación de 4 a 7 módulos', () => {
+    render(<CuentaDetail cuenta={CUENTA} onActualizarPermisos={vi.fn()} onBack={vi.fn()} />);
+
+    expect(screen.getByText(/modelo de datos/i)).toBeInTheDocument();
+    expect(screen.getByText(/no.*pedido del cliente/i)).toBeInTheDocument();
+  });
+
+  it('el aviso también se muestra para una cuenta admin (matriz no editable, pero el aviso aplica igual)', () => {
+    render(<CuentaDetail cuenta={CUENTA_ADMIN} onActualizarPermisos={vi.fn()} onBack={vi.fn()} />);
+
+    expect(screen.getByText(/modelo de datos/i)).toBeInTheDocument();
   });
 });

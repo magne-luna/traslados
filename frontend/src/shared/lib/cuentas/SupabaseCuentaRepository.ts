@@ -46,7 +46,15 @@ function isNivelAcceso(value: unknown): value is NivelAcceso {
 }
 
 function isModulo(value: unknown): value is Modulo {
-  return value === 'pacientes' || value === 'obra_social' || value === 'facturacion' || value === 'conductores';
+  return (
+    value === 'pacientes' ||
+    value === 'hojas_de_ruta' ||
+    value === 'obra_social' ||
+    value === 'facturacion' ||
+    value === 'presupuestos' ||
+    value === 'conductores' ||
+    value === 'vehiculos'
+  );
 }
 
 /** Fila cruda de `modulos.permisos` × `modulos.modulos` (embed anidado de PostgREST), con el

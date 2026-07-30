@@ -18,11 +18,12 @@ import { PacientesPage } from '../pacientes/PacientesPage';
 import { HojaDeRutaRepositoryProvider } from './HojaDeRutaRepositoryContext';
 import { HojaDeRutaPage } from './HojaDeRutaPage';
 
-// Coherencia con /pacientes (gateo-hojas-de-ruta, design.md D8, tasks.md 8.1/8.2): las dos rutas
-// resuelven el mismo módulo del backend (`pacientes`) — una cuenta con `read` debe quedar en
-// solo lectura en las DOS pantallas con la misma sesión, contra RequireAuth real (no el
-// mecanismo compartido stubeado). Mismo patrón que gateo-facturacion (dos rutas) y
-// gateo-conductores (/conductores + /vehiculos).
+// Coherencia con /pacientes — REESCRITO por permisos-modulos-granulares (tasks.md, hallazgo
+// durante 5.7): `/hojas-de-ruta` y `/pacientes` resolvían el mismo módulo del backend
+// (`pacientes`) hasta este change (gateo-hojas-de-ruta, design.md D8, ya archivado). Desde la
+// migración `20260730140000_split_modulos_permisos.sql` y el `APP_ROUTES` nuevo, `/hojas-de-ruta`
+// resuelve su propio módulo `hojas_de_ruta` — las dos pantallas ya NO comparten permiso (spec de
+// este change, escenario "Permiso sobre pacientes ya no habilita esta pantalla").
 vi.mock('@vis.gl/react-google-maps', () => ({
   APIProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Map: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -135,52 +136,57 @@ function renderAmbasRutas(permisos: MapaPermisos, entrada: '/pacientes' | '/hoja
   return renderConSesion(<RouterProvider router={router} />, { usuario: EMPLEADO, permisos });
 }
 
-describe('HojaDeRutaPage — coherencia con /pacientes (D8)', () => {
+describe('HojaDeRutaPage — resuelve su propio módulo "hojas_de_ruta", independiente de "pacientes"', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'demo-key');
   });
 
-  it('con solo read sobre pacientes: las dos pantallas quedan en modo solo lectura con la misma sesión', async () => {
-    renderAmbasRutas({ pacientes: 'read' }, '/pacientes');
-    await screen.findByText(/gómez, martina/i);
-    const notasPacientes = screen.getAllByRole('note').map((n) => n.textContent ?? '');
-    expect(notasPacientes.some((t) => /modo solo lectura/i.test(t))).toBe(true);
-
-    renderAmbasRutas({ pacientes: 'read' }, '/hojas-de-ruta');
+  it('con solo read sobre hojas_de_ruta: la pantalla queda en modo solo lectura', async () => {
+    renderAmbasRutas({ hojas_de_ruta: 'read' }, '/hojas-de-ruta');
     await screen.findByRole('heading', { name: /hoja de ruta del día/i });
-    const notasHojas = screen.getAllByRole('note').map((n) => n.textContent ?? '');
-    expect(notasHojas.some((t) => /modo solo lectura/i.test(t))).toBe(true);
+    const notas = screen.getAllByRole('note').map((n) => n.textContent ?? '');
+    expect(notas.some((t) => /modo solo lectura/i.test(t))).toBe(true);
   });
 
-  it('con write sobre pacientes: las dos pantallas quedan habilitadas y sin aviso', async () => {
+  it('con write sobre hojas_de_ruta (sin ningún permiso sobre pacientes): la pantalla queda habilitada y sin aviso', async () => {
+    renderAmbasRutas({ hojas_de_ruta: 'write' }, '/hojas-de-ruta');
+    await screen.findByRole('heading', { name: /hoja de ruta del día/i });
+    expect(screen.queryByText(/modo solo lectura/i)).not.toBeInTheDocument();
+  });
+
+  // Spec (permisos-modulo-frontend, escenario "Permiso sobre pacientes ya no habilita esta
+  // pantalla"): desde este change, pacientes y hojas_de_ruta son módulos independientes.
+  it('con write sobre pacientes y solo read sobre hojas_de_ruta: /hojas-de-ruta queda en solo lectura (ya no comparten permiso)', async () => {
     renderAmbasRutas({ pacientes: 'write' }, '/pacientes');
     await screen.findByText(/gómez, martina/i);
     expect(screen.queryByText(/modo solo lectura/i)).not.toBeInTheDocument();
 
-    renderAmbasRutas({ pacientes: 'write' }, '/hojas-de-ruta');
+    renderAmbasRutas({ pacientes: 'write', hojas_de_ruta: 'read' }, '/hojas-de-ruta');
     await screen.findByRole('heading', { name: /hoja de ruta del día/i });
-    expect(screen.queryByText(/modo solo lectura/i)).not.toBeInTheDocument();
+    const notas = screen.getAllByRole('note').map((n) => n.textContent ?? '');
+    expect(notas.some((t) => /modo solo lectura/i.test(t))).toBe(true);
   });
 });
 
 // Permiso de otro módulo no habilita esta pantalla (gateo-hojas-de-ruta, design.md corolario,
 // tasks.md 8.2, spec "Permiso de escritura sobre conductores no habilita esta pantalla" /
-// "Permiso de escritura sobre pacientes habilita esta pantalla sin permiso sobre conductores").
+// "Permiso de escritura sobre hojas de ruta habilita esta pantalla sin permiso sobre
+// conductores") — reescrito con `hojas_de_ruta` como el módulo propio de la ruta.
 describe('HojaDeRutaPage — el permiso de otro módulo no habilita esta pantalla', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'demo-key');
   });
 
-  it('con write en conductores y solo read en pacientes: /hojas-de-ruta queda en solo lectura', async () => {
-    renderAmbasRutas({ conductores: 'write', pacientes: 'read' }, '/hojas-de-ruta');
+  it('con write en conductores y solo read en hojas_de_ruta: /hojas-de-ruta queda en solo lectura', async () => {
+    renderAmbasRutas({ conductores: 'write', hojas_de_ruta: 'read' }, '/hojas-de-ruta');
 
     await screen.findByRole('heading', { name: /hoja de ruta del día/i });
     const notas = screen.getAllByRole('note').map((n) => n.textContent ?? '');
     expect(notas.some((t) => /modo solo lectura/i.test(t))).toBe(true);
   });
 
-  it('triangulación: con write en pacientes y solo read en conductores, /hojas-de-ruta queda habilitada', async () => {
-    renderAmbasRutas({ pacientes: 'write', conductores: 'read' }, '/hojas-de-ruta');
+  it('triangulación: con write en hojas_de_ruta y solo read en conductores, /hojas-de-ruta queda habilitada', async () => {
+    renderAmbasRutas({ hojas_de_ruta: 'write', conductores: 'read' }, '/hojas-de-ruta');
 
     await screen.findByRole('heading', { name: /hoja de ruta del día/i });
     expect(screen.queryByText(/modo solo lectura/i)).not.toBeInTheDocument();

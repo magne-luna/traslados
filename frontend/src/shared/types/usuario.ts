@@ -8,9 +8,21 @@
  * permiso por módulo (ver `tienePermiso` en `shared/lib/auth/permisos.ts`). */
 export type Rol = 'admin' | 'empleado';
 
-/** Los 4 módulos reales seedeados por el backend (`modulos.modulos.tipo_modulo`) — no los 8
- * nombres de carpeta del frontend (ver design.md D4, mapeo ruta→módulo en `app/routes.ts`). */
-export type Modulo = 'pacientes' | 'obra_social' | 'facturacion' | 'conductores';
+/** Los 7 módulos reales seedeados por el backend (`modulos.modulos.tipo_modulo`) — 1:1 con las 7
+ * pantallas del sidebar que hoy requieren permiso (mapeo ruta→módulo en `app/routes.ts`).
+ * Ampliado de 4 a 7 por `openspec/changes/permisos-modulos-granulares/` (2026-07-30): separa
+ * `pacientes`→`hojas_de_ruta`, `facturacion`→`presupuestos`, `conductores`→`vehiculos`. ⚠️ NO es
+ * un pedido del cliente — el docx nombra 4 módulos de ejemplo; discrepancia documentada en
+ * `knowledge-base/04_modelo_de_datos.md` §Discrepancias y señalizada en la UI con
+ * `AvisoModeloDatos` en `CuentaDetail.tsx`. */
+export type Modulo =
+  | 'pacientes'
+  | 'hojas_de_ruta'
+  | 'obra_social'
+  | 'facturacion'
+  | 'presupuestos'
+  | 'conductores'
+  | 'vehiculos';
 
 /** Jerarquía `read < write < admin` (design.md D5), espejo de `modulos.permisos.nivel_acceso`. */
 export type NivelAcceso = 'read' | 'write' | 'admin';

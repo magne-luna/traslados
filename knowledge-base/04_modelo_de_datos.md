@@ -89,6 +89,22 @@ real). Los puntos marcados como "cartel en UI" ya están señalizados con `Aviso
 pantallas correspondientes (Obras Sociales, Vehículos); el resto no tiene pantalla propia todavía,
 así que queda anotado acá hasta que se construya esa feature.
 
+- **Catálogo de módulos de permisos (4 → 7)** — decisión de UX, **NO pedido del cliente**
+  (`openspec/changes/permisos-modulos-granulares/`, propose validado 2026-07-30): el docx nombra
+  explícitamente 4 módulos de ejemplo (`pacientes`, `obra_social`, `facturacion`, `conductores`) y
+  cada entidad del docx ("¿Quién puede ver/editar esto?") apunta a exactamente uno de esos 4 — esta
+  es la segunda vez que el catálogo se revierte a esos 4 tras un primer intento fallido de 9 módulos
+  por carpeta de frontend (`supabase/migrations/20260728120000_seed_modulos.sql`). Este change
+  vuelve a separar 3 de los 4 en sub-módulos, esta vez a pedido directo de la usuaria (no de Andrea
+  Pastor) para que la matriz de permisos sea 1:1 con las 7 pantallas del sidebar, no agrupada:
+  `pacientes` → `pacientes` + `hojas_de_ruta` (nuevo), `facturacion` → `facturacion` +
+  `presupuestos` (nuevo), `conductores` → `conductores` + `vehiculos` (nuevo); `obra_social` queda
+  igual. `facturacion.gastos_vehiculos` permanece bajo `facturacion` (confirmado con la usuaria — es
+  un gasto, no una operación sobre el vehículo). Migración de datos aditiva: ninguna cuenta pierde
+  acceso a una pantalla que ya tenía (`modulos.permisos` se copia, nunca se mueve, del módulo padre
+  al hijo). **No se resuelve la discrepancia contra el docx "borrándola"** — queda documentada acá y
+  con cartel `AvisoModeloDatos` en la pantalla de Cuentas (`CuentaDetail.tsx`), a confirmar con
+  quien mantiene el docx si el catálogo real del backend debe quedar en 4 o en 7 módulos.
 - **Operación diaria / Recorridos**: esta KB modela `HojaDeRuta 1---N Recorrido` con cada Recorrido
   ligado a Vehículo + Conductor + Paciente. El docx no tiene entidad "Hoja de Ruta": tiene
   "Recorridos" (horario habitual recurrente del paciente, sin vehículo/conductor) e "Historial de

@@ -65,6 +65,30 @@ describe('supabaseCuentaRepository.listarCuentas', () => {
     ]);
   });
 
+  it('incluye permisos sobre los módulos hijo nuevos (hojas_de_ruta, presupuestos, vehiculos)', async () => {
+    configurarSchema({
+      usuariosRows: [{ id: 'u1', email: 'a@x.com', nombre: 'A', apellido: 'B', rol: 'empleado' }],
+      permisosRows: [
+        { usuario_id: 'u1', nivel_acceso: 'write', modulos: { tipo_modulo: 'hojas_de_ruta' } },
+        { usuario_id: 'u1', nivel_acceso: 'read', modulos: { tipo_modulo: 'presupuestos' } },
+        { usuario_id: 'u1', nivel_acceso: 'admin', modulos: { tipo_modulo: 'vehiculos' } },
+      ],
+    });
+
+    const cuentas = await supabaseCuentaRepository.listarCuentas();
+
+    expect(cuentas).toEqual([
+      {
+        id: 'u1',
+        email: 'a@x.com',
+        nombre: 'A',
+        apellido: 'B',
+        rol: 'empleado',
+        permisos: { hojas_de_ruta: 'write', presupuestos: 'read', vehiculos: 'admin' },
+      },
+    ]);
+  });
+
   it('cuenta sin ninguna fila en modulos.permisos expone un mapa vacío (triangulación)', async () => {
     configurarSchema({ usuariosRows: [{ id: 'u1', email: 'a@x.com', nombre: 'A', apellido: 'B', rol: 'empleado' }], permisosRows: [] });
 

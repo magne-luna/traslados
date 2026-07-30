@@ -22,11 +22,14 @@ import { CobroRepositoryProvider } from './CobroRepositoryContext';
 import { FacturaRepositoryProvider } from './FacturaRepositoryContext';
 import { FacturacionPage } from './FacturacionPage';
 
-// Coherencia entre /presupuestos y /facturacion (gateo-facturacion, design.md D1, tasks.md 7.4):
-// las dos rutas resuelven el mismo módulo del backend (`facturacion`, seed_modulos.sql) — una
-// cuenta con `read` debe quedar en solo lectura en las DOS pantallas con la misma sesión, contra
-// RequireAuth real (no el mecanismo compartido stubeado). Un gateo que funcione en una ruta y no
-// en la otra es un fallo silencioso (design.md riesgos). Mismo patrón que
+// Coherencia entre /presupuestos y /facturacion — REESCRITO por permisos-modulos-granulares
+// (tasks.md, hallazgo durante 5.7): hasta este change (gateo-facturacion, design.md D1, ya
+// archivado) las dos rutas resolvían el mismo módulo del backend (`facturacion`, seed_modulos.sql).
+// Desde la migración `20260730140000_split_modulos_permisos.sql` y el `APP_ROUTES` nuevo,
+// `/presupuestos` resuelve su propio módulo `presupuestos` — las dos pantallas ya NO comparten
+// permiso (spec de este change, escenario "Permiso sobre facturación no habilita presupuestos").
+// Sigue contra RequireAuth real (no el mecanismo compartido stubeado): un gateo que funcione en
+// una ruta y no en la otra es un fallo silencioso. Mismo patrón que
 // HojaDeRutaPage.coherencia.test.tsx.
 
 const osecac: ObraSocial = {
@@ -169,9 +172,9 @@ function renderAmbasRutas(permisos: MapaPermisos, entrada: '/presupuestos' | '/f
   return renderConSesion(<RouterProvider router={router} />, { usuario: EMPLEADO, permisos });
 }
 
-describe('Coherencia entre /presupuestos y /facturacion (design.md D1, tasks.md 7.4)', () => {
-  it('con solo read sobre facturacion: las dos pantallas quedan en modo solo lectura con la misma sesión', async () => {
-    renderAmbasRutas({ facturacion: 'read' }, '/presupuestos');
+describe('/presupuestos y /facturacion resuelven módulos propios e independientes (permisos-modulos-granulares)', () => {
+  it('con solo read sobre el módulo propio de cada ruta: las dos pantallas quedan en modo solo lectura', async () => {
+    renderAmbasRutas({ presupuestos: 'read' }, '/presupuestos');
     await screen.findByText('Gómez, Martina');
     const notasPresupuestos = screen.getAllByRole('note').map((n) => n.textContent ?? '');
     expect(notasPresupuestos.some((t) => /modo solo lectura/i.test(t))).toBe(true);
@@ -182,8 +185,8 @@ describe('Coherencia entre /presupuestos y /facturacion (design.md D1, tasks.md 
     expect(notasFacturacion.some((t) => /modo solo lectura/i.test(t))).toBe(true);
   });
 
-  it('con write sobre facturacion: las dos pantallas quedan habilitadas y sin aviso', async () => {
-    renderAmbasRutas({ facturacion: 'write' }, '/presupuestos');
+  it('con write sobre el módulo propio de cada ruta: las dos pantallas quedan habilitadas y sin aviso', async () => {
+    renderAmbasRutas({ presupuestos: 'write' }, '/presupuestos');
     await screen.findByText('Gómez, Martina');
     expect(screen.queryByText(/modo solo lectura/i)).not.toBeInTheDocument();
 
@@ -192,12 +195,25 @@ describe('Coherencia entre /presupuestos y /facturacion (design.md D1, tasks.md 
     expect(screen.queryByText(/modo solo lectura/i)).not.toBeInTheDocument();
   });
 
-  it('con write solo en pacientes (sin permiso sobre facturacion): las dos rutas quedan en modo solo lectura', async () => {
-    renderAmbasRutas({ pacientes: 'write', facturacion: 'read' }, '/presupuestos');
+  it('con write solo en pacientes (sin permiso sobre presupuestos ni facturacion): las dos rutas quedan en modo solo lectura', async () => {
+    renderAmbasRutas({ pacientes: 'write', presupuestos: 'read' }, '/presupuestos');
     await screen.findByText('Gómez, Martina');
     expect(screen.getAllByText(/modo solo lectura/i).length).toBeGreaterThan(0);
 
     renderAmbasRutas({ pacientes: 'write', facturacion: 'read' }, '/facturacion');
+    await screen.findByText('Gómez, Martina', { selector: 'span' });
+    expect(screen.getAllByText(/modo solo lectura/i).length).toBeGreaterThan(0);
+  });
+
+  // Spec (permisos-modulo-frontend, escenario "Permiso sobre facturación no habilita
+  // presupuestos" / "Permiso sobre presupuestos no habilita facturación"): desde este change,
+  // facturacion y presupuestos son módulos independientes — write en uno no habilita el otro.
+  it('write sobre facturacion no habilita /presupuestos (y viceversa) — ya no comparten permiso', async () => {
+    renderAmbasRutas({ facturacion: 'write', presupuestos: 'read' }, '/presupuestos');
+    await screen.findByText('Gómez, Martina');
+    expect(screen.getAllByText(/modo solo lectura/i).length).toBeGreaterThan(0);
+
+    renderAmbasRutas({ presupuestos: 'write', facturacion: 'read' }, '/facturacion');
     await screen.findByText('Gómez, Martina', { selector: 'span' });
     expect(screen.getAllByText(/modo solo lectura/i).length).toBeGreaterThan(0);
   });

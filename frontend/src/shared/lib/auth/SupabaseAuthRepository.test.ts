@@ -122,6 +122,22 @@ describe('supabaseAuthRepository.getSesionActual', () => {
     expect(sesion?.permisos).toEqual({});
   });
 
+  it('con permisos sobre los módulos hijo nuevos (hojas_de_ruta, presupuestos, vehiculos) los incluye en la sesión', async () => {
+    authMock.getSession.mockResolvedValue({ data: { session: { user: { id: 'u1' } } } });
+    configurarSchema({
+      usuarioRow: USUARIO_ROW,
+      permisosRows: [
+        { nivel_acceso: 'write', modulos: { tipo_modulo: 'hojas_de_ruta' } },
+        { nivel_acceso: 'read', modulos: { tipo_modulo: 'presupuestos' } },
+        { nivel_acceso: 'admin', modulos: { tipo_modulo: 'vehiculos' } },
+      ],
+    });
+
+    const sesion = await supabaseAuthRepository.getSesionActual();
+
+    expect(sesion?.permisos).toEqual({ hojas_de_ruta: 'write', presupuestos: 'read', vehiculos: 'admin' });
+  });
+
   it('con sesión persistida pero sin fila en usuarios.usuarios cierra sesión y devuelve null (tasks.md 4.7)', async () => {
     authMock.getSession.mockResolvedValue({ data: { session: { user: { id: 'u-huerfano' } } } });
     configurarSchema({ usuarioRow: null });
