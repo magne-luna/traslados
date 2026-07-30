@@ -56,7 +56,9 @@ export function FacturaCobrosSection({ factura, cobros, loading, error, registra
             <option value="">Elegir estado…</option>
             {ESTADOS.map((estado) => <option key={estado} value={estado}>{estado}</option>)}
           </Select>
-          <Button variant="secondary" onClick={() => estadoManual && onCorregirEstado(estadoManual)}>Aplicar</Button>
+          {/* gateo-facturacion (design.md D2, tasks.md 5.3): corregir el estado es una escritura
+              no-CRUD gateada al mismo nivel `write` — ninguna requiere `admin` (decisión 5). */}
+          <Button variant="secondary" requiereEscritura onClick={() => estadoManual && onCorregirEstado(estadoManual)}>Aplicar</Button>
         </div>
       )}
       <CobrosPanel factura={factura} cobros={cobros} loading={loading} error={error} registrar={registrar} eliminar={eliminar} />

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CamposSoloLectura } from '../../design-system/components';
 import { diasFacturables } from '../../shared/lib/facturacion/diasFacturables';
 
 interface DiasFacturablesSelectorProps {
@@ -58,6 +59,10 @@ export function DiasFacturablesSelector({ mes, anio, feriados, facturaSabados, o
   const nombreMes = MESES[mes - 1] ?? '';
 
   return (
+    // gateo-facturacion (design.md D2, tasks.md 5.5): seleccionar días facturables es una
+    // escritura no-CRUD gateada al mismo nivel `write` — ninguna requiere `admin` (decisión 5).
+    // La selección actual (checked) sigue siendo legible con solo `read`.
+    <CamposSoloLectura>
     <div className="flex flex-wrap gap-xs">
       {dias.map((dia) => {
         const fecha = isoDelDia(anio, mes, dia);
@@ -81,5 +86,6 @@ export function DiasFacturablesSelector({ mes, anio, feriados, facturaSabados, o
         );
       })}
     </div>
+    </CamposSoloLectura>
   );
 }

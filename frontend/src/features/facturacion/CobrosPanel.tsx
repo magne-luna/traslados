@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button, InlineIcon } from '../../design-system/components';
+import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { Field, Input } from '../../design-system/form';
 import { Alert } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
@@ -129,6 +129,11 @@ export function CobrosPanel({ factura, cobros, loading, error, registrar, elimin
                   </div>
                   <div className="flex items-center gap-md">
                     <span className="font-body text-[14px] font-semibold text-success">+${cobro.montoPagado.toLocaleString('es-AR')}</span>
+                    {/* gateo-facturacion (design.md D2, tasks.md 5.2): "Quitar cobro" es un
+                        <button> nativo — el envoltorio de solo lectura lo cubre igual que a
+                        "Registrar cobro" más abajo. El historial (texto de arriba) sigue
+                        legible con solo `read`. */}
+                    <CamposSoloLectura>
                     <button
                       type="button"
                       onClick={() => void eliminar(cobro.id)}
@@ -137,6 +142,7 @@ export function CobrosPanel({ factura, cobros, loading, error, registrar, elimin
                     >
                       <InlineIcon size={16}>{iconTacho}</InlineIcon>
                     </button>
+                    </CamposSoloLectura>
                   </div>
                 </li>
               ))}
@@ -150,6 +156,11 @@ export function CobrosPanel({ factura, cobros, loading, error, registrar, elimin
             <p className="m-0 font-body text-sm text-muted">Emití la factura para poder registrar cobros.</p>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-md">
+              {/* gateo-facturacion (design.md D2, tasks.md 5.2): registrar un cobro es una
+                  escritura no-CRUD gateada al mismo nivel `write` que un Guardar — ninguna
+                  acción de dinero requiere `admin` (decisión 5 de la usuaria). Sin `Cancelar`
+                  en este alta: el envoltorio cubre campos y submit por igual. */}
+              <CamposSoloLectura>
               <Field label="Fecha" htmlFor={`${formId}-fecha`} error={errors.fecha}>
                 <Input id={`${formId}-fecha`} type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
               </Field>
@@ -169,6 +180,7 @@ export function CobrosPanel({ factura, cobros, loading, error, registrar, elimin
                 {errors.alertaExceso && <span className="font-body text-xs text-warning">{errors.alertaExceso}</span>}
                 <Button type="submit" variant="primary">Registrar cobro</Button>
               </div>
+              </CamposSoloLectura>
             </form>
           )}
         </div>

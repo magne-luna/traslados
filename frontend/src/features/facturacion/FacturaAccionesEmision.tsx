@@ -35,7 +35,10 @@ export function FacturaAccionesEmision({
       <FacturaResumen factura={factura} paciente={paciente} obraSocial={obraSocial} />
       {factura.estado === 'a-facturar' && (
         <div className="flex flex-wrap items-center justify-end gap-sm">
-          <Button variant="primary" onClick={onEmitir}>{submitting ? 'Emitiendo…' : 'Emitir factura'}</Button>
+          {/* gateo-facturacion (design.md D2, tasks.md 5.1): emitir es una escritura no-CRUD,
+              gateada al mismo nivel `write` que un Guardar — ninguna requiere `admin` (decisión
+              5 de la usuaria). */}
+          <Button variant="primary" requiereEscritura onClick={onEmitir}>{submitting ? 'Emitiendo…' : 'Emitir factura'}</Button>
         </div>
       )}
 
@@ -43,7 +46,7 @@ export function FacturaAccionesEmision({
         <div className="flex flex-col gap-sm">
           <AlertaCupo resultado={cupoParaConfirmar} />
           <div>
-            <Button variant="danger" onClick={onConfirmarEmision}>Confirmar emisión</Button>
+            <Button variant="danger" requiereEscritura onClick={onConfirmarEmision}>Confirmar emisión</Button>
           </div>
         </div>
       )}

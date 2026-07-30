@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Cobro, Factura } from '../../shared/types/factura';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { CobrosPanel } from './CobrosPanel';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 function factura(overrides: Partial<Factura> = {}): Factura {
   return {
@@ -69,5 +74,54 @@ describe('CobrosPanel', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /quitar/i }));
     expect(eliminar).toHaveBeenCalledWith('c1');
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 5.2, design.md D2). "Registrar cobro" es una
+// escritura no-CRUD gateada al mismo nivel `write` que un Guardar — ninguna requiere `admin`
+// (decisión 5). El <button> nativo "Quitar cobro" y los campos del alta quedan inertes; el
+// historial ya cargado sigue siendo legible con solo `read`.
+describe('CobrosPanel — gateo de escritura', () => {
+  const cobrosExistentes: Cobro[] = [{ id: 'c1', facturaId: 'factura-1', fecha: '2026-08-05', montoPagado: 2000 }];
+
+  it('sin permiso de escritura: "Registrar cobro", su <button> nativo y sus campos quedan inertes; el historial sigue legible', async () => {
+    const user = userEvent.setup();
+    const registrar = vi.fn();
+    const eliminar = vi.fn();
+
+    renderConPermiso(
+      false,
+      <CobrosPanel factura={factura()} cobros={cobrosExistentes} loading={false} error={null} registrar={registrar} eliminar={eliminar} />,
+    );
+
+    expect(screen.getByLabelText(/fecha/i)).toBeDisabled();
+    expect(screen.getByLabelText(/monto/i)).toBeDisabled();
+    const registrarCobro = screen.getByRole('button', { name: /registrar cobro/i });
+    expect(registrarCobro).toBeDisabled();
+    const quitar = screen.getByRole('button', { name: /quitar/i });
+    expect(quitar).toBeDisabled();
+
+    await user.click(quitar);
+    expect(eliminar).not.toHaveBeenCalled();
+
+    // Los cobros ya registrados siguen siendo legibles.
+    expect(screen.getByText('$2.000', { selector: 'span' })).toBeInTheDocument();
+  });
+
+  it('con permiso de escritura (sin admin): todo operativo (triangulación) — no requiere admin (decisión 5)', async () => {
+    const registrar = vi.fn().mockResolvedValue(undefined);
+
+    renderConPermiso(
+      true,
+      <CobrosPanel factura={factura()} cobros={cobrosExistentes} loading={false} error={null} registrar={registrar} eliminar={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText(/fecha/i)).toBeEnabled();
+
+    await userEvent.type(screen.getByLabelText(/fecha/i), '2026-08-15');
+    await userEvent.type(screen.getByLabelText(/monto/i), '1500');
+    await userEvent.click(screen.getByRole('button', { name: /registrar cobro/i }));
+
+    expect(registrar).toHaveBeenCalledWith({ facturaId: 'factura-1', fecha: '2026-08-15', montoPagado: 1500 });
   });
 });

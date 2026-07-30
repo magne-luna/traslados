@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Cobro, Factura } from '../../shared/types/factura';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { FacturaCobrosSection } from './FacturaCobrosSection';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 function factura(overrides: Partial<Factura> = {}): Factura {
   return {
@@ -48,6 +53,54 @@ describe('FacturaCobrosSection', () => {
     await userEvent.selectOptions(screen.getByLabelText(/corregir estado manualmente/i), 'facturado');
     await userEvent.click(screen.getByRole('button', { name: /aplicar/i }));
 
+    expect(onCorregirEstado).toHaveBeenCalledWith('facturado');
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 5.3, design.md D2). "Aplicar" corrección de
+// estado es una escritura no-CRUD gateada al mismo nivel `write` — ninguna requiere `admin`
+// (decisión 5).
+describe('FacturaCobrosSection — gateo de escritura', () => {
+  it('sin permiso de escritura: "Aplicar" queda visible y no se puede activar', () => {
+    renderConPermiso(
+      false,
+      <FacturaCobrosSection
+        factura={factura({ estado: 'cobrado' })}
+        cobros={[]}
+        loading={false}
+        error={null}
+        registrar={vi.fn()}
+        eliminar={vi.fn()}
+        onCorregirEstado={vi.fn()}
+      />,
+    );
+
+    const aplicar = screen.getByRole('button', { name: /aplicar/i });
+    expect(aplicar).toBeVisible();
+    expect(aplicar).toBeDisabled();
+  });
+
+  it('con permiso de escritura (sin admin): "Aplicar" está activable (triangulación) — no requiere admin (decisión 5)', async () => {
+    const user = userEvent.setup();
+    const onCorregirEstado = vi.fn();
+
+    renderConPermiso(
+      true,
+      <FacturaCobrosSection
+        factura={factura({ estado: 'cobrado' })}
+        cobros={[]}
+        loading={false}
+        error={null}
+        registrar={vi.fn()}
+        eliminar={vi.fn()}
+        onCorregirEstado={onCorregirEstado}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/corregir estado manualmente/i), 'facturado');
+    const aplicar = screen.getByRole('button', { name: /aplicar/i });
+    expect(aplicar).toBeEnabled();
+    await user.click(aplicar);
     expect(onCorregirEstado).toHaveBeenCalledWith('facturado');
   });
 });

@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button } from '../../design-system/components';
+import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Input, Label } from '../../design-system/form';
 import type { AsistenciaPrestacion } from '../../shared/types/factura';
 import { generateId } from '../../shared/lib/id';
@@ -54,6 +54,11 @@ export function AsistenciasEditor({ asistencias, onChange }: AsistenciasEditorPr
                 </span>
                 {asistencia.facturaSabados && <span className="text-muted">(factura sábados)</span>}
               </div>
+              {/* gateo-facturacion (design.md D2, tasks.md 5.4): "Quitar" es un <button>
+                  nativo — el envoltorio de solo lectura lo cubre igual que al alta de abajo.
+                  Las asistencias ya cargadas (texto de la izquierda) siguen legibles con solo
+                  `read`. */}
+              <CamposSoloLectura>
               <button
                 type="button"
                 onClick={() => handleQuitar(asistencia.id)}
@@ -61,12 +66,20 @@ export function AsistenciasEditor({ asistencias, onChange }: AsistenciasEditorPr
               >
                 Quitar
               </button>
+              </CamposSoloLectura>
             </li>
           ))}
         </ul>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-md">
+      <form onSubmit={handleSubmit}>
+        {/* gateo-facturacion (design.md D2, tasks.md 5.4): editar asistencias es una escritura
+            no-CRUD gateada al mismo nivel `write` — ninguna requiere `admin` (decisión 5). Sin
+            `Cancelar` en este alta: el envoltorio cubre campos y submit por igual. El `<div>`
+            interno reproduce el `flex flex-wrap items-end gap-md` que el `<form>` aplicaba
+            (el `<fieldset>` no hereda ese layout de su padre). */}
+        <CamposSoloLectura>
+        <div className="flex flex-wrap items-end gap-md">
         <div className="flex flex-col gap-xs">
           <Label htmlFor={`${formId}-fecha`}>Fecha</Label>
           <Input
@@ -119,6 +132,8 @@ export function AsistenciasEditor({ asistencias, onChange }: AsistenciasEditorPr
         <Button type="submit" variant="secondary">
           Agregar
         </Button>
+        </div>
+        </CamposSoloLectura>
       </form>
     </div>
   );
