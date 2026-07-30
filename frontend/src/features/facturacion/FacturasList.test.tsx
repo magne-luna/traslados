@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Factura } from '../../shared/types/factura';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { FacturasList } from './FacturasList';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 function factura(overrides: Partial<Factura> & Pick<Factura, 'id' | 'pacienteId' | 'estado'>): Factura {
   return {
@@ -126,5 +131,78 @@ describe('FacturasList', () => {
 
     expect(screen.queryByText('Gómez, Martina')).not.toBeInTheDocument();
     expect(screen.getByText('Pereyra, Facundo')).toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 4.1/4.2, design.md D1). "Nueva factura"/"Crear
+// la primera" nunca se ocultan (decisión 1 de la usuaria) — solo quedan deshabilitados. El
+// <button> nativo "Ver detalle" cae dentro del mismo envoltorio que "Editar" (mismo patrón que
+// PresupuestosList/gateo-facturacion sección 2).
+describe('FacturasList — gateo de escritura', () => {
+  it('sin permiso de escritura: "Nueva factura" queda visible y no se puede activar', () => {
+    renderConPermiso(
+      false,
+      <FacturasList facturas={[facturaMartina]} loading={false} error={null} nombrePaciente={() => 'Gómez, Martina'} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
+    );
+
+    const nueva = screen.getByRole('button', { name: /nueva factura/i });
+    expect(nueva).toBeInTheDocument();
+    expect(nueva).toBeVisible();
+    expect(nueva).toBeDisabled();
+  });
+
+  it('sin permiso de escritura: "Crear la primera factura" (estado vacío) queda visible y no se puede activar (triangulación)', () => {
+    renderConPermiso(
+      false,
+      <FacturasList facturas={[]} loading={false} error={null} nombrePaciente={() => ''} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /crear la primera factura/i })).toBeDisabled();
+  });
+
+  it('con permiso de escritura: "Nueva factura" y "Crear la primera" están activables (triangulación)', () => {
+    renderConPermiso(
+      true,
+      <FacturasList facturas={[facturaMartina]} loading={false} error={null} nombrePaciente={() => 'Gómez, Martina'} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /nueva factura/i })).toBeEnabled();
+  });
+
+  it('sin permiso de escritura: "Editar" por fila y el <button> nativo "Ver detalle" quedan inertes, y la fila sigue navegando al detalle', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+
+    renderConPermiso(
+      false,
+      <FacturasList facturas={[facturaMartina]} loading={false} error={null} nombrePaciente={() => 'Gómez, Martina'} onSelect={onSelect} onCreateNew={vi.fn()} />,
+    );
+
+    const editar = screen.getByRole('button', { name: /editar/i });
+    expect(editar).toBeVisible();
+    expect(editar).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^ver detalle$/i })).toBeDisabled();
+
+    await user.click(screen.getByText('Gómez, Martina'));
+    expect(onSelect).toHaveBeenCalledWith(facturaMartina);
+  });
+
+  it('con permiso de escritura: "Editar" y "Ver detalle" están activables (triangulación)', () => {
+    renderConPermiso(
+      true,
+      <FacturasList facturas={[facturaMartina]} loading={false} error={null} nombrePaciente={() => 'Gómez, Martina'} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /editar/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^ver detalle$/i })).toBeEnabled();
+  });
+
+  it('rol admin sin filas de permisos (equivalente puedeEscribir=true): la acción de alta está activable', () => {
+    renderConPermiso(
+      true,
+      <FacturasList facturas={[]} loading={false} error={null} nombrePaciente={() => ''} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /crear la primera factura/i })).toBeEnabled();
   });
 });

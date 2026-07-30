@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState, type FormEvent } from 'react';
-import { Button } from '../../design-system/components';
+import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { CardForm } from '../../design-system/layout';
 import type { AsistenciaPrestacion, Factura } from '../../shared/types/factura';
@@ -159,11 +159,18 @@ export function FacturaForm({
     <CardForm onSubmit={handleSubmit}>
       {submitError && <Alert tone="danger">{submitError}</Alert>}
 
+      {/* gateo-facturacion (design.md D3, tasks.md 4.3): una sola inserción cubre los dos
+          bloques de campos (FacturaFormDatosBasicos + FacturaFormEconomicos) — ninguno de los
+          dos recibe una prop nueva. Las acciones no-CRUD de abajo (DiasFacturablesSelector,
+          AsistenciasEditor) se gatean por separado en sus propios componentes (design.md D2,
+          tasks.md sección 5) — este envoltorio NO las cubre. */}
+      <CamposSoloLectura>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
         <FacturaFormDatosBasicos formId={formId} values={values} errors={errors} pacientes={pacientes} paciente={paciente} set={set} />
 
         <FacturaFormEconomicos formId={formId} values={values} errors={errors} set={set} />
       </div>
+      </CamposSoloLectura>
 
       {values.pacienteId && (
         <div className="flex flex-col gap-xs">
@@ -194,7 +201,7 @@ export function FacturaForm({
 
       <div className="flex items-center justify-end gap-sm">
         <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" variant="primary">{submitting ? 'Guardando…' : 'Guardar'}</Button>
+        <Button type="submit" variant="primary" requiereEscritura>{submitting ? 'Guardando…' : 'Guardar'}</Button>
       </div>
     </CardForm>
   );

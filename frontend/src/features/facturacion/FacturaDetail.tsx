@@ -169,7 +169,7 @@ export function FacturaDetail({
           />
 
           <div className="flex justify-end">
-            <Button variant="secondary" onClick={() => setEditing(true)}>Editar</Button>
+            <Button variant="secondary" requiereEscritura onClick={() => setEditing(true)}>Editar</Button>
           </div>
         </section>
       ) : (

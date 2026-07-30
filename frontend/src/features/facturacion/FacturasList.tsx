@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { Button, Chip, InlineIcon } from '../../design-system/components';
+import { Button, CamposSoloLectura, Chip, InlineIcon } from '../../design-system/components';
 import { Input, Label, Select } from '../../design-system/form';
 import { Alert } from '../../design-system/feedback';
 import { iconCalendario, iconMoneda, iconVelocimetro } from '../../design-system/icons';
@@ -69,7 +69,7 @@ export function FacturasList({ facturas, loading, error, nombrePaciente, onSelec
     <div className="flex flex-col gap-lg py-xxl px-xl">
       <div className="flex flex-wrap items-center justify-between gap-md">
         <h1 className="m-0 font-heading text-[21px] font-bold text-ink">Facturación</h1>
-        <Button variant="primary" onClick={onCreateNew}>Nueva factura</Button>
+        <Button variant="primary" requiereEscritura onClick={onCreateNew}>Nueva factura</Button>
       </div>
 
       <div className="flex flex-wrap items-end gap-md">
@@ -99,7 +99,7 @@ export function FacturasList({ facturas, loading, error, nombrePaciente, onSelec
       ) : facturas.length === 0 ? (
         <div className="flex flex-col items-start gap-md rounded-sm border border-border bg-surface-soft p-xl">
           <p className="m-0 font-body text-sm text-muted">No hay facturas cargadas todavía.</p>
-          <Button variant="secondary" onClick={onCreateNew}>Crear la primera factura</Button>
+          <Button variant="secondary" requiereEscritura onClick={onCreateNew}>Crear la primera factura</Button>
         </div>
       ) : filtradas.length === 0 ? (
         <p className="font-body text-sm text-muted">Ninguna factura coincide con el filtro aplicado.</p>
@@ -158,6 +158,12 @@ export function FacturasList({ facturas, loading, error, nombrePaciente, onSelec
                   )}
                 </div>
 
+                {/* gateo-facturacion (design.md D1, tasks.md 4.2): "Ver detalle" es un <button>
+                    nativo, no un componente Button — el envoltorio de solo lectura lo cubre
+                    igual que a "Editar" (mismo patrón que PresupuestosList sección 2). La
+                    tarjeta (más arriba) tiene su propio onClick por fuera de este envoltorio y
+                    sigue navegando al detalle aunque los dos botones queden inertes. */}
+                <CamposSoloLectura>
                 <div className="flex items-center justify-end gap-md pt-xs">
                   <button
                     type="button"
@@ -181,6 +187,7 @@ export function FacturasList({ facturas, loading, error, nombrePaciente, onSelec
                     Editar
                   </Button>
                 </div>
+                </CamposSoloLectura>
               </div>
             );
           })}

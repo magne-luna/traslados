@@ -8,6 +8,7 @@ import type { PresupuestoRepository } from '../../shared/lib/presupuestos/Presup
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { FacturaDetail } from './FacturaDetail';
 
 const martina: Paciente = {
@@ -121,6 +122,35 @@ function renderDetail(overrides: Partial<React.ComponentProps<typeof FacturaDeta
   return { crear, actualizar, onCreated, onBack };
 }
 
+function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React.ComponentProps<typeof FacturaDetail>> = {}) {
+  const crear = vi.fn().mockResolvedValue(facturaAFacturar());
+  const actualizar = vi.fn().mockResolvedValue(facturaAFacturar({ estado: 'facturado' }));
+  const onCreated = vi.fn();
+  const onBack = vi.fn();
+
+  render(
+    <PuedeEscribirContext.Provider value={puedeEscribir}>
+      <FacturaDetail
+        factura={facturaAFacturar()}
+        crear={crear}
+        actualizar={actualizar}
+        facturasExistentes={[facturaAFacturar()]}
+        pacientes={[martina]}
+        obrasSociales={[osecac]}
+        feriados={[]}
+        presupuestoRepository={buildPresupuestoRepository()}
+        autorizacionRepository={buildAutorizacionRepository()}
+        cobroRepository={buildCobroRepository()}
+        documentoRepository={buildDocumentoRepository()}
+        onCreated={onCreated}
+        onBack={onBack}
+        {...overrides}
+      />
+    </PuedeEscribirContext.Provider>,
+  );
+  return { crear, actualizar, onCreated, onBack };
+}
+
 describe('FacturaDetail', () => {
   it('muestra el resumen de la factura: período, días, valor del km, cantidad de km, total, tipo de comprobante y estado', () => {
     renderDetail();
@@ -193,5 +223,68 @@ describe('FacturaDetail', () => {
       }),
     });
     expect(screen.getByText(/vencida/i)).toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 4.2, design.md D1). "Editar" (:172) queda
+// visible pero no activable sin permiso de escritura.
+describe('FacturaDetail — gateo de escritura de la entrada a edición', () => {
+  it('sin permiso de escritura: "Editar" queda visible y no se puede activar', () => {
+    renderDetailConPermiso(false);
+
+    const editar = screen.getByRole('button', { name: /^editar$/i });
+    expect(editar).toBeVisible();
+    expect(editar).toBeDisabled();
+    // El resumen sigue siendo legible con solo `read`.
+    expect(screen.getByText('A facturar')).toBeInTheDocument();
+  });
+
+  it('con permiso de escritura: "Editar" está activable (triangulación)', () => {
+    renderDetailConPermiso(true);
+
+    expect(screen.getByRole('button', { name: /^editar$/i })).toBeEnabled();
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 5.6, design.md D2). Verificación explícita de
+// la decisión 5 de la usuaria: `write` alcanza para las 4 acciones de dinero (emitir, cobrar,
+// corregir estado, editar asistencias), ninguna requiere `admin`. Como "Emitir" solo aparece en
+// `a-facturar` y "Registrar cobro"/"Aplicar" solo fuera de ese estado, se verifican en renders
+// separados de la misma sesión (mismo `puedeEscribir`).
+describe('FacturaDetail — write alcanza para todas las acciones de dinero (tasks.md 5.6)', () => {
+  it('con write (sin admin): emitir, cobrar y corregir estado están activables', async () => {
+    renderDetailConPermiso(true);
+    expect(screen.getByRole('button', { name: /^emitir factura$/i })).toBeEnabled();
+
+    renderDetailConPermiso(true, {
+      factura: facturaAFacturar({ estado: 'cobrado' }),
+      cobroRepository: buildCobroRepository([]),
+    });
+    expect(await screen.findByRole('button', { name: /registrar cobro/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /aplicar/i })).toBeEnabled();
+  });
+
+  it('con write (sin admin): editar asistencias está activable (en modo edición del form)', async () => {
+    renderDetailConPermiso(true, { factura: null });
+    // "Prestación" existe dos veces: FacturaFormDatosBasicos (gateo tasks.md 4.3) y el alta de
+    // AsistenciasEditor (gateo propio, tasks.md 5.4) — se toma la segunda, la de asistencias.
+    const camposPrestacion = screen.getAllByLabelText(/^prestación$/i, { selector: 'input' });
+    expect(camposPrestacion[1]).toBeEnabled();
+  });
+
+  it('sin permiso de escritura (solo read): las cuatro acciones quedan bloqueadas', async () => {
+    renderDetailConPermiso(false);
+    expect(screen.getByRole('button', { name: /^emitir factura$/i })).toBeDisabled();
+
+    renderDetailConPermiso(false, {
+      factura: facturaAFacturar({ estado: 'cobrado' }),
+      cobroRepository: buildCobroRepository([]),
+    });
+    expect(await screen.findByRole('button', { name: /registrar cobro/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /aplicar/i })).toBeDisabled();
+
+    renderDetailConPermiso(false, { factura: null });
+    const camposPrestacion = screen.getAllByLabelText(/^prestación$/i, { selector: 'input' });
+    for (const campo of camposPrestacion) expect(campo).toBeDisabled();
   });
 });
