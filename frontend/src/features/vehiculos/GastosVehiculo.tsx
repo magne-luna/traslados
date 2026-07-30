@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button, Chip } from '../../design-system/components';
+import { Button, CamposSoloLectura, Chip } from '../../design-system/components';
 import { Field, Input, Select } from '../../design-system/form';
 import { Table, Td, Th, Tr } from '../../design-system/table';
 import type { CategoriaGasto, GastoVehiculo } from '../../shared/types/vehiculo';
@@ -125,12 +125,16 @@ export function GastosVehiculo({ gastos, onAgregar, ahora = new Date() }: Gastos
           )}
         </div>
 
+        {/* gateo-conductores (design.md D2/riesgos, tasks.md 4.1): una sola inserción cubre el
+            alta de gasto (campos + botón); la tabla de gastos ya registrados (izquierda) queda
+            fuera del envoltorio y sigue legible sin permiso de escritura. */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-md rounded-md border border-border bg-surface p-lg">
           <div className="flex flex-col">
             <span className="font-body text-[11px] text-muted">Nuevo gasto</span>
             <span className="font-heading text-[15px] font-bold text-ink">Registrar gasto</span>
           </div>
 
+          <CamposSoloLectura>
           <Field label="Fecha" htmlFor={`${formId}-fecha`} error={errors.fecha}>
             <Input
               id={`${formId}-fecha`}
@@ -175,9 +179,10 @@ export function GastosVehiculo({ gastos, onAgregar, ahora = new Date() }: Gastos
             </Select>
           </Field>
 
-          <Button type="submit" variant="primary">
+          <Button type="submit" variant="primary" requiereEscritura>
             + Registrar
           </Button>
+          </CamposSoloLectura>
         </form>
       </div>
     </div>

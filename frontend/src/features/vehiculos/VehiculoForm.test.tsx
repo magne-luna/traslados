@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { VehiculoForm, type VehiculoFormValues } from './VehiculoForm';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 describe('VehiculoForm', () => {
   it('bloquea el guardado y señala patente/capacidad inválidos cuando se envía vacío', async () => {
@@ -139,5 +144,73 @@ describe('VehiculoForm', () => {
 
     await user.click(screen.getByRole('button', { name: /cancelar/i }));
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Gateo de escritura (gateo-conductores, design.md D4, tasks.md 3.3/3.4): una sola inserción
+// cubre todos los campos; Guardar declara `requiereEscritura`; Cancelar queda fuera y sigue
+// operativo siempre.
+describe('VehiculoForm — gateo de escritura', () => {
+  it('sin permiso de escritura: ningún campo acepta entrada y Guardar no se puede activar, sin escrituras al repositorio', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    renderConPermiso(false, <VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    expect(screen.getByLabelText(/^patente$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^modelo$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/capacidad/i)).toBeDisabled();
+    expect(screen.getByLabelText(/kilometraje/i)).toBeDisabled();
+    expect(screen.getByLabelText(/silla plegable/i)).toBeDisabled();
+    expect(screen.getByLabelText(/fuera de servicio/i)).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/^patente$/i), 'Intento bloqueado');
+    expect(screen.getByLabelText(/^patente$/i)).toHaveValue('');
+
+    const guardar = screen.getByRole('button', { name: /guardar/i });
+    expect(guardar).toBeDisabled();
+    await user.click(guardar);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('con permiso de escritura: todos los campos aceptan entrada y Guardar guarda (triangulación)', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    renderConPermiso(true, <VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    expect(screen.getByLabelText(/^patente$/i)).toBeEnabled();
+
+    await user.type(screen.getByLabelText(/^patente$/i), 'AC123DE');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin permiso de escritura: Cancelar sigue activable y dispara onCancel, porque no persiste nada', async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+
+    renderConPermiso(false, <VehiculoForm onSubmit={vi.fn()} onCancel={onCancel} />);
+
+    const cancelar = screen.getByRole('button', { name: /cancelar/i });
+    expect(cancelar).toBeEnabled();
+    await user.click(cancelar);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Rol admin sin filas de permisos (design.md D5).
+describe('VehiculoForm — rol admin sin filas de permisos', () => {
+  it('puedeEscribir true (equivalente al short-circuit de admin sin filas): el formulario queda plenamente editable y guardable', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    renderConPermiso(true, <VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/^patente$/i), 'AC123DE');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 });

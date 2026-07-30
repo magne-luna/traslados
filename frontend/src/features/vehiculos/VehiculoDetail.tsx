@@ -160,7 +160,7 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
             )}
 
             <div className="flex justify-end">
-              <Button variant="secondary" onClick={() => setEditing(true)}>
+              <Button variant="secondary" requiereEscritura onClick={() => setEditing(true)}>
                 Editar datos
               </Button>
             </div>

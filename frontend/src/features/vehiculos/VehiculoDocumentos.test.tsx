@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { DocumentoAdjunto } from '../../shared/types/documento';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { VehiculoDocumentos } from './VehiculoDocumentos';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 function buildFakeRepository(overrides: Partial<DocumentoRepository> = {}): DocumentoRepository {
   return {
@@ -32,5 +37,32 @@ describe('VehiculoDocumentos', () => {
 
     expect(await screen.findByText(/cedula\.pdf/i)).toBeInTheDocument();
     expect(repository.listByEntity).toHaveBeenCalledWith('vehiculo', 'v1');
+  });
+});
+
+// Gateo de escritura (gateo-conductores, design.md D5, tasks.md 4.3). Solo la carga y baja se
+// gatea; consultar/descargar sigue disponible con `read`.
+describe('VehiculoDocumentos — gateo de escritura', () => {
+  it('sin permiso de escritura: "Subir" queda deshabilitado, pero el documento ya cargado sigue siendo consultable', async () => {
+    const doc: DocumentoAdjunto = { itemId: 'vehiculo-doc-cedula', nombreArchivo: 'cedula.pdf', subidoEn: '2026-07-01' };
+    const repository = buildFakeRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
+
+    renderConPermiso(false, <VehiculoDocumentos vehiculoId="v1" repository={repository} />);
+
+    expect(await screen.findByText(/cedula\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reemplazar/i })).toBeDisabled();
+    expect(screen.getByText('VTV')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^subir$/i })[0]).toBeDisabled();
+  });
+
+  it('con permiso de escritura: "Subir" y "Reemplazar" están activables (triangulación)', async () => {
+    const doc: DocumentoAdjunto = { itemId: 'vehiculo-doc-cedula', nombreArchivo: 'cedula.pdf', subidoEn: '2026-07-01' };
+    const repository = buildFakeRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
+
+    renderConPermiso(true, <VehiculoDocumentos vehiculoId="v1" repository={repository} />);
+
+    expect(await screen.findByText(/cedula\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reemplazar/i })).toBeEnabled();
+    expect(screen.getAllByRole('button', { name: /^subir$/i })[0]).toBeEnabled();
   });
 });

@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { VehiculoDetail } from './VehiculoDetail';
 
 const etios: Vehiculo = {
@@ -175,5 +176,45 @@ describe('VehiculoDetail — modo edición', () => {
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(await screen.findByText('patente duplicada')).toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-conductores, tasks.md 3.2): "Editar datos" del resumen queda visible
+// y deshabilitado sin permiso de escritura.
+describe('VehiculoDetail — gateo de escritura', () => {
+  it('sin permiso de escritura: "Editar datos" queda visible y no se puede activar', () => {
+    render(
+      <PuedeEscribirContext.Provider value={false}>
+        <VehiculoDetail
+          vehiculo={etios}
+          crear={vi.fn()}
+          actualizar={vi.fn()}
+          documentoRepository={buildFakeDocumentoRepository()}
+          onCreated={vi.fn()}
+          onBack={vi.fn()}
+        />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    const editar = screen.getByRole('button', { name: /editar datos/i });
+    expect(editar).toBeVisible();
+    expect(editar).toBeDisabled();
+  });
+
+  it('con permiso de escritura: "Editar datos" está activable (triangulación)', () => {
+    render(
+      <PuedeEscribirContext.Provider value={true}>
+        <VehiculoDetail
+          vehiculo={etios}
+          crear={vi.fn()}
+          actualizar={vi.fn()}
+          documentoRepository={buildFakeDocumentoRepository()}
+          onCreated={vi.fn()}
+          onBack={vi.fn()}
+        />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    expect(screen.getByRole('button', { name: /editar datos/i })).toBeEnabled();
   });
 });

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Chip, InlineIcon, SearchInput } from '../../design-system/components';
+import { Button, CamposSoloLectura, Chip, InlineIcon, SearchInput } from '../../design-system/components';
 import { Alert, EmptyState, Pill } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import { iconLlave, iconMoneda, iconVelocimetro } from '../../design-system/icons';
@@ -48,7 +48,7 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
     <div className="flex flex-col gap-lg py-xxl px-xl">
       <div className="flex flex-wrap items-center justify-between gap-md">
         <h1 className="m-0 font-heading text-[21px] font-bold text-ink">Vehículos</h1>
-        <Button variant="primary" onClick={onCreateNew}>
+        <Button variant="primary" requiereEscritura onClick={onCreateNew}>
           + Nuevo vehículo
         </Button>
       </div>
@@ -70,7 +70,7 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
         <EmptyState
           message="No hay vehículos cargados todavía."
           action={
-            <Button variant="secondary" onClick={onCreateNew}>
+            <Button variant="secondary" requiereEscritura onClick={onCreateNew}>
               Crear el primer vehículo
             </Button>
           }
@@ -161,6 +161,11 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
                   )}
                 </div>
 
+                {/* gateo-conductores (design.md D2/riesgos, tasks.md 3.2): mismo criterio que
+                    ConductoresList — "Ver detalle" es un <button> nativo, cubierto por el
+                    mismo envoltorio que "Editar". La fila (Card, más arriba) sigue navegando
+                    al detalle por fuera de este envoltorio. */}
+                <CamposSoloLectura>
                 <div className="flex items-center justify-end gap-md pt-xs">
                   <button
                     type="button"
@@ -184,6 +189,7 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
                     Editar
                   </Button>
                 </div>
+                </CamposSoloLectura>
               </Card>
             );
           })}

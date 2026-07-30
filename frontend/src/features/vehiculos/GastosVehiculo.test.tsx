@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { GastoVehiculo } from '../../shared/types/vehiculo';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { GastosVehiculo } from './GastosVehiculo';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const gasto: GastoVehiculo = {
   id: 'g1',
@@ -68,5 +73,47 @@ describe('GastosVehiculo', () => {
       descripcion: 'Aceite y filtros',
       categoria: 'service',
     });
+  });
+});
+
+// Gateo de escritura (gateo-conductores, tasks.md 4.1). El alta de gasto y sus campos quedan
+// inertes sin permiso de escritura; los gastos ya registrados siguen siendo legibles.
+//
+// NOTA (discrepancia ya documentada, ver VehiculoDetail.tsx AvisoModeloDatos): en el docx y en la
+// RLS real (facturacion.gastos_vehiculos), el gasto de vehículo se gatea por el módulo
+// "facturacion", no "conductores". Este cableado sigue el mismo criterio que el resto de la
+// pantalla /vehiculos (módulo "conductores", vía el mecanismo compartido resuelto por la ruta) —
+// no introduce una segunda resolución de permiso — pero puede quedar desalineado de la RLS real
+// hasta que esa discrepancia se resuelva arquitectónicamente (fuera de alcance de este change).
+describe('GastosVehiculo — gateo de escritura', () => {
+  it('sin permiso de escritura: los campos y "+ Registrar" quedan inertes, y los gastos ya registrados siguen legibles', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+
+    renderConPermiso(false, <GastosVehiculo gastos={[gasto]} onAgregar={onAgregar} />);
+
+    expect(screen.getByText('Cambio de cubiertas')).toBeInTheDocument();
+    expect(screen.getByLabelText(/fecha/i)).toBeDisabled();
+    expect(screen.getByLabelText(/monto/i)).toBeDisabled();
+    expect(screen.getByLabelText(/descripción/i)).toBeDisabled();
+    expect(screen.getByLabelText(/categoría/i)).toBeDisabled();
+
+    const registrar = screen.getByRole('button', { name: /registrar/i });
+    expect(registrar).toBeDisabled();
+    await user.click(registrar);
+    expect(onAgregar).not.toHaveBeenCalled();
+  });
+
+  it('con permiso de escritura: el alta de gasto queda operativa (triangulación)', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+
+    renderConPermiso(true, <GastosVehiculo gastos={[]} onAgregar={onAgregar} />);
+
+    await user.type(screen.getByLabelText(/fecha/i), '2026-07-01');
+    await user.type(screen.getByLabelText(/monto/i), '1500');
+    await user.click(screen.getByRole('button', { name: /registrar/i }));
+
+    expect(onAgregar).toHaveBeenCalledTimes(1);
   });
 });

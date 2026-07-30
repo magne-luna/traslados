@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { Vehiculo } from '../../shared/types/vehiculo';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { VehiculoMantenimiento } from './VehiculoMantenimiento';
 
 function buildVehiculo(overrides: Partial<Vehiculo> = {}): Vehiculo {
@@ -68,5 +69,38 @@ describe('VehiculoMantenimiento', () => {
     render(<VehiculoMantenimiento vehiculo={vehiculo} ahora={ahora} />);
 
     expect(screen.getAllByText(/vencida|por vencer|vigente/i).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// Gateo de escritura (gateo-conductores, design.md D5, tasks.md 4.2): VehiculoMantenimiento es
+// puramente de consulta hoy — no tiene ninguna acción ni campo interactivo en el código actual
+// (a diferencia de lo que da a entender el nombre "mantenimiento"). No hay nada que gatear; el
+// requisito "sigue siendo legible sin permiso de escritura" se cumple trivialmente y se verifica
+// acá con ambos valores de permiso, para dejar constancia explícita (no asumida) de que no hay
+// ninguna regresión de lectura al introducir el contexto de permisos en el árbol.
+describe('VehiculoMantenimiento — gateo de escritura (sin acciones que gatear)', () => {
+  it('sin permiso de escritura: la información de mantenimiento sigue completamente legible', () => {
+    const vehiculo = buildVehiculo({ kilometraje: 25_000, kilometrajeUltimoService: 10_000 });
+
+    render(
+      <PuedeEscribirContext.Provider value={false}>
+        <VehiculoMantenimiento vehiculo={vehiculo} ahora={ahora} />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    expect(screen.getByText(/vencido/i)).toBeInTheDocument();
+    expect(screen.getByText(/cambio de aceite/i)).toBeInTheDocument();
+  });
+
+  it('con permiso de escritura: la información se muestra igual (triangulación, no hay diferencia de comportamiento)', () => {
+    const vehiculo = buildVehiculo({ kilometraje: 25_000, kilometrajeUltimoService: 10_000 });
+
+    render(
+      <PuedeEscribirContext.Provider value={true}>
+        <VehiculoMantenimiento vehiculo={vehiculo} ahora={ahora} />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    expect(screen.getByText(/vencido/i)).toBeInTheDocument();
   });
 });

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AvisoSoloLectura } from '../../design-system/components';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { useVehiculoRepository } from './VehiculoRepositoryContext';
@@ -25,24 +26,30 @@ export function VehiculosPage({ documentoRepository }: VehiculosPageProps) {
       view.vehiculoId === null ? null : (vehiculos.find((v) => v.id === view.vehiculoId) ?? null);
 
     return (
-      <VehiculoDetail
-        vehiculo={vehiculo}
-        crear={crear}
-        actualizar={actualizar}
-        documentoRepository={documentoRepository}
-        onCreated={(creado) => setView({ kind: 'detail', vehiculoId: creado.id })}
-        onBack={() => setView({ kind: 'list' })}
-      />
+      <>
+        <AvisoSoloLectura />
+        <VehiculoDetail
+          vehiculo={vehiculo}
+          crear={crear}
+          actualizar={actualizar}
+          documentoRepository={documentoRepository}
+          onCreated={(creado) => setView({ kind: 'detail', vehiculoId: creado.id })}
+          onBack={() => setView({ kind: 'list' })}
+        />
+      </>
     );
   }
 
   return (
-    <VehiculosList
-      vehiculos={vehiculos}
-      loading={loading}
-      error={error}
-      onSelect={(vehiculo) => setView({ kind: 'detail', vehiculoId: vehiculo.id })}
-      onCreateNew={() => setView({ kind: 'detail', vehiculoId: null })}
-    />
+    <>
+      <AvisoSoloLectura />
+      <VehiculosList
+        vehiculos={vehiculos}
+        loading={loading}
+        error={error}
+        onSelect={(vehiculo) => setView({ kind: 'detail', vehiculoId: vehiculo.id })}
+        onCreateNew={() => setView({ kind: 'detail', vehiculoId: null })}
+      />
+    </>
   );
 }
