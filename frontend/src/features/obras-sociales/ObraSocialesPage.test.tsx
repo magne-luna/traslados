@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { ObraSocialRepositoryProvider } from './ObraSocialRepositoryContext';
 import { ObraSocialesPage } from './ObraSocialesPage';
 
@@ -35,6 +36,16 @@ function renderPage(repository: ObraSocialRepository) {
   );
 }
 
+function renderPageConPermiso(puedeEscribir: boolean, repository: ObraSocialRepository) {
+  return render(
+    <PuedeEscribirContext.Provider value={puedeEscribir}>
+      <ObraSocialRepositoryProvider repository={repository}>
+        <ObraSocialesPage />
+      </ObraSocialRepositoryProvider>
+    </PuedeEscribirContext.Provider>,
+  );
+}
+
 describe('ObraSocialesPage', () => {
   it('carga y muestra el listado usando el repository inyectado por context', async () => {
     renderPage(buildFakeRepository());
@@ -64,5 +75,47 @@ describe('ObraSocialesPage', () => {
     await user.click(screen.getByRole('button', { name: /editar datos/i }));
 
     expect(screen.getByLabelText(/^nombre$/i)).toHaveValue('OSECAC');
+  });
+});
+
+// Gateo de escritura (gateo-obrasocial, tasks.md 4.8/4.9): aviso de modo solo lectura, en la
+// vista de lista y en la de detalle, con una sola inserción en ObraSocialesPage.
+describe('ObraSocialesPage — gateo de escritura', () => {
+  it('sin permiso de escritura: muestra el aviso de modo solo lectura en el listado', async () => {
+    renderPageConPermiso(false, buildFakeRepository());
+
+    await screen.findByText('OSECAC');
+    expect(screen.getByText(/solo lectura/i)).toBeInTheDocument();
+  });
+
+  it('sin permiso de escritura: muestra el aviso también en el detalle', async () => {
+    const user = userEvent.setup();
+    renderPageConPermiso(false, buildFakeRepository());
+
+    await screen.findByText('OSECAC');
+    // "Editar" queda deshabilitado por el gateo — se navega al detalle por la fila, no por el botón.
+    await user.click(screen.getByText('OSECAC'));
+
+    expect(await screen.findByLabelText(/nuevo ítem/i)).toBeInTheDocument();
+    const notas = screen.getAllByRole('note').map((nota) => nota.textContent ?? '');
+    expect(notas.some((texto) => /modo solo lectura/i.test(texto))).toBe(true);
+  });
+
+  it('con permiso de escritura: no muestra ningún aviso', async () => {
+    renderPageConPermiso(true, buildFakeRepository());
+
+    await screen.findByText('OSECAC');
+    expect(screen.queryByText(/solo lectura/i)).not.toBeInTheDocument();
+  });
+
+  it('permiso de escritura sobre otro módulo no habilita este: con write en pacientes y solo read en obra_social, la pantalla queda en modo solo lectura', async () => {
+    // El contexto ya resolvió esto contra el módulo de la ruta (usePuedeEscribir.test.tsx 2.1);
+    // acá solo se confirma que ObraSocialesPage consume ese resultado sin volver a resolverlo
+    // contra un módulo propio.
+    renderPageConPermiso(false, buildFakeRepository());
+
+    await screen.findByText('OSECAC');
+    expect(screen.getByText(/solo lectura/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /nueva obra social/i })).toBeDisabled();
   });
 });

@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ObraSocial } from '../../shared/types/obraSocial';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { ObraSocialDetail } from './ObraSocialDetail';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const osecac: ObraSocial = {
   id: 'osecac',
@@ -136,5 +141,46 @@ describe('ObraSocialDetail — modo edición', () => {
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(await screen.findByText('nombre duplicado')).toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-obrasocial, tasks.md 4.2/4.4): "Editar" del detalle queda visible y
+// no activable sin permiso `write`; "Volver al listado" (arriba y abajo) sigue operativo siempre.
+describe('ObraSocialDetail — gateo de escritura', () => {
+  it('sin permiso: "Editar datos" queda visible y no se puede activar', () => {
+    renderConPermiso(
+      false,
+      <ObraSocialDetail obraSocial={osecac} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={vi.fn()} />,
+    );
+
+    const editar = screen.getByRole('button', { name: /editar datos/i });
+    expect(editar).toBeVisible();
+    expect(editar).toBeDisabled();
+  });
+
+  it('con permiso write: "Editar datos" está activable', () => {
+    renderConPermiso(
+      true,
+      <ObraSocialDetail obraSocial={osecac} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /editar datos/i })).toBeEnabled();
+  });
+
+  it('sin permiso: "Volver al listado" (arriba y abajo) sigue operativo', async () => {
+    const user = userEvent.setup();
+    const onBack = vi.fn();
+
+    renderConPermiso(
+      false,
+      <ObraSocialDetail obraSocial={osecac} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={onBack} />,
+    );
+
+    const enlaces = screen.getAllByRole('button', { name: /volver al listado/i });
+    expect(enlaces.length).toBeGreaterThan(0);
+    for (const enlace of enlaces) expect(enlace).toBeEnabled();
+
+    await user.click(enlaces[0]!);
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 });

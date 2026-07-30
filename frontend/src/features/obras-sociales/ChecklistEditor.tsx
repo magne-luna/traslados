@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type DragEvent } from 'react';
-import { Button, InlineIcon, SectionBadge } from '../../design-system/components';
+import { Button, CamposSoloLectura, InlineIcon, SectionBadge } from '../../design-system/components';
 import { Input } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
 import { iconOjo, iconReordenar } from '../../design-system/icons';
@@ -65,6 +65,12 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
       <Card gap="md">
         <SectionBadge tone="config">Configuración</SectionBadge>
 
+        {/* gateo-obrasocial (design.md D3): agregar, reordenar por botones y eliminar son
+            escritura; el checklist debajo sigue siendo legible porque el <fieldset> solo
+            deshabilita controles, no oculta contenido. El arrastre NO queda cubierto acá — ver
+            comentario D4 en ChecklistItemRow.tsx. */}
+        <CamposSoloLectura>
+        <div className="flex flex-col gap-md">
         <div className="flex items-end gap-sm">
           <div className="flex flex-1 flex-col gap-xs">
             <label htmlFor={`${formId}-nuevo-item`} className="font-body text-[12px] font-semibold text-muted">
@@ -110,6 +116,8 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
             </ul>
           </>
         )}
+        </div>
+        </CamposSoloLectura>
       </Card>
 
       <Card gap="md" background="surface-soft">

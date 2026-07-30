@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AvisoSoloLectura } from '../../design-system/components';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import { ObraSocialDetail } from './ObraSocialDetail';
 import { useObraSocialRepository } from './ObraSocialRepositoryContext';
@@ -11,6 +12,10 @@ type View = { kind: 'list' } | { kind: 'detail'; obraSocialId: string | null };
 // wire de useObrasSociales, y decide qué pantalla mostrar (listado o detalle). No hay router
 // anidado — el listado y el detalle son dos vistas del mismo componente de página, montado en
 // una única ruta (`/obras-sociales`) del router de la app.
+//
+// gateo-obrasocial (design.md D6, tasks.md 4.8): <AvisoSoloLectura /> se monta acá, una sola
+// vez, para cubrir tanto la vista de lista como la de detalle — mismo patrón de referencia que
+// replican gateo-pacientes, gateo-facturacion y gateo-conductores en su propia página de módulo.
 export function ObraSocialesPage() {
   const repository = useObraSocialRepository();
   const { obrasSociales, loading, error, crear, actualizar } = useObrasSociales(repository);
@@ -21,23 +26,29 @@ export function ObraSocialesPage() {
       view.obraSocialId === null ? null : (obrasSociales.find((os) => os.id === view.obraSocialId) ?? null);
 
     return (
-      <ObraSocialDetail
-        obraSocial={obraSocial}
-        crear={crear}
-        actualizar={actualizar}
-        onCreated={(creada) => setView({ kind: 'detail', obraSocialId: creada.id })}
-        onBack={() => setView({ kind: 'list' })}
-      />
+      <>
+        <AvisoSoloLectura />
+        <ObraSocialDetail
+          obraSocial={obraSocial}
+          crear={crear}
+          actualizar={actualizar}
+          onCreated={(creada) => setView({ kind: 'detail', obraSocialId: creada.id })}
+          onBack={() => setView({ kind: 'list' })}
+        />
+      </>
     );
   }
 
   return (
-    <ObrasSocialesList
-      obrasSociales={obrasSociales}
-      loading={loading}
-      error={error}
-      onSelect={(obraSocial) => setView({ kind: 'detail', obraSocialId: obraSocial.id })}
-      onCreateNew={() => setView({ kind: 'detail', obraSocialId: null })}
-    />
+    <>
+      <AvisoSoloLectura />
+      <ObrasSocialesList
+        obrasSociales={obrasSociales}
+        loading={loading}
+        error={error}
+        onSelect={(obraSocial) => setView({ kind: 'detail', obraSocialId: obraSocial.id })}
+        onCreateNew={() => setView({ kind: 'detail', obraSocialId: null })}
+      />
+    </>
   );
 }

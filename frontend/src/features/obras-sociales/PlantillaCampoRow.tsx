@@ -3,6 +3,7 @@ import { InlineIcon } from '../../design-system/components';
 import { iconArrastrar, iconFlechaAbajo, iconFlechaArriba, iconTacho } from '../../design-system/icons';
 import type { PlantillaCampo } from '../../shared/types/obraSocial';
 import { ORIGEN_CAMPO_LABELS, ORIGEN_CAMPO_OPTIONS } from './origenCampoOptions';
+import { usePuedeEscribir } from '../../shared/auth/usePuedeEscribir';
 
 interface PlantillaCampoRowProps {
   campo: PlantillaCampo;
@@ -22,6 +23,10 @@ interface PlantillaCampoRowProps {
 // Fila de PlantillaFacturaEditor (extraída para mantener el editor < 200 líneas). Drag-and-drop
 // nativo HTML5 + botones subir/bajar como fallback accesible por teclado — mismo patrón que
 // ChecklistItemRow (WCAG 2.1 AA, design.md Decisión 4).
+//
+// gateo-obrasocial (design.md D4): igual que ChecklistItemRow, el arrastre no queda cubierto por
+// el <fieldset disabled> de PlantillaFacturaEditor — se condiciona acá, aparte, a
+// usePuedeEscribir().
 export function PlantillaCampoRow({
   campo,
   index,
@@ -36,6 +41,7 @@ export function PlantillaCampoRow({
   onDragOver,
   onDrop,
 }: PlantillaCampoRowProps) {
+  const puedeEscribir = usePuedeEscribir();
   // Estado local para que tipear se sienta instantáneo: `onChangeEtiqueta` persiste contra el
   // repository (mock con latencia artificial + recarga completa de la lista, ~700ms por golpe),
   // así que confirmar en cada tecla hacía que el input pareciera "trabado". Se sincroniza recién
@@ -50,10 +56,10 @@ export function PlantillaCampoRow({
 
   return (
     <li
-      draggable
-      onDragStart={() => onDragStart(index)}
-      onDragOver={onDragOver}
-      onDrop={() => onDrop(index)}
+      draggable={puedeEscribir}
+      onDragStart={puedeEscribir ? () => onDragStart(index) : undefined}
+      onDragOver={puedeEscribir ? onDragOver : undefined}
+      onDrop={puedeEscribir ? () => onDrop(index) : undefined}
       className="flex flex-wrap items-center gap-sm rounded-sm border border-border bg-surface px-md py-sm"
     >
       <span aria-hidden="true" className="cursor-grab text-faint">

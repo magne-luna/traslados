@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ChecklistItem } from '../../shared/types/documento';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { ChecklistEditor } from './ChecklistEditor';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const items: ChecklistItem[] = [
   { id: 'a', nombre: 'RHC', requerido: true },
@@ -108,5 +113,76 @@ describe('ChecklistEditor', () => {
     const subirButtons = screen.getAllByRole('button', { name: /^subir$/i });
     expect(subirButtons.length).toBeGreaterThan(0);
     subirButtons.forEach((boton) => expect(boton).toBeDisabled());
+  });
+});
+
+// Gateo de escritura (gateo-obrasocial, tasks.md 4.5/4.6): agregar, reordenar (botones y
+// arrastre) y eliminar quedan inertes sin permiso `write`; el checklist sigue siendo legible.
+describe('ChecklistEditor — gateo de escritura', () => {
+  it('sin permiso: no se puede agregar, reordenar por botones ni eliminar, pero el checklist sigue legible', () => {
+    renderConPermiso(false, <ChecklistEditor items={items} onChange={vi.fn()} />);
+
+    expect(screen.getByLabelText(/nuevo ítem/i)).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^agregar$/i })).toBeDisabled();
+    expect(screen.getByLabelText(/subir prescripción/i)).toBeDisabled();
+    expect(screen.getByLabelText(/bajar prescripción/i)).toBeDisabled();
+    expect(screen.getByLabelText(/quitar rhc/i)).toBeDisabled();
+    expect(screen.getByLabelText(/requerido — cbu/i)).toBeDisabled();
+
+    // Legible: los nombres de los ítems se siguen renderizando.
+    expect(screen.getAllByText('RHC').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Prescripción').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('CBU').length).toBeGreaterThan(0);
+  });
+
+  it('con permiso: agregar, reordenar por botones y eliminar están operativos', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    renderConPermiso(true, <ChecklistEditor items={items} onChange={onChange} />);
+
+    expect(screen.getByLabelText(/nuevo ítem/i)).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^agregar$/i })).toBeEnabled();
+
+    await user.click(screen.getByLabelText(/quitar rhc/i));
+    expect(onChange).toHaveBeenCalledWith([items[1], items[2]]);
+  });
+
+  it('sin permiso: el arrastre no reordena (draggable=false, el fieldset no alcanza para esto)', () => {
+    const onChange = vi.fn();
+
+    renderConPermiso(false, <ChecklistEditor items={items} onChange={onChange} />);
+
+    const rows = screen.getAllByRole('listitem');
+    const firstRow = rows[0];
+    const thirdRow = rows[2];
+    if (!firstRow || !thirdRow) throw new Error('esperaba 3 filas de checklist');
+
+    expect(firstRow).toHaveAttribute('draggable', 'false');
+
+    firstRow.dispatchEvent(new Event('dragstart', { bubbles: true }));
+    thirdRow.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }));
+    thirdRow.dispatchEvent(new Event('drop', { bubbles: true }));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('con permiso: el arrastre reordena con normalidad', () => {
+    const onChange = vi.fn();
+
+    renderConPermiso(true, <ChecklistEditor items={items} onChange={onChange} />);
+
+    const rows = screen.getAllByRole('listitem');
+    const firstRow = rows[0];
+    const thirdRow = rows[2];
+    if (!firstRow || !thirdRow) throw new Error('esperaba 3 filas de checklist');
+
+    expect(firstRow).toHaveAttribute('draggable', 'true');
+
+    firstRow.dispatchEvent(new Event('dragstart', { bubbles: true }));
+    thirdRow.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }));
+    thirdRow.dispatchEvent(new Event('drop', { bubbles: true }));
+
+    expect(onChange).toHaveBeenCalledWith([items[1], items[2], items[0]]);
   });
 });

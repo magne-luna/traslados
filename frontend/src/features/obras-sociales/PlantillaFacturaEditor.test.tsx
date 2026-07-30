@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PlantillaFactura } from '../../shared/types/obraSocial';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PlantillaFacturaEditor } from './PlantillaFacturaEditor';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const plantilla: PlantillaFactura = {
   campos: [
@@ -145,5 +150,81 @@ describe('PlantillaFacturaEditor', () => {
     expect(screen.getByText(/juan garcía/i)).toBeInTheDocument();
     expect(screen.getByText(/traslado ambulatorio/i)).toBeInTheDocument();
     expect(screen.getByText(/los valores reales se completarán/i)).toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-obrasocial, tasks.md 4.7): agregar, editar, reordenar (botones y
+// arrastre) y eliminar campos quedan inertes sin permiso `write`; la plantilla sigue legible.
+describe('PlantillaFacturaEditor — gateo de escritura', () => {
+  it('sin permiso: no se puede agregar, editar etiqueta/origen, reordenar por botones ni eliminar, pero la plantilla sigue legible', () => {
+    renderConPermiso(false, <PlantillaFacturaEditor plantilla={plantilla} onChange={vi.fn()} />);
+
+    expect(screen.getByLabelText(/identificador en la factura/i)).toBeDisabled();
+    expect(screen.getByLabelText(/nueva etiqueta/i)).toBeDisabled();
+    expect(screen.getByRole('button', { name: /agregar campo/i })).toBeDisabled();
+    expect(screen.getByLabelText(/etiqueta del campo paciente/i)).toBeDisabled();
+    expect(screen.getByLabelText(/origen del campo paciente/i)).toBeDisabled();
+    expect(screen.getByLabelText(/bajar paciente/i)).toBeDisabled();
+    expect(screen.getByLabelText(/quitar paciente/i)).toBeDisabled();
+
+    expect(screen.getAllByText(/paciente/i).length).toBeGreaterThan(0);
+  });
+
+  it('con permiso: agregar, editar, reordenar por botones y eliminar están operativos', () => {
+    const onChange = vi.fn();
+
+    renderConPermiso(true, <PlantillaFacturaEditor plantilla={plantilla} onChange={onChange} />);
+
+    expect(screen.getByLabelText(/nueva etiqueta/i)).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: /quitar paciente/i }));
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...plantilla,
+      campos: [{ ...plantilla.campos[1], orden: 0 }],
+    });
+  });
+
+  it('sin permiso: el arrastre no reordena (draggable=false)', () => {
+    const onChange = vi.fn();
+
+    renderConPermiso(false, <PlantillaFacturaEditor plantilla={plantilla} onChange={onChange} />);
+
+    const rows = screen.getAllByRole('listitem');
+    const firstRow = rows[0];
+    const secondRow = rows[1];
+    if (!firstRow || !secondRow) throw new Error('esperaba 2 filas de campos');
+
+    expect(firstRow).toHaveAttribute('draggable', 'false');
+
+    firstRow.dispatchEvent(new Event('dragstart', { bubbles: true }));
+    secondRow.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }));
+    secondRow.dispatchEvent(new Event('drop', { bubbles: true }));
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('con permiso: el arrastre reordena con normalidad', () => {
+    const onChange = vi.fn();
+
+    renderConPermiso(true, <PlantillaFacturaEditor plantilla={plantilla} onChange={onChange} />);
+
+    const rows = screen.getAllByRole('listitem');
+    const firstRow = rows[0];
+    const secondRow = rows[1];
+    if (!firstRow || !secondRow) throw new Error('esperaba 2 filas de campos');
+
+    expect(firstRow).toHaveAttribute('draggable', 'true');
+
+    firstRow.dispatchEvent(new Event('dragstart', { bubbles: true }));
+    secondRow.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }));
+    secondRow.dispatchEvent(new Event('drop', { bubbles: true }));
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...plantilla,
+      campos: [
+        { ...plantilla.campos[1], orden: 0 },
+        { ...plantilla.campos[0], orden: 1 },
+      ],
+    });
   });
 });

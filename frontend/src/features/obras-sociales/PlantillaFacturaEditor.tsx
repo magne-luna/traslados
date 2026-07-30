@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type DragEvent } from 'react';
-import { Button, InlineIcon, SectionBadge } from '../../design-system/components';
+import { Button, CamposSoloLectura, InlineIcon, SectionBadge } from '../../design-system/components';
 import { Input, Select } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
 import { iconOjo, iconReordenar } from '../../design-system/icons';
@@ -97,6 +97,12 @@ export function PlantillaFacturaEditor({ plantilla, onChange }: PlantillaFactura
       <Card gap="lg">
         <SectionBadge tone="config">Configuración</SectionBadge>
 
+        {/* gateo-obrasocial (design.md D3): identificador, agregar, editar, reordenar por
+            botones y eliminar son escritura; la plantilla debajo sigue legible. El arrastre NO
+            queda cubierto acá — ver comentario D4 en PlantillaCampoRow.tsx. El <div gap-lg>
+            interno reproduce el espaciado que Card aplicaba entre estos dos bloques. */}
+        <CamposSoloLectura>
+        <div className="flex flex-col gap-lg">
         <div className="flex flex-col gap-xs">
           <label htmlFor={`${formId}-identificador`} className="font-body text-[12px] font-semibold text-muted">
             Identificador en la factura (IN-01)
@@ -171,6 +177,8 @@ export function PlantillaFacturaEditor({ plantilla, onChange }: PlantillaFactura
             </>
           )}
         </div>
+        </div>
+        </CamposSoloLectura>
       </Card>
 
       <Card gap="md" background="surface-soft">

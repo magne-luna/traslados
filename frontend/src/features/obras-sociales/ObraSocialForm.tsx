@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button } from '../../design-system/components';
+import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
@@ -67,6 +67,13 @@ export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false
     <CardForm onSubmit={handleSubmit} gap="xl" radius="sm" padding="lg">
       {submitError && <Alert tone="danger">{submitError}</Alert>}
 
+      {/* gateo-obrasocial (design.md D3/riesgos): el envoltorio de solo lectura cubre únicamente
+          el bloque de campos, nunca la barra de acciones — Cancelar (más abajo) debe seguir
+          operativo para una cuenta de solo lectura. El <div gap-xl> interno reproduce el mismo
+          espaciado que CardForm aplicaba entre estos dos bloques antes de agruparlos en un único
+          hijo directo (el <fieldset> no hereda el `gap` del flex de CardForm). */}
+      <CamposSoloLectura>
+      <div className="flex flex-col gap-xl">
       <div>
         <FieldGroupHeading>Datos Principales</FieldGroupHeading>
         <div className="grid grid-cols-1 gap-md md:grid-cols-2">
@@ -149,12 +156,14 @@ export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false
           </label>
         </div>
       </div>
+      </div>
+      </CamposSoloLectura>
 
       <div className="flex items-center justify-end gap-sm border-t border-border pt-md">
         <Button variant="secondary" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" variant="primary">
+        <Button type="submit" variant="primary" requiereEscritura>
           {submitting ? 'Guardando…' : 'Guardar obra social'}
         </Button>
       </div>

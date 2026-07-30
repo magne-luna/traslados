@@ -130,7 +130,7 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
             </div>
 
             <div className="flex justify-end">
-              <Button variant="secondary" onClick={() => setEditing(true)}>
+              <Button variant="secondary" requiereEscritura onClick={() => setEditing(true)}>
                 Editar datos
               </Button>
             </div>

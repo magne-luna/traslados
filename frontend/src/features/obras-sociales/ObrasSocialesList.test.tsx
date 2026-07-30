@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ObraSocial } from '../../shared/types/obraSocial';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { ObrasSocialesList } from './ObrasSocialesList';
+
+function renderSinPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 const osecac: ObraSocial = {
   id: 'osecac',
@@ -145,5 +150,81 @@ describe('ObrasSocialesList', () => {
 
     expect(screen.queryByText('OSECAC')).not.toBeInTheDocument();
     expect(screen.getByText('OSDE')).toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-obrasocial, tasks.md 4.1/4.2): alta y edición quedan visibles pero
+// no activables sin permiso `write` sobre `obra_social`. La fila sigue navegando al detalle.
+describe('ObrasSocialesList — gateo de escritura', () => {
+  it('sin permiso: "Nueva obra social" queda visible y no se puede activar', () => {
+    renderSinPermiso(
+      false,
+      <ObrasSocialesList obrasSociales={[osecac]} loading={false} error={null} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
+    );
+
+    const boton = screen.getByRole('button', { name: /nueva obra social/i });
+    expect(boton).toBeVisible();
+    expect(boton).toBeDisabled();
+  });
+
+  it('sin permiso: "Crear la primera obra social" (estado vacío) queda visible y no se puede activar', () => {
+    renderSinPermiso(
+      false,
+      <ObrasSocialesList obrasSociales={[]} loading={false} error={null} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
+    );
+
+    const boton = screen.getByRole('button', { name: /crear la primera obra social/i });
+    expect(boton).toBeVisible();
+    expect(boton).toBeDisabled();
+  });
+
+  it('con permiso write: ambas acciones de alta están activables', async () => {
+    const user = userEvent.setup();
+    const onCreateNew = vi.fn();
+    renderSinPermiso(
+      true,
+      <ObrasSocialesList obrasSociales={[]} loading={false} error={null} onSelect={vi.fn()} onCreateNew={onCreateNew} />,
+    );
+
+    const boton = screen.getByRole('button', { name: /crear la primera obra social/i });
+    expect(boton).toBeEnabled();
+    await user.click(boton);
+    expect(onCreateNew).toHaveBeenCalledTimes(1);
+  });
+
+  it('con rol admin sin filas de permisos: la acción de alta está activable', () => {
+    // El contexto ya resolvió el short-circuit de admin (usePuedeEscribir.test.tsx 2.2); acá
+    // solo se verifica que ObrasSocialesList consume ese resultado, no que lo recalcule.
+    renderSinPermiso(
+      true,
+      <ObrasSocialesList obrasSociales={[]} loading={false} error={null} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /crear la primera obra social/i })).toBeEnabled();
+  });
+
+  it('sin permiso: "Editar" por fila queda visible y no se puede activar, pero la fila sigue navegando al detalle', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    renderSinPermiso(
+      false,
+      <ObrasSocialesList obrasSociales={[osecac]} loading={false} error={null} onSelect={onSelect} onCreateNew={vi.fn()} />,
+    );
+
+    const editar = screen.getByRole('button', { name: /editar osecac/i });
+    expect(editar).toBeVisible();
+    expect(editar).toBeDisabled();
+
+    await user.click(screen.getByText('OSECAC'));
+    expect(onSelect).toHaveBeenCalledWith(osecac);
+  });
+
+  it('con permiso write: "Editar" por fila está activable', () => {
+    renderSinPermiso(
+      true,
+      <ObrasSocialesList obrasSociales={[osecac]} loading={false} error={null} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /editar osecac/i })).toBeEnabled();
   });
 });

@@ -38,7 +38,7 @@ export function ObrasSocialesList({ obrasSociales, loading, error, onSelect, onC
     <div className="flex flex-col gap-lg py-xxl px-xl">
       <div className="flex flex-wrap items-center justify-between gap-md">
         <h1 className="m-0 font-heading text-[21px] font-bold text-ink">Obras Sociales</h1>
-        <Button variant="primary" onClick={onCreateNew}>
+        <Button variant="primary" requiereEscritura onClick={onCreateNew}>
           + Nueva obra social
         </Button>
       </div>
@@ -55,7 +55,7 @@ export function ObrasSocialesList({ obrasSociales, loading, error, onSelect, onC
         <EmptyState
           message="No hay obras sociales cargadas todavía."
           action={
-            <Button variant="secondary" onClick={onCreateNew}>
+            <Button variant="secondary" requiereEscritura onClick={onCreateNew}>
               Crear la primera obra social
             </Button>
           }
@@ -136,6 +136,7 @@ export function ObrasSocialesList({ obrasSociales, loading, error, onSelect, onC
                   <Button
                     variant="secondary-accent"
                     size="sm"
+                    requiereEscritura
                     ariaLabel={`Editar ${obraSocial.nombre}`}
                     onClick={(event) => {
                       event.stopPropagation();

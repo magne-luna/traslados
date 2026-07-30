@@ -2,6 +2,7 @@ import type { DragEvent } from 'react';
 import { InlineIcon } from '../../design-system/components';
 import { iconArrastrar, iconDocumento, iconFlechaAbajo, iconFlechaArriba, iconTacho } from '../../design-system/icons';
 import type { ChecklistItem } from '../../shared/types/documento';
+import { usePuedeEscribir } from '../../shared/auth/usePuedeEscribir';
 
 interface ChecklistItemRowProps {
   item: ChecklistItem;
@@ -21,6 +22,12 @@ interface ChecklistItemRowProps {
 // compact rules). Drag-and-drop nativo HTML5 (design.md Decisión 4) + botones subir/bajar como
 // fallback accesible por teclado (WCAG 2.1 AA — frontend-ui-design compact rules): el reorder
 // NUNCA depende solo del arrastre.
+//
+// gateo-obrasocial (design.md D4): el <fieldset disabled> que envuelve esta fila en
+// ChecklistEditor cubre el checkbox de "requerido" y los 3 <button> nativos, pero NO el
+// arrastre — un elemento `draggable` sigue arrastrándose dentro de un fieldset deshabilitado.
+// Por eso `draggable` y los handlers de arrastre se condicionan acá, aparte, a
+// usePuedeEscribir().
 export function ChecklistItemRow({
   item,
   index,
@@ -34,12 +41,14 @@ export function ChecklistItemRow({
   onDragOver,
   onDrop,
 }: ChecklistItemRowProps) {
+  const puedeEscribir = usePuedeEscribir();
+
   return (
     <li
-      draggable
-      onDragStart={() => onDragStart(index)}
-      onDragOver={onDragOver}
-      onDrop={() => onDrop(index)}
+      draggable={puedeEscribir}
+      onDragStart={puedeEscribir ? () => onDragStart(index) : undefined}
+      onDragOver={puedeEscribir ? onDragOver : undefined}
+      onDrop={puedeEscribir ? () => onDrop(index) : undefined}
       className="flex flex-wrap items-center gap-sm rounded-sm border border-border bg-surface px-md py-sm"
     >
       <span aria-hidden="true" className="cursor-grab text-faint">
