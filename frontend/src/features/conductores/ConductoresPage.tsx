@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AvisoSoloLectura } from '../../design-system/components';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { Conductor } from '../../shared/types/conductor';
 import { useConductorRepository } from './ConductorRepositoryContext';
@@ -25,24 +26,30 @@ export function ConductoresPage({ documentoRepository }: ConductoresPageProps) {
       view.conductorId === null ? null : (conductores.find((c) => c.id === view.conductorId) ?? null);
 
     return (
-      <ConductorDetail
-        conductor={conductor}
-        crear={crear}
-        actualizar={actualizar}
-        documentoRepository={documentoRepository}
-        onCreated={(creado) => setView({ kind: 'detail', conductorId: creado.id })}
-        onBack={() => setView({ kind: 'list' })}
-      />
+      <>
+        <AvisoSoloLectura />
+        <ConductorDetail
+          conductor={conductor}
+          crear={crear}
+          actualizar={actualizar}
+          documentoRepository={documentoRepository}
+          onCreated={(creado) => setView({ kind: 'detail', conductorId: creado.id })}
+          onBack={() => setView({ kind: 'list' })}
+        />
+      </>
     );
   }
 
   return (
-    <ConductoresList
-      conductores={conductores}
-      loading={loading}
-      error={error}
-      onSelect={(conductor) => setView({ kind: 'detail', conductorId: conductor.id })}
-      onCreateNew={() => setView({ kind: 'detail', conductorId: null })}
-    />
+    <>
+      <AvisoSoloLectura />
+      <ConductoresList
+        conductores={conductores}
+        loading={loading}
+        error={error}
+        onSelect={(conductor) => setView({ kind: 'detail', conductorId: conductor.id })}
+        onCreateNew={() => setView({ kind: 'detail', conductorId: null })}
+      />
+    </>
   );
 }

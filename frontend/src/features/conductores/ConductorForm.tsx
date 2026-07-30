@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button, Chip } from '../../design-system/components';
+import { Button, CamposSoloLectura, Chip } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Textarea } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
@@ -78,6 +78,11 @@ export function ConductorForm({ initial, onSubmit, onCancel, submitting = false,
     <CardForm onSubmit={handleSubmit} gap="md" radius="sm" padding="lg">
       {submitError && <Alert tone="danger">{submitError}</Alert>}
 
+      {/* gateo-conductores (design.md D4): una sola inserción cubre todos los campos del
+          formulario (datos personales, restricciones, observaciones) — sin que ningún bloque
+          reciba una prop nueva. El envoltorio NO cubre la barra de acciones: Cancelar debe
+          seguir operativo para una cuenta de solo lectura. */}
+      <CamposSoloLectura>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
         <Field label="Apellido" htmlFor={`${formId}-apellido`} error={errors.apellido}>
           <Input
@@ -196,12 +201,13 @@ export function ConductorForm({ initial, onSubmit, onCancel, submitting = false,
           onChange={(event) => setValues((prev) => ({ ...prev, observaciones: event.target.value }))}
         />
       </Field>
+      </CamposSoloLectura>
 
       <div className="flex items-center justify-end gap-sm">
         <Button variant="secondary" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" variant="primary">
+        <Button type="submit" variant="primary" requiereEscritura>
           {submitting ? 'Guardando…' : 'Guardar'}
         </Button>
       </div>

@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { AvisoPendienteCliente, Button, InlineIcon } from '../../design-system/components';
+import { AvisoPendienteCliente, Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { Table, Td, Th, Tr } from '../../design-system/table';
@@ -109,7 +109,11 @@ export function AsignacionSemanalTabla({ asignaciones, ahora = new Date(), onAgr
 
           {error && <Alert tone="danger">{error}</Alert>}
 
+          {/* gateo-conductores (design.md D2/riesgos, tasks.md 2.5): una sola inserción cubre
+              el selector de vehículo, la semana y el toggle "Permitir múltiple". El historial
+              (arriba) queda fuera del envoltorio y sigue legible sin permiso de escritura. */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-md">
+            <CamposSoloLectura>
             <Field label="Vehículo" htmlFor={`${formId}-vehiculo`}>
               <Select
                 id={`${formId}-vehiculo`}
@@ -153,10 +157,11 @@ export function AsignacionSemanalTabla({ asignaciones, ahora = new Date(), onAgr
                 </span>
               </label>
 
-              <Button type="submit" variant="secondary">
+              <Button type="submit" variant="secondary" requiereEscritura>
                 Asignar
               </Button>
             </div>
+            </CamposSoloLectura>
           </form>
         </div>
       </div>

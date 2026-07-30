@@ -2,6 +2,7 @@ import { Chip } from '../../design-system/components';
 import { DocumentChecklist } from '../../shared/components/DocumentChecklist';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { useDocumentChecklist } from '../../shared/lib/documentos/useDocumentChecklist';
+import { usePuedeEscribir } from '../../shared/auth/usePuedeEscribir';
 import { CONDUCTOR_DOCUMENTOS_ITEMS } from './conductorDocumentosItems';
 
 interface ConductorDocumentosProps {
@@ -12,6 +13,11 @@ interface ConductorDocumentosProps {
 // Documentos del conductor (tasks.md 7.2, 9.4): reutiliza el renderer DocumentChecklist y el
 // hook useDocumentChecklist de FE-1 con entidad = 'conductor', sin modelo documental paralelo
 // (design.md Decisión 8).
+//
+// gateo-conductores (design.md D5, tasks.md 2.6): solo la carga/baja se gatea, vía la prop
+// `readOnly` que DocumentChecklist ya expone — se reutiliza tal cual, sin tocar el componente
+// compartido. La consulta de `items`/`documentos` no pasa por acá, así que sigue disponible con
+// solo `read`: el gateo del cliente nunca debe ser más restrictivo que la RLS del servidor.
 export function ConductorDocumentos({ conductorId, repository }: ConductorDocumentosProps) {
   const { items, documentos, upload, remove } = useDocumentChecklist(
     'conductor',
@@ -19,13 +25,14 @@ export function ConductorDocumentos({ conductorId, repository }: ConductorDocume
     CONDUCTOR_DOCUMENTOS_ITEMS,
     repository,
   );
+  const puedeEscribir = usePuedeEscribir();
 
   return (
     <div className="flex flex-col gap-sm">
       <Chip kind="warning">
         ⚠️ Pendiente de confirmar con el cliente: documentos a precargar (licencia/DNI/apto médico)
       </Chip>
-      <DocumentChecklist items={items} documentos={documentos} onUpload={upload} onRemove={remove} />
+      <DocumentChecklist items={items} documentos={documentos} onUpload={upload} onRemove={remove} readOnly={!puedeEscribir} />
     </div>
   );
 }

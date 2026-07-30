@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Chip, InlineIcon, SearchInput } from '../../design-system/components';
+import { Button, CamposSoloLectura, Chip, InlineIcon, SearchInput } from '../../design-system/components';
 import { Alert, EmptyState } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import { iconCasa, iconCredencial, iconLlave, iconTelefono } from '../../design-system/icons';
@@ -49,7 +49,7 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
     <div className="flex flex-col gap-lg py-xxl px-xl">
       <div className="flex flex-wrap items-center justify-between gap-md">
         <h1 className="m-0 font-heading text-[21px] font-bold text-ink">Conductores</h1>
-        <Button variant="primary" onClick={onCreateNew}>
+        <Button variant="primary" requiereEscritura onClick={onCreateNew}>
           Nuevo conductor
         </Button>
       </div>
@@ -71,7 +71,7 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
         <EmptyState
           message="No hay conductores cargados todavía."
           action={
-            <Button variant="secondary" onClick={onCreateNew}>
+            <Button variant="secondary" requiereEscritura onClick={onCreateNew}>
               Crear el primer conductor
             </Button>
           }
@@ -157,6 +157,14 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
                   <p className="m-0 font-body text-[12px] italic text-muted">{conductor.observaciones}</p>
                 )}
 
+                {/* gateo-conductores (design.md D2/riesgos, tasks.md 2.2): "Ver detalle" es un
+                    <button> nativo, no un componente Button — el envoltorio de solo lectura lo
+                    cubre igual que a "Editar", verificando que el <fieldset disabled> del
+                    mecanismo compartido alcanza también a los <button> nativos (mismo criterio
+                    ya verificado en ConductoresList/VehiculosList de gateo-pacientes). La fila
+                    (Card, más arriba) tiene su propio onClick por fuera de este envoltorio y
+                    sigue navegando al detalle aunque los dos botones queden inertes. */}
+                <CamposSoloLectura>
                 <div className="flex items-center justify-end gap-md pt-xs">
                   <button
                     type="button"
@@ -180,6 +188,7 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
                     Editar
                   </Button>
                 </div>
+                </CamposSoloLectura>
               </Card>
             );
           })}

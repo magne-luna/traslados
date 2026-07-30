@@ -150,7 +150,7 @@ export function ConductorDetail({ conductor, crear, actualizar, documentoReposit
             {conductor.observaciones && <p className="m-0 font-body text-[13px] text-muted">{conductor.observaciones}</p>}
 
             <div className="flex justify-end">
-              <Button variant="secondary" onClick={() => setEditing(true)}>
+              <Button variant="secondary" requiereEscritura onClick={() => setEditing(true)}>
                 Editar datos
               </Button>
             </div>

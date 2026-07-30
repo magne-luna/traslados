@@ -5,6 +5,7 @@ import type { Conductor } from '../../shared/types/conductor';
 import { VehiculoRepositoryProvider } from '../vehiculos/VehiculoRepositoryContext';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import type { VehiculoRepository } from '../../shared/lib/vehiculos/VehiculoRepository';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { ConductoresList } from './ConductoresList';
 
 const perez: Conductor = {
@@ -54,6 +55,24 @@ function renderList(props: Partial<Parameters<typeof ConductoresList>[0]> = {}) 
         {...props}
       />
     </VehiculoRepositoryProvider>,
+  );
+}
+
+function renderListConPermiso(puedeEscribir: boolean, props: Partial<Parameters<typeof ConductoresList>[0]> = {}) {
+  return render(
+    <PuedeEscribirContext.Provider value={puedeEscribir}>
+      <VehiculoRepositoryProvider repository={vehiculoRepositoryStub}>
+        <ConductoresList
+          conductores={[perez, gonzalez]}
+          loading={false}
+          error={null}
+          onSelect={vi.fn()}
+          onCreateNew={vi.fn()}
+          ahora={new Date('2026-07-26T12:00:00Z')}
+          {...props}
+        />
+      </VehiculoRepositoryProvider>
+    </PuedeEscribirContext.Provider>,
   );
 }
 
@@ -155,5 +174,69 @@ describe('ConductoresList', () => {
 
     await user.type(screen.getByLabelText(/buscar conductor/i), 'no-existe-nadie');
     expect(screen.getByText(/ningún conductor coincide/i)).toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-conductores, tasks.md 2.1/2.2). "Nuevo conductor"/"Crear el primer
+// conductor" nunca se ocultan (decisión 1 de la usuaria) — solo quedan deshabilitados. El
+// <button> nativo "Ver detalle" cae dentro del mismo envoltorio de solo lectura que "Editar".
+describe('ConductoresList — gateo de escritura', () => {
+  it('sin permiso de escritura: "Nuevo conductor" queda visible y no se puede activar', () => {
+    renderListConPermiso(false);
+
+    const crear = screen.getByRole('button', { name: /nuevo conductor/i });
+    expect(crear).toBeInTheDocument();
+    expect(crear).toBeVisible();
+    expect(crear).toBeDisabled();
+  });
+
+  it('sin permiso de escritura: "Crear el primer conductor" (estado vacío) queda visible y no se puede activar (triangulación con la lista no vacía)', () => {
+    renderListConPermiso(false, { conductores: [] });
+
+    expect(screen.getByRole('button', { name: /crear el primer conductor/i })).toBeDisabled();
+  });
+
+  it('con permiso de escritura: "Nuevo conductor" y "Crear el primer conductor" están activables (triangulación)', () => {
+    renderListConPermiso(true);
+    expect(screen.getByRole('button', { name: /nuevo conductor/i })).toBeEnabled();
+  });
+
+  it('sin permiso de escritura: "Editar" por fila queda visible y no se puede activar, y la fila sigue navegando al detalle', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+
+    renderListConPermiso(false, { onSelect });
+
+    const editar = screen.getByRole('button', { name: /editar pérez/i });
+    expect(editar).toBeVisible();
+    expect(editar).toBeDisabled();
+
+    await user.click(screen.getByText('Carlos'));
+    expect(onSelect).toHaveBeenCalledWith(perez);
+  });
+
+  it('con permiso de escritura: "Editar" por fila está activable (triangulación)', () => {
+    renderListConPermiso(true);
+    expect(screen.getByRole('button', { name: /editar pérez/i })).toBeEnabled();
+  });
+
+  it('sin permiso de escritura: el <button> nativo "Ver detalle" queda deshabilitado por el envoltorio', () => {
+    renderListConPermiso(false);
+    expect(screen.getAllByRole('button', { name: /^ver detalle$/i })[0]).toBeDisabled();
+  });
+
+  it('con permiso de escritura: el <button> nativo "Ver detalle" está activable (triangulación)', () => {
+    renderListConPermiso(true);
+    expect(screen.getAllByRole('button', { name: /^ver detalle$/i })[0]).toBeEnabled();
+  });
+});
+
+// Rol admin sin filas de permisos (design.md D5): el short-circuit ya está probado de punta a
+// punta en usePuedeEscribir.test.tsx — acá solo se verifica que ConductoresList consume ese
+// resultado, mismo criterio que PacientesList.test.tsx para el mismo escenario.
+describe('ConductoresList — rol admin sin filas de permisos', () => {
+  it('con puedeEscribir true (equivalente al short-circuit de admin sin filas): la acción de alta está activable', () => {
+    renderListConPermiso(true, { conductores: [] });
+    expect(screen.getByRole('button', { name: /crear el primer conductor/i })).toBeEnabled();
   });
 });

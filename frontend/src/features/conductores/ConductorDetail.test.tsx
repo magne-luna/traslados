@@ -5,6 +5,7 @@ import type { Conductor } from '../../shared/types/conductor';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { VehiculoRepository } from '../../shared/lib/vehiculos/VehiculoRepository';
 import { VehiculoRepositoryProvider } from '../vehiculos/VehiculoRepositoryContext';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { ConductorDetail } from './ConductorDetail';
 
 const perez: Conductor = {
@@ -50,6 +51,26 @@ function renderDetail(props: Partial<Parameters<typeof ConductorDetail>[0]> = {}
         onBack={props.onBack ?? vi.fn()}
       />
     </VehiculoRepositoryProvider>,
+  );
+}
+
+function renderDetailConPermiso(puedeEscribir: boolean, props: Partial<Parameters<typeof ConductorDetail>[0]> = {}) {
+  const crear = props.crear ?? vi.fn().mockResolvedValue(perez);
+  const actualizar = props.actualizar ?? vi.fn().mockResolvedValue(perez);
+
+  return render(
+    <PuedeEscribirContext.Provider value={puedeEscribir}>
+      <VehiculoRepositoryProvider repository={buildFakeVehiculoRepository()}>
+        <ConductorDetail
+          conductor={props.conductor ?? null}
+          crear={crear}
+          actualizar={actualizar}
+          documentoRepository={buildFakeDocumentoRepository()}
+          onCreated={props.onCreated ?? vi.fn()}
+          onBack={props.onBack ?? vi.fn()}
+        />
+      </VehiculoRepositoryProvider>
+    </PuedeEscribirContext.Provider>,
   );
 }
 
@@ -144,5 +165,22 @@ describe('ConductorDetail', () => {
 
     expect(await screen.findByText('documento duplicado')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /guardar/i })).toBeEnabled();
+  });
+});
+
+// Gateo de escritura (gateo-conductores, tasks.md 2.2): "Editar datos" del resumen queda visible
+// y deshabilitado sin permiso de escritura.
+describe('ConductorDetail — gateo de escritura', () => {
+  it('sin permiso de escritura: "Editar datos" queda visible y no se puede activar', () => {
+    renderDetailConPermiso(false, { conductor: perez });
+
+    const editar = screen.getByRole('button', { name: /editar datos/i });
+    expect(editar).toBeVisible();
+    expect(editar).toBeDisabled();
+  });
+
+  it('con permiso de escritura: "Editar datos" está activable (triangulación)', () => {
+    renderDetailConPermiso(true, { conductor: perez });
+    expect(screen.getByRole('button', { name: /editar datos/i })).toBeEnabled();
   });
 });
