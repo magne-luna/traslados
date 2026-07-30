@@ -31,7 +31,7 @@ El sistema SHALL crear cuentas exclusivamente a través de la Edge Function `cre
 - **THEN** el formulario señala los campos faltantes y no invoca la Edge Function
 
 ### Requirement: Matriz de permisos por cuenta
-El sistema SHALL presentar, para la cuenta seleccionada, una matriz con los cuatro módulos del sistema y el nivel asignado a cada uno, incluyendo la opción explícita "sin acceso". La edición MUST ser diferida y en línea (nunca en modal), y el guardado MUST enviarse a la Edge Function `update-permisos` como el conjunto completo deseado, respetando su semántica de reemplazo total.
+El sistema SHALL presentar, para la cuenta seleccionada, una matriz con los siete módulos del sistema y el nivel asignado a cada uno, incluyendo la opción explícita "sin acceso". La edición MUST ser diferida y en línea (nunca en modal), y el guardado MUST enviarse a la Edge Function `update-permisos` como el conjunto completo deseado, respetando su semántica de reemplazo total.
 
 #### Scenario: Otorgar acceso a un módulo
 - **WHEN** la administradora asigna nivel `write` sobre `facturacion` a una cuenta y guarda
@@ -47,7 +47,11 @@ El sistema SHALL presentar, para la cuenta seleccionada, una matriz con los cuat
 
 #### Scenario: Cambios descartados
 - **WHEN** la administradora modifica la matriz y cancela sin guardar
-- **THEN** no se invoca ninguna Edge Function y la matriz vuelve al estado almacenado
+- **THEN** la matriz vuelve a reflejar el último estado guardado y no se invoca `update-permisos`
+
+#### Scenario: Módulos antes agrupados ahora se asignan por separado
+- **WHEN** la administradora abre la matriz de una cuenta que antes de este cambio tenía `write` sobre `pacientes`
+- **THEN** la matriz muestra `write` tanto en la fila `pacientes` como en la fila `hojas_de_ruta`, reflejando la copia de permisos hecha por la migración de datos del backend, y la administradora puede desde acá bajarle el nivel a `hojas_de_ruta` sin afectar `pacientes`
 
 ### Requirement: Ninguna escritura directa de permisos desde el frontend
 El sistema SHALL canalizar toda alta de cuenta y toda modificación de permisos por las Edge Functions `create-user` y `update-permisos`. El frontend NO MUST ejecutar `insert`, `update` ni `delete` sobre `modulos.permisos` ni sobre `usuarios.usuarios`, aunque la RLS vigente se lo permita a una cuenta `admin`.
