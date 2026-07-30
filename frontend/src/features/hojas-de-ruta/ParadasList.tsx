@@ -1,4 +1,4 @@
-import { Button } from '../../design-system/components';
+import { Button, CamposSoloLectura } from '../../design-system/components';
 import { moveDown, moveUp } from '../../shared/lib/reorder';
 import type { ParadaRecorrido } from '../../shared/types/hojaDeRuta';
 import { TRAMO_LABELS } from '../pacientes/direccionOptions';
@@ -74,12 +74,22 @@ export function ParadasList({ paradas, nombrePaciente, direccionTexto, editable,
               </span>
             </div>
             {editable && (
+              // gateo-hojas-de-ruta (design.md D6, tasks.md 5.1/5.2): Subir/Bajar son Button del
+              // design system (prop opt-in); Quitar es un <button> nativo, fuera del alcance de
+              // esa prop — un solo CamposSoloLectura cubre los tres. El `disabled` de Subir/Bajar
+              // en el borde de la lista (primera/última parada) es una razón previa e
+              // independiente del gateo; la disyunción ya la resuelve Button internamente.
+              // IMPORTANTE (security-review): esto es UX, no una frontera de seguridad — la
+              // autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes',
+              // 'write'). Mismo comentario que permisos.ts y usePuedeEscribir.ts.
+              <CamposSoloLectura>
               <div className="flex items-center gap-xs">
                 <Button
                   variant="secondary-accent"
                   size="xs"
                   ariaLabel={`Subir ${nombre}`}
                   disabled={indice === 0}
+                  requiereEscritura
                   onClick={() => onReordenar(moveUp(paradas, indice))}
                 >
                   ↑
@@ -89,6 +99,7 @@ export function ParadasList({ paradas, nombrePaciente, direccionTexto, editable,
                   size="xs"
                   ariaLabel={`Bajar ${nombre}`}
                   disabled={indice === paradas.length - 1}
+                  requiereEscritura
                   onClick={() => onReordenar(moveDown(paradas, indice))}
                 >
                   ↓
@@ -101,6 +112,7 @@ export function ParadasList({ paradas, nombrePaciente, direccionTexto, editable,
                   Quitar
                 </button>
               </div>
+              </CamposSoloLectura>
             )}
           </li>
         );

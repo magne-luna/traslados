@@ -4,7 +4,12 @@ import userEvent from '@testing-library/user-event';
 import type { Paciente } from '../../shared/types/paciente';
 import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { AsignacionPanel } from './AsignacionPanel';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 // RN-VE-01 (accesorio incompatible) y capacidad de vehículo (tasks.md 5.3, 9.2): la asignación
 // se bloquea en la UI con un mensaje visible y nunca llega a `onAgregar` (no se persiste).
@@ -217,5 +222,55 @@ describe('AsignacionPanel', () => {
     await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
 
     expect(onAgregar).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Gateo de escritura (gateo-hojas-de-ruta, design.md D4/D9, tasks.md 5.3): una sola inserción de
+// CamposSoloLectura cubre SelectorPaciente + PacienteTramoCampos + "Agregar pasajero" (mismo
+// patrón que NuevoRecorridoForm). Acá, a diferencia de NuevoRecorridoForm, el primer paciente
+// queda preseleccionado por defecto (`pacientes[0]`), así que PacienteTramoCampos SÍ se puede
+// afirmar directamente sin necesitar seleccionar nada primero.
+describe('AsignacionPanel — gateo de escritura', () => {
+  const paciente = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+
+  it('sin permiso de escritura: ningún campo acepta entrada, "Agregar pasajero" queda deshabilitado, y RequisitosPaciente sigue legible', () => {
+    renderConPermiso(
+      false,
+      <AsignacionPanel recorrido={buildRecorrido()} vehiculo={vehiculoConSillaPlegable} pacientes={[paciente]} onAgregar={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText(/^paciente$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/hora/i)).toBeDisabled();
+    expect(screen.getByLabelText(/tramo/i)).toBeDisabled();
+    expect(screen.getByLabelText(/dirección de origen/i)).toBeDisabled();
+    expect(screen.getByLabelText(/dirección de destino/i)).toBeDisabled();
+    expect(screen.getByRole('button', { name: /agregar pasajero/i })).toBeDisabled();
+
+    expect(screen.getAllByText(/silla plegable/i).length).toBeGreaterThan(0);
+  });
+
+  it('con permiso de escritura: todos los campos operativos y "Agregar pasajero" agrega la parada', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+
+    renderConPermiso(
+      true,
+      <AsignacionPanel recorrido={buildRecorrido()} vehiculo={vehiculoConSillaPlegable} pacientes={[paciente]} onAgregar={onAgregar} />,
+    );
+
+    expect(screen.getByLabelText(/^paciente$/i)).toBeEnabled();
+    expect(screen.getByLabelText(/hora/i)).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+    expect(onAgregar).toHaveBeenCalledTimes(1);
+  });
+
+  it('rol admin sin filas (puedeEscribir=true): "Agregar pasajero" es activable', () => {
+    renderConPermiso(
+      true,
+      <AsignacionPanel recorrido={buildRecorrido()} vehiculo={vehiculoConSillaPlegable} pacientes={[paciente]} onAgregar={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /agregar pasajero/i })).toBeEnabled();
   });
 });

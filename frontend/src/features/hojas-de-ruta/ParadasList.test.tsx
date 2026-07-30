@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ParadaRecorrido } from '../../shared/types/hojaDeRuta';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { ParadasList } from './ParadasList';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 // Lista de paradas (tasks.md 5.4, 6.3, RN-HR-01 + feedback de usuario "toda la info posible"):
 // en modo `editable` el operador puede reordenar a mano (botones subir/bajar, fallback accesible
@@ -151,5 +156,113 @@ describe('ParadasList', () => {
     );
 
     expect(screen.queryByText(/^\d{2}:\d{2}$/)).not.toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-hojas-de-ruta, design.md D6, tasks.md 5.1/5.2): Subir/Bajar son
+// Button del design system (prop opt-in); Quitar es un <button> nativo, fuera del alcance de esa
+// prop — lo cubre CamposSoloLectura directamente acá. Las aserciones van sobre una parada
+// INTERMEDIA (≥3 paradas, tasks.md 1.7): con la primera o la última, `disabled` ya es `true` por
+// el borde de la lista (moveUp/moveDown) y el test pasaría sin que el gateo exista.
+const tresPardas = [
+  parada('a', 0, 'Primera Paciente'),
+  parada('b', 1, 'Del Medio Paciente'),
+  parada('c', 2, 'Última Paciente'),
+];
+
+describe('ParadasList — gateo de escritura', () => {
+  it('sin permiso de escritura: Subir/Bajar/Quitar de una parada intermedia quedan visibles e inertes, sin disparar onReordenar/onQuitar, y las paradas siguen legibles', async () => {
+    const user = userEvent.setup();
+    const onReordenar = vi.fn();
+    const onQuitar = vi.fn();
+
+    renderConPermiso(
+      false,
+      <ParadasList
+        paradas={tresPardas}
+        nombrePaciente={(id) => (id === 'paciente-a' ? 'Primera Paciente' : id === 'paciente-b' ? 'Del Medio Paciente' : 'Última Paciente')}
+        editable
+        direccionTexto={direccionFija}
+        onReordenar={onReordenar}
+        onQuitar={onQuitar}
+      />,
+    );
+
+    const subirDelMedio = screen.getByRole('button', { name: /subir del medio paciente/i });
+    const bajarDelMedio = screen.getByRole('button', { name: /bajar del medio paciente/i });
+    const quitarButtons = screen.getAllByRole('button', { name: /quitar/i });
+
+    expect(subirDelMedio).toBeDisabled();
+    expect(bajarDelMedio).toBeDisabled();
+    for (const boton of quitarButtons) expect(boton).toBeDisabled();
+
+    expect(screen.getByText('Del Medio Paciente')).toBeInTheDocument();
+    expect(screen.getByText('Primera Paciente')).toBeInTheDocument();
+    expect(screen.getByText('Última Paciente')).toBeInTheDocument();
+
+    await user.click(subirDelMedio);
+    await user.click(bajarDelMedio);
+    expect(onReordenar).not.toHaveBeenCalled();
+    expect(onQuitar).not.toHaveBeenCalled();
+  });
+
+  it('con permiso de escritura: Subir/Bajar/Quitar de una parada intermedia son operativos', async () => {
+    const user = userEvent.setup();
+    const onReordenar = vi.fn();
+    const onQuitar = vi.fn();
+
+    renderConPermiso(
+      true,
+      <ParadasList
+        paradas={tresPardas}
+        nombrePaciente={(id) => (id === 'paciente-a' ? 'Primera Paciente' : id === 'paciente-b' ? 'Del Medio Paciente' : 'Última Paciente')}
+        editable
+        direccionTexto={direccionFija}
+        onReordenar={onReordenar}
+        onQuitar={onQuitar}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /subir del medio paciente/i }));
+    expect(onReordenar).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getAllByRole('button', { name: /quitar/i })[1]!);
+    expect(onQuitar).toHaveBeenCalledWith('b');
+  });
+
+  it('el `disabled` preexistente de la primera y la última parada sigue funcionando por el borde de la lista, no por el gateo', () => {
+    renderConPermiso(
+      true,
+      <ParadasList
+        paradas={tresPardas}
+        nombrePaciente={(id) => (id === 'paciente-a' ? 'Primera Paciente' : id === 'paciente-b' ? 'Del Medio Paciente' : 'Última Paciente')}
+        editable
+        direccionTexto={direccionFija}
+        onReordenar={vi.fn()}
+        onQuitar={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /subir primera paciente/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /bajar última paciente/i })).toBeDisabled();
+    // La parada del medio, en cambio, tiene las dos direcciones habilitadas con permiso de escritura.
+    expect(screen.getByRole('button', { name: /subir del medio paciente/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /bajar del medio paciente/i })).toBeEnabled();
+  });
+
+  it('rol admin sin filas (puedeEscribir=true): Quitar es activable', () => {
+    renderConPermiso(
+      true,
+      <ParadasList
+        paradas={tresPardas}
+        nombrePaciente={() => 'Paciente'}
+        editable
+        direccionTexto={direccionFija}
+        onReordenar={vi.fn()}
+        onQuitar={vi.fn()}
+      />,
+    );
+
+    for (const boton of screen.getAllByRole('button', { name: /quitar/i })) expect(boton).toBeEnabled();
   });
 });

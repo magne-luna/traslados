@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Button } from '../../design-system/components';
+import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { generateId } from '../../shared/lib/id';
 import { capacidadDisponible } from '../../shared/lib/hojas-de-ruta/capacidadDisponible';
@@ -110,6 +110,14 @@ export function AsignacionPanel({
         </Alert>
       )}
 
+      {/* gateo-hojas-de-ruta (design.md D4/D9, tasks.md 5.3): una sola inserción cubre
+          SelectorPaciente + PacienteTramoCampos (ninguno de los dos cambia ni una línea ni
+          recibe props nuevas) + la acción "Agregar pasajero". RequisitosPaciente queda fuera:
+          sigue legible sin permiso de escritura.
+          IMPORTANTE (security-review): esto es UX, no una frontera de seguridad — la
+          autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes', 'write').
+          Mismo comentario que permisos.ts y usePuedeEscribir.ts. */}
+      <CamposSoloLectura>
       <div className="flex flex-wrap items-end gap-md">
         <SelectorPaciente formId={formId} pacientes={pacientes} value={pacienteId} onChange={handlePacienteChange} />
 
@@ -126,11 +134,12 @@ export function AsignacionPanel({
           onDireccionDestinoChange={setDireccionDestinoId}
         />
 
-        <Button variant="secondary" onClick={handleSubmit}>
+        <Button variant="secondary" requiereEscritura onClick={handleSubmit}>
           <PlusIcon />
           Agregar pasajero
         </Button>
       </div>
+      </CamposSoloLectura>
 
       {pacienteSeleccionado && <RequisitosPaciente paciente={pacienteSeleccionado} vehiculo={vehiculo} />}
     </div>
