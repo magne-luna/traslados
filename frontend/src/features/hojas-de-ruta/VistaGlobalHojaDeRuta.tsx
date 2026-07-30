@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Button } from '../../design-system/components';
+import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { capacidadDisponible } from '../../shared/lib/hojas-de-ruta/capacidadDisponible';
 import { validarCompatibilidadAccesorio } from '../../shared/lib/hojas-de-ruta/validarCompatibilidadAccesorio';
@@ -102,6 +102,15 @@ export function VistaGlobalHojaDeRuta({ recorridos, vehiculos, conductores, paci
         <div key={recorrido.id} className="flex flex-col gap-sm rounded-sm border border-warning-soft bg-warning-soft p-md">
           <p className="m-0 font-body text-[13px] font-semibold text-warning">⚠ {razonConflicto(recorrido)}</p>
 
+          {/* gateo-hojas-de-ruta (design.md D4/D9, tasks.md 6.5): un envoltorio por bloque de
+              conflicto cubre el <select> de destino y "Mover" de todas sus filas — la razón del
+              conflicto (arriba) y el nombre de cada pasajero quedan fuera y siguen legibles sin
+              permiso de escritura, porque <fieldset disabled> solo deshabilita controles de
+              formulario, nunca oculta texto.
+              IMPORTANTE (security-review): esto es UX, no una frontera de seguridad — la
+              autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes',
+              'write'). Mismo comentario que permisos.ts y usePuedeEscribir.ts. */}
+          <CamposSoloLectura>
           {recorrido.paradas.map((parada) => {
             const fila: FilaReasignacion = { recorridoId: recorrido.id, paradaId: parada.id, pacienteId: parada.pacienteId };
             const nombre = nombrePaciente(parada.pacienteId);
@@ -134,12 +143,13 @@ export function VistaGlobalHojaDeRuta({ recorridos, vehiculos, conductores, paci
                     </option>
                   ))}
                 </select>
-                <Button variant="secondary" onClick={() => handleMover(fila)}>
+                <Button variant="secondary" requiereEscritura onClick={() => handleMover(fila)}>
                   Mover
                 </Button>
               </div>
             );
           })}
+          </CamposSoloLectura>
         </div>
       ))}
     </div>

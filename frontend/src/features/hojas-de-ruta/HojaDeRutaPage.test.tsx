@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
 import type { HojaDeRutaRepository } from '../../shared/lib/hojas-de-ruta/HojaDeRutaRepository';
@@ -205,5 +205,90 @@ describe('HojaDeRutaPage — gateo de escritura (alta de la hoja del día)', () 
     renderPageConPermiso(true, buildFakeHojaRepo());
 
     expect(await screen.findByRole('button', { name: /crear hoja de ruta/i })).toBeEnabled();
+  });
+});
+
+// Lo que NO se gatea (gateo-hojas-de-ruta, design.md D1/D2, tasks.md 6.1-6.6): el riesgo más
+// costoso de todo el split de gateo — encerrar a una cuenta de solo `read` en la vista de armado
+// o en la hoja de hoy, sin poder ver datos que su permiso SÍ la autoriza a ver.
+describe('HojaDeRutaPage — lo que NO se gatea (D1/D2)', () => {
+  const hojaConRecorrido: HojaDeRuta = {
+    id: 'hoja-1',
+    fecha: HOY,
+    franjaInicio: '08:00',
+    franjaFin: '20:00',
+    recorridos: [{ id: 'r-1', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
+  };
+
+  it('sin permiso de escritura: los tres conmutadores de vista son activables y las tres vistas se renderizan completas', async () => {
+    const user = userEvent.setup();
+    renderPageConPermiso(false, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hojaConRecorrido]) }));
+
+    const botonArmado = await screen.findByRole('button', { name: /^armado$/i });
+    const botonGlobal = screen.getByRole('button', { name: /vista global/i });
+    const botonImprimir = screen.getByRole('button', { name: /imprimir/i });
+    expect(botonArmado).toBeEnabled();
+    expect(botonGlobal).toBeEnabled();
+    expect(botonImprimir).toBeEnabled();
+
+    await user.click(botonGlobal);
+    expect(screen.getByText(/sin conflictos/i)).toBeInTheDocument();
+
+    await user.click(botonImprimir);
+    expect(screen.getByRole('heading', { name: new RegExp(`hoja de ruta — ${HOY}`, 'i') })).toBeInTheDocument();
+
+    await user.click(botonArmado);
+    expect(screen.getByText(/recorridos del día/i)).toBeInTheDocument();
+  });
+
+  it('con permiso de escritura: los tres conmutadores de vista funcionan igual', async () => {
+    const user = userEvent.setup();
+    renderPageConPermiso(true, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hojaConRecorrido]) }));
+
+    await user.click(await screen.findByRole('button', { name: /vista global/i }));
+    expect(screen.getByText(/sin conflictos/i)).toBeInTheDocument();
+  });
+
+  it('sin permiso de escritura: el selector de fecha acepta el cambio y la pantalla muestra la hoja (o el estado vacío) de ese día', async () => {
+    renderPageConPermiso(false, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hojaConRecorrido]) }));
+
+    const inputFecha = await screen.findByLabelText(/fecha/i);
+    expect(inputFecha).toBeEnabled();
+
+    fireEvent.change(inputFecha, { target: { value: '2020-01-01' } });
+
+    expect(await screen.findByText(/no hay hoja de ruta cargada para el 2020-01-01/i)).toBeInTheDocument();
+  });
+
+  it('el encabezado de la pantalla (fecha + conmutadores) no queda dentro de ningún envoltorio de solo lectura', async () => {
+    renderPageConPermiso(false, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hojaConRecorrido]) }));
+
+    const inputFecha = await screen.findByLabelText(/fecha/i);
+    // Un <fieldset disabled> ancestro deshabilitaría también este input — si esto pasa, prueba
+    // que el encabezado quedó envuelto por error (design.md D2).
+    expect(inputFecha.closest('fieldset[disabled]')).toBeNull();
+  });
+});
+
+// Vistas de solo lectura (gateo-hojas-de-ruta, design.md D6/riesgos, tasks.md 6.3/6.4): la vista
+// imprimible y los tres archivos NO tocados (RecorridoMapa, RecorridoStat, RequisitosPaciente) no
+// cambian ni una línea — ya verificado por `git diff --stat` al cierre de esta sección; acá solo
+// se confirma que se renderizan completos con solo `read`.
+describe('HojaDeRutaPage — vistas de solo lectura no se bloquean', () => {
+  it('sin permiso de escritura: la vista imprimible se renderiza completa y es utilizable', async () => {
+    const user = userEvent.setup();
+    const hoja: HojaDeRuta = {
+      id: 'hoja-1',
+      fecha: HOY,
+      franjaInicio: '08:00',
+      franjaFin: '20:00',
+      recorridos: [{ id: 'r-1', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
+    };
+    renderPageConPermiso(false, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hoja]) }));
+
+    await user.click(await screen.findByRole('button', { name: /imprimir/i }));
+
+    expect(screen.getByRole('heading', { name: new RegExp(`hoja de ruta — ${HOY}`, 'i') })).toBeInTheDocument();
+    expect(screen.getByText(/franja horaria 08:00 a 20:00/i)).toBeInTheDocument();
   });
 });

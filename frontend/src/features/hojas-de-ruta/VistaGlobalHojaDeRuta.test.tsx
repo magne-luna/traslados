@@ -5,7 +5,12 @@ import type { Conductor } from '../../shared/types/conductor';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ParadaRecorrido, Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { VistaGlobalHojaDeRuta } from './VistaGlobalHojaDeRuta';
+
+function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
+  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+}
 
 // Vista global del día (tasks.md 7.5, RF-705): señala conflictos (vehículo/conductor fuera de
 // servicio) y permite reasignar pasajeros a otro recorrido respetando RN-VE-01 (accesorio) y
@@ -162,5 +167,83 @@ describe('VistaGlobalHojaDeRuta', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/silla-rigida/i);
     expect(onReasignar).not.toHaveBeenCalled();
+  });
+});
+
+// Gateo de escritura (gateo-hojas-de-ruta, design.md D4/D9, tasks.md 6.5): un envoltorio por
+// bloque de conflicto cubre el <select> de destino y "Mover"; el resto (razón del conflicto,
+// nombre del pasajero) queda fuera y sigue legible sin permiso de escritura.
+describe('VistaGlobalHojaDeRuta — gateo de escritura', () => {
+  const paciente = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+  const conflictivo: Recorrido = {
+    id: 'r-fds',
+    vehiculoId: 'v-fds',
+    conductorId: 'c-op',
+    manual: false,
+    paradas: [buildParada()],
+  };
+  const destino: Recorrido = { id: 'r-ok', vehiculoId: 'v-ok', conductorId: 'c-op', manual: false, paradas: [] };
+
+  it('sin permiso de escritura: no se puede elegir destino ni mover una fila, y el conflicto y el pasajero siguen legibles', async () => {
+    const user = userEvent.setup();
+    const onReasignar = vi.fn();
+
+    renderConPermiso(
+      false,
+      <VistaGlobalHojaDeRuta
+        recorridos={[conflictivo, destino]}
+        vehiculos={[vehiculoFueraDeServicio, vehiculoHabilitado]}
+        conductores={[conductorOperando]}
+        pacientes={[paciente]}
+        onReasignar={onReasignar}
+      />,
+    );
+
+    expect(screen.getByText(/vehículo fuera de servicio/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/gómez, martina/i).length).toBeGreaterThan(0);
+
+    const selectDestino = screen.getByLabelText(/reasignar gómez, martina a/i);
+    const botonMover = screen.getByRole('button', { name: /mover/i });
+    expect(selectDestino).toBeDisabled();
+    expect(botonMover).toBeDisabled();
+
+    await user.click(botonMover);
+    expect(onReasignar).not.toHaveBeenCalled();
+  });
+
+  it('con permiso de escritura: se puede elegir destino y mover la fila', async () => {
+    const user = userEvent.setup();
+    const onReasignar = vi.fn();
+
+    renderConPermiso(
+      true,
+      <VistaGlobalHojaDeRuta
+        recorridos={[conflictivo, destino]}
+        vehiculos={[vehiculoFueraDeServicio, vehiculoHabilitado]}
+        conductores={[conductorOperando]}
+        pacientes={[paciente]}
+        onReasignar={onReasignar}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/reasignar gómez, martina a/i), 'r-ok');
+    await user.click(screen.getByRole('button', { name: /mover/i }));
+
+    expect(onReasignar).toHaveBeenCalledWith('parada-1', 'r-fds', 'r-ok');
+  });
+
+  it('rol admin sin filas (puedeEscribir=true): "Mover" es activable', () => {
+    renderConPermiso(
+      true,
+      <VistaGlobalHojaDeRuta
+        recorridos={[conflictivo, destino]}
+        vehiculos={[vehiculoFueraDeServicio, vehiculoHabilitado]}
+        conductores={[conductorOperando]}
+        pacientes={[paciente]}
+        onReasignar={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /mover/i })).toBeEnabled();
   });
 });
