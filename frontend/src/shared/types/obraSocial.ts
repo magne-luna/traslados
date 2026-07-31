@@ -53,7 +53,14 @@ export interface PlantillaFactura {
 export interface ObraSocial {
   id: string;
   nombre: string;
-  /** CUIT del prestador/entidad pagadora — distinto del CUIL del paciente (RN-ID-01). */
+  /**
+   * CUIT — ambigüedad sin confirmar (integracion-obra-social D8, discrepancia #12): la base real
+   * tiene `obra_social.cuit` y `prestadores.cuit` como columnas distintas, y no está confirmado si
+   * este campo corresponde a la obra social (entidad pagadora) o al prestador. RN-ID-01 solo separa
+   * CUIT (empresa) de CUIL (titular del paciente) — no dice cuál empresa. Ver
+   * `AvisoModeloDatos` en `ObraSocialDetail.tsx` y `knowledge-base/04_modelo_de_datos.md`
+   * §Discrepancias. No se resuelve acá.
+   */
   cuit: string;
   /** Plazo de cobro en días, configurable por obra social (default documentado: 90 días). */
   plazoCobroDias: number;
@@ -65,6 +72,24 @@ export interface ObraSocial {
    * de los ítems del array es significativo y debe preservarse. */
   checklist: ChecklistItem[];
   plantillaFactura: PlantillaFactura;
+  /**
+   * Código interno/identificador corto de la obra social (integracion-obra-social D9,
+   * discrepancia #11 del docx: la columna `obra_social.codigo` ya existe en la base desde
+   * `20260724100003_schema_obra_social.sql` pero ninguna vía de la app podía completarla).
+   * Opcional: la columna es NULLable y el docx no la marca obligatoria.
+   */
+  codigo?: string;
+  /** Dirección de la obra social (D9, discrepancia #11). Columna `obra_social.direccion`, NULLable. */
+  direccion?: string;
+  /** Teléfono de la obra social (D9, discrepancia #11). Columna `obra_social.telefono`, NULLable. */
+  telefono?: string;
+  /**
+   * Condición frente al IVA (D9, discrepancia #11 y #14). Columna `obra_social.condicion_iva`,
+   * `TEXT` libre — ninguna fuente (docx ni KB) enumera sus valores posibles, así que se modela
+   * como `string` libre y no como unión de literales inventada. Pregunta abierta en
+   * `knowledge-base/10_preguntas_abiertas.md`.
+   */
+  condicionIva?: string;
 }
 
 /** Payload de alta: todo lo de ObraSocial salvo el id, que asigna el repository. */

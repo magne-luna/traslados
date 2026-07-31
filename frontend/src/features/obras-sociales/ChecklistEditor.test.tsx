@@ -22,6 +22,18 @@ describe('ChecklistEditor', () => {
     expect(screen.getByText(/sin ítems/i)).toBeInTheDocument();
   });
 
+  // tasks.md 6.1 (D3, checkpoint confirmado por la usuaria): el catálogo de tipos de documento es
+  // compartido con Pacientes (y con Facturación) — es el cartel más importante del change.
+  it('muestra un cartel avisando que el nombre del ítem se guarda en un catálogo compartido con Pacientes', () => {
+    render(<ChecklistEditor items={items} onChange={vi.fn()} />);
+
+    const cartel = screen.getByRole('note');
+    expect(cartel).toHaveTextContent(/catálogo/i);
+    expect(cartel).toHaveTextContent(/compartido/i);
+    expect(cartel).toHaveTextContent(/pacientes/i);
+    expect(cartel).toHaveTextContent(/no se puede quitar/i);
+  });
+
   it('agrega un ítem al final del checklist con el nombre ingresado', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

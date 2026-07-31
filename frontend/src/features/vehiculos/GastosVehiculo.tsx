@@ -1,16 +1,14 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button, CamposSoloLectura, Chip } from '../../design-system/components';
-import { Field, Input, Select } from '../../design-system/form';
+import { Button, CamposSoloLectura } from '../../design-system/components';
+import { Field, Input } from '../../design-system/form';
 import { Table, Td, Th, Tr } from '../../design-system/table';
-import type { CategoriaGasto, GastoVehiculo } from '../../shared/types/vehiculo';
-import { CATEGORIA_GASTO_CHIP_KIND, CATEGORIA_GASTO_LABELS, CATEGORIA_GASTO_OPTIONS } from './categoriaGastoOptions';
+import type { GastoVehiculo } from '../../shared/types/vehiculo';
 import { validateGastoForm, type GastoFormErrors } from './validateGastoForm';
 
 export interface NuevoGastoInput {
   fecha: string;
   monto: number;
   descripcion: string;
-  categoria: CategoriaGasto;
 }
 
 interface GastosVehiculoProps {
@@ -41,7 +39,6 @@ export function GastosVehiculo({ gastos, onAgregar, ahora = new Date() }: Gastos
   const [fecha, setFecha] = useState('');
   const [monto, setMonto] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [categoria, setCategoria] = useState<CategoriaGasto>('mantenimiento');
   const [errors, setErrors] = useState<GastoFormErrors>({});
   const formId = useId();
 
@@ -51,11 +48,10 @@ export function GastosVehiculo({ gastos, onAgregar, ahora = new Date() }: Gastos
     const validationErrors = validateGastoForm({ fecha, monto: montoNumerico });
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
-    onAgregar({ fecha, monto: montoNumerico, descripcion, categoria });
+    onAgregar({ fecha, monto: montoNumerico, descripcion });
     setFecha('');
     setMonto('');
     setDescripcion('');
-    setCategoria('mantenimiento');
   }
 
   const totalGastado = gastos.reduce((total, gasto) => total + gasto.monto, 0);
@@ -98,9 +94,6 @@ export function GastosVehiculo({ gastos, onAgregar, ahora = new Date() }: Gastos
                   <Th scope="col" align="left" padding="md" divided muted>
                     Descripción
                   </Th>
-                  <Th scope="col" align="left" padding="md" divided muted>
-                    Categoría
-                  </Th>
                 </Tr>
               </thead>
               <tbody>
@@ -114,9 +107,6 @@ export function GastosVehiculo({ gastos, onAgregar, ahora = new Date() }: Gastos
                     </Td>
                     <Td padding="md" divided>
                       {gasto.descripcion || '—'}
-                    </Td>
-                    <Td padding="md" divided>
-                      <Chip kind={CATEGORIA_GASTO_CHIP_KIND[gasto.categoria]}>{CATEGORIA_GASTO_LABELS[gasto.categoria]}</Chip>
                     </Td>
                   </Tr>
                 ))}
@@ -162,21 +152,6 @@ export function GastosVehiculo({ gastos, onAgregar, ahora = new Date() }: Gastos
               value={descripcion}
               onChange={(event) => setDescripcion(event.target.value)}
             />
-          </Field>
-
-          <Field label="Categoría" htmlFor={`${formId}-categoria`}>
-            <Select
-              id={`${formId}-categoria`}
-              density="comfortable"
-              value={categoria}
-              onChange={(event) => setCategoria(event.target.value as CategoriaGasto)}
-            >
-              {CATEGORIA_GASTO_OPTIONS.map((opcion) => (
-                <option key={opcion} value={opcion}>
-                  {CATEGORIA_GASTO_LABELS[opcion]}
-                </option>
-              ))}
-            </Select>
           </Field>
 
           <Button type="submit" variant="primary" requiereEscritura>

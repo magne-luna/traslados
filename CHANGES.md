@@ -20,6 +20,32 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 
 ---
 
+## Plan de integración Backend↔Frontend (swap de mocks)
+
+> Objetivo actual (desde 2026-07-31): terminar de integrar con el backend real todo dominio que hoy corre sobre repositorio mock. El schema + RLS de Supabase ya existe para casi todos (relevamiento `traslados-app/estado-proyecto`, 2026-07-30); lo que falta en cada uno es escribir el `Supabase*Repository` concreto y cablearlo en el composition root (`*Route.tsx` — cada uno ya tiene el comentario "cuando exista SupabaseXRepository, este es el único archivo que cambia").
+>
+> No confundir con los changes C-NN de arriba (esos son "construir la pantalla"; esto es "conectarla al backend real" — en varios casos ya archivados como `*-ui` en mock, y ahora toca el swap).
+
+> **Retomado por la usuaria (2026-07-31).** El plan había quedado pausado tras Obra Social (paso 1);
+> la usuaria confirmó seguir. `Conductores + Vehículos` (fila 3) lo está llevando ella misma en una
+> sesión de Claude Code aparte — no tocar ese change desde acá. `Facturación` (fila 4) se propuso en
+> esta sesión y queda bloqueada en su propio portón de governance (§C-07) hasta que Enzo/backend
+> decida las 5 preguntas — no avanzar al apply sin esas respuestas.
+
+| Orden | Dominio | Estado | Notas |
+|-------|---------|--------|-------|
+| — | Auth / Cuentas | ✅ real | Ya integrado, no forma parte de este plan |
+| 1 | Pacientes (C-05) | 🔶 código+migración+tests completos, **pendiente de revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-05 más abajo |
+| 2 | Obra Social (C-04) | 🔶 código+migraciones+tests completos (`integracion-obra-social`, 2026-07-31), **pendiente de aplicación de las migraciones y revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-04 más abajo. Hallazgo del apply: el schema real ya tenía casi todo lo que `design.md` planeaba (nombres/tipos distintos). D12 (RN-ID-02) se revirtió el mismo día — ver §C-04 |
+| 3 | Conductores + Vehículos (C-08/C-09) | ⚠️ **ver nota** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). Apareció además `openspec/changes/integracion-conductores-vehiculos/` con propose completo, **no generado desde esta sesión** — hay actividad concurrente de otra sesión sobre este mismo dominio. No arrancar acá sin confirmar con la usuaria quién lo está llevando |
+| 4 | Facturación (C-07) | 🔶 propose completo (`integracion-facturacion`, 2026-07-31), **bloqueado en el portón de governance §0 de `tasks.md` — 5 decisiones a cargo de Enzo/backend** antes de poder aplicar | Ver bullet ⏳ en §C-07 más abajo para el detalle de las 5 decisiones |
+| 5 | Presupuestos (C-06) | 🔴 bloqueado | 2 puntos a coordinar con backend, governance ALTO (ver §C-06) |
+| 6 | Hojas de Ruta (C-10) | ⏳ pendiente | — |
+| 7 | Dashboard (C-11) | ⏳ pendiente | Va último — agrega datos de todos los repos reales de arriba |
+| 8 | Documentos (storage) | ⏳ pendiente | Buckets ya creados; falta reemplazar `mockDocumentoRepository` (uploads simulados) |
+
+---
+
 ## Árbol de dependencias
 
 ```
@@ -161,7 +187,52 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 - **Progreso frontend (mock, vía FE-1)**: ✅ `DocumentChecklist` reutilizable (`frontend/src/shared/components/DocumentChecklist.tsx`) + `DocumentoRepository`/`mockDocumentoRepository` (`frontend/src/shared/lib/documentos/`) con upload mock y latencia simulada. **Falta**: tabla `documento_{entidad}`, integración real con buckets, `audit_log`.
 
 ### [C-04] `obras-sociales-prestadores`
-- **Estado**: `[~]` backend implementado y pusheado (2026-07-28/29), incl. Edge Functions `obra-social`/`prestadores`/`requisitos-os`/`plantilla-campo` (2026-07-30); pendiente verificación manual y que frontend reemplace el mock
+- **Estado**: 🔶 `integracion-obra-social` — checkpoint D3/D8 confirmado por la usuaria (2026-07-31),
+  código + migraciones + tests completos vía apply (2026-07-31), **pendiente de aplicación real de
+  las migraciones y de verificación manual con cuentas reales a cargo de Enzo/backend** antes de
+  archivar. Ver bloque ⏳ en §Plan de integración más abajo (fila 2) para el checklist exacto.
+- **✅ Checkpoint confirmado por la usuaria (2026-07-31)**:
+  - **D3** — `obra_social.tipos_documento` es un catálogo **compartido** con Pacientes
+    (`pacientes.documentos.id_tipo_documento`, `ON DELETE RESTRICT`) **y con Facturación**
+    (`facturacion.documento_factura.id_tipo_documento`, misma FK — hallazgo de la verificación de
+    schema real, no estaba anticipado). Se confirmó la propuesta A + cartel (get-or-create
+    normalizado, con `AvisoModeloDatos` en `ChecklistEditor.tsx` explicando el riesgo).
+  - **D8** — `prestadores-crud` queda como change propio; `obra_social.prestadores` no se toca.
+- **✅ Hallazgo del apply (2026-07-31) — resuelto el mismo día: D12 revertida.** Al verificar el
+  schema real (`supabase db query --linked`, sin Docker) se encontró que el backend ya había resuelto
+  **RN-ID-02 al revés de D12**: `obra_social.formato_identificador_afiliado` (la columna que D12
+  decidió agregar) no existe; en cambio `obra_social.coberturas_paciente.formato_afiliado` (por
+  cobertura/paciente, no por obra social) ya existe, aplicada antes de que D12 se escribiera. Este
+  change **no agregó** la columna de D12. La usuaria confirmó aceptar la realidad ya construida —
+  D12 queda revertida (ver `integracion-obra-social/design.md`, bloque "❌ D12 REVERTIDA"). Detalle
+  completo en `knowledge-base/04_modelo_de_datos.md` §Discrepancias (discrepancia #16, cerrada) y
+  `knowledge-base/10_preguntas_abiertas.md` (IN-01). La task de seguimiento en
+  `integracion-pacientes/tasks.md` §8 ya **no** está bloqueada por este change — pasa a ser un bug
+  bloqueante propio (`8.0`, `crear_paciente_completo` no completa `formato_afiliado`, `23502` en
+  cualquier alta con número de afiliado).
+- **⏳ Pendiente de revisión (a cargo de Enzo/backend)** antes de poder archivar `integracion-obra-social`:
+  - `1B.6` — aplicar `20260731120000_obra_social_config_facturacion.sql` (2 índices, reconciliación
+    — casi todo lo demás ya existía en la base real, ver hallazgo arriba) y
+    `20260731120001_obra_social_rpc.sql` (las dos funciones) al proyecto real; el sandbox del agente
+    no tiene Docker ni credenciales de escritura.
+  - `1B.7` — segundo paso del expand/contract del `CHECK` de `tipo_comprobante`: **no aplica** — la
+    columna real ya es un enum (`facturacion.tipo_factura`), más estricto que un `CHECK`, no hace
+    falta el paso de validación en dos tiempos que `design.md` había planeado.
+  - `1B.8` — verificación manual de las dos funciones con 3 cuentas reales (`obra_social: write` da
+    de alta completo con checklist y plantilla; `obra_social: read` sin `write` falla y cero filas
+    creadas — ojo: para `actualizar_...` esto puede llegar como `45103` en vez de `42501`, ver nota
+    en `04_modelo_de_datos.md`; reordenar el checklist persiste el orden; `p_cambios` sin la clave
+    `checklist` no la borra; ítem con nombre vacío aborta con `45101` y cero filas;
+    `select prosecdef ...` → `false` en ambas) — checklist completo en `design.md` §Migration Plan
+    paso 6 y `tasks.md` 1B.8.
+  - `8.5`/`8.6` — verificación en navegador (`npm run dev`) con las mismas 3 cuentas y rastro en
+    `auditoria.logs` (alta y edición, incluidas las filas de `tipos_documento` creadas por el
+    get-or-create).
+  - Lo que **ya está confirmado**: schema real verificado en vivo (`supabase db query --linked`,
+    sin Docker) antes de escribir las migraciones; `SECURITY INVOKER` en las dos funciones nuevas
+    (test automatizado que lee el `.sql`); suite completa sin regresiones; `tsc`/`oxlint` limpios;
+    cobertura ≥85% en `shared/lib/obrasSociales/`.
+  - Una vez confirmado todo lo anterior: `sdd-archive integracion-obra-social`.
 - **Scope**:
   - Migración: tabla `obra_social` (nombre, CUIT del prestador — **distinto** del CUIL del titular del paciente, RN-ID-01), plazo de cobro configurable, tipo de comprobante (A/B/C), modalidad de facturación (por prestación vs. general), si admite pagos parciales/por lote.
   - Migración: tabla `checklist_documentacion_obra_social` (ítems ordenados, configurable por obra social — respetar orden e ítems tal como los exige cada una) y tabla `plantilla_facturacion` (campos que la descripción de factura de esa obra social requiere).
@@ -175,16 +246,33 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - `knowledge-base/05_reglas_de_negocio.md` §RN-ID-01, RN-FA-07, RN-FA-08
   - `knowledge-base/04_modelo_de_datos.md` §ObraSocial
   - `knowledge-base/10_preguntas_abiertas.md` (prioridad Alta: identificación fiscal, checklists de otras obras sociales, "FIM")
-- **Progreso frontend (mock, vía FE-2)**: ✅ CRUD de obras sociales, editor de checklist (drag-and-drop + fallback accesible) y editor de plantilla de factura — implementado y archivado como `obras-sociales-ui` (`openspec/changes/archive/2026-07-24-obras-sociales-ui/`), 23/24 tasks completas (falta solo verificación manual en navegador, no bloqueante). Antes de escribir la migración real, coordinar con quien implemente el backend los nombres de campo de `ObraSocial` definidos en su `design.md` (mock en `localStorage`, checklist embebido en el tipo, plantilla de factura como `PlantillaCampo[]`, `identificadorOrigen` configurable por IN-01).
-- **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** (señalizada con carteles `AvisoModeloDatos` en `ObraSocialDetail.tsx`, detalle en `04_modelo_de_datos.md`):
-  - El docx no tiene `plazoCobroDias`/`modalidadFacturacion`/`admitePagosParciales`/`plantillaFactura` en absoluto (son reglas de negocio reales, RN-FA-07/08 — hay que sumarlas a la migración, no descartarlas).
-  - El checklist en el docx es una tabla de vínculo ("Requisitos de la Obra Social") contra un catálogo compartido de Tipos de Documento, no un array embebido en `obra_social`.
-  - Faltan en el frontend campos que sí están en el docx: Código, Dirección, Teléfono, Condición frente al IVA.
-  - El docx agrega una entidad "Prestadores" (razón social, CUIT, dirección, teléfono) que no está en el scope de este change ni en la KB — evaluar si entra acá o en un change propio.
+- **Progreso frontend**: ✅ CRUD de obras sociales, editor de checklist (drag-and-drop + fallback
+  accesible) y editor de plantilla de factura — implementado sobre mock (`obras-sociales-ui`,
+  archivado) y **conectado a Supabase real por `integracion-obra-social`** (2026-07-31):
+  `SupabaseObraSocialRepository.ts` + `obraSocialMapping.ts`, cableado en `ObraSocialesRoute.tsx`.
+  `mockObraSocialRepository` se conserva como doble de test.
+- **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** (`04_modelo_de_datos.md`
+  §Discrepancias, bloque "Obras Sociales vs. esquema real de `C-04`" tiene el detalle completo de
+  las 17 discrepancias — 1 a 11 y 15 **resueltas**, 12/13/14 **decididas o pendientes** como antes,
+  16/17 son hallazgos **nuevos** de la verificación de schema real):
+  1. **Resuelto**: `plazoCobroDias`/`modalidadFacturacion`/`admitePagosParciales`/`plantillaFactura`
+     (RN-FA-07/08, ausentes del docx) ya son columnas/tabla reales de la base, configurables.
+  2. **Resuelto**: el checklist ya se persiste relacional contra el catálogo compartido
+     `tipos_documento`, con `orden`/`requerido` como columnas propias — ya no es un array embebido.
+  3. **Resuelto**: los 4 campos del docx (Código, Dirección, Teléfono, Condición frente al IVA) ya
+     están en el frontend.
+  4. **Decidido (D8)**: `Prestadores` no entra en este change — change propio `prestadores-crud`.
+  5. **Nuevo, sin resolver**: `ObraSocial.cuit` vs. `prestadores.cuit` — cuál es cuál no está
+     confirmado (discrepancia #12, cartel en `ObraSocialDetail.tsx`).
+  6. **Nuevo, sin resolver**: valores válidos de `condicion_iva` sin enumerar en ninguna fuente
+     (discrepancia #14).
+  7. **Nuevo, sin resolver**: quién administra el catálogo `obra_social.tipos_documento` — no hay
+     pantalla, y lo comparten Pacientes **y** Facturación (`documento_factura`, hallazgo no
+     documentado hasta ahora).
 - **Progreso backend (real, C-04, 2026-07-28)**: ✅ implementado y pusheado. El schema `obra_social` (incl. `prestadores`, `tipos_documento`, `requisitos_os`) ya existía de rebote desde la revisión de C-02 y ya cubría Código/Dirección/Teléfono/Condición IVA y la entidad Prestadores del docx. Esta migración cerró lo que faltaba: `plazo_cobro_dias`/`modalidad_facturacion`/`admite_pagos_parciales`/`identificador_origen` en `obra_social.obra_social` (nombres/defaults tomados 1:1 de `frontend/src/shared/types/obraSocial.ts`), `orden`/`requerido` en `requisitos_os` (RN-FA-08), y tabla nueva `plantilla_campo`. **Falta**: cargar el checklist real de OSECAC como dato (contenido de negocio, no estructura — lo carga la administradora desde la app).
 
 ### [C-08] `vehiculos-mantenimiento`
-- **Estado**: `[~]` backend implementado y pusheado (2026-07-30); falta verificación manual y que frontend reemplace el mock
+- **Estado**: `[x]` completado (frontend mock, 2026-07-31)
 - **Scope**:
   - Migración: tabla `vehiculo` (patente, modelo, tipo, capacidad hasta 6, accesorios de movilidad compatibles, estado habilitado/fuera de servicio, kilometraje).
   - Migración: tabla `gasto_vehiculo` (evento con fecha y monto, sin frecuencia fija), tabla `mantenimiento_registro` (preventivo/correctivo, VTV, RTO — ambas habilitaciones registrables de forma independiente).
@@ -199,12 +287,18 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - `knowledge-base/05_reglas_de_negocio.md` §RN-VE-01 a RN-VE-04
   - `knowledge-base/04_modelo_de_datos.md` §Vehiculo
   - `knowledge-base/07_flujos_principales.md` §Flujo 4
-- **Progreso frontend (mock, vía FE-2)**: ✅ CRUD de vehículos, selector de accesorios de movilidad, toggle habilitado/fuera de servicio, vista de mantenimiento (alertas de service y VTV/RTO), registro de gastos y checklist documental — implementado y archivado como `vehiculos-ui` (`openspec/changes/archive/2026-07-24-vehiculos-ui/`), 24/24 tasks completas, verificación manual en navegador confirmada por el usuario. Antes de escribir la migración real, coordinar con quien implemente el backend los nombres de campo de `Vehiculo` definidos en su `design.md` (mock en `localStorage`, `gastos`/`habilitaciones` embebidos en el tipo).
+- **Progreso frontend (mock)**: ✅ **Completado y archivado** (`openspec/changes/archive/2026-07-31-vehiculo-mantenimiento-registro/`), 48/48 tasks completas, verificación manual en navegador confirmada por la usuaria.
+  - Tanda 1 (vía FE-2, archivado como `vehiculos-ui`): CRUD de vehículos, selector de accesorios de movilidad, toggle habilitado/fuera de servicio, vista de mantenimiento (alertas de service y VTV/RTO), registro de gastos y checklist documental (24/24 tasks).
+  - Tanda 2 (vía `vehiculo-mantenimiento-registro`, 2026-07-31): categorización de gastos/mantenimiento alineada al docx — se eliminó `GastoVehiculo.categoria` (valores inventados, sin fuente) y se creó la entidad `MantenimientoRegistro` (`Vehiculo.mantenimientos[]`) con la categoría real de dos niveles (tipo de intervención + sub-tipo), historial con alta validada, `mockVehiculoRepository` `SCHEMA_VERSION` 2 → 3. Specs deltados y mergeados en `openspec/specs/vehiculo-{contract,gastos,mantenimiento-historial}/spec.md` (24/24 tasks). Detalle completo en `04_modelo_de_datos.md` §Discrepancias.
 - **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** (señalizada con carteles `AvisoModeloDatos` en `VehiculoDetail.tsx`, detalle en `04_modelo_de_datos.md`):
-  - En el docx, kilometraje actual y próximo vencimiento (por fecha o por km) viven en la tabla `mantenimiento_registro`, no embebidos en `vehiculo` — revisar si `kilometraje`/`kilometrajeUltimoService`/`fechaUltimoService` deberían ser columnas derivadas del último registro de mantenimiento en vez de campos propios.
+  - ~~En el docx, kilometraje actual y próximo vencimiento (por fecha o por km) viven en la tabla `mantenimiento_registro`, no embebidos en `vehiculo`~~ — **parcialmente resuelto** por `vehiculo-mantenimiento-registro` (2026-07-31): la tabla Mantenimiento del docx ahora existe en el frontend como `MantenimientoRegistro`/`Vehiculo.mantenimientos[]`, con sus propios campos de kilometraje y próximo vencimiento por registro. **Sigue pendiente**: `kilometraje`/`kilometrajeUltimoService`/`fechaUltimoService` de `Vehiculo` no se derivan del historial (decisión explícita, ver design.md de ese change) — el vehículo sigue teniendo su propio kilometraje embebido, y el vencimiento VTV/RTO queda duplicado entre `habilitaciones[].fechaVencimiento` y `MantenimientoRegistro.proximoVencimientoFecha`.
   - VTV/RTO en el docx son solo ítems del catálogo genérico de documentos vehiculares, sin fecha de vencimiento propia (el vencimiento se rastrea vía mantenimiento) — distinto de `RegistroHabilitacion` en el frontend, que sí tiene `fechaVencimiento`.
   - Falta el campo `Notas` (observaciones sobre el vehículo) que sí está en el docx.
   - El docx ubica `gasto_vehiculo` bajo el módulo de permisos "facturacion", no "conductores" — importa para las RLS policies de este change.
+  - **Categoría de mantenimiento en dos niveles** (nuevo, `vehiculo-mantenimiento-registro`): el campo Categoría del docx en la entidad Mantenimiento combina nivel 1 (gasto/preventivo/correctivo) con el sub-tipo de US-500 — el frontend ya lo modela tipado como unión discriminada; el nombre de columna real de `mantenimiento_registro` para nivel 1 + nivel 2 queda a definir con el backend `C-08`.
+  - `gasto_vehiculo` no tiene campo de categoría (confirmado contra el docx); `mantenimiento_registro` no tiene monto — el importe de una intervención se carga como un gasto aparte, sin FK entre ambas tablas (el docx no la tiene).
+  - `GastoVehiculo.descripcion` es un agregado del frontend (no existe en el docx) — a confirmar si el backend lo suma a `gasto_vehiculo`.
+- **⚠️ Posible discrepancia backend/frontend sin resolver (detectada en merge, 2026-07-31)**: el punto de arriba (frontend, `vehiculo-mantenimiento-registro`) describe `gasto_vehiculo`/`mantenimiento_registro` como dos tablas reales separadas, sin FK. El "Progreso backend" de abajo (C-08, escrito en paralelo, nunca pusheado a la base real) asume en cambio que los gastos viven *dentro* de `conductores.mantenimiento` (`categoria = 'gasto'`) y que `facturacion.gastos_vehiculos` queda sin usar. **No verificado cuál de los dos coincide con el schema real** — confirmar antes de pushear la migración `20260730110000_schema_vehiculo_gaps.sql`.
 - **Progreso backend (real, C-08, 2026-07-30)**: ✅ implementado, pendiente deploy.
   **Decisión confirmada con Enzo** sobre el punto de arriba: los gastos del vehículo viven en
   `conductores.mantenimiento` (`categoria = 'gasto'`, tal cual el docx modela una única
@@ -415,6 +509,37 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   cliente los defaults de `10_preguntas_abiertas.md` antes de implementar la validación de cupo y
   el cálculo de fecha estimada de cobro como lógica de servidor (hoy son funciones puras del
   frontend, no replicadas acá).
+- **🔶 Propose completo del swap de backend** (`integracion-facturacion`, 2026-07-31):
+  `proposal.md` + `design.md` (14 decisiones D1-D14) + `tasks.md` + 5 delta specs
+  (`factura-repository-supabase` nueva, `factura-contract`/`factura-estados-circuito`/
+  `factura-cupo-validacion`/`cobro-registro` modificadas). Los 4 defaults de negocio de
+  `10_preguntas_abiertas.md` se **heredan sin cerrarlos** (identificador de factura, período
+  estructurado, plazos 90/60/45, ARCA manual) — la usuaria confirmó ese criterio antes del propose.
+- **⏳ Pendiente de decisión (a cargo de Enzo/backend)** antes de que `integracion-facturacion` pueda
+  pasar a apply — portón de governance §0 de `tasks.md`, gobernanza CRITICO, ninguna tarea corre sin
+  esto:
+  - **D3** — agregar `facturacion.facturas.fecha_factura DATE` (nullable). Única modificación de
+    schema del change. Requiere además coordinación previa con Enzo para confirmar que no está
+    planeada con otro nombre — el schema real viene por delante del repo desde hace tres changes
+    seguidos (mismo patrón que D12-revertida de `integracion-obra-social`).
+  - **D4** — crear dos funciones RPC `SECURITY INVOKER` (`crear_factura_completa`,
+    `actualizar_factura_completa`) para las altas/ediciones atómicas multi-tabla.
+  - **D6** — si el swap de `CobroRepository` entra en este mismo change o queda aparte. `design.md`
+    argumenta que es obligatorio (no opcional): con cobros en fixture y facturas reales, ningún
+    cobro matchea ninguna factura.
+  - **D9 (mayor riesgo funcional del change)** — la validación de cupo (RN-FA-02) queda operando
+    sobre fuente mixta: facturas reales × autorizaciones de fixture, porque `C-06` (Presupuestos)
+    sigue bloqueado. Tres opciones en `design.md` D9: **A.** fuente mixta + cartel visible
+    (propuesta), **B.** desactivar la alerta hasta que `C-06` esté integrado, **C.** arrastrar el
+    swap de `autorizacion` a este change. Hallazgo asociado, no es parte de esta decisión pero
+    la motiva: las policies reales de `facturacion.presupuesto`/`autorizacion` están gateadas por
+    el permiso `presupuestos`, no `facturacion` como dice el comentario de la migración commiteada
+    — un perfil con `facturacion: read/write` sin `presupuestos: read` ve **0 autorizaciones en
+    silencio**, dejando RN-FA-02 desactivada de hecho. Queda anotado como bloqueante a resolver en
+    `integracion-presupuestos`.
+  - **D10** — crear los 6 índices que faltan sobre las FK de `facturacion` sin `CONCURRENTLY`
+    (se aparta de una regla dura de `database-schema-design`), justificado en que las 6 tablas
+    tienen 0 filas hoy — condición a re-verificar inmediatamente antes de aplicar la migración.
 
 ---
 

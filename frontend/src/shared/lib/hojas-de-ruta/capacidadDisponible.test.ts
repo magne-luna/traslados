@@ -20,6 +20,7 @@ function buildVehiculo(capacidad: number): Vehiculo {
     fechaUltimoService: '2026-01-01',
     habilitaciones: [],
     gastos: [],
+    mantenimientos: [],
   };
 }
 

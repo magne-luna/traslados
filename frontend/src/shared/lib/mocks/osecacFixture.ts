@@ -23,6 +23,9 @@ export function buildOsecacFixture(): ObraSocial {
     id: 'osecac',
     nombre: 'OSECAC',
     cuit: '30-54155200-6',
+    // codigo/direccion/telefono/condicionIva (integracion-obra-social D9, tasks.md 2.4): las 4
+    // columnas ya existen en la base real, pero ni el docx ni la KB dan un valor verificable para
+    // OSECAC — quedan ausentes (undefined) en vez de inventados. Se completan cuando haya fuente.
     // Default documentado (knowledge-base/10_preguntas_abiertas.md: "confirmar 90 días de cobro
     // general"), editable por obra social — nunca hardcodeado aguas abajo.
     plazoCobroDias: 90,

@@ -22,6 +22,7 @@ const etios: Vehiculo = {
   fechaUltimoService: '2026-03-01',
   habilitaciones: [],
   gastos: [],
+  mantenimientos: [],
 };
 
 const partner: Vehiculo = {

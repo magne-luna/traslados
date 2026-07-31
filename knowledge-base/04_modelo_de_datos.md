@@ -59,7 +59,14 @@ Recorrido N---1 Paciente (por tramo, con dirección de ida y de vuelta independi
 - Constraint: debe estar vigente; se requiere alerta de vencimiento próximo (RF-104).
 
 ### ObraSocial
-- Atributos: nombre, checklist de documentación requerida (configurable, ej. OSECAC: RHC, prescripción, justificación, consentimiento, declaración de domicilio, mapa, presupuesto, CBU, habilitación, FIM), plantilla de descripción de factura, modalidad de facturación (por prestación vs. factura general), condiciones por prestador (plazo de cobro, tipo de comprobante A/B/C), si admite pagos parciales/por lote.
+- Atributos: nombre, código, dirección, teléfono, condición frente al IVA (los 4 últimos
+  integrados al frontend por `integracion-obra-social`, C-04, 2026-07-31 — ver §Discrepancias),
+  checklist de documentación requerida (configurable, ej. OSECAC: RHC, prescripción, justificación,
+  consentimiento, declaración de domicilio, mapa, presupuesto, CBU, habilitación, FIM; **persistido
+  relacional** contra el catálogo compartido `obra_social.tipos_documento`, no como array embebido),
+  plantilla de descripción de factura, modalidad de facturación (por prestación vs. factura
+  general), condiciones por prestador (plazo de cobro, tipo de comprobante A/B/C), si admite pagos
+  parciales/por lote.
 
 ### Presupuesto / Autorizacion
 - Atributos: estimación anual solicitada (Presupuesto) vs. respuesta de la obra social (Autorizacion — igual o menor, nunca mayor), cupo de días/km por mes, estado (pendiente, autorizada, judicializada, rechazada), vigencia (permite carga retroactiva, ej. autorizada en abril con vigencia desde enero).
@@ -121,9 +128,14 @@ así que queda anotado acá hasta que se construya esa feature.
   (`coordenadaOrigen`, fixture) tampoco existen en el docx — cartel en `RecorridoCard.tsx`; la
   franja horaria y las notas al pie del agregado `HojaDeRuta` tampoco existen en el docx — cartel
   en `HojaDeRutaPage.tsx`.
-- **Prestadores**: el docx tiene una entidad propia "Prestadores" (razón social, CUIT, dirección,
-  teléfono) bajo el área Obra Social. Esta KB solo la menciona como atributo suelto ("condiciones por
-  prestador"), no como tabla. Sumarla como entidad cuando se construya C-04.
+- **Prestadores** — **decidido 2026-07-31, change propio** (`integracion-obra-social` D8): el docx
+  tiene una entidad propia "Prestadores" (razón social, CUIT, dirección, teléfono) bajo el área
+  Obra Social; la tabla `obra_social.prestadores` ya existe en la base con RLS, pero no tiene tipo,
+  repository, ruta ni pantalla del lado del frontend. **No entra en `C-04`**: es "construir una
+  pantalla nueva" (con su CRUD, tests y gateo), no "conectar una existente" (que es el corte de la
+  serie de changes de integración backend↔frontend). Tampoco hay ninguna regla de negocio (`RN-`)
+  sobre Prestadores en esta KB, ni una FK entre `prestadores` y `obra_social` en la migración que
+  defina la relación (1:N, N:N, o ninguna). Se propone como change propio `prestadores-crud`.
 - **Documento de Factura** — resuelto-en-frontend 2026-07-25 (`facturacion-ui`, FE-6, ver detalle
   completo más abajo): esta KB asume `Factura 1---N DocumentoFactura` (comprobante ARCA, CODEM,
   etc.). El docx no tiene esa tabla — Presupuesto y Autorización tienen un campo "Archivo" único
@@ -138,14 +150,42 @@ así que queda anotado acá hasta que se construya esa feature.
   `PLAZO_COBRO_AMPARO_DIAS`, `PLAZO_ALERTA_VENCIDA_DIAS`) y función pura
   (`calcularFechaEstimadaCobro`), **pendiente de confirmar los tres valores y la precedencia
   amparo/obra social con el cliente** antes de sumar el campo a la BD.
-- **Checklist / plantilla de factura / modalidad de facturación**: cartel en UI (Obras Sociales). En
-  el docx el checklist es una tabla de vínculo contra un catálogo de Tipos de Documento, no un array
-  embebido; `plazoCobroDias`, `modalidadFacturacion`, `admitePagosParciales` y `plantillaFactura` no
-  existen en el docx en absoluto.
+- **Checklist / plantilla de factura / modalidad de facturación** — **resuelto 2026-07-31**
+  (`integracion-obra-social`, C-04, ver bloque dedicado más abajo "Obras Sociales vs. esquema real
+  de C-04"): el checklist ya se persiste relacional contra `obra_social.tipos_documento` (con
+  `orden`/`requerido` como columnas propias de `requisitos_os`), y `plazoCobroDias`,
+  `modalidadFacturacion`, `admitePagosParciales` y `plantillaFactura.campos`/`identificadorOrigen`
+  ya son columnas/tabla reales de la base — no existen en el docx, pero son reglas de negocio
+  reales (RN-FA-07/08) que se sumaron a la migración, no se descartaron por ausencia en el docx.
 - **Vehículo — kilometraje/habilitaciones**: cartel en UI (Vehículos). En el docx viven en la tabla
   Mantenimiento (kilometraje actual + próximo vencimiento por fecha/km), no embebidos en Vehículo.
 - **Gastos de Vehículo**: cartel en UI (Vehículos). En el docx el módulo de permisos que controla el
   acceso es "facturacion", no "conductores" — importa para las RLS policies.
+- **Categoría de gasto inventada / entidad Mantenimiento faltante** — resuelto parcialmente en
+  frontend 2026-07-31 (`openspec/changes/vehiculo-mantenimiento-registro/design.md`): `vehiculos-ui`
+  había agregado `GastoVehiculo.categoria: 'mantenimiento' | 'reparacion' | 'service'`, valores **sin
+  fuente** (ni en el docx, ni en esta KB, ni en el spec `vehiculo-gastos` vigente en ese momento). El
+  docx tiene **dos entidades separadas**: "Gastos de Vehículo" (Vehículo, Monto, Fecha — sin
+  categoría) y "Mantenimiento" (Vehículo, Categoría — "gasto, mantenimiento preventivo o
+  mantenimiento correctivo" —, Fecha, Próximo vencimiento fecha, Kilometraje actual, Próximo
+  vencimiento km). Este change: (1) quita `categoria` de `GastoVehiculo`, dejándolo igual al docx;
+  (2) crea `MantenimientoRegistro` embebido en `Vehiculo.mantenimientos[]` con la categoría real de
+  **dos niveles** — nivel 1 tipado con los tres valores del docx (`gasto | preventivo | correctivo`,
+  aunque el alta de esta pantalla solo ofrece los dos de mantenimiento), nivel 2 de US-500
+  (`knowledge-base/06_funcionalidades.md` L128-134): preventivo cerrado (cambio de aceite/filtros,
+  VTV, RTO), correctivo abierto por `'otro' + detalle` (alternador, batería, frenos, embrague,
+  cubiertas, + escape de catálogo). Señalizado con `AvisoModeloDatos` reescrito en la sección
+  Mantenimiento de `VehiculoDetail.tsx`. Queda **pendiente de confirmar** (no se resuelve acá, ver
+  design.md Open Questions 1, 3, 4 y 5):
+  1. Si `TipoIntervencion` debería perder el valor `'gasto'` en vez de mantenerlo de solo lectura.
+  2. La duplicación del vencimiento VTV/RTO entre `Vehiculo.habilitaciones[].fechaVencimiento` y
+     `MantenimientoRegistro.proximoVencimientoFecha` — este change no deriva las alertas del
+     historial (queda `habilitaciones` como única fuente), la duplicación se resuelve junto al
+     esquema de `C-08` backend.
+  3. Si `MantenimientoRegistro` debería tener un `gastoId?` (o `GastoVehiculo` un `mantenimientoId?`)
+     para vincular la intervención correctiva con el gasto que la pagó — el docx no tiene esa FK.
+  4. Si `GastoVehiculo.descripcion` (agregado del frontend, no está en el docx) queda como campo real
+     de `gasto_vehiculo` en el backend.
 - **Conductor**: cartel en UI (`ConductorDetail`). ~~Faltan campos que sí están en el docx:
   Domicilio, CUIL (acá solo hay Documento/DNI) y Estado (operando / fuera de servicio)~~ — resuelto
   2026-07-24: los 3 campos se sumaron al frontend (`Conductor.domicilio`, `Conductor.cuil`,
@@ -329,6 +369,84 @@ así que queda anotado acá hasta que se construya esa feature.
   consecuencias directas sobre esa función (`vigente` no se escribe nunca; un `tipo` de accesorio
   inexistente en el maestro hace abortar la transacción completa con `45001`).
 
+- **Obras Sociales vs. esquema real de `C-04`** (detalle completo en
+  `openspec/changes/integracion-obra-social/design.md`, propose 2026-07-31, apply 2026-07-31):
+  comparación entre el tipo `ObraSocial` del frontend, el docx, y `20260724100003_schema_obra_social.sql`
+  **más el schema real verificado en vivo** (`supabase db query --linked`, sin Docker) al conectar
+  el repository real (`SupabaseObraSocialRepository.ts`). Quince discrepancias de la tabla D11 de
+  `design.md`, la mayoría **resueltas por este change**:
+  1. `nombre` ↔ `razon_social` (renombre) — resuelto, se mapea.
+  2. `tipoComprobante` ↔ `tipo_comprobante` (renombre; además ya es un enum compartido
+     `facturacion.tipo_factura` en la base, no `TEXT` libre con CHECK como se planeaba) — resuelto.
+  3. `checklist: ChecklistItem[]` (array embebido) ↔ `requisitos_os` × `tipos_documento`
+     (relacional, catálogo **compartido** con Pacientes y con Facturación) — resuelto: persistencia
+     relacional, sin cambiar el tipo del frontend (`ChecklistItem.id` = `tipos_documento.id`, nunca
+     `requisitos_os.id` — ver la función de escritura más abajo).
+  4-5. Orden y obligatoriedad del checklist (`requisitos_os.orden`/`.requerido`) — resuelto (ya
+     existían en la base real al momento de verificar, no hizo falta migrarlas).
+  6-9. `plazoCobroDias`, `modalidadFacturacion`, `admitePagosParciales`, `plantillaFactura.campos[]`
+     — resuelto: ya existían en la base real (columnas/tabla `plantilla_campo`, no
+     `campos_plantilla_factura` como se había planeado — ver discrepancia nueva #17).
+  10. `plantillaFactura.identificadorOrigen` (IN-01) — resuelto como columna configurable
+     (`obra_social.identificador_origen`); la pregunta de fondo (qué campo va en la factura) sigue
+     abierta, ver `10_preguntas_abiertas.md`.
+  11. `codigo`, `direccion`, `telefono`, `condicion_iva` (columnas sin campo frontend) — resuelto,
+     sumados al tipo y a la UI.
+  12. **`cuit` ambiguo — NO resuelto**: la base tiene `obra_social.cuit` **y** `prestadores.cuit`
+     como columnas distintas de tablas distintas, y el docx solo dice "CUIT del prestador/entidad
+     pagadora" sin aclarar cuál. Cartel en `ObraSocialDetail.tsx`.
+  13. `obra_social.prestadores` sin contraparte en el frontend — **decidido**: change propio
+     `prestadores-crud` (ver bullet dedicado arriba).
+  14. `condicion_iva` sin valores enumerados en ninguna fuente — **NO resuelto**, queda `TEXT` libre
+     sin `CHECK`; pregunta abierta.
+  15. `Paciente.numeroAfiliado.formato` (RN-ID-02, heredada de `integracion-pacientes`) — **cerrada
+     el 2026-07-31, en dos vueltas**: primero se decidió derivarla de la obra social
+     (`obra_social.formato_identificador_afiliado`, D12); al aplicar se encontró que backend ya la
+     había resuelto antes y al revés (ver #16) — la usuaria confirmó aceptar la realidad ya
+     construida. **No** se agrega ninguna columna nueva de Obra Social; el formato vive por
+     cobertura, ya existente. Seguimiento en `integracion-pacientes/tasks.md` §8.
+
+  **Dos discrepancias NUEVAS, descubiertas al verificar el schema real en vivo antes de escribir
+  las migraciones de este change (tareas 1.1-1.4, `supabase db query --linked`, sin Docker) —
+  ninguna de las dos estaba anticipada por `design.md`:**
+
+  16. **✅ Contradicción con la decisión D12 de `design.md` — resuelta (2026-07-31): D12 revertida.**
+     D12 (confirmada por la usuaria el 2026-07-31) había decidido agregar
+     `obra_social.formato_identificador_afiliado` para que Pacientes derive el formato del
+     identificador de afiliado desde la obra social. Al verificar el schema real se encontró que esa
+     columna **no existe**, y que en cambio `obra_social.coberturas_paciente.formato_afiliado` (enum,
+     `NOT NULL`, **sin default**, 0 filas hoy) **ya existe** — aplicada entre 2026-07-29 y 2026-07-30
+     (mismo desfasaje de historial de migraciones sin commitear que ya había anotado
+     `integracion-pacientes` 1B.3), **antes** de que D12 se escribiera. Es decir: backend ya había
+     resuelto RN-ID-02 poniendo el formato **por cobertura/paciente**, exactamente lo opuesto de lo
+     que D12 decidió. La usuaria confirmó (mismo día) **aceptar la realidad ya construida**: D12
+     queda revertida, `integracion-obra-social` **no agrega** ninguna columna nueva de este tipo.
+     **Consecuencia detectada de paso, ajena a este change pero relevante para Pacientes**: como
+     `coberturas_paciente.formato_afiliado` es `NOT NULL` sin default y
+     `pacientes.crear_paciente_completo` (ya aplicada) no lo completa en su `INSERT`, cualquier alta
+     de paciente con número de afiliado cargado hoy falla con `23502` — bug de
+     `integracion-pacientes`, task **8.0** (bloqueante, urgente) de ese change.
+  17. **Nombres de tabla/columna reales distintos de los que `design.md` había planeado (no
+     contradicción, solo desfasaje de nomenclatura)**: la tabla se llama `obra_social.plantilla_campo`
+     (no `campos_plantilla_factura`) y la columna se llama `tipo_comprobante` (no `tipo_factura`,
+     además ya retipada como el enum `facturacion.tipo_factura`). Ambas ya existían con RLS,
+     policies y trigger de auditoría propios cuando se verificó el schema — no son tablas/columnas
+     que este change haya creado. El mapeo del frontend (`obraSocialMapping.ts`) usa los nombres
+     reales, no los que `design.md` había asumido.
+
+  Además, esta verificación encontró que el catálogo `tipos_documento` es compartido por **tres**
+  entidades, no dos: `pacientes.documentos.id_tipo_documento` **y**
+  `facturacion.documento_factura.id_tipo_documento` (esta última tabla no estaba documentada en
+  ningún lado de esta KB hasta ahora) referencian `tipos_documento` con `ON DELETE RESTRICT`. Un
+  tipo de documento mal cargado desde el editor de checklist de Obras Sociales queda para siempre
+  si algún documento de paciente **o de factura** ya lo referencia.
+
+  El **checklist manual con cuentas reales de la sección 1B.8/8.5 de `tasks.md` sigue pendiente**
+  (bloqueado por falta de Docker/credenciales de escritura en el sandbox del agente) — las dos
+  migraciones (`20260731120000_obra_social_config_facturacion.sql`,
+  `20260731120001_obra_social_rpc.sql`) están redactadas y revisadas, pendientes de que la
+  usuaria/Enzo las aplique.
+
 ### Función de alta: `pacientes.crear_paciente_completo` (contrato de escritura del módulo Pacientes)
 
 Migración `supabase/migrations/20260730180000_crear_paciente_completo.sql`
@@ -357,6 +475,40 @@ migración. Quien lea esta sección de la KB sin abrir `20260730180000_crear_pac
 tiene que quedar advertido igual: **no cambiar `SECURITY INVOKER` por `SECURITY DEFINER` bajo
 ninguna circunstancia**, ni siquiera "temporalmente para probar" — es el chequeo de seguridad final
 antes de archivar el change (`security-review`, ver `tasks.md` 7.8).
+
+### Funciones de alta/edición: `obra_social.crear_obra_social_completa` / `actualizar_obra_social_completa`
+
+Migraciones `supabase/migrations/20260731120000_obra_social_config_facturacion.sql` (reconciliación
+de índices, ver el bloque de discrepancias arriba) y `20260731120001_obra_social_rpc.sql`
+(`openspec/changes/integracion-obra-social/`, D6). Son el único camino de alta y edición
+multi-tabla del módulo Obras Sociales: `crear_obra_social_completa(p_os jsonb)` inserta
+atómicamente `obra_social`, y por cada ítem del checklist hace *get-or-create* (normalizado por
+`trim`+`lower`) sobre el catálogo **compartido** `tipos_documento` antes de insertar en
+`requisitos_os`, más los campos de `plantilla_campo`. `actualizar_obra_social_completa(p_id uuid,
+p_cambios jsonb)` hace **reemplazo completo** (no diff fino) de `requisitos_os` y `plantilla_campo`
+cuando esas claves están presentes en `p_cambios` — es lo que significa "reordenar" un conjunto sin
+`id` estable a nivel de fila de vínculo (el `id` que ve el frontend es el de `tipos_documento`,
+estable por definición, nunca el de `requisitos_os`). La semántica parcial usa el operador `?` de
+jsonb (clave ausente ≠ clave presente con `[]`) — confundir los dos casos borraría el checklist de
+cualquiera que edite solo el nombre.
+
+**`SECURITY INVOKER` a propósito, no un descuido** (mismo criterio y misma advertencia que
+`pacientes.crear_paciente_completo` de arriba). Acá el riesgo tiene **radio de daño mayor**: además
+de bypassear el gateo del módulo `obra_social`, un `SECURITY DEFINER` accidental daría a cualquier
+cuenta autenticada la capacidad de escribir en `tipos_documento`, que es compartido con Pacientes
+**y con Facturación** (ver discrepancia nueva arriba). `REVOKE ALL ... FROM PUBLIC` y `FROM anon`,
+`GRANT EXECUTE ... TO authenticated` únicamente, `COMMENT ON FUNCTION` visible desde el dashboard, y
+un test automatizado que lee el `.sql` con `node:fs` y confirma que la única cláusula de seguridad
+activa es `SECURITY INVOKER` (`SupabaseObraSocialRepository.test.ts`/`obraSocialMigrations.test.ts`,
+tarea 4.9). **No cambiar `SECURITY INVOKER` por `SECURITY DEFINER` bajo ninguna circunstancia.**
+
+**Nota de verificación**: a diferencia de un `INSERT` (donde `WITH CHECK` rechaza directamente con
+`42501` si falta el permiso), el `UPDATE` de `actualizar_obra_social_completa` sobre una fila que
+RLS oculta por falta de `obra_social:write` afecta 0 filas **sin lanzar** por sí solo — esta función
+lo traduce a `45103` (mismo código que "no existe"), consistente con el resto del dominio. El
+resultado en filas escritas es el mismo (cero) en cualquiera de los dos casos; el código de error
+que ve el frontend podría no ser exactamente el que se anticipó en el diseño. Confirmar el
+comportamiento exacto con cuentas reales es parte del checklist manual pendiente (`tasks.md` 1B.8).
 
 ## Seed data inicial
 

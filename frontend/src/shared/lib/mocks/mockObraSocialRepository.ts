@@ -9,7 +9,10 @@ import { buildOsecacFixture } from './osecacFixture';
 // para que el reemplazo por SupabaseObraSocialRepository (FE-8) sea mecánico.
 
 const STORAGE_KEY = 'obras-sociales';
-const SCHEMA_VERSION = 1;
+// v1 -> v2 (integracion-obra-social D9, tasks.md 2.3): se suman `codigo`, `direccion`, `telefono`
+// y `condicionIva` a `ObraSocial`. Un payload viejo en localStorage con `schemaVersion: 1` se
+// descarta y se resiembra (regla de `openspec/config.yaml` §apply.guidelines).
+const SCHEMA_VERSION = 2;
 
 interface StoredPayload {
   schemaVersion: number;

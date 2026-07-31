@@ -13,6 +13,14 @@ export interface ObraSocialFormValues {
   tipoComprobante: TipoComprobante;
   modalidadFacturacion: ModalidadFacturacion;
   admitePagosParciales: boolean;
+  // Los 4 campos del docx (integracion-obra-social D9, discrepancia #11): opcionales, nunca
+  // obligatorios (ninguna fuente respalda esa regla — ver validateObraSocialForm.ts). Se modelan
+  // como `string` (no `string | undefined`) para que los <Input> queden siempre controlados; una
+  // cadena vacía significa "sin completar", igual criterio que el resto del dominio.
+  codigo: string;
+  direccion: string;
+  telefono: string;
+  condicionIva: string;
 }
 
 const DEFAULT_VALUES: ObraSocialFormValues = {
@@ -24,10 +32,17 @@ const DEFAULT_VALUES: ObraSocialFormValues = {
   tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
+  codigo: '',
+  direccion: '',
+  telefono: '',
+  condicionIva: '',
 };
 
 interface ObraSocialFormProps {
-  initial?: ObraSocialFormValues;
+  // `Partial` (D9): `ObraSocial` (el tipo real que pasa ObraSocialDetail en modo edición) modela
+  // los 4 campos del docx como opcionales (`codigo?: string`, NULLable en la base) — el form los
+  // normaliza a cadena vacía internamente, así que no exige que el caller ya los traiga completos.
+  initial?: Partial<ObraSocialFormValues>;
   onSubmit: (values: ObraSocialFormValues) => void;
   onCancel: () => void;
   submitting?: boolean;
@@ -51,7 +66,7 @@ function FieldGroupHeading({ children }: { children: string }) {
 // senior-frontend compact rules). La validación de requeridos vive en validateObraSocialForm
 // (función pura) para poder testearla aislada del DOM.
 export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false, submitError = null }: ObraSocialFormProps) {
-  const [values, setValues] = useState<ObraSocialFormValues>(initial ?? DEFAULT_VALUES);
+  const [values, setValues] = useState<ObraSocialFormValues>({ ...DEFAULT_VALUES, ...initial });
   const [errors, setErrors] = useState<ObraSocialFormErrors>({});
   const formId = useId();
 
@@ -94,6 +109,42 @@ export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false
               placeholder="Ej. 30-12345678-9"
               value={values.cuit}
               onChange={(event) => setValues((prev) => ({ ...prev, cuit: event.target.value }))}
+            />
+          </Field>
+
+          <Field label="Código" htmlFor={`${formId}-codigo`}>
+            <Input
+              id={`${formId}-codigo`}
+              density="comfortable"
+              value={values.codigo}
+              onChange={(event) => setValues((prev) => ({ ...prev, codigo: event.target.value }))}
+            />
+          </Field>
+
+          <Field label="Dirección" htmlFor={`${formId}-direccion`}>
+            <Input
+              id={`${formId}-direccion`}
+              density="comfortable"
+              value={values.direccion}
+              onChange={(event) => setValues((prev) => ({ ...prev, direccion: event.target.value }))}
+            />
+          </Field>
+
+          <Field label="Teléfono" htmlFor={`${formId}-telefono`}>
+            <Input
+              id={`${formId}-telefono`}
+              density="comfortable"
+              value={values.telefono}
+              onChange={(event) => setValues((prev) => ({ ...prev, telefono: event.target.value }))}
+            />
+          </Field>
+
+          <Field label="Condición frente al IVA" htmlFor={`${formId}-condicion-iva`}>
+            <Input
+              id={`${formId}-condicion-iva`}
+              density="comfortable"
+              value={values.condicionIva}
+              onChange={(event) => setValues((prev) => ({ ...prev, condicionIva: event.target.value }))}
             />
           </Field>
         </div>

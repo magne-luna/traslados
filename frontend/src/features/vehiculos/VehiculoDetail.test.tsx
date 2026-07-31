@@ -1,10 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { VehiculoDetail } from './VehiculoDetail';
+
+// GastosVehiculo y HistorialMantenimiento comparten labels ("Fecha") y texto de botón
+// ("+ Registrar") — se escopea la query al form correspondiente por su encabezado, en vez de
+// asumir que las labels son únicas en toda la pantalla.
+function formCercaDe(texto: string): HTMLElement {
+  const heading = screen.getByText(texto);
+  const form = heading.closest('form');
+  if (!form) throw new Error(`No se encontró el <form> cerca de "${texto}"`);
+  return form as HTMLElement;
+}
 
 const etios: Vehiculo = {
   id: 'vehiculo-etios',
@@ -19,6 +29,7 @@ const etios: Vehiculo = {
   fechaUltimoService: '2026-03-01',
   habilitaciones: [{ tipo: 'vtv', fechaEmision: '2026-01-01', fechaVencimiento: '2027-01-01' }],
   gastos: [],
+  mantenimientos: [],
 };
 
 function buildFakeDocumentoRepository(): DocumentoRepository {
@@ -148,13 +159,122 @@ describe('VehiculoDetail — modo edición', () => {
       />,
     );
 
-    await user.type(screen.getByLabelText(/fecha/i), '2026-07-20');
-    await user.type(screen.getByLabelText(/monto/i), '5000');
-    await user.click(screen.getByRole('button', { name: /registrar/i }));
+    const gastoForm = within(formCercaDe('Registrar gasto'));
+    await user.type(gastoForm.getByLabelText(/^fecha$/i), '2026-07-20');
+    await user.type(gastoForm.getByLabelText(/monto/i), '5000');
+    await user.click(gastoForm.getByRole('button', { name: /registrar/i }));
 
     expect(actualizar).toHaveBeenCalledWith('vehiculo-etios', {
       gastos: [expect.objectContaining({ fecha: '2026-07-20', monto: 5000 })],
     });
+  });
+
+  // Wiring del historial de mantenimiento (tasks.md 7.2/7.3, RF-507).
+  it('al registrar una intervención de mantenimiento, persiste vía actualizar(id, { mantenimientos })', async () => {
+    const user = userEvent.setup();
+    const actualizar = vi.fn().mockResolvedValue(etios);
+
+    render(
+      <VehiculoDetail
+        vehiculo={etios}
+        crear={vi.fn()}
+        actualizar={actualizar}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const mantenimientoForm = within(formCercaDe('Registrar mantenimiento'));
+    await user.selectOptions(mantenimientoForm.getByLabelText(/tipo de intervención/i), 'preventivo');
+    await user.selectOptions(mantenimientoForm.getByLabelText(/sub-?tipo/i), 'cambio-aceite-filtros');
+    await user.type(mantenimientoForm.getByLabelText(/^fecha$/i), '2026-07-20');
+    await user.type(mantenimientoForm.getByLabelText(/^kilometraje$/i), '90000');
+    await user.click(mantenimientoForm.getByRole('button', { name: /registrar/i }));
+
+    expect(actualizar).toHaveBeenCalledWith('vehiculo-etios', {
+      mantenimientos: [
+        expect.objectContaining({
+          tipoIntervencion: 'preventivo',
+          subtipo: 'cambio-aceite-filtros',
+          fecha: '2026-07-20',
+          kilometraje: 90_000,
+        }),
+      ],
+    });
+  });
+
+  it('muestra el error del repository si actualizar() del historial de mantenimiento falla', async () => {
+    const user = userEvent.setup();
+    const actualizar = vi.fn().mockRejectedValue(new Error('no se pudo guardar el mantenimiento'));
+
+    render(
+      <VehiculoDetail
+        vehiculo={etios}
+        crear={vi.fn()}
+        actualizar={actualizar}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const mantenimientoForm = within(formCercaDe('Registrar mantenimiento'));
+    await user.selectOptions(mantenimientoForm.getByLabelText(/tipo de intervención/i), 'preventivo');
+    await user.selectOptions(mantenimientoForm.getByLabelText(/sub-?tipo/i), 'vtv');
+    await user.type(mantenimientoForm.getByLabelText(/^fecha$/i), '2026-07-20');
+    await user.type(mantenimientoForm.getByLabelText(/^kilometraje$/i), '90000');
+    await user.click(mantenimientoForm.getByRole('button', { name: /registrar/i }));
+
+    expect(await screen.findByText('no se pudo guardar el mantenimiento')).toBeInTheDocument();
+  });
+
+  it('registrar una intervención de mantenimiento no cambia el chip de estado de service del resumen (Decisión 5)', async () => {
+    const user = userEvent.setup();
+    const actualizar = vi.fn().mockResolvedValue(etios);
+
+    render(
+      <VehiculoDetail
+        vehiculo={etios}
+        crear={vi.fn()}
+        actualizar={actualizar}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    // El texto de estado se repite (resumen colapsado + tarjeta de VehiculoMantenimiento) — se
+    // comparan todas las ocurrencias, no una sola.
+    const chipsAntes = screen.getAllByText(/vencido|se acerca|al día/i).map((el) => el.textContent);
+
+    const mantenimientoForm = within(formCercaDe('Registrar mantenimiento'));
+    await user.selectOptions(mantenimientoForm.getByLabelText(/tipo de intervención/i), 'preventivo');
+    await user.selectOptions(mantenimientoForm.getByLabelText(/sub-?tipo/i), 'cambio-aceite-filtros');
+    await user.type(mantenimientoForm.getByLabelText(/^fecha$/i), '2026-07-20');
+    await user.type(mantenimientoForm.getByLabelText(/^kilometraje$/i), '90000');
+    await user.click(mantenimientoForm.getByRole('button', { name: /registrar/i }));
+
+    // actualizar() está mockeado y resuelve el mismo `etios` sin mutar — el chip de service se
+    // sigue calculando de `vehiculo.kilometraje`/`kilometrajeUltimoService`/`fechaUltimoService`,
+    // no del historial nuevo (design.md Decisión 5): no debe cambiar por registrar un evento.
+    const chipsDespues = screen.getAllByText(/vencido|se acerca|al día/i).map((el) => el.textContent);
+    expect(chipsDespues).toEqual(chipsAntes);
+  });
+
+  it('muestra el cartel de discrepancia de modelo de datos en la sección de Mantenimiento, acotado a lo pendiente', () => {
+    render(
+      <VehiculoDetail
+        vehiculo={etios}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/VTV\/RTO se sigue rastreando en.*habilitaciones/i)).toBeInTheDocument();
   });
 
   it('muestra el error del repository si actualizar falla', async () => {

@@ -35,6 +35,7 @@ function buildVehiculo(overrides: Partial<Vehiculo> = {}): Vehiculo {
     fechaUltimoService: '2026-01-01',
     habilitaciones: [],
     gastos: [],
+    mantenimientos: [],
     ...overrides,
   };
 }

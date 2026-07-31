@@ -21,6 +21,7 @@ const etios: Vehiculo = {
   fechaUltimoService: '2026-01-01',
   habilitaciones: [],
   gastos: [],
+  mantenimientos: [],
 };
 
 const kangoo: Vehiculo = { ...etios, id: 'vehiculo-kangoo', patente: 'AD456FG', modelo: 'Renault Kangoo' };

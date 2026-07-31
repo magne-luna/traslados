@@ -127,6 +127,33 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
                     : `${obraSocial.plantillaFactura.campos.length} campos`}
                 </span>
               </div>
+              {/* Los 4 campos del docx (D9, discrepancia #11): opcionales — se omiten del resumen
+                  si no están completos, en vez de mostrar un "—" por cada uno (obras sociales
+                  viejas del mock v1 nacieron sin ellos). */}
+              {obraSocial.codigo && (
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-body text-[11px] text-muted">Código</span>
+                  <span className="font-body text-[13px] font-semibold text-ink">{obraSocial.codigo}</span>
+                </div>
+              )}
+              {obraSocial.direccion && (
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-body text-[11px] text-muted">Dirección</span>
+                  <span className="font-body text-[13px] font-semibold text-ink">{obraSocial.direccion}</span>
+                </div>
+              )}
+              {obraSocial.telefono && (
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-body text-[11px] text-muted">Teléfono</span>
+                  <span className="font-body text-[13px] font-semibold text-ink">{obraSocial.telefono}</span>
+                </div>
+              )}
+              {obraSocial.condicionIva && (
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-body text-[11px] text-muted">Condición frente al IVA</span>
+                  <span className="font-body text-[13px] font-semibold text-ink">{obraSocial.condicionIva}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end">
@@ -146,11 +173,26 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
         )}
       </Section>
 
+      {/* tasks.md 6.3: cartel preexistente (obras-sociales-ui, 2026-07-24) actualizado —
+          plazo de cobro, modalidad de facturación, pagos parciales (RN-FA-07/08) y los 4 campos
+          del docx (código, dirección, teléfono, condición IVA) YA SON columnas reales de la base
+          (integracion-obra-social D4/D9). Lo único que sigue sin cerrar es qué valores admite
+          Condición frente al IVA (discrepancia #14): ninguna fuente los enumera. */}
       <AvisoModeloDatos>
-        Plazo de cobro, modalidad de facturación y pagos parciales están acá por reglas de negocio
-        (RN-FA-07/08) pero no figuran en Traslados-Modelo-Datos.docx — hay que sumarlos a la BD real
-        antes de conectar C-04. Además faltan campos que sí están en el docx: Código, Dirección,
-        Teléfono y Condición frente al IVA.
+        Plazo de cobro, modalidad de facturación, pagos parciales y los 4 campos del docx (código,
+        dirección, teléfono, condición frente al IVA) ya son columnas reales de la base — dejaron
+        de ser una discrepancia. Lo que sigue abierto: ninguna fuente (docx ni KB) no enumera los
+        valores válidos de "Condición frente al IVA", así que queda como texto libre sin validar.
+      </AvisoModeloDatos>
+
+      {/* tasks.md 6.2 (D8, discrepancia #12): ambigüedad de qué CUIT representa este campo,
+          descubierta al verificar que la base tiene dos columnas distintas. No se resuelve acá. */}
+      <AvisoModeloDatos>
+        Este CUIT es <strong>obra_social.cuit</strong>, distinto de <strong>prestadores.cuit</strong>{' '}
+        (otra tabla, ya existe en la base). No está confirmado si este campo debería mostrar el CUIT
+        de la obra social o el del prestador — el docx solo dice "CUIT del prestador/entidad
+        pagadora", que podría ser cualquiera de las dos tablas. Pendiente de confirmar con quien
+        mantiene el docx.
       </AvisoModeloDatos>
 
       {obraSocial && (
@@ -158,11 +200,6 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
           {sectionError && <Alert tone="danger">{sectionError}</Alert>}
 
           <Section label="Documentación" title="Checklist documental">
-            <AvisoModeloDatos>
-              Acá el checklist es una lista embebida en la obra social. En el docx es una tabla de
-              vínculo ("Requisitos de la Obra Social") contra un catálogo compartido de Tipos de
-              Documento — la forma va a cambiar cuando se conecte el backend real.
-            </AvisoModeloDatos>
             <ChecklistEditor items={obraSocial.checklist} onChange={handleChecklistChange} />
           </Section>
 

@@ -38,8 +38,27 @@ export function buildVehiculosFixture(): Vehiculo[] {
         { tipo: 'vtv', fechaEmision: isoMonthsAgo(2), fechaVencimiento: isoDaysFromNow(150) },
         { tipo: 'rto', fechaEmision: isoMonthsAgo(2), fechaVencimiento: isoDaysFromNow(150) },
       ],
-      gastos: [
-        { id: 'gasto-etios-1', fecha: isoMonthsAgo(1), monto: 45_000, descripcion: 'Cambio de cubiertas', categoria: 'mantenimiento' },
+      gastos: [{ id: 'gasto-etios-1', fecha: isoMonthsAgo(1), monto: 45_000, descripcion: 'Cambio de cubiertas' }],
+      mantenimientos: [
+        // Preventivo con próximo vencimiento por km (cambio de aceite/filtros, RN-VE-03).
+        {
+          id: 'mantenimiento-etios-1',
+          fecha: isoMonthsAgo(1),
+          kilometraje: 82_000,
+          tipoIntervencion: 'preventivo',
+          subtipo: 'cambio-aceite-filtros',
+          proximoVencimientoKm: 92_000,
+        },
+        // Correctivo fuera de catálogo ('otro' + detalle) — cubiertas ya están en gastos arriba,
+        // acá una intervención distinta para no duplicar el mismo evento en dos entidades.
+        {
+          id: 'mantenimiento-etios-2',
+          fecha: isoMonthsAgo(3),
+          kilometraje: 78_000,
+          tipoIntervencion: 'correctivo',
+          subtipo: 'otro',
+          detalle: 'Reemplazo de radiador perforado',
+        },
       ],
     },
     {
@@ -60,6 +79,20 @@ export function buildVehiculosFixture(): Vehiculo[] {
         { tipo: 'rto', fechaEmision: isoMonthsAgo(1), fechaVencimiento: isoDaysFromNow(200) },
       ],
       gastos: [],
+      mantenimientos: [
+        // Preventivo con próximo vencimiento por fecha (VTV) — señaliza a propósito la
+        // duplicación con `habilitaciones[].fechaVencimiento` (design.md Decisión 5, Open
+        // Question 3): la fecha acá es informativa, la alerta real la sigue calculando
+        // `estadoHabilitacion` sobre `habilitaciones`.
+        {
+          id: 'mantenimiento-kangoo-1',
+          fecha: isoMonthsAgo(6),
+          kilometraje: 40_000,
+          tipoIntervencion: 'preventivo',
+          subtipo: 'vtv',
+          proximoVencimientoFecha: isoDaysFromNow(15),
+        },
+      ],
     },
     {
       // Partner: capacidad reducida (chofer + un menor adelante + dos personas de contextura
@@ -78,7 +111,25 @@ export function buildVehiculosFixture(): Vehiculo[] {
         { tipo: 'vtv', fechaEmision: isoMonthsAgo(3), fechaVencimiento: isoDaysFromNow(90) },
         { tipo: 'rto', fechaEmision: isoMonthsAgo(8), fechaVencimiento: isoDaysFromNow(-10) },
       ],
-      gastos: [{ id: 'gasto-partner-1', fecha: isoMonthsAgo(2), monto: 12_500, categoria: 'reparacion' }],
+      gastos: [{ id: 'gasto-partner-1', fecha: isoMonthsAgo(2), monto: 12_500, descripcion: 'Reparación de frenos' }],
+      mantenimientos: [
+        // Correctivo con sub-tipo conocido del catálogo.
+        {
+          id: 'mantenimiento-partner-1',
+          fecha: isoMonthsAgo(2),
+          kilometraje: 59_500,
+          tipoIntervencion: 'correctivo',
+          subtipo: 'frenos',
+        },
+        // Registro de nivel 1 "gasto" (design.md Decisión 2): la UI no puede darlo de alta desde
+        // esta pantalla, pero sí debe poder mostrarlo — cubre el camino de lectura por test.
+        {
+          id: 'mantenimiento-partner-2',
+          fecha: isoMonthsAgo(5),
+          kilometraje: 55_000,
+          tipoIntervencion: 'gasto',
+        },
+      ],
     },
   ];
 }
