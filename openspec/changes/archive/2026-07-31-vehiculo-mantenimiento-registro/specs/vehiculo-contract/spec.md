@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Tipos del dominio de flota
 El sistema SHALL definir los tipos TypeScript del dominio de flota en `frontend/src/shared/types/vehiculo.ts`, en modo strict y sin usar `any`. MUST incluir la interfaz `Vehiculo` (id, patente, modelo, tipo, capacidad, `accesoriosCompatibles`, estado, kilometraje, kilometrajeUltimoService, fechaUltimoService, habilitaciones, gastos, **mantenimientos**) y las sub-estructuras `AccesorioMovilidad` (unión de literales), `GastoVehiculo`, `RegistroHabilitacion` y **`MantenimientoRegistro`** (`04_modelo_de_datos.md §Vehiculo`, `docs/core/Traslados-Modelo-Datos.docx` §Gastos de Vehículo y §Mantenimiento, RN-VE-01 a RN-VE-04).
@@ -36,17 +36,6 @@ La clasificación de dos niveles MUST estar tipada sin `string` libre: el nivel 
 #### Scenario: Registro de mantenimiento sin monto
 - **WHEN** se declara el tipo `MantenimientoRegistro`
 - **THEN** no tiene ningún campo de monto o importe
-
-### Requirement: Interfaz VehiculoRepository
-El sistema SHALL definir la interfaz `VehiculoRepository` en `frontend/src/shared/lib/vehiculos/VehiculoRepository.ts` con las operaciones `list()`, `getById(id)`, `create(data)` y `update(id, data)`, de modo que ninguna pantalla hable con la fuente de datos directamente.
-
-#### Scenario: getById de un vehículo inexistente
-- **WHEN** se invoca `getById(id)` con un id que no existe
-- **THEN** la promesa resuelve `null` en vez de lanzar un error
-
-#### Scenario: Tipos de entrada sin id
-- **WHEN** se invoca `create(data)`
-- **THEN** el tipo del payload (`NuevoVehiculo`) no incluye `id`, y el `id` lo asigna la implementación del repository
 
 ### Requirement: Implementación mock con persistencia en localStorage
 El sistema SHALL proveer una implementación mock de `VehiculoRepository` en `frontend/src/shared/lib/mocks/mockVehiculoRepository.ts` que cumpla la interfaz al pie de la letra, persista en `localStorage` con un `schemaVersion` y devuelva promesas con latencia simulada, para ejercitar estados de carga y error reales.

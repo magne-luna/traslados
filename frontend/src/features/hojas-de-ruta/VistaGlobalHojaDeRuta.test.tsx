@@ -29,6 +29,7 @@ const vehiculoHabilitado: Vehiculo = {
   fechaUltimoService: '2026-01-01',
   habilitaciones: [],
   gastos: [],
+  mantenimientos: [],
 };
 
 const vehiculoFueraDeServicio: Vehiculo = { ...vehiculoHabilitado, id: 'v-fds', patente: 'FDS111', estado: 'fuera-de-servicio' };

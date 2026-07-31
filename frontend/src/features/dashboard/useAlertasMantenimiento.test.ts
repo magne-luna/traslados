@@ -20,6 +20,7 @@ const vehiculo: Vehiculo = {
   fechaUltimoService: '2026-01-01',
   habilitaciones: [],
   gastos: [],
+  mantenimientos: [],
 };
 
 function buildRepository(overrides: Partial<VehiculoRepository> = {}): VehiculoRepository {

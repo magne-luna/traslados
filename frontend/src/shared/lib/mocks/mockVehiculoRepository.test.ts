@@ -23,6 +23,7 @@ function buildNuevoVehiculo(overrides: Partial<NuevoVehiculo> = {}): NuevoVehicu
     fechaUltimoService: '2026-01-01',
     habilitaciones: [],
     gastos: [],
+    mantenimientos: [],
     ...overrides,
   };
 }
@@ -109,5 +110,40 @@ describe('mockVehiculoRepository', () => {
     const vehiculos = await flushLatency(mockVehiculoRepository.list());
 
     expect(vehiculos).toHaveLength(3);
+  });
+
+  // RED→GREEN (tasks.md 4.2, spec vehiculo-contract, escenario "Payload con gastos del esquema
+  // anterior"): un payload guardado por la versión previa del mock (schemaVersion 2, gastos con
+  // `categoria`, sin `mantenimientos`) debe re-sembrarse, nunca deserializarse tal cual — el mock
+  // no migra payloads viejos (design.md Decisión 8).
+  it('re-siembra si el localStorage tiene gastos con el campo categoria del esquema anterior (schemaVersion 2)', async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 2,
+        vehiculos: [
+          {
+            id: 'viejo-1',
+            patente: 'VV111VV',
+            modelo: 'Modelo viejo',
+            tipo: 'sedan',
+            capacidad: 4,
+            accesoriosCompatibles: [],
+            estado: 'habilitado',
+            kilometraje: 1000,
+            kilometrajeUltimoService: 1000,
+            fechaUltimoService: '2026-01-01',
+            habilitaciones: [],
+            gastos: [{ id: 'g-viejo', fecha: '2026-01-01', monto: 100, categoria: 'reparacion' }],
+            // sin `mantenimientos`: no existía en schemaVersion 2.
+          },
+        ],
+      }),
+    );
+
+    const vehiculos = await flushLatency(mockVehiculoRepository.list());
+
+    expect(vehiculos).toHaveLength(3);
+    expect(vehiculos.map((v) => v.patente)).not.toContain('VV111VV');
   });
 });

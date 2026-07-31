@@ -146,6 +146,31 @@ así que queda anotado acá hasta que se construya esa feature.
   Mantenimiento (kilometraje actual + próximo vencimiento por fecha/km), no embebidos en Vehículo.
 - **Gastos de Vehículo**: cartel en UI (Vehículos). En el docx el módulo de permisos que controla el
   acceso es "facturacion", no "conductores" — importa para las RLS policies.
+- **Categoría de gasto inventada / entidad Mantenimiento faltante** — resuelto parcialmente en
+  frontend 2026-07-31 (`openspec/changes/vehiculo-mantenimiento-registro/design.md`): `vehiculos-ui`
+  había agregado `GastoVehiculo.categoria: 'mantenimiento' | 'reparacion' | 'service'`, valores **sin
+  fuente** (ni en el docx, ni en esta KB, ni en el spec `vehiculo-gastos` vigente en ese momento). El
+  docx tiene **dos entidades separadas**: "Gastos de Vehículo" (Vehículo, Monto, Fecha — sin
+  categoría) y "Mantenimiento" (Vehículo, Categoría — "gasto, mantenimiento preventivo o
+  mantenimiento correctivo" —, Fecha, Próximo vencimiento fecha, Kilometraje actual, Próximo
+  vencimiento km). Este change: (1) quita `categoria` de `GastoVehiculo`, dejándolo igual al docx;
+  (2) crea `MantenimientoRegistro` embebido en `Vehiculo.mantenimientos[]` con la categoría real de
+  **dos niveles** — nivel 1 tipado con los tres valores del docx (`gasto | preventivo | correctivo`,
+  aunque el alta de esta pantalla solo ofrece los dos de mantenimiento), nivel 2 de US-500
+  (`knowledge-base/06_funcionalidades.md` L128-134): preventivo cerrado (cambio de aceite/filtros,
+  VTV, RTO), correctivo abierto por `'otro' + detalle` (alternador, batería, frenos, embrague,
+  cubiertas, + escape de catálogo). Señalizado con `AvisoModeloDatos` reescrito en la sección
+  Mantenimiento de `VehiculoDetail.tsx`. Queda **pendiente de confirmar** (no se resuelve acá, ver
+  design.md Open Questions 1, 3, 4 y 5):
+  1. Si `TipoIntervencion` debería perder el valor `'gasto'` en vez de mantenerlo de solo lectura.
+  2. La duplicación del vencimiento VTV/RTO entre `Vehiculo.habilitaciones[].fechaVencimiento` y
+     `MantenimientoRegistro.proximoVencimientoFecha` — este change no deriva las alertas del
+     historial (queda `habilitaciones` como única fuente), la duplicación se resuelve junto al
+     esquema de `C-08` backend.
+  3. Si `MantenimientoRegistro` debería tener un `gastoId?` (o `GastoVehiculo` un `mantenimientoId?`)
+     para vincular la intervención correctiva con el gasto que la pagó — el docx no tiene esa FK.
+  4. Si `GastoVehiculo.descripcion` (agregado del frontend, no está en el docx) queda como campo real
+     de `gasto_vehiculo` en el backend.
 - **Conductor**: cartel en UI (`ConductorDetail`). ~~Faltan campos que sí están en el docx:
   Domicilio, CUIL (acá solo hay Documento/DNI) y Estado (operando / fuera de servicio)~~ — resuelto
   2026-07-24: los 3 campos se sumaron al frontend (`Conductor.domicilio`, `Conductor.cuil`,

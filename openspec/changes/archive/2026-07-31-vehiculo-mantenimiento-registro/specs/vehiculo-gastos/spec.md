@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Registro de gastos del vehículo
 El sistema SHALL permitir registrar gastos de un vehículo como eventos con fecha y monto, sin frecuencia fija (US-500, RF-508). Cada gasto MUST persistirse asociado a su vehículo vía `VehiculoRepository.update()`.

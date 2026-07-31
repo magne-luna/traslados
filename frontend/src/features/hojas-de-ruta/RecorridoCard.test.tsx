@@ -41,6 +41,7 @@ const vehiculo: Vehiculo = {
   fechaUltimoService: '2026-01-01',
   habilitaciones: [],
   gastos: [],
+  mantenimientos: [],
 };
 
 const vehiculoAlternativo: Vehiculo = { ...vehiculo, id: 'vehiculo-kangoo', patente: 'AD456BC', modelo: 'Renault Kangoo' };

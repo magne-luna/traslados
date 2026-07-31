@@ -20,6 +20,26 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 
 ---
 
+## Plan de integración Backend↔Frontend (swap de mocks)
+
+> Objetivo actual (desde 2026-07-31): terminar de integrar con el backend real todo dominio que hoy corre sobre repositorio mock. El schema + RLS de Supabase ya existe para casi todos (relevamiento `traslados-app/estado-proyecto`, 2026-07-30); lo que falta en cada uno es escribir el `Supabase*Repository` concreto y cablearlo en el composition root (`*Route.tsx` — cada uno ya tiene el comentario "cuando exista SupabaseXRepository, este es el único archivo que cambia").
+>
+> No confundir con los changes C-NN de arriba (esos son "construir la pantalla"; esto es "conectarla al backend real" — en varios casos ya archivados como `*-ui` en mock, y ahora toca el swap).
+
+| Orden | Dominio | Estado | Notas |
+|-------|---------|--------|-------|
+| — | Auth / Cuentas | ✅ real | Ya integrado, no forma parte de este plan |
+| 1 | Pacientes (C-05) | 🔶 código+migración+tests completos, **pendiente de revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-05 más abajo |
+| 2 | Obra Social (C-04) | ⏭️ **siguiente** | Sin bloqueos — schema y RLS ya existen |
+| 3 | Conductores + Vehículos (C-08/C-09) | ⏳ pendiente | Sin bloqueos conocidos. Nota: `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) lo está llevando la usuaria por separado — no tocar esos archivos desde otro agente mientras tanto |
+| 4 | Facturación (C-07) | ⏳ pendiente | Depende de Obra Social |
+| 5 | Presupuestos (C-06) | 🔴 bloqueado | 2 puntos a coordinar con backend, governance ALTO (ver §C-06) |
+| 6 | Hojas de Ruta (C-10) | ⏳ pendiente | — |
+| 7 | Dashboard (C-11) | ⏳ pendiente | Va último — agrega datos de todos los repos reales de arriba |
+| 8 | Documentos (storage) | ⏳ pendiente | Buckets ya creados; falta reemplazar `mockDocumentoRepository` (uploads simulados) |
+
+---
+
 ## Árbol de dependencias
 
 ```
@@ -181,7 +201,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - El docx agrega una entidad "Prestadores" (razón social, CUIT, dirección, teléfono) que no está en el scope de este change ni en la KB — evaluar si entra acá o en un change propio.
 
 ### [C-08] `vehiculos-mantenimiento`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[x]` completado (frontend mock, 2026-07-31)
 - **Scope**:
   - Migración: tabla `vehiculo` (patente, modelo, tipo, capacidad hasta 6, accesorios de movilidad compatibles, estado habilitado/fuera de servicio, kilometraje).
   - Migración: tabla `gasto_vehiculo` (evento con fecha y monto, sin frecuencia fija), tabla `mantenimiento_registro` (preventivo/correctivo, VTV, RTO — ambas habilitaciones registrables de forma independiente).
@@ -196,12 +216,17 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - `knowledge-base/05_reglas_de_negocio.md` §RN-VE-01 a RN-VE-04
   - `knowledge-base/04_modelo_de_datos.md` §Vehiculo
   - `knowledge-base/07_flujos_principales.md` §Flujo 4
-- **Progreso frontend (mock, vía FE-2)**: ✅ CRUD de vehículos, selector de accesorios de movilidad, toggle habilitado/fuera de servicio, vista de mantenimiento (alertas de service y VTV/RTO), registro de gastos y checklist documental — implementado y archivado como `vehiculos-ui` (`openspec/changes/archive/2026-07-24-vehiculos-ui/`), 24/24 tasks completas, verificación manual en navegador confirmada por el usuario. Antes de escribir la migración real, coordinar con quien implemente el backend los nombres de campo de `Vehiculo` definidos en su `design.md` (mock en `localStorage`, `gastos`/`habilitaciones` embebidos en el tipo).
+- **Progreso frontend (mock)**: ✅ **Completado y archivado** (`openspec/changes/archive/2026-07-31-vehiculo-mantenimiento-registro/`), 48/48 tasks completas, verificación manual en navegador confirmada por la usuaria.
+  - Tanda 1 (vía FE-2, archivado como `vehiculos-ui`): CRUD de vehículos, selector de accesorios de movilidad, toggle habilitado/fuera de servicio, vista de mantenimiento (alertas de service y VTV/RTO), registro de gastos y checklist documental (24/24 tasks).
+  - Tanda 2 (vía `vehiculo-mantenimiento-registro`, 2026-07-31): categorización de gastos/mantenimiento alineada al docx — se eliminó `GastoVehiculo.categoria` (valores inventados, sin fuente) y se creó la entidad `MantenimientoRegistro` (`Vehiculo.mantenimientos[]`) con la categoría real de dos niveles (tipo de intervención + sub-tipo), historial con alta validada, `mockVehiculoRepository` `SCHEMA_VERSION` 2 → 3. Specs deltados y mergeados en `openspec/specs/vehiculo-{contract,gastos,mantenimiento-historial}/spec.md` (24/24 tasks). Detalle completo en `04_modelo_de_datos.md` §Discrepancias.
 - **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** (señalizada con carteles `AvisoModeloDatos` en `VehiculoDetail.tsx`, detalle en `04_modelo_de_datos.md`):
-  - En el docx, kilometraje actual y próximo vencimiento (por fecha o por km) viven en la tabla `mantenimiento_registro`, no embebidos en `vehiculo` — revisar si `kilometraje`/`kilometrajeUltimoService`/`fechaUltimoService` deberían ser columnas derivadas del último registro de mantenimiento en vez de campos propios.
+  - ~~En el docx, kilometraje actual y próximo vencimiento (por fecha o por km) viven en la tabla `mantenimiento_registro`, no embebidos en `vehiculo`~~ — **parcialmente resuelto** por `vehiculo-mantenimiento-registro` (2026-07-31): la tabla Mantenimiento del docx ahora existe en el frontend como `MantenimientoRegistro`/`Vehiculo.mantenimientos[]`, con sus propios campos de kilometraje y próximo vencimiento por registro. **Sigue pendiente**: `kilometraje`/`kilometrajeUltimoService`/`fechaUltimoService` de `Vehiculo` no se derivan del historial (decisión explícita, ver design.md de ese change) — el vehículo sigue teniendo su propio kilometraje embebido, y el vencimiento VTV/RTO queda duplicado entre `habilitaciones[].fechaVencimiento` y `MantenimientoRegistro.proximoVencimientoFecha`.
   - VTV/RTO en el docx son solo ítems del catálogo genérico de documentos vehiculares, sin fecha de vencimiento propia (el vencimiento se rastrea vía mantenimiento) — distinto de `RegistroHabilitacion` en el frontend, que sí tiene `fechaVencimiento`.
   - Falta el campo `Notas` (observaciones sobre el vehículo) que sí está en el docx.
   - El docx ubica `gasto_vehiculo` bajo el módulo de permisos "facturacion", no "conductores" — importa para las RLS policies de este change.
+  - **Categoría de mantenimiento en dos niveles** (nuevo, `vehiculo-mantenimiento-registro`): el campo Categoría del docx en la entidad Mantenimiento combina nivel 1 (gasto/preventivo/correctivo) con el sub-tipo de US-500 — el frontend ya lo modela tipado como unión discriminada; el nombre de columna real de `mantenimiento_registro` para nivel 1 + nivel 2 queda a definir con el backend `C-08`.
+  - `gasto_vehiculo` no tiene campo de categoría (confirmado contra el docx); `mantenimiento_registro` no tiene monto — el importe de una intervención se carga como un gasto aparte, sin FK entre ambas tablas (el docx no la tiene).
+  - `GastoVehiculo.descripcion` es un agregado del frontend (no existe en el docx) — a confirmar si el backend lo suma a `gasto_vehiculo`.
 
 ---
 

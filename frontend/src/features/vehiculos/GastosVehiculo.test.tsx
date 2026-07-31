@@ -14,7 +14,6 @@ const gasto: GastoVehiculo = {
   fecha: '2026-06-01',
   monto: 45_000,
   descripcion: 'Cambio de cubiertas',
-  categoria: 'mantenimiento',
 };
 
 describe('GastosVehiculo', () => {
@@ -24,16 +23,22 @@ describe('GastosVehiculo', () => {
     expect(screen.getByText(/no hay gastos/i)).toBeInTheDocument();
   });
 
-  it('muestra la tabla de gastos con monto, descripción y categoría por fila cuando hay datos', () => {
+  it('muestra la tabla de gastos con fecha, monto y descripción por fila cuando hay datos, sin columna de categoría', () => {
     render(<GastosVehiculo gastos={[gasto]} onAgregar={vi.fn()} />);
 
     expect(screen.getAllByText(/45.?000/).length).toBeGreaterThan(0);
     expect(screen.getByText('Cambio de cubiertas')).toBeInTheDocument();
-    expect(screen.getAllByText('Mantenimiento').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Categoría')).not.toBeInTheDocument();
+  });
+
+  it('el formulario de alta no tiene selector de categoría', () => {
+    render(<GastosVehiculo gastos={[]} onAgregar={vi.fn()} />);
+
+    expect(screen.queryByLabelText(/categoría/i)).not.toBeInTheDocument();
   });
 
   it('muestra el total gastado y el total del mes cuando hay datos', () => {
-    const otroGasto: GastoVehiculo = { id: 'g2', fecha: '2026-01-15', monto: 5_000, categoria: 'reparacion' };
+    const otroGasto: GastoVehiculo = { id: 'g2', fecha: '2026-01-15', monto: 5_000 };
     const ahora = new Date('2026-06-15');
 
     render(<GastosVehiculo gastos={[gasto, otroGasto]} onAgregar={vi.fn()} ahora={ahora} />);
@@ -55,7 +60,7 @@ describe('GastosVehiculo', () => {
     expect(screen.getByText(/el monto debe ser un número positivo/i)).toBeInTheDocument();
   });
 
-  it('agrega un gasto válido llamando a onAgregar con fecha, monto, descripción y categoría', async () => {
+  it('agrega un gasto válido llamando a onAgregar con fecha, monto y descripción, sin categoría', async () => {
     const user = userEvent.setup();
     const onAgregar = vi.fn();
 
@@ -64,14 +69,12 @@ describe('GastosVehiculo', () => {
     await user.type(screen.getByLabelText(/fecha/i), '2026-07-01');
     await user.type(screen.getByLabelText(/monto/i), '1500');
     await user.type(screen.getByLabelText(/descripción/i), 'Aceite y filtros');
-    await user.selectOptions(screen.getByLabelText(/categoría/i), 'service');
     await user.click(screen.getByRole('button', { name: /registrar/i }));
 
     expect(onAgregar).toHaveBeenCalledWith({
       fecha: '2026-07-01',
       monto: 1500,
       descripcion: 'Aceite y filtros',
-      categoria: 'service',
     });
   });
 });
@@ -96,7 +99,6 @@ describe('GastosVehiculo — gateo de escritura', () => {
     expect(screen.getByLabelText(/fecha/i)).toBeDisabled();
     expect(screen.getByLabelText(/monto/i)).toBeDisabled();
     expect(screen.getByLabelText(/descripción/i)).toBeDisabled();
-    expect(screen.getByLabelText(/categoría/i)).toBeDisabled();
 
     const registrar = screen.getByRole('button', { name: /registrar/i });
     expect(registrar).toBeDisabled();

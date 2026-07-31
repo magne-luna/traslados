@@ -27,6 +27,7 @@ const vehiculoConSillaPlegable: Vehiculo = {
   fechaUltimoService: '2026-01-01',
   habilitaciones: [],
   gastos: [],
+  mantenimientos: [],
 };
 
 function buildPaciente(overrides: Partial<Paciente> = {}): Paciente {

@@ -23,6 +23,7 @@ const vehiculo: Vehiculo = {
   fechaUltimoService: '2026-01-01',
   habilitaciones: [],
   gastos: [],
+  mantenimientos: [],
 };
 
 const conductor: Conductor = {

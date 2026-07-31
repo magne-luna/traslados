@@ -6,10 +6,18 @@ import { generateId } from '../../shared/lib/id';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { estadoHabilitacion } from '../../shared/lib/mantenimiento/estadoHabilitacion';
 import { estadoServicePreventivo } from '../../shared/lib/mantenimiento/estadoServicePreventivo';
-import type { ActualizacionVehiculo, GastoVehiculo, NuevoVehiculo, Vehiculo } from '../../shared/types/vehiculo';
+import type {
+  ActualizacionVehiculo,
+  GastoVehiculo,
+  MantenimientoRegistro,
+  NuevoVehiculo,
+  Vehiculo,
+} from '../../shared/types/vehiculo';
 import { ACCESORIO_MOVILIDAD_LABELS } from './accesorioMovilidadOptions';
 import { GastosVehiculo, type NuevoGastoInput } from './GastosVehiculo';
+import { HistorialMantenimiento } from './HistorialMantenimiento';
 import { HABILITACION_COPY, SERVICE_COPY, TIPO_HABILITACION_LABELS } from './mantenimientoCopy';
+import type { NuevoMantenimientoInput } from './toMantenimientoRegistro';
 import { VehiculoDocumentos } from './VehiculoDocumentos';
 import { VehiculoForm, type VehiculoFormValues } from './VehiculoForm';
 import { VehiculoMantenimiento } from './VehiculoMantenimiento';
@@ -56,6 +64,7 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
           fechaUltimoService: new Date().toISOString().slice(0, 10),
           habilitaciones: [],
           gastos: [],
+          mantenimientos: [],
         });
         onCreated(creado);
       } else {
@@ -75,6 +84,20 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
     const nuevoGasto: GastoVehiculo = { id: generateId('gasto'), ...data };
     try {
       await actualizar(vehiculo.id, { gastos: [...vehiculo.gastos, nuevoGasto] });
+    } catch (err) {
+      setSectionError(toErrorMessage(err));
+    }
+  }
+
+  // Wiring del historial de mantenimiento (tasks.md 7.2, RF-507): mismo patrón que
+  // handleAgregarGasto — el id lo genera acá (no en HistorialMantenimiento/toMantenimientoRegistro),
+  // y el error de persistencia se muestra con el mismo `sectionError` que gastos.
+  async function handleAgregarMantenimiento(data: NuevoMantenimientoInput) {
+    if (vehiculo === null) return;
+    setSectionError(null);
+    const nuevo = { id: generateId('mantenimiento'), ...data } as MantenimientoRegistro;
+    try {
+      await actualizar(vehiculo.id, { mantenimientos: [...vehiculo.mantenimientos, nuevo] });
     } catch (err) {
       setSectionError(toErrorMessage(err));
     }
@@ -200,12 +223,18 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
 
           <Section label="Mantenimiento" title="Service y habilitaciones">
             <AvisoModeloDatos>
-              Acá kilometraje/service y las habilitaciones VTV/RTO viven embebidos en el vehículo. En
-              el docx el kilometraje y los próximos vencimientos (por fecha o por km) viven en una
-              tabla Mantenimiento aparte (un registro por intervención), y VTV/RTO son solo ítems del
-              catálogo genérico de documentos vehiculares, sin fecha de vencimiento propia.
+              El vencimiento de VTV/RTO se sigue rastreando en las habilitaciones del vehículo, no en
+              el historial de abajo — y el kilometraje/último service siguen siendo campos propios de
+              Vehículo, no derivados del historial. El docx modela ambos vencimientos (VTV/RTO y el
+              kilometraje actual) dentro de la entidad Mantenimiento; esta pantalla los mantiene
+              separados a propósito (ver `vehiculo-mantenimiento-registro/design.md` Decisión 5),
+              pendiente de resolver la duplicación junto al esquema del backend `C-08`.
             </AvisoModeloDatos>
             <VehiculoMantenimiento vehiculo={vehiculo} />
+          </Section>
+
+          <Section label="Mantenimiento" title="Historial de mantenimiento">
+            <HistorialMantenimiento mantenimientos={vehiculo.mantenimientos} onAgregar={handleAgregarMantenimiento} />
           </Section>
 
           <Section label="Gastos" title="Registro de gastos">

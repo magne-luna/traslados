@@ -75,6 +75,7 @@ function vehiculo(overrides: Partial<Vehiculo> = {}): Vehiculo {
     fechaUltimoService: '2020-01-01',
     habilitaciones: [{ tipo: 'vtv', fechaEmision: '2025-01-01', fechaVencimiento: '2026-01-01' }],
     gastos: [],
+    mantenimientos: [],
     ...overrides,
   };
 }

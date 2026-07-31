@@ -11,7 +11,13 @@ import { buildVehiculosFixture } from './vehiculosFixture';
 const STORAGE_KEY = 'vehiculos';
 // v2: GastoVehiculo sumó `categoria` (obligatorio) — bump para descartar localStorage con gastos
 // del esquema viejo (sin esa propiedad), que rompía <Chip> al buscar un kind inexistente.
-const SCHEMA_VERSION = 2;
+// v3 (vehiculo-mantenimiento-registro, design.md Decisión 1/8): GastoVehiculo.categoria se
+// eliminó (los valores eran inventados, sin fuente en el docx) y Vehiculo sumó
+// `mantenimientos: MantenimientoRegistro[]`. Los gastos guardados en localStorage con `categoria`
+// ya no matchean el tipo actual (`<Chip>` volvería a romper buscando un kind inexistente) y
+// ningún vehículo guardado tiene `mantenimientos`. Re-seed, no migración de payload (es un mock,
+// sin dato de producción que preservar).
+const SCHEMA_VERSION = 3;
 
 interface StoredPayload {
   schemaVersion: number;
