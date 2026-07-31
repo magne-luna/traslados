@@ -116,6 +116,59 @@ describe('mockVehiculoRepository', () => {
   // anterior"): un payload guardado por la versión previa del mock (schemaVersion 2, gastos con
   // `categoria`, sin `mantenimientos`) debe re-sembrarse, nunca deserializarse tal cual — el mock
   // no migra payloads viejos (design.md Decisión 8).
+  // D3-B (tasks.md 2B.1/2B.2, spec vehiculo-contract — escenario "Las habilitaciones se derivan
+  // del historial, no se persisten", "con cualquier implementación de VehiculoRepository"): el
+  // mock también deriva `habilitaciones` de `mantenimientos` en cada lectura, en vez de devolver
+  // lo que haya quedado guardado — así el mock y `SupabaseVehiculoRepository` muestran lo mismo.
+  it('deriva habilitaciones del historial de mantenimiento al leer, ignorando lo persistido (D3-B)', async () => {
+    const creado = await flushLatency(
+      mockVehiculoRepository.create(
+        buildNuevoVehiculo({
+          patente: 'VV000VV',
+          // Habilitación "persistida" incoherente con el historial: no debe sobrevivir a la lectura.
+          habilitaciones: [{ tipo: 'vtv', fechaEmision: '2020-01-01', fechaVencimiento: '2020-06-01' }],
+          mantenimientos: [
+            {
+              id: 'm-vtv',
+              fecha: '2026-01-01',
+              kilometraje: 1000,
+              tipoIntervencion: 'preventivo',
+              subtipo: 'vtv',
+              proximoVencimientoFecha: '2027-01-01',
+            },
+          ],
+        }),
+      ),
+    );
+
+    expect(creado.habilitaciones).toEqual([{ tipo: 'vtv', fechaEmision: '2026-01-01', fechaVencimiento: '2027-01-01' }]);
+
+    const releido = await flushLatency(mockVehiculoRepository.getById(creado.id));
+    expect(releido?.habilitaciones).toEqual([{ tipo: 'vtv', fechaEmision: '2026-01-01', fechaVencimiento: '2027-01-01' }]);
+  });
+
+  it('agregar una intervención VTV al historial actualiza la habilitación mostrada tras la relectura (D3-B)', async () => {
+    const creado = await flushLatency(mockVehiculoRepository.create(buildNuevoVehiculo({ patente: 'VV111VV' })));
+    expect(creado.habilitaciones).toEqual([]);
+
+    const actualizado = await flushLatency(
+      mockVehiculoRepository.update(creado.id, {
+        mantenimientos: [
+          {
+            id: 'm-vtv-nueva',
+            fecha: '2026-05-01',
+            kilometraje: 2000,
+            tipoIntervencion: 'preventivo',
+            subtipo: 'vtv',
+            proximoVencimientoFecha: '2026-11-01',
+          },
+        ],
+      }),
+    );
+
+    expect(actualizado.habilitaciones).toEqual([{ tipo: 'vtv', fechaEmision: '2026-05-01', fechaVencimiento: '2026-11-01' }]);
+  });
+
   it('re-siembra si el localStorage tiene gastos con el campo categoria del esquema anterior (schemaVersion 2)', async () => {
     localStorage.setItem(
       STORAGE_KEY,

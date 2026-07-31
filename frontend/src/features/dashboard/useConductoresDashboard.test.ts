@@ -18,7 +18,6 @@ const conductor: Conductor = {
   domicilio: '',
   cuil: '20302223334',
   estado: 'operando',
-  restricciones: [],
   asignaciones: [],
 };
 

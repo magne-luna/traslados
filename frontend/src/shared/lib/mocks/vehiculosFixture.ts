@@ -34,6 +34,8 @@ export function buildVehiculosFixture(): Vehiculo[] {
       kilometraje: 85_000,
       kilometrajeUltimoService: 82_000,
       fechaUltimoService: isoMonthsAgo(4),
+      // Con notas (tasks.md 2.3): al menos un vehículo del fixture ejercita el campo nuevo.
+      notas: 'Aire acondicionado con pérdida de gas — revisar antes del verano.',
       habilitaciones: [
         { tipo: 'vtv', fechaEmision: isoMonthsAgo(2), fechaVencimiento: isoDaysFromNow(150) },
         { tipo: 'rto', fechaEmision: isoMonthsAgo(2), fechaVencimiento: isoDaysFromNow(150) },
@@ -58,6 +60,25 @@ export function buildVehiculosFixture(): Vehiculo[] {
           tipoIntervencion: 'correctivo',
           subtipo: 'otro',
           detalle: 'Reemplazo de radiador perforado',
+        },
+        // D3-B (tasks.md 2B.4): fila de mantenimiento preventiva VTV/RTO de la que se deriva la
+        // habilitación de arriba — mismas fechas, para que el mock y `SupabaseVehiculoRepository`
+        // muestren lo mismo en la misma pantalla.
+        {
+          id: 'mantenimiento-etios-3',
+          fecha: isoMonthsAgo(2),
+          kilometraje: 84_000,
+          tipoIntervencion: 'preventivo',
+          subtipo: 'vtv',
+          proximoVencimientoFecha: isoDaysFromNow(150),
+        },
+        {
+          id: 'mantenimiento-etios-4',
+          fecha: isoMonthsAgo(2),
+          kilometraje: 84_000,
+          tipoIntervencion: 'preventivo',
+          subtipo: 'rto',
+          proximoVencimientoFecha: isoDaysFromNow(150),
         },
       ],
     },
@@ -91,6 +112,15 @@ export function buildVehiculosFixture(): Vehiculo[] {
           tipoIntervencion: 'preventivo',
           subtipo: 'vtv',
           proximoVencimientoFecha: isoDaysFromNow(15),
+        },
+        // D3-B (tasks.md 2B.4): fila RTO correspondiente a la habilitación RTO de arriba.
+        {
+          id: 'mantenimiento-kangoo-2',
+          fecha: isoMonthsAgo(1),
+          kilometraje: 46_000,
+          tipoIntervencion: 'preventivo',
+          subtipo: 'rto',
+          proximoVencimientoFecha: isoDaysFromNow(200),
         },
       ],
     },
@@ -128,6 +158,24 @@ export function buildVehiculosFixture(): Vehiculo[] {
           fecha: isoMonthsAgo(5),
           kilometraje: 55_000,
           tipoIntervencion: 'gasto',
+        },
+        // D3-B (tasks.md 2B.4): filas VTV/RTO de las que se derivan las dos habilitaciones de
+        // arriba (una vigente, una vencida — RN-VE-04 las evalúa de forma independiente).
+        {
+          id: 'mantenimiento-partner-3',
+          fecha: isoMonthsAgo(3),
+          kilometraje: 58_000,
+          tipoIntervencion: 'preventivo',
+          subtipo: 'vtv',
+          proximoVencimientoFecha: isoDaysFromNow(90),
+        },
+        {
+          id: 'mantenimiento-partner-4',
+          fecha: isoMonthsAgo(8),
+          kilometraje: 50_000,
+          tipoIntervencion: 'preventivo',
+          subtipo: 'rto',
+          proximoVencimientoFecha: isoDaysFromNow(-10),
         },
       ],
     },

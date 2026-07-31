@@ -115,7 +115,7 @@ describe('AsignacionSemanalTabla', () => {
     expect(onAgregar).toHaveBeenCalledWith({ vehiculoId: 'vehiculo-etios', semana: '2026-W30' });
   });
 
-  it('bloquea el guardado por colisión sin permitirMultiple y no llama a onAgregar (triangulación)', async () => {
+  it('bloquea el guardado por colisión y no llama a onAgregar (triangulación)', async () => {
     const user = userEvent.setup();
     const onAgregar = vi.fn();
 
@@ -133,7 +133,11 @@ describe('AsignacionSemanalTabla', () => {
     expect(screen.getByText(/ya tiene una asignación a otro vehículo/i)).toBeInTheDocument();
   });
 
-  it('permite la excepción explícita (permitirMultiple) y llama a onAgregar pese a la colisión', async () => {
+  // D7 §Colisión (2026-07-31): el override `permitirMultiple` se elimina — no existe ningún
+  // control para habilitar la doble asignación, la colisión se bloquea siempre. Este test
+  // reemplaza al que antes afirmaba la excepción explícita (no se borra: se invierte la
+  // aserción, documentando la decisión).
+  it('no existe ningún control para habilitar la doble asignación — la colisión se bloquea igual', async () => {
     const user = userEvent.setup();
     const onAgregar = vi.fn();
 
@@ -144,20 +148,22 @@ describe('AsignacionSemanalTabla', () => {
     });
 
     await screen.findByRole('option', { name: /AD456FG/i });
+    expect(screen.queryByLabelText(/permitir m.ltiple/i)).not.toBeInTheDocument();
+
     await user.selectOptions(screen.getByLabelText(/vehículo/i), 'vehiculo-kangoo');
-    await user.click(screen.getByLabelText(/permitir m.ltiple/i));
     await user.click(screen.getByRole('button', { name: /asignar/i }));
 
-    expect(onAgregar).toHaveBeenCalledWith({ vehiculoId: 'vehiculo-kangoo', semana: '2026-W30' });
+    expect(onAgregar).not.toHaveBeenCalled();
+    expect(screen.getByText(/ya tiene una asignación a otro vehículo/i)).toBeInTheDocument();
   });
 
-  it('muestra el cartel de pendiente de confirmar sobre la excepción de doble asignación (tasks.md 9.2)', () => {
+  it('no muestra ningún cartel presentando la doble asignación como pregunta abierta (ya está cerrada)', () => {
     renderTabla({});
 
-    const avisos = screen.getAllByRole('note');
+    const avisos = screen.queryAllByRole('note');
     expect(
-      avisos.some((aviso) => /pendiente cliente: confirmar si un conductor puede tener dos vehículos la misma semana/i.test(aviso.textContent ?? '')),
-    ).toBe(true);
+      avisos.some((aviso) => /confirmar si un conductor puede tener dos vehículos la misma semana/i.test(aviso.textContent ?? '')),
+    ).toBe(false);
   });
 
   it('muestra los títulos de las subsecciones de historial y alta', () => {
@@ -186,7 +192,6 @@ describe('AsignacionSemanalTabla — gateo de escritura', () => {
     expect(await screen.findByText('AC123DE')).toBeInTheDocument();
     expect(screen.getByLabelText(/vehículo/i)).toBeDisabled();
     expect(screen.getByLabelText(/semana \(iso\)/i)).toBeDisabled();
-    expect(screen.getByLabelText(/permitir m.ltiple/i)).toBeDisabled();
     expect(screen.getByRole('button', { name: /asignar/i })).toBeDisabled();
   });
 

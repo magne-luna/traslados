@@ -7,7 +7,6 @@ import { semanaActualIso } from '../../shared/lib/conductores/semanaActualIso';
 import type { Conductor } from '../../shared/types/conductor';
 import { useVehiculoRepository } from '../vehiculos/VehiculoRepositoryContext';
 import { useVehiculos } from '../vehiculos/useVehiculos';
-import { RESTRICCION_CONDUCTOR_LABELS } from './restriccionConductorOptions';
 
 interface ConductoresListProps {
   conductores: Conductor[];
@@ -23,10 +22,10 @@ interface ConductoresListProps {
 // Pantalla de listado (tasks.md 5.1, US-600): estados de carga/vacío/error explícitos,
 // presentacional puro salvo el filtro de búsqueda (estado local, no persiste). Grid de tarjetas
 // para exponer de entrada la mayor cantidad de información del maestro (mismo criterio que
-// VehiculosList/ObrasSocialesList): documento, CUIL, domicilio, teléfono, restricciones de
-// perfil (RN-GL-03) y el vehículo asignado la semana actual (resuelto contra VehiculoRepository,
-// mismo patrón de composición que AsignacionSemanalTabla — VehiculoRepositoryProvider ya está
-// montado en ConductoresRoute).
+// VehiculosList/ObrasSocialesList): documento, CUIL, domicilio, teléfono, observaciones (D6-B:
+// único campo libre del perfil, sin selector de restricciones estructurado) y el vehículo
+// asignado la semana actual (resuelto contra VehiculoRepository, mismo patrón de composición que
+// AsignacionSemanalTabla — VehiculoRepositoryProvider ya está montado en ConductoresRoute).
 export function ConductoresList({ conductores, loading, error, onSelect, onCreateNew, ahora = new Date() }: ConductoresListProps) {
   const [busqueda, setBusqueda] = useState('');
   const vehiculoRepository = useVehiculoRepository();
@@ -138,18 +137,6 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
                     <Chip kind="info">{vehiculoAsignado.patente}</Chip>
                   ) : (
                     <span>Sin vehículo asignado</span>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-xs">
-                  {conductor.restricciones.length === 0 ? (
-                    <span className="font-body text-[12px] text-muted">Sin restricciones de perfil</span>
-                  ) : (
-                    conductor.restricciones.map((restriccion) => (
-                      <Chip key={restriccion} kind="warning">
-                        {RESTRICCION_CONDUCTOR_LABELS[restriccion]}
-                      </Chip>
-                    ))
                   )}
                 </div>
 

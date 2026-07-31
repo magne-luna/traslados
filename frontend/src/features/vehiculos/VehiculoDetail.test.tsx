@@ -262,6 +262,38 @@ describe('VehiculoDetail — modo edición', () => {
     expect(chipsDespues).toEqual(chipsAntes);
   });
 
+  // C-08: la columna `conductores.vehiculo.notas` existe en la base y nacía NULL para siempre
+  // porque el frontend no la modelaba (tasks.md 2.5).
+  it('muestra las notas en la ficha cuando el vehículo las tiene', () => {
+    render(
+      <VehiculoDetail
+        vehiculo={{ ...etios, notas: 'Aire acondicionado con pérdida.' }}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Aire acondicionado con pérdida.')).toBeInTheDocument();
+  });
+
+  it('no renderiza ninguna sección de notas cuando el vehículo no las tiene (sin "—" inventado)', () => {
+    render(
+      <VehiculoDetail
+        vehiculo={etios}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
+  });
+
   it('muestra el cartel de discrepancia de modelo de datos en la sección de Mantenimiento, acotado a lo pendiente', () => {
     render(
       <VehiculoDetail

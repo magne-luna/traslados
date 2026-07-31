@@ -12,7 +12,6 @@ const perez: Conductor = {
   domicilio: 'Calle 50 N° 1234, La Plata',
   cuil: '20-15789456-9',
   estado: 'operando',
-  restricciones: ['no-carga-fisica'],
   asignaciones: [],
 };
 
@@ -64,7 +63,6 @@ describe('useConductores', () => {
         domicilio: 'Belgrano 200, Quilmes',
         cuil: '27-99887766-1',
         estado: 'operando',
-        restricciones: [],
         asignaciones: [],
       });
     });
@@ -100,7 +98,6 @@ describe('useConductores', () => {
           domicilio: 'Calle 50 N° 1234, La Plata',
           cuil: '20-15789456-9',
           estado: 'operando',
-          restricciones: [],
           asignaciones: [],
         }),
       ).rejects.toThrow('documento duplicado');

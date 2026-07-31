@@ -43,10 +43,28 @@ describe('VehiculoForm', () => {
       kilometraje: 0,
       estado: 'habilitado',
       accesoriosCompatibles: ['silla-plegable'],
+      notas: '',
     });
   });
 
-  it('precarga los valores iniciales en modo edición, incluyendo accesorios y estado', () => {
+  // C-08: la columna `conductores.vehiculo.notas` existe en la base y nacía NULL para siempre
+  // porque el frontend no la modelaba (tasks.md 2.4).
+  it('carga notas y las incluye en el submit (C-08)', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/^patente$/i), 'AC123DE');
+    await user.type(screen.getByLabelText(/notas/i), 'Aire acondicionado con pérdida.');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ notas: 'Aire acondicionado con pérdida.' }),
+    );
+  });
+
+  it('precarga los valores iniciales en modo edición, incluyendo accesorios, estado y notas', () => {
     render(
       <VehiculoForm
         initial={{
@@ -57,6 +75,7 @@ describe('VehiculoForm', () => {
           kilometraje: 85_000,
           estado: 'fuera-de-servicio',
           accesoriosCompatibles: ['silla-plegable', 'andador'],
+          notas: 'Aire acondicionado con pérdida.',
         }}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
@@ -69,6 +88,7 @@ describe('VehiculoForm', () => {
     expect(screen.getByLabelText(/andador/i)).toBeChecked();
     expect(screen.getByLabelText(/silla rígida/i)).not.toBeChecked();
     expect(screen.getByLabelText(/fuera de servicio/i)).toBeChecked();
+    expect(screen.getByLabelText(/notas/i)).toHaveValue('Aire acondicionado con pérdida.');
   });
 
   it('togglear accesorios agrega/quita del conjunto seleccionado (triangulación de selección múltiple)', async () => {
@@ -114,6 +134,7 @@ describe('VehiculoForm', () => {
           kilometraje: 85_000,
           estado: 'habilitado',
           accesoriosCompatibles: [],
+          notas: '',
         }}
         kilometrajeMinimo={85_000}
         onSubmit={onSubmit}
@@ -163,6 +184,7 @@ describe('VehiculoForm — gateo de escritura', () => {
     expect(screen.getByLabelText(/kilometraje/i)).toBeDisabled();
     expect(screen.getByLabelText(/silla plegable/i)).toBeDisabled();
     expect(screen.getByLabelText(/fuera de servicio/i)).toBeDisabled();
+    expect(screen.getByLabelText(/notas/i)).toBeDisabled();
 
     await user.type(screen.getByLabelText(/^patente$/i), 'Intento bloqueado');
     expect(screen.getByLabelText(/^patente$/i)).toHaveValue('');

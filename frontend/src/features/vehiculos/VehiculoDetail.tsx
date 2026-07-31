@@ -4,6 +4,7 @@ import { Alert } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import { generateId } from '../../shared/lib/id';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
+import { derivarHabilitaciones } from '../../shared/lib/mantenimiento/derivarHabilitaciones';
 import { estadoHabilitacion } from '../../shared/lib/mantenimiento/estadoHabilitacion';
 import { estadoServicePreventivo } from '../../shared/lib/mantenimiento/estadoServicePreventivo';
 import type {
@@ -55,16 +56,21 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
     setSubmitError(null);
     try {
       if (vehiculo === null) {
+        const mantenimientosIniciales: MantenimientoRegistro[] = [];
         const creado = await crear({
           ...values,
           // Se asume recién service al alta (sin historial previo): kilometrajeUltimoService
           // arranca igual al kilometraje ingresado y fechaUltimoService es hoy — editable luego
-          // desde mantenimiento. Sin habilitaciones/gastos hasta que se carguen (RN-VE-03/04).
+          // desde mantenimiento. Sin gastos hasta que se carguen (RN-VE-03).
           kilometrajeUltimoService: values.kilometraje,
           fechaUltimoService: new Date().toISOString().slice(0, 10),
-          habilitaciones: [],
+          // D3-B: habilitaciones ya NO es una colección que se carga en el alta — es un campo de
+          // salida derivado del historial (2B.1). Acá se calcula de un historial vacío (mismo
+          // valor, `[]`, pero por la vía correcta) en vez de escribir el literal a mano; toda
+          // implementación de VehiculoRepository lo recalcula igual al leer.
+          habilitaciones: derivarHabilitaciones(mantenimientosIniciales),
           gastos: [],
-          mantenimientos: [],
+          mantenimientos: mantenimientosIniciales,
         });
         onCreated(creado);
       } else {
@@ -182,6 +188,8 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
               </div>
             )}
 
+            {vehiculo.notas && <p className="m-0 font-body text-[13px] text-muted">{vehiculo.notas}</p>}
+
             <div className="flex justify-end">
               <Button variant="secondary" requiereEscritura onClick={() => setEditing(true)}>
                 Editar datos
@@ -200,6 +208,7 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
                     kilometraje: vehiculo.kilometraje,
                     estado: vehiculo.estado,
                     accesoriosCompatibles: vehiculo.accesoriosCompatibles,
+                    notas: vehiculo.notas ?? '',
                   }
                 : undefined
             }
@@ -211,11 +220,6 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
           />
         )}
       </Section>
-
-      <AvisoModeloDatos>
-        Falta el campo "Notas" que sí existe en Traslados-Modelo-Datos.docx (observaciones sobre el
-        vehículo).
-      </AvisoModeloDatos>
 
       {vehiculo && (
         <>

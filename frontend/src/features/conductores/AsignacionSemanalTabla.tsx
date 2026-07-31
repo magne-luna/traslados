@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { AvisoPendienteCliente, Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
+import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { Table, Td, Th, Tr } from '../../design-system/table';
@@ -17,14 +17,13 @@ interface AsignacionSemanalTablaProps {
   onAgregar: (asignacion: { vehiculoId: string; semana: string }) => void;
 }
 
-// Tabla de asignación semanal a vehículo (tasks.md 6.1 a 6.3, 9.2, 11.2, design.md Decisiones 4, 6
-// y 7): el selector de vehículo lee VehiculoRepository.list() vía su propio context (sin embeber
-// el objeto Vehiculo, guarda solo vehiculoId), y el alta se bloquea client-side con la función
-// pura validarAsignacionSemanal salvo que se habilite explícitamente `permitirMultiple`. Historial
-// (solo lectura) y alta separados en dos bloques con su propio título — el historial vacío usa un
-// estado ilustrado (ícono + texto secundario) en vez de una línea de texto suelta, y el toggle
-// "Permitir múltiple" se agrupa en la misma fila que "Asignar" (mismo patrón de switch ya usado
-// en ChecklistItemRow, obras-sociales-ui).
+// Tabla de asignación semanal a vehículo (tasks.md 6.1 a 6.3, 2D.2, 11.2, design.md Decisiones 4 y
+// 7, D7 §Colisión resuelto 2026-07-31): el selector de vehículo lee VehiculoRepository.list() vía
+// su propio context (sin embeber el objeto Vehiculo, guarda solo vehiculoId), y el alta se bloquea
+// client-side con la función pura validarAsignacionSemanal — la colisión se rechaza SIEMPRE, sin
+// override: no hay ningún toggle que la relaje. Historial (solo lectura) y alta separados en dos
+// bloques con su propio título — el historial vacío usa un estado ilustrado (ícono + texto
+// secundario) en vez de una línea de texto suelta.
 //
 // NOTA (tasks.md 11.2, gobernanza MEDIO): el contenedor `rounded-md` de más abajo usa
 // `grid grid-cols-1 md:grid-cols-2`, no `flex flex-col` — Card (layout.tsx) solo soporta
@@ -37,7 +36,6 @@ export function AsignacionSemanalTabla({ asignaciones, ahora = new Date(), onAgr
   const { vehiculos } = useVehiculos(vehiculoRepository);
   const [vehiculoId, setVehiculoId] = useState('');
   const [semana, setSemana] = useState(semanaActualIso(ahora));
-  const [permitirMultiple, setPermitirMultiple] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const formId = useId();
 
@@ -45,7 +43,7 @@ export function AsignacionSemanalTabla({ asignaciones, ahora = new Date(), onAgr
     event.preventDefault();
     if (!vehiculoId) return;
 
-    const resultado = validarAsignacionSemanal({ asignaciones, semana, vehiculoId, permitirMultiple });
+    const resultado = validarAsignacionSemanal({ asignaciones, semana, vehiculoId });
     if (!resultado.ok) {
       setError(resultado.error);
       return;
@@ -57,10 +55,6 @@ export function AsignacionSemanalTabla({ asignaciones, ahora = new Date(), onAgr
 
   return (
     <div className="flex flex-col gap-lg">
-      <AvisoPendienteCliente>
-        Confirmar si un conductor puede tener dos vehículos la misma semana (excepción explícita).
-      </AvisoPendienteCliente>
-
       <div className="grid grid-cols-1 gap-lg rounded-md border border-border bg-surface p-lg md:grid-cols-2">
         <div className="flex flex-col gap-sm">
           <h3 className="m-0 font-body text-[14px] font-semibold text-ink">Historial de asignaciones</h3>
@@ -110,8 +104,8 @@ export function AsignacionSemanalTabla({ asignaciones, ahora = new Date(), onAgr
           {error && <Alert tone="danger">{error}</Alert>}
 
           {/* gateo-conductores (design.md D2/riesgos, tasks.md 2.5): una sola inserción cubre
-              el selector de vehículo, la semana y el toggle "Permitir múltiple". El historial
-              (arriba) queda fuera del envoltorio y sigue legible sin permiso de escritura. */}
+              el selector de vehículo y la semana. El historial (arriba) queda fuera del
+              envoltorio y sigue legible sin permiso de escritura. */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-md">
             <CamposSoloLectura>
             <Field label="Vehículo" htmlFor={`${formId}-vehiculo`}>
@@ -141,22 +135,7 @@ export function AsignacionSemanalTabla({ asignaciones, ahora = new Date(), onAgr
               />
             </Field>
 
-            <div className="flex items-center justify-between gap-md pt-xs">
-              <label htmlFor={`${formId}-permitir-multiple`} className="flex items-center gap-sm font-body text-[13px] text-text">
-                Permitir múltiple
-                <span className="relative inline-flex items-center">
-                  <input
-                    id={`${formId}-permitir-multiple`}
-                    type="checkbox"
-                    checked={permitirMultiple}
-                    onChange={(event) => setPermitirMultiple(event.target.checked)}
-                    className="peer sr-only"
-                  />
-                  <span className="h-5 w-9 rounded-pill bg-border-strong transition-colors peer-checked:bg-primary" />
-                  <span className="absolute left-0.5 h-4 w-4 rounded-pill bg-surface shadow-sm transition-transform peer-checked:translate-x-4" />
-                </span>
-              </label>
-
+            <div className="flex items-center justify-end gap-md pt-xs">
               <Button type="submit" variant="secondary" requiereEscritura>
                 Asignar
               </Button>

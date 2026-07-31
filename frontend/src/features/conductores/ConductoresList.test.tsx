@@ -17,7 +17,7 @@ const perez: Conductor = {
   domicilio: 'Calle 50 N° 1234, La Plata',
   cuil: '20-15789456-9',
   estado: 'operando',
-  restricciones: ['no-carga-fisica'],
+  observaciones: 'No traslada pacientes con carga física.',
   asignaciones: [{ id: 'asig-1', vehiculoId: 'vehiculo-abc', semana: '2026-W30' }],
 };
 
@@ -29,7 +29,6 @@ const gonzalez: Conductor = {
   domicilio: 'Av. Rivadavia 4500, CABA',
   cuil: '20-28456789-3',
   estado: 'fuera-de-servicio',
-  restricciones: [],
   asignaciones: [],
 };
 
@@ -144,6 +143,15 @@ describe('ConductoresList', () => {
     renderList();
 
     expect(screen.getAllByText(/sin datos/i).length).toBeGreaterThan(0);
+  });
+
+  // D6-B (tasks.md 2C.5): el listado ya no muestra restricciones como dato estructurado aparte —
+  // solo queda `observaciones` como texto libre (ya cubierto por el fixture `perez` de arriba).
+  it('no muestra ninguna columna/celda de restricciones de perfil ni su estado vacío', () => {
+    renderList();
+
+    expect(screen.queryByText(/restricciones de perfil/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^sin restricciones/i)).not.toBeInTheDocument();
   });
 
   it('resuelve la patente del vehículo asignado la semana actual contra VehiculoRepository', async () => {

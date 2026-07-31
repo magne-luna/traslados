@@ -33,7 +33,6 @@ const conductor: Conductor = {
   domicilio: 'x',
   cuil: '20-1-1',
   estado: 'operando',
-  restricciones: [],
   asignaciones: [],
 };
 

@@ -12,7 +12,12 @@ import { buildConductoresFixture } from './conductoresFixture';
 const STORAGE_KEY = 'conductores';
 // v2: se agregaron `domicilio`/`cuil`/`estado` a Conductor (04_modelo_de_datos.md §Conductor);
 // datos persistidos en v1 no tienen `estado`, lo que rompe conductoresDisponibles() en FE-5.
-const SCHEMA_VERSION = 2;
+// v3 (integracion-conductores-vehiculos, tasks.md 2C.6, D6-B): `restricciones` y el tipo
+// `RestriccionConductor` se eliminan del dominio — el catálogo cerrado no existe en la base, el
+// docx modela una única `Notas` de texto libre. La forma de `Conductor` cambia de manera
+// incompatible con el payload guardado (`restricciones` ya no es una clave válida); el mismatch
+// re-siembra, nunca migra (es un mock, sin dato de producción que preservar).
+const SCHEMA_VERSION = 3;
 
 interface StoredPayload {
   schemaVersion: number;

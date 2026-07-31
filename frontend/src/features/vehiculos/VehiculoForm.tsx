@@ -1,7 +1,7 @@
 import { useId, useState, type FormEvent } from 'react';
 import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
-import { Field, Input } from '../../design-system/form';
+import { Field, Input, Textarea } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import type { AccesorioMovilidad, EstadoVehiculo } from '../../shared/types/vehiculo';
 import { ACCESORIO_MOVILIDAD_LABELS, ACCESORIO_MOVILIDAD_OPTIONS } from './accesorioMovilidadOptions';
@@ -15,6 +15,8 @@ export interface VehiculoFormValues {
   kilometraje: number;
   estado: EstadoVehiculo;
   accesoriosCompatibles: AccesorioMovilidad[];
+  /** C-08: observaciones libres sobre el vehículo (`Vehiculo.notas`). */
+  notas: string;
 }
 
 const DEFAULT_VALUES: VehiculoFormValues = {
@@ -25,6 +27,7 @@ const DEFAULT_VALUES: VehiculoFormValues = {
   kilometraje: 0,
   estado: 'habilitado',
   accesoriosCompatibles: [],
+  notas: '',
 };
 
 interface VehiculoFormProps {
@@ -168,6 +171,15 @@ export function VehiculoForm({
           ))}
         </div>
       </fieldset>
+
+      <Field label="Notas (opcional)" htmlFor={`${formId}-notas`}>
+        <Textarea
+          id={`${formId}-notas`}
+          density="comfortable"
+          value={values.notas}
+          onChange={(event) => setValues((prev) => ({ ...prev, notas: event.target.value }))}
+        />
+      </Field>
       </CamposSoloLectura>
 
       <div className="flex items-center justify-end gap-sm">

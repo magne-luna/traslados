@@ -49,7 +49,6 @@ function buildConductor(overrides: Partial<Conductor> = {}): Conductor {
     domicilio: 'x',
     cuil: '20-1-1',
     estado: 'operando',
-    restricciones: [],
     asignaciones: [],
     ...overrides,
   };

@@ -121,6 +121,12 @@ export interface Vehiculo {
    * `VehiculoRepository.update()`, mismo patrón que `gastos`.
    */
   mantenimientos: MantenimientoRegistro[];
+  /**
+   * Observaciones libres sobre el vehículo (docx §Vehiculo, campo "Notas"). La columna
+   * `conductores.vehiculo.notas` existe en la base desde antes de este change y nacía `NULL` para
+   * siempre porque el frontend no la modelaba (`CHANGES.md` §C-08, discrepancia resuelta acá).
+   */
+  notas?: string;
 }
 
 /** Payload de alta: todo lo de Vehiculo salvo el id, que asigna el repository. */

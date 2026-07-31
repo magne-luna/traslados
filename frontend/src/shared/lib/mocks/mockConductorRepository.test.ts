@@ -18,7 +18,6 @@ function buildNuevoConductor(overrides: Partial<NuevoConductor> = {}): NuevoCond
     domicilio: 'Belgrano 200, Quilmes',
     cuil: '27-99887766-1',
     estado: 'operando',
-    restricciones: [],
     asignaciones: [],
     ...overrides,
   };

@@ -39,7 +39,10 @@ export function VehiculoMantenimiento({ vehiculo, ahora = new Date() }: Vehiculo
         <SectionBadge tone="config">Habilitaciones</SectionBadge>
 
         {vehiculo.habilitaciones.length === 0 ? (
-          <p className="font-body text-sm text-muted">Sin habilitaciones registradas.</p>
+          <p className="font-body text-sm text-muted">
+            Sin habilitaciones. Se registran como intervención preventiva con sub-tipo VTV/RTO en
+            el historial de mantenimiento de abajo.
+          </p>
         ) : (
           <div className="grid grid-cols-2 gap-md">
             {vehiculo.habilitaciones.map((habilitacion) => {

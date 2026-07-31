@@ -59,6 +59,18 @@ describe('VehiculoMantenimiento', () => {
     expect(screen.getByText(/vencida/i)).toBeInTheDocument();
   });
 
+  // D3-B (tasks.md 2B.3): el estado vacío deja de decir "Sin habilitaciones registradas" a secas
+  // y pasa a explicar de dónde salen — se cargan como intervención preventiva VTV/RTO en el
+  // historial de abajo, no en un alta propia.
+  it('el estado vacío de habilitaciones explica que se cargan como intervención preventiva del historial', () => {
+    const vehiculo = buildVehiculo({ habilitaciones: [] });
+
+    render(<VehiculoMantenimiento vehiculo={vehiculo} ahora={ahora} />);
+
+    expect(screen.getByText(/se registran como intervención preventiva/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^sin habilitaciones registradas\.?$/i)).not.toBeInTheDocument();
+  });
+
   it('VTV y RTO se muestran de forma independiente aunque una esté vencida y la otra vigente', () => {
     const vehiculo = buildVehiculo({
       habilitaciones: [

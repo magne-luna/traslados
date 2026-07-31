@@ -6,13 +6,15 @@
 //
 // Sin ningún campo de credencial/sesión/rol de acceso: RN-GL-03 es explícita — los conductores
 // no acceden al sistema, se registran únicamente como datos (design.md Decisión 2).
-
-/**
- * Conjunto cerrado de restricciones de perfil conocidas (04_modelo_de_datos.md §Conductor,
- * US-600). Solo `'no-carga-fisica'` está documentado explícitamente hoy; el catálogo completo
- * se confirma con el cliente (design.md Decisión 3, Open Question — ver cartel en ConductorForm).
- */
-export type RestriccionConductor = 'no-carga-fisica';
+//
+// D6-B (integracion-conductores-vehiculos, 2026-07-31): el tipo `RestriccionConductor` y el campo
+// `Conductor.restricciones` que vivían acá se ELIMINARON del dominio. El docx
+// (`Traslados-Modelo-Datos.docx`) modela un único campo `Notas` de texto libre donde conviven las
+// observaciones y las restricciones de perfil — no hay catálogo cerrado en la base. La usuaria
+// resolvió por el docx literal: `observaciones?: string` pasa a ser el único campo libre del
+// perfil (mapea a la columna `conductores.conductores.notas`). Consecuencia asumida: RN-GL-03
+// (`C-10`, hojas de ruta) pierde el filtro automático por restricción y pasa a ser lectura humana
+// de texto libre. No se reabre esta decisión sin un pedido nuevo y explícito de la usuaria.
 
 /**
  * Disponibilidad operativa del conductor (04_modelo_de_datos.md §Conductor, discrepancia
@@ -46,7 +48,7 @@ export interface Conductor {
   /** CUIL del conductor, distinto de `documento`/DNI (04_modelo_de_datos.md §Conductor). */
   cuil: string;
   estado: EstadoConductor;
-  restricciones: RestriccionConductor[];
+  /** Único campo libre del perfil (D6-B): también donde se anota una restricción de perfil. */
   observaciones?: string;
   /** Embebidas en el conductor (design.md Decisión 5), no en un repository aparte. */
   asignaciones: AsignacionSemanal[];

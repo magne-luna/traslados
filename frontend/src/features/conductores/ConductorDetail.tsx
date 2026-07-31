@@ -9,7 +9,6 @@ import type { ActualizacionConductor, AsignacionSemanal, Conductor, NuevoConduct
 import { AsignacionSemanalTabla } from './AsignacionSemanalTabla';
 import { ConductorDocumentos } from './ConductorDocumentos';
 import { ConductorForm, type ConductorFormValues } from './ConductorForm';
-import { RESTRICCION_CONDUCTOR_LABELS } from './restriccionConductorOptions';
 
 // Fecha de nacimiento se guarda como 'YYYY-MM-DD' (sin componente de hora): formatear con
 // `new Date(iso).toLocaleDateString()` corre el string por UTC medianoche y luego lo muestra en
@@ -60,7 +59,6 @@ export function ConductorDetail({ conductor, crear, actualizar, documentoReposit
         domicilio: values.domicilio,
         cuil: values.cuil,
         estado: values.estado,
-        restricciones: values.restricciones,
         observaciones: values.observaciones || undefined,
         asignaciones: conductor?.asignaciones ?? [],
       };
@@ -135,18 +133,6 @@ export function ConductorDetail({ conductor, crear, actualizar, documentoReposit
               </span>
             )}
 
-            <div className="flex flex-wrap items-center gap-sm">
-              {conductor.restricciones.length === 0 ? (
-                <span className="font-body text-[12px] text-muted">Sin restricciones de perfil</span>
-              ) : (
-                conductor.restricciones.map((restriccion) => (
-                  <Chip key={restriccion} kind="warning">
-                    {RESTRICCION_CONDUCTOR_LABELS[restriccion]}
-                  </Chip>
-                ))
-              )}
-            </div>
-
             {conductor.observaciones && <p className="m-0 font-body text-[13px] text-muted">{conductor.observaciones}</p>}
 
             <div className="flex justify-end">
@@ -168,7 +154,6 @@ export function ConductorDetail({ conductor, crear, actualizar, documentoReposit
                     domicilio: conductor.domicilio,
                     cuil: conductor.cuil,
                     estado: conductor.estado,
-                    restricciones: conductor.restricciones,
                     observaciones: conductor.observaciones ?? '',
                   }
                 : undefined

@@ -23,7 +23,6 @@ const perez: Conductor = {
   domicilio: 'Calle 50 N° 1234, La Plata',
   cuil: '20-15789456-9',
   estado: 'operando',
-  restricciones: [],
   asignaciones: [],
 };
 

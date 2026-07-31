@@ -3,8 +3,7 @@ import { Button, CamposSoloLectura, Chip } from '../../design-system/components'
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Textarea } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
-import type { EstadoConductor, RestriccionConductor } from '../../shared/types/conductor';
-import { RESTRICCION_CONDUCTOR_LABELS, RESTRICCION_CONDUCTOR_OPTIONS } from './restriccionConductorOptions';
+import type { EstadoConductor } from '../../shared/types/conductor';
 import { validateConductorForm, type ConductorFormErrors } from './validateConductorForm';
 
 export interface ConductorFormValues {
@@ -16,7 +15,6 @@ export interface ConductorFormValues {
   domicilio: string;
   cuil: string;
   estado: EstadoConductor;
-  restricciones: RestriccionConductor[];
   observaciones: string;
 }
 
@@ -29,7 +27,6 @@ const DEFAULT_VALUES: ConductorFormValues = {
   domicilio: '',
   cuil: '',
   estado: 'operando',
-  restricciones: [],
   observaciones: '',
 };
 
@@ -63,15 +60,6 @@ export function ConductorForm({ initial, onSubmit, onCancel, submitting = false,
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
     onSubmit(values);
-  }
-
-  function toggleRestriccion(restriccion: RestriccionConductor) {
-    setValues((prev) => ({
-      ...prev,
-      restricciones: prev.restricciones.includes(restriccion)
-        ? prev.restricciones.filter((r) => r !== restriccion)
-        : [...prev.restricciones, restriccion],
-    }));
   }
 
   return (
@@ -168,32 +156,15 @@ export function ConductorForm({ initial, onSubmit, onCancel, submitting = false,
 
       <Chip kind="warning">⚠️ Pendiente de confirmar con el cliente: datos personales mínimos obligatorios del alta</Chip>
 
-      <fieldset className="flex flex-col gap-xs border-none p-0">
-        {/* <legend>, no <label>: agrupa varios checkboxes, no un único control — Label/Field no
-            aplican (design.md Decisión 3, el checkbox se deja fuera del patrón Field). Mismas
-            clases que Label por ser el mismo estilo de rótulo. */}
-        <legend className="font-body text-[12px] font-semibold text-muted">Restricciones de perfil</legend>
-        <Chip kind="warning">⚠️ Pendiente de confirmar con el cliente: catálogo cerrado de restricciones</Chip>
-        <div className="flex flex-wrap gap-md">
-          {RESTRICCION_CONDUCTOR_OPTIONS.map((restriccion) => (
-            <label
-              key={restriccion}
-              htmlFor={`${formId}-restriccion-${restriccion}`}
-              className="flex items-center gap-xs font-body text-[13px] text-text"
-            >
-              <input
-                id={`${formId}-restriccion-${restriccion}`}
-                type="checkbox"
-                checked={values.restricciones.includes(restriccion)}
-                onChange={() => toggleRestriccion(restriccion)}
-              />
-              {RESTRICCION_CONDUCTOR_LABELS[restriccion]}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <Field label="Observaciones (opcional)" htmlFor={`${formId}-observaciones`}>
+      {/* D6-B (design.md, 2026-07-31): el selector tipado de restricciones de perfil se elimina —
+          Observaciones queda como único campo libre del perfil, alineado al docx (un solo campo
+          "Notas" de texto). Anotar acá que un conductor no traslada pacientes con carga física
+          también es Observaciones, no un campo aparte. */}
+      <Field
+        label="Observaciones (opcional)"
+        htmlFor={`${formId}-observaciones`}
+        hint="Incluí acá cualquier restricción de perfil del conductor (por ejemplo, si no traslada pacientes con carga física)."
+      >
         <Textarea
           id={`${formId}-observaciones`}
           density="comfortable"

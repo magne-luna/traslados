@@ -18,7 +18,6 @@ const perez: Conductor = {
   domicilio: 'Calle 50 N° 1234, La Plata',
   cuil: '20-15789456-9',
   estado: 'operando',
-  restricciones: ['no-carga-fisica'],
   observaciones: 'No cargar sillas rígidas.',
   asignaciones: [],
 };
@@ -104,7 +103,7 @@ describe('ConductorDetail', () => {
     expect(onCreated).toHaveBeenCalledWith(perez);
   });
 
-  it('en edición muestra el resumen (datos, domicilio, CUIL, estado, restricciones, observaciones) colapsado detrás de "Editar datos"', () => {
+  it('en edición muestra el resumen (datos, domicilio, CUIL, estado, observaciones) colapsado detrás de "Editar datos"', () => {
     renderDetail({ conductor: perez });
 
     expect(screen.getAllByText('Pérez').length).toBeGreaterThan(0);
@@ -112,9 +111,16 @@ describe('ConductorDetail', () => {
     expect(screen.getByText(perez.domicilio)).toBeInTheDocument();
     expect(screen.getByText(perez.cuil)).toBeInTheDocument();
     expect(screen.getByText(/operando/i)).toBeInTheDocument();
-    expect(screen.getByText('No traslada pacientes con carga física')).toBeInTheDocument();
     expect(screen.getByText('No cargar sillas rígidas.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /editar datos/i })).toBeInTheDocument();
+  });
+
+  // D6-B (tasks.md 2C.4): la ficha no muestra ningún dato estructurado de "restricciones" —
+  // Observaciones es el único campo libre del perfil.
+  it('no muestra ningún bloque de "restricciones de perfil" como dato estructurado aparte', () => {
+    renderDetail({ conductor: perez });
+
+    expect(screen.queryByText(/restricciones de perfil/i)).not.toBeInTheDocument();
   });
 
   it('muestra teléfono y fecha de nacimiento formateada en el resumen', () => {

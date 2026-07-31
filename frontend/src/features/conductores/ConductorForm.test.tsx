@@ -8,9 +8,9 @@ function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
 
-// Formulario de alta/edición (tasks.md 5.2 a 5.6, 9.1, 9.3): datos personales, selector tipado
-// de restricciones de perfil + observaciones, validación bloqueante, y los 2 cartelitos de
-// "pendiente de confirmar" de la sección 9 de tasks.md (design.md Decisión 10).
+// Formulario de alta/edición (tasks.md 5.2 a 5.6, 9.3, 2C.3): datos personales, Observaciones
+// como único campo libre del perfil (D6-B: sin selector de restricciones), validación bloqueante,
+// y el cartel de "pendiente de confirmar" sobre los datos mínimos del alta (9.3, sigue abierto).
 
 describe('ConductorForm', () => {
   it('bloquea el guardado y señala los campos faltantes cuando apellido, nombre o documento están vacíos', async () => {
@@ -43,7 +43,9 @@ describe('ConductorForm', () => {
     );
   });
 
-  it('permite marcar una restricción de perfil documentada y la incluye en el submit', async () => {
+  // D6-B (tasks.md 2C.3): sin selector de restricciones; una restricción de perfil se anota como
+  // texto libre en Observaciones, el único campo libre del perfil.
+  it('permite anotar una restricción de perfil como texto libre en Observaciones y la incluye en el submit', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
@@ -52,10 +54,19 @@ describe('ConductorForm', () => {
     await user.type(screen.getByLabelText(/apellido/i), 'Pérez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Carlos');
     await user.type(screen.getByLabelText(/documento/i), '15789456');
-    await user.click(screen.getByLabelText(/no traslada pacientes con carga física/i));
+    await user.type(screen.getByLabelText(/observaciones/i), 'No traslada pacientes con carga física.');
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ restricciones: ['no-carga-fisica'] }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ observaciones: 'No traslada pacientes con carga física.' }),
+    );
+  });
+
+  it('no ofrece ningún selector, checkbox ni catálogo de restricciones de perfil', () => {
+    render(<ConductorForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.queryByText(/restricciones de perfil/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/no traslada pacientes con carga física/i)).not.toBeInTheDocument();
   });
 
   it('el toggle de fuera de servicio persiste como estado en el submit (mismo patrón que VehiculoForm)', async () => {
@@ -115,12 +126,6 @@ describe('ConductorForm', () => {
     expect(screen.queryByLabelText(/rol/i)).not.toBeInTheDocument();
   });
 
-  it('muestra el cartel de pendiente de confirmar sobre el catálogo de restricciones (tasks.md 9.1)', () => {
-    render(<ConductorForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
-
-    expect(screen.getByText(/pendiente de confirmar con el cliente: catálogo cerrado de restricciones/i)).toBeInTheDocument();
-  });
-
   it('muestra el cartel de pendiente de confirmar sobre los datos mínimos del alta (tasks.md 9.3)', () => {
     render(<ConductorForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
@@ -141,8 +146,7 @@ describe('ConductorForm', () => {
           domicilio: '',
           cuil: '',
           estado: 'operando',
-          restricciones: ['no-carga-fisica'],
-          observaciones: '',
+          observaciones: 'No traslada pacientes con carga física.',
         }}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
@@ -150,7 +154,7 @@ describe('ConductorForm', () => {
     );
 
     expect(screen.getByLabelText(/apellido/i)).toHaveValue('Pérez');
-    expect(screen.getByLabelText(/no traslada pacientes con carga física/i)).toBeChecked();
+    expect(screen.getByLabelText(/observaciones/i)).toHaveValue('No traslada pacientes con carga física.');
   });
 });
 
@@ -169,7 +173,6 @@ describe('ConductorForm — gateo de escritura', () => {
     expect(screen.getByLabelText(/documento/i)).toBeDisabled();
     expect(screen.getByLabelText(/cuil/i)).toBeDisabled();
     expect(screen.getByLabelText(/domicilio/i)).toBeDisabled();
-    expect(screen.getByLabelText(/no traslada pacientes con carga física/i)).toBeDisabled();
     expect(screen.getByLabelText(/observaciones/i)).toBeDisabled();
 
     await user.type(screen.getByLabelText(/apellido/i), 'Intento bloqueado');
