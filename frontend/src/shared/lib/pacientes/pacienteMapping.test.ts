@@ -23,7 +23,7 @@ function buildNuevoPacienteMinimo(): NuevoPaciente {
     diagnostico: '',
     accesorioMovilidad: [],
     obraSocialId: null,
-    numeroAfiliado: { valor: '' },
+    numeroAfiliado: { formato: 'numero-documento', valor: '' },
     cud: null,
     direcciones: [],
     personasACargo: [],
@@ -44,7 +44,7 @@ function buildNuevoPacienteCompleto(): NuevoPaciente {
     condicion: 'Estable',
     accesorioMovilidad: ['andador', 'tripode'],
     obraSocialId: 'os-1',
-    numeroAfiliado: { valor: 'AF-999' },
+    numeroAfiliado: { formato: 'alfanumerico', valor: 'AF-999' },
     cud: { numero: 'C-1', fechaEmision: '2023-01-01', fechaVencimiento: '2027-01-01' },
     direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'San Martín 123', localidad: 'CABA', dias: 'Lun', horario: '08:00' }],
     personasACargo: [{ id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', telefono: '111' }],
@@ -356,7 +356,7 @@ describe('ensamblarPaciente', () => {
       condicion: 'Estable',
       accesorioMovilidad: ['andador'],
       obraSocialId: 'os-1',
-      numeroAfiliado: { valor: 'AF-123' },
+      numeroAfiliado: { formato: 'numero-documento', valor: 'AF-123' },
       cud: { numero: 'C-1', fechaEmision: '2023-01-01', fechaVencimiento: '2027-01-01' },
       direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'San Martín 123', localidad: '' }],
       personasACargo: [
@@ -370,7 +370,7 @@ describe('ensamblarPaciente', () => {
   it('discrepancias #1/#2 (D9): coberturaRow null degrada a formato default y valor vacío, sin lanzar', () => {
     const paciente = ensamblarPaciente(buildRowCompleto(), null);
 
-    expect(paciente.numeroAfiliado).toEqual({ valor: '' });
+    expect(paciente.numeroAfiliado).toEqual({ formato: 'numero-documento', valor: '' });
   });
 
   it('robustez (2.10): una direccion malformada se descarta sin romper el paciente ni el resto de la lista', () => {
@@ -475,7 +475,7 @@ describe('toCrearPacientePayload', () => {
 
   it('paciente sin obraSocialId con numeroAfiliado.valor cargado: num_afiliado viaja igual', () => {
     const nuevo = buildNuevoPacienteMinimo();
-    nuevo.numeroAfiliado = { valor: 'AF-777' };
+    nuevo.numeroAfiliado = { formato: 'numero-documento', valor: 'AF-777' };
     nuevo.obraSocialId = null;
 
     const payload = toCrearPacientePayload(nuevo);

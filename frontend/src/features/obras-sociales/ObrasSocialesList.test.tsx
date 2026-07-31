@@ -17,7 +17,6 @@ const osecac: ObraSocial = {
   tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
-  formatoAfiliado: 'documento',
   checklist: [],
   plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
 };
@@ -30,7 +29,6 @@ const osde: ObraSocial = {
   tipoComprobante: 'B',
   modalidadFacturacion: 'general',
   admitePagosParciales: true,
-  formatoAfiliado: 'documento',
   checklist: [
     { id: 'c1', nombre: 'Receta digital', requerido: true },
     { id: 'c2', nombre: 'Orden médica', requerido: true },

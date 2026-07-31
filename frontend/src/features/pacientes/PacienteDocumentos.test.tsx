@@ -19,7 +19,6 @@ const osecac: ObraSocial = {
   tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
-  formatoAfiliado: 'documento',
   checklist: [
     { id: 'item-1', nombre: 'RHC', requerido: true },
     { id: 'item-2', nombre: 'Consentimiento informado', requerido: true },

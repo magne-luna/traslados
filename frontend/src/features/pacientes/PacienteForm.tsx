@@ -5,6 +5,7 @@ import { CardForm } from '../../design-system/layout';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { AccesorioMovilidad } from '../../shared/types/vehiculo';
 import type { IdentificadorAfiliado } from '../../shared/types/paciente';
+import { DEFAULT_FORMATO_AFILIADO } from './formatoAfiliadoOptions';
 import { PacienteCoberturaFields } from './PacienteCoberturaFields';
 import { PacienteDatosPersonalesFields } from './PacienteDatosPersonalesFields';
 import { validatePacienteForm, type PacienteFormErrors } from './validatePacienteForm';
@@ -35,9 +36,8 @@ const DEFAULT_VALUES: PacienteFormValues = {
   diagnostico: '',
   accesorioMovilidad: [],
   obraSocialId: null,
-  // El formato ya no vive acá (RN-ID-02, IN-01): se deriva de la obra social elegida, ver
-  // shared/types/obraSocial.ts y PacienteCoberturaFields.
-  numeroAfiliado: { valor: '' },
+  // Default documentado y editable (design.md Decisión 1) — nunca fijo en la lógica de dominio.
+  numeroAfiliado: { formato: DEFAULT_FORMATO_AFILIADO, valor: '' },
   amparoJudicial: false,
 };
 

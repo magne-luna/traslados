@@ -19,14 +19,12 @@ describe('mockPacienteRepository', () => {
     vi.useRealTimers();
   });
 
-  it('siembra el fixture con identificadores de afiliado distintos cuando no hay datos previos', async () => {
+  it('siembra el fixture con los tres formatos de identificador de afiliado cuando no hay datos previos', async () => {
     const pacientes = await flushLatency(mockPacienteRepository.list());
 
     expect(pacientes.length).toBeGreaterThanOrEqual(2);
-    // El formato del identificador ya no viaja en el paciente (RN-ID-02, IN-01) — se deriva de
-    // ObraSocial.formatoAfiliado. Acá solo se ejercita que cada paciente trae su propio `valor`.
-    const valores = new Set(pacientes.map((p) => p.numeroAfiliado.valor));
-    expect(valores.size).toBe(pacientes.length);
+    const formatos = new Set(pacientes.map((p) => p.numeroAfiliado.formato));
+    expect(formatos).toEqual(new Set(['numero-documento', 'alfanumerico', 'cuil-con-sufijo']));
     expect(pacientes.some((p) => p.amparoJudicial)).toBe(true);
     expect(pacientes.some((p) => !p.amparoJudicial)).toBe(true);
   });
@@ -63,7 +61,7 @@ describe('mockPacienteRepository', () => {
         diagnostico: 'Test',
         accesorioMovilidad: [],
         obraSocialId: null,
-        numeroAfiliado: { valor: '47000111' },
+        numeroAfiliado: { formato: 'numero-documento', valor: '47000111' },
         cud: null,
         direcciones: [],
         personasACargo: [],

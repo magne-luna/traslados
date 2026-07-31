@@ -211,7 +211,7 @@ function buildNuevoPacienteMinimo(): NuevoPaciente {
     diagnostico: '',
     accesorioMovilidad: [],
     obraSocialId: null,
-    numeroAfiliado: { valor: '' },
+    numeroAfiliado: { formato: 'numero-documento', valor: '' },
     cud: null,
     direcciones: [],
     personasACargo: [],
@@ -223,7 +223,7 @@ function buildNuevoPacienteConAfiliado(): NuevoPaciente {
   return {
     ...buildNuevoPacienteMinimo(),
     obraSocialId: 'os-1',
-    numeroAfiliado: { valor: 'AF-1' },
+    numeroAfiliado: { formato: 'numero-documento', valor: 'AF-1' },
   };
 }
 
@@ -911,7 +911,7 @@ describe('supabasePacienteRepository.update — cobertura (3.11)', () => {
 
     await supabasePacienteRepository.update('p-1', {
       apellido: 'Nuevo',
-      numeroAfiliado: { valor: 'AF-1' },
+      numeroAfiliado: { formato: 'numero-documento', valor: 'AF-1' },
     });
 
     const escrituras = calls.filter((c) => c.table === 'coberturas_paciente' && c.op !== 'select');
@@ -923,7 +923,7 @@ describe('supabasePacienteRepository.update — cobertura (3.11)', () => {
     configurar('obra_social', 'coberturas_paciente', 'select', () => ok([{ num_afiliado: 'AF-VIEJO' }]));
 
     await supabasePacienteRepository.update('p-1', {
-      numeroAfiliado: { valor: 'AF-NUEVO' },
+      numeroAfiliado: { formato: 'numero-documento', valor: 'AF-NUEVO' },
     });
 
     const escrituras = calls.filter((c) => c.table === 'coberturas_paciente' && c.op === 'upsert');
@@ -936,7 +936,7 @@ describe('supabasePacienteRepository.update — cobertura (3.11)', () => {
     configurar('obra_social', 'coberturas_paciente', 'upsert', () => fail({ code: '42501', message: 'denied' }));
 
     await expect(
-      supabasePacienteRepository.update('p-1', { numeroAfiliado: { valor: 'AF-NUEVO' } }),
+      supabasePacienteRepository.update('p-1', { numeroAfiliado: { formato: 'numero-documento', valor: 'AF-NUEVO' } }),
     ).rejects.toThrow('No tenés permiso sobre Obras Sociales para editar el número de afiliado.');
   });
 });

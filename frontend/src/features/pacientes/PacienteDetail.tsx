@@ -151,16 +151,14 @@ export function PacienteDetail({
         hay historial de coberturas ni de obras sociales anteriores.
       </AvisoModeloDatos>
 
-      {/* tasks.md 5.1 (integracion-pacientes), design.md D9 #7/#8/#10: cartel agrupado — todos
-          campos que se ven en pantalla pero no persisten limpio contra pacientes.paciente/clinicos.
-          El formato del identificador de afiliado (IN-01, D9 #1) salió de acá: ya no es un campo
-          del paciente sin columna — es ObraSocial.formatoAfiliado, con columna propia
-          (obra_social.obra_social.formato_afiliado, migración
-          20260731100000_schema_obra_social_formato_afiliado.sql). */}
+      {/* tasks.md 5.1 (integracion-pacientes), design.md D9 #1/#7/#8/#10: cartel agrupado — todos
+          campos que se ven en pantalla pero no persisten limpio contra pacientes.paciente/clinicos. */}
       <AvisoModeloDatos>
-        La <strong>aclaración del amparo judicial</strong> no tiene columna propia: se pierde al
-        recargar la página. <strong>Fecha de nacimiento</strong>, <strong>CUIL del titular</strong>{' '}
-        y el <strong>DNI</strong> de cada persona a cargo son nullable en la base — si faltan, se
+        El <strong>formato</strong> del identificador de afiliado (DNI/CUIL/otro) no tiene columna
+        propia — no se persiste (IN-01, pendiente de confirmar con backend). La{' '}
+        <strong>aclaración del amparo judicial</strong> tampoco tiene columna: se pierde al recargar
+        la página. <strong>Fecha de nacimiento</strong>, <strong>CUIL del titular</strong> y el{' '}
+        <strong>DNI</strong> de cada persona a cargo son nullable en la base — si faltan, se
         muestran vacíos en vez de un error. El <strong>diagnóstico</strong> se guarda como JSON
         (`clinicos.diagnostico JSONB`), no como texto plano.
       </AvisoModeloDatos>

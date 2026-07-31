@@ -17,7 +17,6 @@ const osecac: ObraSocial = {
   tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
-  formatoAfiliado: 'documento',
   checklist: [{ id: 'i1', nombre: 'RHC', requerido: true }],
   plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
 };

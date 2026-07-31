@@ -23,7 +23,6 @@ const osecac: ObraSocial = {
   tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
-  formatoAfiliado: 'documento',
   checklist: [],
   plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
 };
@@ -38,7 +37,7 @@ const martina: Paciente = {
   diagnostico: 'Parálisis cerebral',
   accesorioMovilidad: [],
   obraSocialId: 'osecac',
-  numeroAfiliado: { valor: '45123456' },
+  numeroAfiliado: { formato: 'numero-documento', valor: '45123456' },
   cud: null,
   direcciones: [],
   personasACargo: [],

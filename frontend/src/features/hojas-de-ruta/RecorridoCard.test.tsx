@@ -70,7 +70,7 @@ const pacienteA: Paciente = {
   diagnostico: 'x',
   accesorioMovilidad: [],
   obraSocialId: null,
-  numeroAfiliado: { valor: '1' },
+  numeroAfiliado: { formato: 'numero-documento', valor: '1' },
   cud: null,
   direcciones: [{ id: 'dir-a', tipo: 'domicilio', calle: 'Calle 1', localidad: 'CABA' }],
   personasACargo: [],

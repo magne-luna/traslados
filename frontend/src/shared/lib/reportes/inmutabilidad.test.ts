@@ -52,7 +52,7 @@ function paciente(overrides: Partial<Paciente> = {}): Paciente {
     diagnostico: '',
     accesorioMovilidad: [],
     obraSocialId: null,
-    numeroAfiliado: { valor: '30111222' },
+    numeroAfiliado: { formato: 'numero-documento', valor: '30111222' },
     cud: { numero: '1', fechaEmision: '2020-01-01', fechaVencimiento: '2026-08-01' },
     direcciones: [],
     personasACargo: [],

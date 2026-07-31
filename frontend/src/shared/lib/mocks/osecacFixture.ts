@@ -29,7 +29,6 @@ export function buildOsecacFixture(): ObraSocial {
     tipoComprobante: 'A',
     modalidadFacturacion: 'por-prestacion',
     admitePagosParciales: false,
-    formatoAfiliado: 'documento',
     checklist: OSECAC_CHECKLIST_NOMBRES.map((nombre, index) => ({
       id: `osecac-item-${index}`,
       nombre,

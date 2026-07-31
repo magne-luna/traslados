@@ -3,7 +3,7 @@ import { resolverIdentificadorFactura, type PacienteParaIdentificador } from './
 
 const paciente: PacienteParaIdentificador = {
   dni: '45123456',
-  numeroAfiliado: { valor: '45123456-A' },
+  numeroAfiliado: { formato: 'numero-documento', valor: '45123456-A' },
 };
 
 describe('resolverIdentificadorFactura', () => {
@@ -20,7 +20,7 @@ describe('resolverIdentificadorFactura', () => {
   it('no fija ningún default propio: el mismo paciente cambia de valor solo según el origen recibido', () => {
     const otroPaciente: PacienteParaIdentificador = {
       dni: '99999999',
-      numeroAfiliado: { valor: 'OS-ZZ000' },
+      numeroAfiliado: { formato: 'alfanumerico', valor: 'OS-ZZ000' },
     };
 
     const porDni = resolverIdentificadorFactura(otroPaciente, 'paciente.dni');

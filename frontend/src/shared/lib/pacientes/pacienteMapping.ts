@@ -14,6 +14,7 @@ import type {
   TipoDireccion,
 } from '../../types/paciente';
 import type { AccesorioMovilidad } from '../../types/vehiculo';
+import { DEFAULT_FORMATO_AFILIADO } from '../../../features/pacientes/formatoAfiliadoOptions';
 
 const TIPOS_DIRECCION_VALIDOS = new Set<TipoDireccion>(['domicilio', 'escuela', 'terapia', 'ciset', 'otro']);
 
@@ -268,8 +269,7 @@ export function parseCoberturaRow(row: unknown): { valor: string } {
 /** Combina la fila con embeds de `pacientes.paciente` (D2) más la fila de cobertura (D3, segunda
  * consulta a otro schema) en un `Paciente` completo. Filas hijas malformadas se descartan en
  * silencio (tarea 2.10) sin romper el paciente. `coberturaRow === null` degrada `numeroAfiliado` a
- * `{ valor: '' }` (discrepancia #1 de D9) — el formato ya no viaja acá, se deriva de
- * `ObraSocial.formatoAfiliado` (RN-ID-02, IN-01). */
+ * `{ formato: DEFAULT_FORMATO_AFILIADO, valor: '' }` (discrepancias #1/#2 de D9). */
 export function ensamblarPaciente(row: unknown, coberturaRow: unknown): Paciente {
   const base = parsePacienteRow(row);
   const record = isRecord(row) ? row : {};
@@ -300,10 +300,9 @@ export function ensamblarPaciente(row: unknown, coberturaRow: unknown): Paciente
     condicion: clinicos.condicion,
     accesorioMovilidad: parseAccesorios(record.accesorios_pacientes),
     obraSocialId: base.obraSocialId,
-    // Discrepancia #1 (D9, D3 CONFIRMADA): el formato ya no vive en el paciente (RN-ID-02,
-    // IN-01) — se deriva de `ObraSocial.formatoAfiliado`. La lectura degradable de `valor` ya
-    // viene resuelta en `parseCoberturaRow`.
-    numeroAfiliado: { valor: cobertura.valor },
+    // Discrepancias #1/#2 (D9, D3 CONFIRMADA): sin columna de formato, default client-side; la
+    // lectura degradable de `valor` ya viene resuelta en `parseCoberturaRow`.
+    numeroAfiliado: { formato: DEFAULT_FORMATO_AFILIADO, valor: cobertura.valor },
     cud,
     direcciones,
     personasACargo,
@@ -361,8 +360,8 @@ export function toCrearPacientePayload(nuevo: NuevoPaciente): CrearPacientePaylo
     direcciones: toDireccionRows(nuevo.direcciones),
     personas_a_cargo: toPersonaACargoRows(nuevo.personasACargo),
     accesorios: nuevo.accesorioMovilidad,
-    // Discrepancia #1 (D9): solo viaja `valor` — el formato ya no es un campo del paciente
-    // (RN-ID-02, IN-01 resuelta): se deriva de `ObraSocial.formatoAfiliado`, no se envía acá.
+    // Discrepancia #1 (D9): solo viaja `valor`; `numeroAfiliado.formato` no tiene columna y no se
+    // envía (IN-01 abierta).
     num_afiliado: nuevo.numeroAfiliado.valor,
   };
 }
