@@ -87,6 +87,17 @@ este change** (tarea 1B.5 de `tasks.md`):
   equivalente. El costo de no automatizarlo ya no es hipotético: son dos checklists SQL manuales
   por change (alta + edición), y va a seguir creciendo linealmente. **Decisor**: equipo técnico —
   esta actualización es el dato que faltaba para tomar la decisión, no la decisión en sí.
+  **Conteo actualizado (2026-07-31, propose de `integracion-facturacion` — cuarto change de la
+  serie)**: el `design.md` de `integracion-facturacion` (D4) planifica **dos funciones más**,
+  `facturacion.crear_factura_completa` y `facturacion.actualizar_factura_completa`, con el mismo
+  patrón `SECURITY INVOKER` y la misma verificación manual. Con eso el acumulado pasa a **4 changes
+  / 5 funciones** de escritura multi-tabla sin ningún harness automatizado, y quedan **cinco**
+  changes de integración por delante. Agravante propio de este dominio: es el **primero de la serie
+  con governance CRÍTICO** (financiero, con rastro de auditoría), y su función de actualización
+  tiene un modo de falla que borra datos en silencio si el operador `?` de `jsonb` se usa mal
+  (`integracion-facturacion/design.md` D4 y `tasks.md` 1B.3) — exactamente la clase de bug que un
+  test de Postgres atraparía y un checklist manual puede pasar por alto. **Este propose solo suma
+  el dato; no toma la decisión.** **Decisor**: equipo técnico.
 - **¿Se indexan las FK `paciente_id` de las tablas hijas de Pacientes?**
   `20260724100004_schema_pacientes.sql` no crea índices sobre `cud.paciente_id`,
   `clinicos.paciente_id`, `direcciones.paciente_id`, `personas_a_cargo.paciente_id` ni

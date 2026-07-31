@@ -26,13 +26,11 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 >
 > No confundir con los changes C-NN de arriba (esos son "construir la pantalla"; esto es "conectarla al backend real" — en varios casos ya archivados como `*-ui` en mock, y ahora toca el swap).
 
-> **⏸️ Plan pausado acá por la usuaria (2026-07-31).** Se completó el paso 1 (Obra Social). La
-> usuaria pidió frenar explícitamente antes de arrancar el paso 2 (Conductores + Vehículos) — no
-> arrancar ningún dominio nuevo de esta tabla sin que lo pida de nuevo. Motivo adicional para no
-> seguir sin confirmar primero: hay **otra sesión de Claude Code activa en paralelo** sobre este
-> mismo repo que ya generó un propose completo para `integracion-conductores-vehiculos` (fila 3) sin
-> que quede claro si es la propia usuaria en otra ventana o alguien más — aclarar esto es el primer
-> paso al retomar, antes de tocar ese change.
+> **Retomado por la usuaria (2026-07-31).** El plan había quedado pausado tras Obra Social (paso 1);
+> la usuaria confirmó seguir. `Conductores + Vehículos` (fila 3) lo está llevando ella misma en una
+> sesión de Claude Code aparte — no tocar ese change desde acá. `Facturación` (fila 4) se propuso en
+> esta sesión y queda bloqueada en su propio portón de governance (§C-07) hasta que Enzo/backend
+> decida las 5 preguntas — no avanzar al apply sin esas respuestas.
 
 | Orden | Dominio | Estado | Notas |
 |-------|---------|--------|-------|
@@ -40,7 +38,7 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 | 1 | Pacientes (C-05) | 🔶 código+migración+tests completos, **pendiente de revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-05 más abajo |
 | 2 | Obra Social (C-04) | 🔶 código+migraciones+tests completos (`integracion-obra-social`, 2026-07-31), **pendiente de aplicación de las migraciones y revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-04 más abajo. Hallazgo del apply: el schema real ya tenía casi todo lo que `design.md` planeaba (nombres/tipos distintos). D12 (RN-ID-02) se revirtió el mismo día — ver §C-04 |
 | 3 | Conductores + Vehículos (C-08/C-09) | ⚠️ **ver nota** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). Apareció además `openspec/changes/integracion-conductores-vehiculos/` con propose completo, **no generado desde esta sesión** — hay actividad concurrente de otra sesión sobre este mismo dominio. No arrancar acá sin confirmar con la usuaria quién lo está llevando |
-| 4 | Facturación (C-07) | ⏳ pendiente | Depende de Obra Social |
+| 4 | Facturación (C-07) | 🔶 propose completo (`integracion-facturacion`, 2026-07-31), **bloqueado en el portón de governance §0 de `tasks.md` — 5 decisiones a cargo de Enzo/backend** antes de poder aplicar | Ver bullet ⏳ en §C-07 más abajo para el detalle de las 5 decisiones |
 | 5 | Presupuestos (C-06) | 🔴 bloqueado | 2 puntos a coordinar con backend, governance ALTO (ver §C-06) |
 | 6 | Hojas de Ruta (C-10) | ⏳ pendiente | — |
 | 7 | Dashboard (C-11) | ⏳ pendiente | Va último — agrega datos de todos los repos reales de arriba |
@@ -477,6 +475,37 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   cliente los defaults de `10_preguntas_abiertas.md` (identificador DNI/afiliado, plazos 90/45/60
   y su precedencia, integración ARCA, período estructurado). Verificación manual en navegador
   confirmada por el usuario 2026-07-25.
+- **🔶 Propose completo del swap de backend** (`integracion-facturacion`, 2026-07-31):
+  `proposal.md` + `design.md` (14 decisiones D1-D14) + `tasks.md` + 5 delta specs
+  (`factura-repository-supabase` nueva, `factura-contract`/`factura-estados-circuito`/
+  `factura-cupo-validacion`/`cobro-registro` modificadas). Los 4 defaults de negocio de
+  `10_preguntas_abiertas.md` se **heredan sin cerrarlos** (identificador de factura, período
+  estructurado, plazos 90/60/45, ARCA manual) — la usuaria confirmó ese criterio antes del propose.
+- **⏳ Pendiente de decisión (a cargo de Enzo/backend)** antes de que `integracion-facturacion` pueda
+  pasar a apply — portón de governance §0 de `tasks.md`, gobernanza CRITICO, ninguna tarea corre sin
+  esto:
+  - **D3** — agregar `facturacion.facturas.fecha_factura DATE` (nullable). Única modificación de
+    schema del change. Requiere además coordinación previa con Enzo para confirmar que no está
+    planeada con otro nombre — el schema real viene por delante del repo desde hace tres changes
+    seguidos (mismo patrón que D12-revertida de `integracion-obra-social`).
+  - **D4** — crear dos funciones RPC `SECURITY INVOKER` (`crear_factura_completa`,
+    `actualizar_factura_completa`) para las altas/ediciones atómicas multi-tabla.
+  - **D6** — si el swap de `CobroRepository` entra en este mismo change o queda aparte. `design.md`
+    argumenta que es obligatorio (no opcional): con cobros en fixture y facturas reales, ningún
+    cobro matchea ninguna factura.
+  - **D9 (mayor riesgo funcional del change)** — la validación de cupo (RN-FA-02) queda operando
+    sobre fuente mixta: facturas reales × autorizaciones de fixture, porque `C-06` (Presupuestos)
+    sigue bloqueado. Tres opciones en `design.md` D9: **A.** fuente mixta + cartel visible
+    (propuesta), **B.** desactivar la alerta hasta que `C-06` esté integrado, **C.** arrastrar el
+    swap de `autorizacion` a este change. Hallazgo asociado, no es parte de esta decisión pero
+    la motiva: las policies reales de `facturacion.presupuesto`/`autorizacion` están gateadas por
+    el permiso `presupuestos`, no `facturacion` como dice el comentario de la migración commiteada
+    — un perfil con `facturacion: read/write` sin `presupuestos: read` ve **0 autorizaciones en
+    silencio**, dejando RN-FA-02 desactivada de hecho. Queda anotado como bloqueante a resolver en
+    `integracion-presupuestos`.
+  - **D10** — crear los 6 índices que faltan sobre las FK de `facturacion` sin `CONCURRENTLY`
+    (se aparta de una regla dura de `database-schema-design`), justificado en que las 6 tablas
+    tienen 0 filas hoy — condición a re-verificar inmediatamente antes de aplicar la migración.
 
 ---
 
