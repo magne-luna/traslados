@@ -514,47 +514,86 @@
 > ~~Bloqueada por el checkpoint **0.1**.~~ **Desbloqueada**: D3 resolvió por B (habilitaciones
 > derivadas, 4.7) y D5 por A (accesorios degradan, 4.5 + 5.4). Requiere **§2B** terminada, porque
 > el mapeo reusa `derivarHabilitaciones` de 2B.1.
+>
+> **✅ Completa (2026-07-31, apply batch 2).** Archivo nuevo:
+> `frontend/src/shared/lib/vehiculos/vehiculoMapping.ts` +
+> `vehiculoMapping.test.ts` (65 tests, todos verdes). Enteramente pura/sin red, cero `any`, cero
+> `as` (verificado con `grep`, no solo por revisión). `tsc -b --noEmit` y `oxlint` limpios.
 
-- [ ] 4.1 (RED) `parseVehiculoRow`: renombres, `capacidad`/`kilometraje` numéricos, `notas`
-      opcional. Fila sin `id` o sin `patente` → se descarta, no rompe el `list()` entero.
-- [ ] 4.2 (RED→GREEN→TRIANGULATE) `parseEstadoVehiculo` / `toEstadoVehiculoRow` (D13): `'fuera de
+- [x] 4.1 (RED→GREEN→TRIANGULATE) `parseVehiculoRow`: renombres, `capacidad`/`kilometraje`
+      numéricos (degradan a `0` si no son número, nunca `NaN`), `notas` opcional (`undefined` si
+      ausente, no `''` inventado). Fila sin `id` o sin `patente` → se descarta (`null`), no rompe
+      el `list()` entero. La columna `año` (D15 #14) se lee de la fila y se ignora deliberadamente
+      — sin campo en el dominio, discrepancia ya documentada y no resuelta en este change. 6 tests.
+- [x] 4.2 (RED→GREEN→TRIANGULATE) `parseEstadoVehiculo` / `toEstadoVehiculoRow` (D13): `'fuera de
       servicio'` ↔ `'fuera-de-servicio'`, `'habilitado'` ↔ `'habilitado'`. **Funciones totales, no
-      un `.replace(' ','-')`**: un replace es silenciosamente correcto hoy y silenciosamente
-      incorrecto en cuanto aparezca un tercer valor. Valor desconocido → degrada a `'habilitado'`.
-- [ ] 4.3 (RED→GREEN→TRIANGULATE) `parseMantenimientoRow`: reconstruir la unión discriminada de 4
-      miembros desde `categoria` + `subtipo` + `detalle`. **Mínimo 6 casos**: uno por miembro, más
-      `correctivo`+`otro` sin `detalle` (incoherente → **descartada**, sin romper el vehículo) y
-      `preventivo` con un `subtipo` fuera de la unión (descartada). Type guards explícitos, cero
-      `as`, cero `any`.
-- [ ] 4.4 (RED→GREEN) `toMantenimientoRows`: la vuelta. `tipoIntervencion: 'gasto'` no emite
-      `subtipo` ni `detalle`; `'otro'` emite los dos.
-- [ ] 4.5 (RED→GREEN) `parseAccesoriosRows`: del embed de dos niveles
+      un `.replace(' ','-')`**: comparación literal por rama, no reemplazo de substring. Valor
+      desconocido (incluido `null`/`undefined`/no-string) → degrada a `'habilitado'`, nunca lanza.
+      5 tests.
+- [x] 4.3 (RED→GREEN→TRIANGULATE) `parseMantenimientoRow`: reconstruye la unión discriminada de 4
+      miembros desde `categoria` + `subtipo` + `detalle`, espejando **exactamente** el CHECK
+      `chk_categoria_subtipo` de D4/1B.2 rama por rama. 14 tests: los 4 miembros (incluida una VTV
+      con vencimiento completo), `correctivo`+`'otro'` sin `detalle` (descartada),
+      `correctivo`+`'otro'` con `detalle` en blanco/`'   '` (descartada, `btrim` del CHECK),
+      `preventivo` con subtipo fuera de la unión (descartada), `correctivo` con subtipo fuera de la
+      unión conocida y distinto de `'otro'` (descartada), `gasto` con `subtipo` presente (viola el
+      CHECK, descartada), fila sin `id`/sin `fecha` (descartada), valor no-objeto (descartado).
+      **Decisión no obvia encontrada leyendo el CHECK con atención** (no estaba en el enunciado de
+      la tarea): la rama `correctivo` + subtipo conocido (`alternador`/`bateria`/`frenos`/
+      `embrague`/`cubiertas`) del CHECK **no exige `detalle IS NULL`**, a diferencia de la rama
+      `preventivo`. Una fila con ese subtipo y un `detalle` perdido igual satisface el CHECK real
+      en la base. El tipo de ese miembro (design.md D4) no tiene campo `detalle`, así que la
+      decisión tomada es **ignorar el `detalle` en la lectura** en vez de descartar una fila que la
+      base considera válida (sería más estricto que la propia base). Test dedicado de
+      triangulación que lo confirma.
+- [x] 4.4 (RED→GREEN) `toMantenimientoRows`: la vuelta. `tipoIntervencion: 'gasto'` no emite
+      `subtipo` ni `detalle` (`null`); `'otro'` emite los dos; `preventivo`/`correctivo` conocido
+      emiten `subtipo` y `detalle: null`. 4 tests.
+- [x] 4.5 (RED→GREEN) `parseAccesoriosRows`: del embed de dos niveles
       (`accesorios_vehiculo → accesorios.tipo`) a `AccesorioMovilidad[]`. Un `tipo` que no pertenece a
-      la unión cerrada se descarta (no se castea). Embed vacío → `[]` **sin distinguir** todavía si
-      es "no tiene" o "RLS lo ocultó" — esa distinción la agrega el repository en 5.4, no el mapeo.
-- [ ] 4.6 (RED→GREEN) `parseGastoRow`: `monto NUMERIC(10,2)` llega como `string` desde PostgREST en
-      algunas versiones — parsear con `Number()` y descartar `NaN`, nunca `parseFloat` sobre
-      `unknown` sin narrowing. `descripcion` opcional.
-- [ ] 4.7 (RED→GREEN) **Habilitaciones derivadas (D3-B)**. No hay `parseHabilitacionRow` ni tabla que
+      la unión cerrada se descarta (sin `as`); una fila sin el embed anidado también se descarta sin
+      romper el resto. Embed vacío → `[]` **sin distinguir** todavía si es "no tiene" o "RLS lo
+      ocultó" — esa distinción la agrega el repository en 5.4, no el mapeo. 5 tests.
+- [x] 4.6 (RED→GREEN) `parseGastoRow`: `monto NUMERIC(10,2)` llega como `string` desde PostgREST en
+      algunas versiones — parseado con `Number()` (nunca `parseFloat` sobre `unknown` sin
+      narrowing) y `NaN`/no-numérico descarta la fila entera (nunca un monto inventado).
+      `descripcion` opcional. 8 tests.
+- [x] 4.7 (RED→GREEN) **Habilitaciones derivadas (D3-B)**. No hay `parseHabilitacionRow` ni tabla que
       leer: `ensamblarVehiculo` llama a `derivarHabilitaciones(mantenimientos)` (2B.1) **después** de
-      mapear el historial, y `Vehiculo.habilitaciones` sale de ahí. Tests acá: que el vehículo mapeado
-      traiga la VTV derivada de su fila de mantenimiento, y que una fila de mantenimiento **descartada
-      por incoherente** (4.3) no produzca una habilitación fantasma.
-- [ ] 4.7b (RED→GREEN) La escritura **nunca** emite `habilitaciones`: `toCrearVehiculoPayload` y
+      mapear (y filtrar) el historial, y `Vehiculo.habilitaciones` sale de ahí. Tests: la VTV
+      derivada de su fila de mantenimiento llega en `habilitaciones`, y una fila de mantenimiento
+      **descartada por incoherente** (4.3, `categoria='correctivo'` + `subtipo='vtv'`, combinación
+      inexistente en el CHECK) no produce una habilitación fantasma — nunca llega a
+      `derivarHabilitaciones` porque `parseMantenimientoRow` ya la filtró antes.
+- [x] 4.7b (RED→GREEN) La escritura **nunca** emite `habilitaciones`: `toCrearVehiculoPayload` y
       `toActualizarVehiculoPayload` ignoran esa clave aunque venga en el payload (es un campo de
-      salida, y no hay tabla donde ponerla). Test explícito de que la clave no aparece en el `jsonb`
-      enviado a la RPC.
-- [ ] 4.8 (RED→GREEN) `ensamblarVehiculo(row, gastos)`: ordena mantenimientos y gastos por `fecha`
-      desc con `id` como desempate determinista. Colecciones vacías → arrays vacíos, nunca
-      `undefined`.
-- [ ] 4.9 (RED→GREEN→TRIANGULATE) `toActualizarVehiculoPayload(cambios)`: **la semántica parcial**.
-      Clave ausente ≠ clave presente con `[]`. Test dedicado por colección: editar solo la patente
-      **no** debe emitir la clave `mantenimientos`. Es el bug más fácil de escribir y el más difícil
-      de notar.
-- [ ] 4.10 (REFACTOR) Extraer los type guards compartidos (`isRecord`, `esFilaConId`) y correr la
-      suite tras cada paso.
-- [ ] 4.11 Cobertura de `vehiculoMapping.ts` ≥ 85 % (umbral del proyecto: 80, precedente de
-      `integracion-pacientes`: 85).
+      salida, y no hay tabla donde ponerla). Test explícito con `'habilitaciones' in payload` para
+      las dos funciones, incluido el caso `ActualizacionVehiculo.habilitaciones` presente (el tipo
+      la admite por ser `Partial<Omit<Vehiculo,'id'>>`, pero nunca se lee).
+- [x] 4.8 (RED→GREEN→TRIANGULATE) `ensamblarVehiculo(row, gastosRows)`: ordena mantenimientos y
+      gastos por `fecha` desc con `id` como desempate determinista (también desc — "el más nuevo
+      primero" aplicado consistentemente a las dos claves de orden). Colecciones vacías → arrays
+      vacíos, nunca `undefined` (verificado explícitamente para las 4 colecciones). Fila de
+      vehículo inválida → `null` (no rompe el `list()` entero); `gastosRows` no-array → `gastos: []`.
+      8 tests.
+- [x] 4.9 (RED→GREEN→TRIANGULATE) `toActualizarVehiculoPayload(cambios)`: **la semántica parcial**.
+      Clave ausente ≠ clave presente con `[]`. Test dedicado por colección (`mantenimientos`,
+      `gastos`, `accesoriosCompatibles`) confirmando que editar solo la patente **no** emite esas
+      claves, y que una colección vacía explícita **sí** viaja (`'mantenimientos' in payload ===
+      true`, `payload.mantenimientos === []`). También cubre `estado` (traducido), `notas`/
+      `fechaUltimoService` (`''` → `null`, vaciar el campo) y todos los campos escalares presentes
+      a la vez. 12 tests. También se escribió `toCrearVehiculoPayload` (implícita en el enunciado
+      de 4.7b, no tenía número propio): argumento `p_vehiculo` completo, sin `habilitaciones`.
+- [x] 4.10 (REFACTOR) Type guards compartidos extraídos desde el inicio de la implementación
+      (`isRecord`, `esFilaConId`, y la fábrica `esValorDe<T>` para uniones cerradas de string sin
+      `as`, que reemplaza el patrón `Set<T>.has(value as T)` de `pacienteMapping`/
+      `obraSocialMapping` — acá la regla de 4.3 prohíbe `as` explícitamente). También compartidas:
+      `toGastoRows` (entre `toCrearVehiculoPayload`/`toActualizarVehiculoPayload`) y
+      `ordenarPorFechaDescYId` (entre mantenimientos y gastos de `ensamblarVehiculo`). Suite verde
+      tras cada paso (65/65 al final). `grep` confirma cero `as`/`any` en el archivo de producción.
+- [x] 4.11 Cobertura de `vehiculoMapping.ts`: **100% statements, 100% lines, 96.59% branches, 100%
+      funciones** (umbral del proyecto: 80, precedente de `integracion-pacientes`: 85, pedido acá:
+      ≥85 %) — medido con `vitest run --coverage --coverage.include='...vehiculoMapping.ts'`.
 
 ## 5. Repository real de Vehículos + swap — `SupabaseVehiculoRepository.ts`
 
