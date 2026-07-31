@@ -3,6 +3,7 @@ import { AvisoModeloDatos, Button, Chip, Section, VolverAlListadoButton, VolverA
 import { Alert } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import type { ActualizacionObraSocial, NuevaObraSocial, ObraSocial } from '../../shared/types/obraSocial';
+import { DEFAULT_FORMATO_AFILIADO } from '../pacientes/formatoAfiliadoOptions';
 import { ChecklistEditor } from './ChecklistEditor';
 import { DEFAULT_IDENTIFICADOR_ORIGEN } from './origenCampoOptions';
 import { ObraSocialForm, type ObraSocialFormValues } from './ObraSocialForm';
@@ -42,6 +43,9 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
       if (obraSocial === null) {
         const creada = await crear({
           ...values,
+          // RN-ID-02 (IN-01): sin editor propio todavía, nace con el default documentado —
+          // mismo criterio que identificadorOrigen debajo.
+          formatoAfiliado: DEFAULT_FORMATO_AFILIADO,
           checklist: [],
           plantillaFactura: { campos: [], identificadorOrigen: DEFAULT_IDENTIFICADOR_ORIGEN },
         });

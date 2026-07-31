@@ -19,7 +19,7 @@ const martina: Paciente = {
   diagnostico: 'Parálisis cerebral',
   accesorioMovilidad: [],
   obraSocialId: 'osecac',
-  numeroAfiliado: { formato: 'numero-documento', valor: '45123456' },
+  numeroAfiliado: { valor: '45123456' },
   cud: null,
   direcciones: [],
   personasACargo: [],

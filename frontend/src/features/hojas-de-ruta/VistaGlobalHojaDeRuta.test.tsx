@@ -56,7 +56,7 @@ function buildPaciente(overrides: Partial<Paciente> = {}): Paciente {
     diagnostico: 'x',
     accesorioMovilidad: [],
     obraSocialId: null,
-    numeroAfiliado: { formato: 'numero-documento', valor: '1' },
+    numeroAfiliado: { valor: '1' },
     cud: null,
     direcciones: [],
     personasACargo: [],

@@ -67,7 +67,7 @@ const martina: Paciente = {
   diagnostico: 'Parálisis cerebral',
   accesorioMovilidad: [],
   obraSocialId: null,
-  numeroAfiliado: { formato: 'numero-documento', valor: '45123456' },
+  numeroAfiliado: { valor: '45123456' },
   cud: null,
   direcciones: [],
   personasACargo: [],

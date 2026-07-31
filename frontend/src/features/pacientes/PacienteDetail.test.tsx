@@ -33,7 +33,7 @@ const basePaciente: Paciente = {
   diagnostico: 'Parálisis cerebral',
   accesorioMovilidad: [],
   obraSocialId: null,
-  numeroAfiliado: { formato: 'numero-documento', valor: '45123456' },
+  numeroAfiliado: { valor: '45123456' },
   cud: null,
   direcciones: [],
   personasACargo: [],
@@ -362,9 +362,11 @@ describe('PacienteDetail', () => {
     expect(screen.queryByText(/falta teléfono.*teléfono alternativo/i)).not.toBeInTheDocument();
   });
 
-  // tasks.md 5.1 (integracion-pacientes), design.md D9 #1/#8/#10/#7: cartel agrupado con los
-  // campos que no persisten o degradan al leer/escribir contra pacientes.paciente.
-  it('muestra un cartel agrupado con las discrepancias de formato de afiliado, amparo judicial, nullables y diagnóstico JSONB', () => {
+  // tasks.md 5.1 (integracion-pacientes), design.md D9 #8/#10/#7: cartel agrupado con los
+  // campos que no persisten o degradan al leer/escribir contra pacientes.paciente. El formato de
+  // afiliado (D9 #1, IN-01) salió de este cartel: ya no es un campo sin columna, es
+  // ObraSocial.formatoAfiliado (con columna propia) — ver PacienteDetail.tsx.
+  it('muestra un cartel agrupado con las discrepancias de amparo judicial, nullables y diagnóstico JSONB', () => {
     render(
       <PacienteDetail
         paciente={basePaciente}
@@ -379,9 +381,8 @@ describe('PacienteDetail', () => {
     );
 
     const notas = screen.getAllByRole('note');
-    const cartel = notas.find((nota) => /no se persiste \(IN-01/i.test(nota.textContent ?? ''));
+    const cartel = notas.find((nota) => /aclaración del amparo judicial/i.test(nota.textContent ?? ''));
     if (!cartel) throw new Error('No se encontró el cartel agrupado de discrepancias (tasks.md 5.1)');
-    expect(cartel).toHaveTextContent(/formato/i);
     expect(cartel).toHaveTextContent(/aclaración del amparo judicial/i);
     expect(cartel).toHaveTextContent(/fecha de nacimiento/i);
     expect(cartel).toHaveTextContent(/cuil del titular/i);

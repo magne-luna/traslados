@@ -46,7 +46,7 @@ const paciente: Paciente = {
   diagnostico: 'x',
   accesorioMovilidad: [],
   obraSocialId: null,
-  numeroAfiliado: { formato: 'numero-documento', valor: '1' },
+  numeroAfiliado: { valor: '1' },
   cud: null,
   direcciones: [
     { id: 'dir-origen', tipo: 'domicilio', calle: 'Av. Rivadavia 4500', localidad: 'CABA' },
