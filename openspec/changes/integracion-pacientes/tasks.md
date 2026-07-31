@@ -531,3 +531,36 @@
       `select prosecdef from pg_proc where proname = 'crear_paciente_completo';` sigue devolviendo
       `false` y que `anon` no tiene `EXECUTE`. Si en algún momento del apply alguien la cambió a
       `SECURITY DEFINER`, es un bloqueante: no se archiva el change hasta revertirlo.
+
+## 8. Seguimiento — RN-ID-02, formato del identificador de afiliado (cerrada 2026-07-31, dos vueltas)
+
+> **Ya NO está bloqueada por `integracion-obra-social`** — la columna que se esperaba (D12) se
+> revirtió; la que ya existe (`coberturas_paciente.formato_afiliado`) es independiente de ese change.
+> **8.0 es urgente**: es un bug que rompe el alta real de pacientes hoy, no una task de seguimiento
+> común — priorizarla apenas se retome este change, antes que 8.1 en adelante.
+
+- [ ] 8.0 **Bug bloqueante** — `pacientes.crear_paciente_completo` no completa
+      `coberturas_paciente.formato_afiliado` (`NOT NULL`, sin `DEFAULT`) en su `INSERT`: cualquier
+      alta de paciente con número de afiliado falla hoy con `23502`. Corregir la función (nueva
+      migración aditiva, `SECURITY INVOKER` como el resto — no tocar la firma ni el resto del cuerpo)
+      para que reciba y persista el formato elegido en el frontend. Test dedicado que reproduce el
+      `23502` contra el fake tipado antes del fix (RED), confirma el INSERT correcto después (GREEN).
+      Aplicar y verificar contra Supabase real queda a cargo de la usuaria/Enzo (mismo patrón que
+      1B.6/1B.8 de este change).
+- [ ] 8.1 Safety net: correr `cd frontend && npx vitest run` y registrar el baseline vigente en ese
+      momento (va a ser distinto del de 7.4 — `integracion-obra-social` habrá corrido entre medio).
+- [ ] 8.2 RED→GREEN: `PacienteForm`/el formulario de alta sigue dejando elegir el `formato` de
+      `IdentificadorAfiliado` (a diferencia del plan original con D12, acá **no** se deriva de la
+      obra social — se persiste tal cual el operador lo elige, ahora en
+      `coberturas_paciente.formato_afiliado` en vez de solo client-side). Cablear
+      `SupabasePacienteRepository` para que `create()`/`update()` viajen ese valor en el payload de
+      8.0. TRIANGULATE: alta con cada uno de los 3 formatos, edición que cambia el formato de una
+      cobertura existente.
+- [ ] 8.3 Quitar el `AvisoModeloDatos` de `PacienteDetail.tsx` que señala esta discrepancia como no
+      resuelta (o reescribirlo si sigue habiendo algo pendiente — confirmar leyendo el cartel real
+      antes de tocarlo).
+- [ ] 8.4 Actualizar `knowledge-base/04_modelo_de_datos.md` §Discrepancias (bloque "Pacientes vs.
+      esquema real de `C-05`", discrepancia #1) de "no se persiste, cartel" a "resuelta: persiste en
+      `coberturas_paciente.formato_afiliado`, elegido por el operador al vincular la cobertura (no
+      derivado de la obra social — ver `integracion-obra-social` D12 revertida)".
+- [ ] 8.5 Suite verde sin regresiones + `npx tsc -b --noEmit` + `npx oxlint` limpios.

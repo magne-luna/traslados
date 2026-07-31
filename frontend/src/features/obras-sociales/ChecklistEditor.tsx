@@ -1,5 +1,5 @@
 import { useId, useRef, useState, type DragEvent } from 'react';
-import { Button, CamposSoloLectura, InlineIcon, SectionBadge } from '../../design-system/components';
+import { AvisoModeloDatos, Button, CamposSoloLectura, InlineIcon, SectionBadge } from '../../design-system/components';
 import { Input } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
 import { iconOjo, iconReordenar } from '../../design-system/icons';
@@ -61,7 +61,19 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
+    <div className="flex flex-col gap-md">
+      {/* Cartel más importante del change (integracion-obra-social D3, checkpoint confirmado por
+          la usuaria 2026-07-31): el nombre del ítem ya no es un array embebido — se persiste
+          relacional contra `obra_social.tipos_documento`, un catálogo COMPARTIDO con Pacientes
+          (`pacientes.documentos.id_tipo_documento`) y con Facturación
+          (`facturacion.documento_factura.id_tipo_documento`), ambas `ON DELETE RESTRICT`. */}
+      <AvisoModeloDatos>
+        El nombre de cada ítem se guarda en un catálogo de tipos de documento compartido con
+        Pacientes (y con Facturación) — conviene revisar la ortografía antes de guardar. Un ítem ya
+        usado por documentos de pacientes no se puede quitar del catálogo.
+      </AvisoModeloDatos>
+
+      <div className="grid grid-cols-1 gap-lg md:grid-cols-2">
       <Card gap="md">
         <SectionBadge tone="config">Configuración</SectionBadge>
 
@@ -137,6 +149,7 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
           </>
         )}
       </Card>
+      </div>
     </div>
   );
 }

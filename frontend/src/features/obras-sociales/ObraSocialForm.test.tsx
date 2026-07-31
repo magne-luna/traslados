@@ -39,6 +39,12 @@ describe('ObraSocialForm', () => {
       tipoComprobante: 'A',
       modalidadFacturacion: 'por-prestacion',
       admitePagosParciales: false,
+      // D9 (tasks.md 2.5/2.6): los 4 campos del docx no son obligatorios — un alta sin
+      // completarlos se propaga con cadena vacía, nunca bloquea el submit.
+      codigo: '',
+      direccion: '',
+      telefono: '',
+      condicionIva: '',
     });
   });
 
@@ -79,6 +85,88 @@ describe('ObraSocialForm', () => {
 
     await user.click(screen.getByRole('button', { name: /cancelar/i }));
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Los 4 campos del docx (tasks.md 2.6, D9): se renderizan, se editan y se propagan al submit.
+describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
+  it('se renderizan los 4 campos nuevos', () => {
+    render(<ObraSocialForm onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.getByLabelText(/^código$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^dirección$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^teléfono$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/condición frente al iva/i)).toBeInTheDocument();
+  });
+
+  it('se editan y se propagan al submit', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<ObraSocialForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/nombre/i), 'Swiss Medical');
+    await user.type(screen.getByLabelText(/cuit/i), '30-11111111-1');
+    await user.type(screen.getByLabelText(/^código$/i), 'SM-01');
+    await user.type(screen.getByLabelText(/^dirección$/i), 'Av. Corrientes 1234');
+    await user.type(screen.getByLabelText(/^teléfono$/i), '11-4000-5000');
+    await user.type(screen.getByLabelText(/condición frente al iva/i), 'Responsable Inscripto');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith<[ObraSocialFormValues]>(
+      expect.objectContaining({
+        codigo: 'SM-01',
+        direccion: 'Av. Corrientes 1234',
+        telefono: '11-4000-5000',
+        condicionIva: 'Responsable Inscripto',
+      }),
+    );
+  });
+
+  it('precarga los 4 campos en modo edición cuando la obra social ya los tiene completos', () => {
+    render(
+      <ObraSocialForm
+        initial={{
+          nombre: 'OSECAC',
+          cuit: '30-54155200-6',
+          plazoCobroDias: 90,
+          tipoComprobante: 'A',
+          modalidadFacturacion: 'por-prestacion',
+          admitePagosParciales: false,
+          codigo: 'OS-01',
+          direccion: 'Callao 100',
+          telefono: '11-1111-2222',
+          condicionIva: 'Exento',
+        }}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/^código$/i)).toHaveValue('OS-01');
+    expect(screen.getByLabelText(/^dirección$/i)).toHaveValue('Callao 100');
+    expect(screen.getByLabelText(/^teléfono$/i)).toHaveValue('11-1111-2222');
+    expect(screen.getByLabelText(/condición frente al iva/i)).toHaveValue('Exento');
+  });
+
+  it('en modo edición sin los 4 campos completos, se precargan vacíos (no rompe con undefined)', () => {
+    render(
+      <ObraSocialForm
+        initial={{
+          nombre: 'OSECAC',
+          cuit: '30-54155200-6',
+          plazoCobroDias: 90,
+          tipoComprobante: 'A',
+          modalidadFacturacion: 'por-prestacion',
+          admitePagosParciales: false,
+        }}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/^código$/i)).toHaveValue('');
+    expect(screen.getByLabelText(/^dirección$/i)).toHaveValue('');
   });
 });
 

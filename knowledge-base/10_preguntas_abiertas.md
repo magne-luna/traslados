@@ -9,7 +9,9 @@ Extraídas literalmente de la sección 10 ("Supuestos y puntos a confirmar") y s
 **Documento B dice** (RF-400, sección 10): en la factura se debe confirmar si el identificador a usar es el DNI o el número de afiliado — no necesariamente el mismo campo que RF-106.
 **Impacto**: si no se alinean ambos campos, la plantilla de factura por obra social podría generar un identificador distinto al que realmente pide cada entidad pagadora.
 **Resolución propuesta**: definir explícitamente, por obra social, qué campo de la ficha del paciente alimenta el identificador de la factura (podría no ser el mismo para todas las obras sociales).
-**Hueco de esquema confirmado** (`integracion-pacientes`, 2026-07-30, contra `20260724100004_schema_pacientes.sql` real): `obra_social.coberturas_paciente` tiene la columna `num_afiliado TEXT`, pero **ninguna columna de formato** (documento / alfanumérico / CUIL + sufijo). Hoy el `formato` vive solo en el frontend (`numeroAfiliado.formato`, default editable client-side) y **no se persiste** — cada vez que se recarga la ficha, el formato vuelve al default en vez del que el usuario eligió. Detalle completo en `04_modelo_de_datos.md` §Discrepancias, bloque "Pacientes vs. esquema real de `C-05`" (discrepancia #1) y `openspec/changes/integracion-pacientes/design.md` §D9/§Open Questions. Sigue sin decidirse acá **si** el backend agrega `coberturas_paciente.formato_afiliado` o si el formato se deriva de `obra_social.identificadorOrigen` (ya existe ese campo del lado de Obras Sociales, `C-04`).
+**Hueco de esquema confirmado** (`integracion-pacientes`, 2026-07-30, contra `20260724100004_schema_pacientes.sql` real): `obra_social.coberturas_paciente` tiene la columna `num_afiliado TEXT`, pero **ninguna columna de formato** (documento / alfanumérico / CUIL + sufijo). Hoy el `formato` vive solo en el frontend (`numeroAfiliado.formato`, default editable client-side) y **no se persiste** — cada vez que se recarga la ficha, el formato vuelve al default en vez del que el usuario eligió. Detalle completo en `04_modelo_de_datos.md` §Discrepancias, bloque "Pacientes vs. esquema real de `C-05`" (discrepancia #1) y `openspec/changes/integracion-pacientes/design.md` §D9/§Open Questions.
+
+**Parte del formato: CERRADA (2026-07-31, dos vueltas el mismo día).** Primero la usuaria confirmó, durante el propose de `integracion-obra-social`, derivar el formato de `obra_social.formato_identificador_afiliado` (columna nueva, D12). Al escribir la migración (fase de apply) se verificó el schema real en vivo y se encontró que **esa columna no existe** y que, en cambio, `obra_social.coberturas_paciente.formato_afiliado` (enum, `NOT NULL`, sin default) **ya existe**, aplicada antes de que D12 se escribiera — backend ya había resuelto esto al revés de D12 (por cobertura, no por obra social). **La usuaria confirmó aceptar la realidad ya construida** — D12 queda revertida (ver `openspec/changes/integracion-obra-social/design.md`, bloque "❌ D12 REVERTIDA", y `04_modelo_de_datos.md` §Discrepancias discrepancia #16, cerrada). No hace falta ninguna columna nueva de Obra Social. Lo que queda es ejecución, no decisión: `integracion-pacientes/tasks.md` §8 tiene un bug bloqueante nuevo (`crear_paciente_completo` no completa `formato_afiliado`, `23502` en cualquier alta con número de afiliado) y el cableado del frontend a la columna ya existente. **Lo que sigue abierto** de IN-01 es la parte de la factura: qué campo (DNI o número de afiliado) alimenta el identificador que ve cada obra social — eso es cliente/equipo técnico, ver tabla de abajo.
 
 ## Preguntas abiertas (priorizadas)
 
@@ -61,7 +63,7 @@ explícita, sin bloquear la emisión** — ver Open Question correspondiente en
 `openspec/changes/facturacion-ui/design.md`, pendiente de confirmar si el cliente prefiere
 bloqueo duro.
 
-## Preguntas técnicas abiertas — `integracion-pacientes` (2026-07-30)
+## Preguntas técnicas abiertas — `integracion-pacientes` (2026-07-30) / `integracion-obra-social` (2026-07-31)
 
 Dos decisiones técnicas, no de negocio, que surgieron al escribir la migración
 `supabase/migrations/20260730180000_crear_paciente_completo.sql` (D4 de
@@ -77,6 +79,14 @@ este change** (tarea 1B.5 de `tasks.md`):
   integración usando el mismo patrón, el costo de no automatizarlo se vuelve concreto: repetir un
   checklist SQL de 5+ pasos a mano por cada función nueva. **Decisor**: equipo técnico, antes de
   arrancar el próximo change que agregue una función de escritura multi-tabla.
+  **Costo acumulado actualizado (2026-07-31, `integracion-obra-social` — segundo change de esta
+  serie, con dos funciones más además de la de Pacientes)**: son ya **dos changes, tres funciones
+  de escritura multi-tabla** (`crear_paciente_completo`, `crear_obra_social_completa`,
+  `actualizar_obra_social_completa`) verificadas exclusivamente a mano, y **quedan siete changes de
+  integración por delante** en `CHANGES.md` §Plan de integración — cada uno con al menos una función
+  equivalente. El costo de no automatizarlo ya no es hipotético: son dos checklists SQL manuales
+  por change (alta + edición), y va a seguir creciendo linealmente. **Decisor**: equipo técnico —
+  esta actualización es el dato que faltaba para tomar la decisión, no la decisión en sí.
 - **¿Se indexan las FK `paciente_id` de las tablas hijas de Pacientes?**
   `20260724100004_schema_pacientes.sql` no crea índices sobre `cud.paciente_id`,
   `clinicos.paciente_id`, `direcciones.paciente_id`, `personas_a_cargo.paciente_id` ni
@@ -87,6 +97,34 @@ este change** (tarea 1B.5 de `tasks.md`):
   evalúe cuando el volumen real de pacientes lo justifique (la KB estima 50-60 pacientes iniciales,
   ver §Seed data inicial de `04_modelo_de_datos.md`; con ese volumen el impacto de no indexar es
   bajo, pero conviene decidirlo antes de que crezca). **Decisor**: backend.
+
+## Preguntas nuevas — `integracion-obra-social` (2026-07-31)
+
+Tres preguntas que este change abre y **no cierra** (`design.md` §Open Questions), más una cuarta
+puramente técnica (índices) que sí quedó resuelta:
+
+- **¿`ObraSocial.cuit` es el CUIT de la obra social o el del prestador?** El tipo del frontend lo
+  documenta como *"CUIT del prestador/entidad pagadora"*, pero la base real tiene `obra_social.cuit`
+  **y** `prestadores.cuit` como columnas distintas de tablas distintas. RN-ID-01 solo separa CUIT
+  (empresa) de CUIL (titular del paciente); no dice cuál empresa. Si el campo del frontend está
+  guardando el CUIT equivocado, lo arrastran las facturas. Cartel en `ObraSocialDetail.tsx`.
+  **Decisor**: cliente / quien mantiene el docx.
+- **¿Qué valores admite `condicion_iva`?** El docx tiene el campo pero ninguna fuente enumera los
+  valores. Queda `TEXT` libre sin `CHECK` en la base y `string` opcional en el frontend. Si son los
+  de ARCA (Responsable Inscripto / Monotributo / Exento / Consumidor Final), conviene cerrarlo antes
+  de que Facturación (`C-07`) lo consuma. **Decisor**: cliente / equipo técnico.
+- **¿Quién administra `obra_social.tipos_documento`?** No hay pantalla para ver, renombrar ni borrar
+  tipos de documento, y el catálogo es compartido por **tres** consumidores con `ON DELETE
+  RESTRICT` (`pacientes.documentos`, `facturacion.documento_factura`, y el propio
+  `obra_social.requisitos_os` en `ON DELETE CASCADE`) — un tipo mal cargado desde el editor de
+  checklist de Obras Sociales es permanente en cuanto algún documento lo referencie. ¿Change propio
+  de administración del catálogo? **Decisor**: usuaria / equipo técnico.
+
+**Resuelto de paso**: los índices sobre `requisitos_os.tipo_documento_id` y
+`plantilla_campo.obra_social_id` que faltaban (regla de `database-schema-design`) se agregaron en
+`20260731120000_obra_social_config_facturacion.sql`. La pregunta equivalente sobre los índices
+faltantes de las tablas hijas de Pacientes (`cud.paciente_id`, etc., ver bullet de arriba) **sigue
+sin resolverse** — no forma parte de este change.
 
 ## Insumos pendientes del cliente
 

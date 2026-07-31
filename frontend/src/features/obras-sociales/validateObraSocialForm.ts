@@ -4,6 +4,13 @@
 export interface ObraSocialFormInput {
   nombre: string;
   cuit: string;
+  // Los 4 campos del docx (D9, discrepancia #11): aceptados pero nunca validados como
+  // obligatorios — ninguna fuente (docx ni KB) respalda esa regla. Opcionales acá para que un
+  // caller pueda pasar el `ObraSocialFormValues` completo sin recortarlo primero.
+  codigo?: string;
+  direccion?: string;
+  telefono?: string;
+  condicionIva?: string;
 }
 
 export interface ObraSocialFormErrors {

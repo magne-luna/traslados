@@ -408,6 +408,27 @@ pantalla donde se nota (agrupados en `PacienteDetail.tsx`; el de direcciones en
 `DireccionesEditor.tsx`). Ninguna se resuelve unilateralmente — quedan para confirmar con el cliente
 o con quien mantiene el docx.
 
+**Addendum (2026-07-31, posterior al cierre de esta fase del change — actualizado dos veces el mismo
+día).** La discrepancia #1 (`numeroAfiliado.formato`, sin columna, editable a mano) dejó de ser una
+pregunta abierta, con una vuelta intermedia:
+
+1. Primero se decidió (propose de `integracion-obra-social`) derivar el formato de la obra social,
+   vía una columna nueva `obra_social.formato_identificador_afiliado` (D12).
+2. Al aplicar ese change se encontró que backend **ya había resuelto esto antes, y al revés**:
+   `obra_social.coberturas_paciente.formato_afiliado` (enum, `NOT NULL`, sin default) **ya existe**
+   — el formato vive por cobertura (paciente↔obra social), no por obra social en general. D12 quedó
+   revertida (ver `integracion-obra-social/design.md`, bloque "❌ D12 REVERTIDA"); la usuaria confirmó
+   dejar la realidad ya construida.
+
+**Lo que esto significa para este change.** No hace falta esperar ninguna columna nueva — ya existe.
+El trabajo real, en `tasks.md` §8 (reescrita), es: (a) un **bug encontrado durante el apply de
+`integracion-obra-social`**, ajeno a ese change pero que vive acá: `crear_paciente_completo` no
+completa `formato_afiliado` en su INSERT (columna `NOT NULL` sin default) — **cualquier alta de
+paciente con número de afiliado falla hoy con `23502`**; y (b) cablear el frontend para leer/escribir
+esa columna en vez de mantener el formato solo client-side. No se reabre el resto de esta fase (ya
+implementada y pendiente de review de Enzo) para este cambio puntual — pero el bug de `23502` es
+más urgente que una task de seguimiento común: bloquea el alta real de pacientes con obra social.
+
 ---
 
 ## Risks / Trade-offs

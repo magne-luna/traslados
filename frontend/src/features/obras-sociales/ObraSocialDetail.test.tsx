@@ -54,6 +54,32 @@ describe('ObraSocialDetail — modo alta (obraSocial null)', () => {
   });
 });
 
+// Los 4 campos del docx en el resumen de solo lectura (tasks.md 2.7, D9).
+describe('ObraSocialDetail — los 4 campos del docx en el resumen (2.7)', () => {
+  it('muestra código/dirección/teléfono/condición IVA cuando están completos', () => {
+    const conDatos: ObraSocial = {
+      ...osecac,
+      codigo: 'OS-01',
+      direccion: 'Callao 100',
+      telefono: '11-1111-2222',
+      condicionIva: 'Exento',
+    };
+
+    render(<ObraSocialDetail obraSocial={conDatos} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={vi.fn()} />);
+
+    expect(screen.getByText('OS-01')).toBeInTheDocument();
+    expect(screen.getByText('Callao 100')).toBeInTheDocument();
+    expect(screen.getByText('11-1111-2222')).toBeInTheDocument();
+    expect(screen.getByText('Exento')).toBeInTheDocument();
+  });
+
+  it('no rompe el resumen cuando los 4 campos están ausentes (obra social vieja del mock v1)', () => {
+    render(<ObraSocialDetail obraSocial={osecac} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={vi.fn()} />);
+
+    expect(screen.getAllByText('OSECAC').length).toBeGreaterThan(0);
+  });
+});
+
 describe('ObraSocialDetail — modo edición', () => {
   it('por defecto muestra un resumen de solo lectura (sin form) junto con el checklist y la plantilla', () => {
     render(
@@ -141,6 +167,43 @@ describe('ObraSocialDetail — modo edición', () => {
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(await screen.findByText('nombre duplicado')).toBeInTheDocument();
+  });
+});
+
+// Carteles de discrepancia (tasks.md 6.2/6.3, D8/D9/D12). Mismo patrón que
+// PacienteDetail.test.tsx: escopear con getAllByRole('note').find(...) + toHaveTextContent, nunca
+// getByText con regex (el texto usa <strong> y getNodeText solo concatena text nodes directos).
+describe('ObraSocialDetail — carteles de discrepancia (6.2/6.3)', () => {
+  function encontrarCartel(regex: RegExp): HTMLElement {
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find((nota) => regex.test(nota.textContent ?? ''));
+    if (!cartel) throw new Error(`No se encontró el cartel que matchea ${String(regex)}`);
+    return cartel;
+  }
+
+  it('muestra un cartel sobre la ambigüedad del CUIT (D8, discrepancia #12)', () => {
+    render(<ObraSocialDetail obraSocial={osecac} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={vi.fn()} />);
+
+    const cartel = encontrarCartel(/prestadores\.cuit/i);
+    expect(cartel).toHaveTextContent(/obra_social\.cuit/i);
+    expect(cartel).toHaveTextContent(/no está confirmado/i);
+  });
+
+  it('el cartel de facturación dice qué quedó resuelto (D4/D9) y qué sigue abierto (condición IVA, #14)', () => {
+    render(<ObraSocialDetail obraSocial={osecac} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={vi.fn()} />);
+
+    const cartel = encontrarCartel(/ya son columnas reales/i);
+    expect(cartel).toHaveTextContent(/plazo de cobro/i);
+    expect(cartel).toHaveTextContent(/condición frente al iva/i);
+    expect(cartel).toHaveTextContent(/no enumera/i);
+  });
+
+  it('ningún cartel se duplica al re-renderizar', () => {
+    render(<ObraSocialDetail obraSocial={osecac} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={vi.fn()} />);
+
+    const notas = screen.getAllByRole('note');
+    const cartelesUnicos = new Set(notas.map((n) => n.textContent));
+    expect(cartelesUnicos.size).toBe(notas.length);
   });
 });
 

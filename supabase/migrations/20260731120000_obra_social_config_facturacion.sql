@@ -1,0 +1,74 @@
+-- Migration: obra_social_config_facturacion
+-- Change: openspec/changes/integracion-obra-social/ (design.md D4/D9/D11, tasks.md 1B.1-1B.3)
+--
+-- ⚠️⚠️ ESTA MIGRACIÓN NO ES LA QUE design.md PLANEABA — RECONCILIACIÓN, NO CREACIÓN ⚠️⚠️
+-- Antes de escribir esta migración se verificó el schema `obra_social` REAL contra el proyecto
+-- vinculado (`supabase db query --linked`, 2026-07-31, sin Docker — sesión de CLI ya autenticada
+-- desde el sandbox) siguiendo la regla dura "verificar, no asumir" de las tareas 1.1-1.4. El
+-- resultado: casi TODO lo que `design.md` D4/D6 planeaba agregar YA EXISTE en la base real, con
+-- nombres/tipos distintos de los que `design.md` asumía —aplicado entre 2026-07-29 y 2026-07-30
+-- por el mismo desfasaje de historial de migraciones ya anotado por `integracion-pacientes` 1B.3—:
+--
+--   * `obra_social.obra_social.tipo_factura` YA FUE renombrada a `tipo_comprobante` y retipada
+--     como el enum compartido `facturacion.tipo_factura` ('A','B','C'), nullable, sin default.
+--     No hace falta el CHECK NOT VALID + VALIDATE en dos pasos que D4 planeaba: el enum ya
+--     restringe los valores más estrictamente que un CHECK.
+--   * `plazo_cobro_dias INTEGER NOT NULL DEFAULT 90` YA EXISTE.
+--   * `modalidad_facturacion` YA EXISTE como enum `obra_social.modalidad_facturacion`
+--     ('por-prestacion','general') NOT NULL DEFAULT 'por-prestacion'.
+--   * `admite_pagos_parciales BOOLEAN NOT NULL DEFAULT false` YA EXISTE.
+--   * `identificador_origen` YA EXISTE como enum `obra_social.identificador_origen_factura`
+--     ('paciente.dni','paciente.numeroAfiliado') NOT NULL DEFAULT 'paciente.numeroAfiliado'.
+--   * `requisitos_os.orden INTEGER NOT NULL DEFAULT 0` y `requisitos_os.requerido BOOLEAN NOT
+--     NULL DEFAULT true` YA EXISTEN.
+--   * La tabla nueva NO se llama `campos_plantilla_factura` (como decía D4/D6): ya existía como
+--     `obra_social.plantilla_campo` (id, obra_social_id FK ON DELETE CASCADE, etiqueta TEXT NOT
+--     NULL, origen enum `obra_social.origen_campo_plantilla` con los 12 literales exactos de
+--     `OrigenCampoPlantilla`, orden INTEGER NOT NULL DEFAULT 0), con RLS + policies (`Read
+--     plantilla_campo` / `Write plantilla_campo`, mismo predicado `tiene_permiso('obra_social',…)`)
+--     + trigger de auditoría YA aplicados.
+--
+-- ⛔ CONTRADICCIÓN NUEVA CON D12, NO RESUELTA ACÁ (bloqueante para la usuaria, ver CHANGES.md /
+-- knowledge-base/10_preguntas_abiertas.md — discrepancia nueva #16):
+--   `obra_social.obra_social.formato_identificador_afiliado` (la columna que D12 decidió agregar
+--   el 2026-07-31 para derivar RN-ID-02 desde la obra social) NO EXISTE. En cambio
+--   `obra_social.coberturas_paciente.formato_afiliado` (enum `obra_social.formato_afiliado`,
+--   mismos 3 literales que `FormatoAfiliado`, NOT NULL, SIN DEFAULT, 0 filas hoy) YA EXISTE —
+--   es decir, alguien ya resolvió RN-ID-02 poniendo el formato POR COBERTURA/PACIENTE, exactamente
+--   lo opuesto de lo que D12 decidió. Esta migración NO agrega `formato_identificador_afiliado` a
+--   `obra_social.obra_social` para no crear una columna redundante/contradictoria sin que la
+--   usuaria decida entre (a) mantener D12 tal cual escrita (requeriría migrar
+--   `coberturas_paciente`, columna NOT NULL sin default, y tocar `integracion-pacientes` ya
+--   implementado) o (b) aceptar la realidad ya aplicada. Consecuencia detectada de paso: como
+--   `coberturas_paciente.formato_afiliado` es NOT NULL sin default y `pacientes.crear_paciente_completo`
+--   (ya aplicada) no lo completa en su INSERT, cualquier alta de paciente con número de afiliado
+--   cargado hoy falla con `23502` — bug latente de `integracion-pacientes`, ajeno a este change,
+--   reportado para que backend lo revise.
+--
+-- Lo único que esta migración SÍ hace (genuinamente faltante, confirmado con `pg_indexes`):
+-- agregar los índices sobre las FK de `requisitos_os.tipo_documento_id` y
+-- `plantilla_campo.obra_social_id` (regla de `database-schema-design`: índice en toda FK). El
+-- índice único compuesto `requisitos_os_obra_social_id_tipo_documento_id_key` ya cubre bien los
+-- filtros que empiezan por `obra_social_id`, pero no ayuda a un filtro solo por
+-- `tipo_documento_id`; `plantilla_campo.obra_social_id` no tenía ningún índice.
+--
+-- No se toca ninguna columna existente. No se crea ninguna tabla (ya existe). No se pierde ni se
+-- transforma ningún dato.
+
+CREATE INDEX IF NOT EXISTS idx_requisitos_os_tipo_documento_id
+  ON obra_social.requisitos_os (tipo_documento_id);
+
+CREATE INDEX IF NOT EXISTS idx_plantilla_campo_obra_social_id
+  ON obra_social.plantilla_campo (obra_social_id);
+
+-- RLS de `obra_social.plantilla_campo`: NO se crea acá porque ya está habilitada y con sus dos
+-- policies (`Read plantilla_campo` FOR SELECT / `Write plantilla_campo` FOR ALL, ambas
+-- `USING (modulos.tiene_permiso('obra_social', …))`) aplicadas en el mismo desfasaje de historial
+-- descripto arriba — verificado con `pg_policies`/`pg_class.relrowsecurity` el 2026-07-31. Se dejan
+-- estas líneas comentadas como referencia de lo que ya existe, para que quien lea esta migración
+-- no crea que la tabla nueva quedó sin RLS (regla dura del proyecto: "toda tabla nueva define su
+-- RLS en el mismo archivo que la crea" — esta migración no la crea, solo la índexa mejor).
+--
+-- ALTER TABLE obra_social.plantilla_campo ENABLE ROW LEVEL SECURITY;  -- ya aplicado
+-- CREATE POLICY "Read plantilla_campo" ...  -- ya aplicado
+-- CREATE POLICY "Write plantilla_campo" ... USING (...) WITH CHECK (...)  -- ya aplicado

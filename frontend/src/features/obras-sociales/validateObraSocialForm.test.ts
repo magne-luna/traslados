@@ -27,4 +27,19 @@ describe('validateObraSocialForm', () => {
 
     expect(errors.nombre).toBeDefined();
   });
+
+  // tasks.md 2.5 (D9): los 4 campos del docx (código, dirección, teléfono, condición IVA) nunca
+  // se vuelven obligatorios — ninguna fuente respalda esa regla de negocio.
+  it('un formulario con nombre y CUIT completos y los 4 campos nuevos vacíos no produce errores', () => {
+    const errors = validateObraSocialForm({
+      nombre: 'OSECAC',
+      cuit: '30-12345678-9',
+      codigo: '',
+      direccion: '',
+      telefono: '',
+      condicionIva: '',
+    });
+
+    expect(errors).toEqual({});
+  });
 });
