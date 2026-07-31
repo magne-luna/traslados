@@ -1,18 +1,34 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { PacientesRoute } from './PacientesRoute';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 
-// Smoke test de integración: confirma que el composition root real (con mockPacienteRepository,
-// mockObraSocialRepository y mockDocumentoRepository, no fakes de test) queda correctamente
-// inyectado end-to-end y que el fixture de pacientes aparece precargado en el primer arranque.
+// `PacientesRoute` inyecta `supabasePacienteRepository` (real, tasks.md 4.1) — este test mockea
+// `shared/lib/supabaseClient` (mismo criterio que `router.cuentas.test.tsx`/
+// `SupabaseCuentaRepository.test.ts`) para no depender de red ni de `SUPABASE_URL`/
+// `SUPABASE_ANON_KEY` en el entorno de test, y para que el smoke test siga corriendo contra un
+// doble, nunca contra Supabase real (tasks.md 4.2). `obraSocialRepository`/`documentoRepository`
+// siguen en mock (sus backends todavía no existen). El `select()` mockeado resuelve `{ data: [],
+// error: null }`, así que `list()` devuelve un listado vacío y `leerCoberturasBatch` (que
+// encadenaría `.order()` sobre el resultado) nunca llega a ejecutarse — no hay más pacientes que
+// verificar acá que el cableado, no el contenido de un fixture precargado (eso quedó en
+// `PacientesPage.test.tsx`, que inyecta un mock de verdad directo).
+vi.mock('../../shared/lib/supabaseClient', () => ({
+  supabase: {
+    schema: () => ({ from: () => ({ select: () => Promise.resolve({ data: [], error: null }) }) }),
+    functions: { invoke: vi.fn() },
+  },
+}));
+
+const { PacientesRoute } = await import('./PacientesRoute');
+
 describe('PacientesRoute', () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it('monta la feature con los mocks reales inyectados y muestra el fixture precargado', async () => {
+  it('monta la feature con supabasePacienteRepository (mockeado) y los mocks de obra social/documentos inyectados', async () => {
     render(<PacientesRoute />);
 
-    expect(await screen.findByText(/gómez díaz, martina sol/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
+    expect(screen.getByRole('heading', { name: 'Pacientes' })).toBeInTheDocument();
   });
 });

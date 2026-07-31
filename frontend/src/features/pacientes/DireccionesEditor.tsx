@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
+import { AvisoModeloDatos, Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { iconTacho } from '../../design-system/icons';
 import { Field, Input, Select } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
@@ -41,6 +41,20 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
   }
 
   return (
+    <>
+      {/* tasks.md 5.3 (integracion-pacientes), design.md D9 #3/#4/#6: localidad/días/horario no
+          tienen columna propia (los días/horarios habituales viven en pacientes.recorridos,
+          módulo Hojas de Ruta) y paciente.domicilio es una columna legacy suelta que duplica esta
+          lista — se lee para no perderla, pero este editor nunca la escribe. Fuera de Card: es un
+          aviso de modelo de datos, no un dato de una dirección puntual. */}
+      <AvisoModeloDatos>
+        La base no guarda <strong>localidad</strong>, <strong>días</strong> ni{' '}
+        <strong>horario</strong> de cada dirección: los días y horarios habituales viven en{' '}
+        `pacientes.recorridos`, dentro del módulo <strong>Hojas de Ruta</strong>, no acá. Además,{' '}
+        `paciente.domicilio` es una columna suelta y legacy que duplica esta lista de direcciones —
+        se lee para no perderla, pero no se actualiza desde este editor.
+      </AvisoModeloDatos>
+
     <Card radius="md" gap="lg">
       {/* gateo-pacientes (design.md D2): cuelga de PacienteDetail, fuera de PacienteForm, así que
           no lo alcanza el envoltorio de la sección de datos personales — tiene el suyo propio.
@@ -135,5 +149,6 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
       </div>
       </CamposSoloLectura>
     </Card>
+    </>
   );
 }

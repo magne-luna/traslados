@@ -100,6 +100,28 @@ describe('DireccionesEditor', () => {
   });
 });
 
+// tasks.md 5.3 (integracion-pacientes), design.md D9 #3/#4/#6: localidad/días/horario no tienen
+// columna propia (los días/horarios habituales viven en pacientes.recorridos, módulo Hojas de
+// Ruta) y paciente.domicilio es una columna legacy suelta que duplica esta lista.
+describe('DireccionesEditor — cartel de modelo de datos', () => {
+  it('avisa que la base no guarda localidad, días ni horario, y que domicilio es una columna legacy duplicada', () => {
+    render(<DireccionesEditor direcciones={[]} onChange={vi.fn()} />);
+
+    const cartel = screen.getByRole('note');
+    expect(cartel).toHaveTextContent(/localidad/i);
+    expect(cartel).toHaveTextContent(/días/i);
+    expect(cartel).toHaveTextContent(/horario/i);
+    expect(cartel).toHaveTextContent(/recorridos/i);
+    expect(cartel).toHaveTextContent(/hojas de ruta/i);
+    expect(cartel).toHaveTextContent(/domicilio/i);
+  });
+
+  it('el cartel se muestra aunque no haya ninguna dirección cargada (no depende del contenido de la lista)', () => {
+    render(<DireccionesEditor direcciones={[]} onChange={vi.fn()} />);
+    expect(screen.getAllByRole('note')).toHaveLength(1);
+  });
+});
+
 // Gateo de escritura (gateo-pacientes, design.md D2, tasks.md 4.3). DireccionesEditor cuelga de
 // PacienteDetail, fuera de PacienteForm — un único <CamposSoloLectura> cubre el <button> nativo
 // "Quitar" de cada fila, los 3 campos de "Agregar nueva dirección" y el Button "+ Agregar

@@ -362,6 +362,57 @@ describe('PacienteDetail', () => {
     expect(screen.queryByText(/falta teléfono.*teléfono alternativo/i)).not.toBeInTheDocument();
   });
 
+  // tasks.md 5.1 (integracion-pacientes), design.md D9 #1/#8/#10/#7: cartel agrupado con los
+  // campos que no persisten o degradan al leer/escribir contra pacientes.paciente.
+  it('muestra un cartel agrupado con las discrepancias de formato de afiliado, amparo judicial, nullables y diagnóstico JSONB', () => {
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find((nota) => /no se persiste \(IN-01/i.test(nota.textContent ?? ''));
+    if (!cartel) throw new Error('No se encontró el cartel agrupado de discrepancias (tasks.md 5.1)');
+    expect(cartel).toHaveTextContent(/formato/i);
+    expect(cartel).toHaveTextContent(/aclaración del amparo judicial/i);
+    expect(cartel).toHaveTextContent(/fecha de nacimiento/i);
+    expect(cartel).toHaveTextContent(/cuil del titular/i);
+    expect(cartel).toHaveTextContent(/nullable en la base/i);
+    expect(cartel).toHaveTextContent(/diagnóstico/i);
+    expect(cartel).toHaveTextContent(/jsonb/i);
+  });
+
+  // tasks.md 5.2 (integracion-pacientes), design.md D3/D9 #2: cartel separado sobre el gateo por
+  // el módulo Obras Sociales del número de afiliado.
+  it('muestra un cartel separado avisando que el número de afiliado depende del permiso de Obras Sociales', () => {
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find((nota) => /si la cuenta no tiene permiso/i.test(nota.textContent ?? ''));
+    if (!cartel) throw new Error('No se encontró el cartel del número de afiliado (tasks.md 5.2)');
+    expect(cartel).toHaveTextContent(/módulo obras sociales/i);
+    expect(cartel).toHaveTextContent(/no significa que el paciente no tenga afiliado cargado/i);
+  });
+
   it('agregar una dirección persiste vía actualizar()', async () => {
     const user = userEvent.setup();
     const actualizar = vi.fn().mockResolvedValue(basePaciente);

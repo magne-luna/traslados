@@ -281,6 +281,83 @@ así que queda anotado acá hasta que se construya esa feature.
   lectura, así que se documentan, se señalizan en la UI y quedan para confirmar. Las tres primeras
   tienen impacto directo en el esquema del backend (`C-11`, `C-07`).
 
+- **Pacientes vs. esquema real de `C-05`** (detalle completo en
+  `openspec/changes/integracion-pacientes/design.md` §D9, propose validado 2026-07-30): comparación
+  entre el tipo `Paciente` del frontend y `20260724100004_schema_pacientes.sql` (el schema real ya
+  aplicado en el proyecto Supabase, no solo el docx), hecha al conectar el repository real
+  (`SupabasePacienteRepository.ts`) en lugar del mock. Once discrepancias, **ninguna resuelta acá**
+  — todas quedan pendientes de confirmar con el cliente o con quien mantiene
+  `docs/core/Traslados-Modelo-Datos.docx`, señalizadas con `AvisoModeloDatos` agrupado en
+  `PacienteDetail.tsx` (y uno propio en `DireccionesEditor.tsx` para las de dirección):
+  1. **`numeroAfiliado.formato`** no tiene columna — es la misma pregunta abierta IN-01 de
+     `10_preguntas_abiertas.md`, ahora con el hueco de esquema confirmado. Default editable
+     client-side, no se persiste.
+  2. **`numeroAfiliado.valor`** vive en `obra_social.coberturas_paciente.num_afiliado`, otro schema,
+     gateado por el módulo `obra_social` — si la cuenta no tiene `obra_social: read`, el valor se
+     lee degradado (vacío, con cartel), nunca se inventa ni se bloquea la ficha.
+  3. **`Direccion.localidad`** no tiene columna — no se persiste, se pierde al recargar.
+  4. **`Direccion.dias` / `.horario`** no tienen columna en `direcciones`; el docx los modela en
+     `pacientes.recorridos` (`dia_semana`/`hora`), una tabla gateada por el módulo `hojas_de_ruta`,
+     no por `pacientes` — no se persisten desde esta ficha.
+  5. **`pacientes.direcciones.numero`** existe en la base pero no tiene campo propio en el
+     frontend — se concatena a `calle` al leer; al escribir viaja siempre `null` (no se inventa un
+     parseo de altura desde el texto combinado).
+  6. **`pacientes.paciente.domicilio`** es una columna suelta que duplica la relación
+     `direcciones` — se lee para no perderla, nunca se escribe desde este change.
+  7. **`diagnostico`** es `string` en el frontend y `clinicos.diagnostico JSONB` en la base — se lee
+     como cadena JSON, objeto `{ texto }` o `null`, normalizado siempre a `string`; se escribe como
+     JSON string.
+  8. **`amparoJudicialAclaracion`** no tiene columna — no se persiste.
+  9. **`cud: Cud | null`** en el frontend vs. `pacientes.cud` 1:N con columna `vigente` en la base:
+     cardinalidad y derivado-vs-persistido en conflicto. Se usa la fila de `vencimiento` más
+     reciente; `vigente` se ignora deliberadamente (ya había cartel sobre esto).
+  10. **`fechaNacimiento`, `cuilTitular`, `PersonaACargo.dni`** son requeridos en el frontend pero
+      las columnas son NULLables en la base (nullabilidad invertida) — `NULL` se mapea a `''` al
+      leer, nunca se descarta el paciente ni se lanza error.
+  11. **`accesorioMovilidad: AccesorioMovilidad[]`** (unión cerrada en el frontend) vs.
+      `pacientes.accesorios.tipo TEXT` libre + tabla de vínculo N:N — los `tipo` conocidos se
+      mapean, los desconocidos se descartan en silencio (con cartel); escribir un accesorio
+      inexistente en el maestro aborta el alta con un error accionable en vez de guardar basura.
+
+  **Columnas que el backend debería agregar** para cerrar los puntos 1, 3 y 8 (ver también
+  `CHANGES.md` §`C-05`): `coberturas_paciente.formato_afiliado` (o derivarlo de
+  `obra_social.identificadorOrigen`, sin decidir acá), `direcciones.localidad`,
+  `amparo_judicial_aclaracion` (en `paciente` o en `clinicos`, a definir).
+
+  **Además**, la función `pacientes.crear_paciente_completo` (alta atómica, ver más abajo en esta
+  misma sección) documenta el contrato de escritura real; el punto 9 y el punto 11 tienen
+  consecuencias directas sobre esa función (`vigente` no se escribe nunca; un `tipo` de accesorio
+  inexistente en el maestro hace abortar la transacción completa con `45001`).
+
+### Función de alta: `pacientes.crear_paciente_completo` (contrato de escritura del módulo Pacientes)
+
+Migración `supabase/migrations/20260730180000_crear_paciente_completo.sql`
+(`openspec/changes/integracion-pacientes/`, D4). Es el **único** camino de alta multi-tabla del
+módulo Pacientes: un solo `POST /rpc/crear_paciente_completo` con un único argumento `jsonb`, que
+inserta atómicamente `paciente`, `clinicos`, `cud`, `direcciones` (`numero` siempre `NULL`, ver
+discrepancia #5 arriba), `personas_a_cargo`, `accesorios_pacientes` (resolviendo `tipo →
+accesorio_id`, aborta con `45001` si el tipo no está en el maestro) y, condicionalmente,
+`obra_social.coberturas_paciente` (solo si vienen `num_afiliado` y `obra_social_id`). Nunca se hace
+la secuencia insert-por-insert con borrado compensatorio: PostgREST corre el `rpc()` dentro de una
+transacción, así que un fallo a mitad de camino deja **cero** filas escritas en cualquiera de las 7
+tablas, sin estado parcial posible.
+
+**`SECURITY INVOKER` a propósito, no un descuido.** La función corre con los privilegios y las RLS
+policies de quien la llama, no del owner. Esto es intencional y es lo que hace que el gateo por
+módulo (`modulos.tiene_permiso('pacientes','write')`, ejercido vía las policies de
+`pacientes.paciente` y las demás tablas) siga aplicando **dentro** de la función exactamente igual
+que si el frontend hiciera los inserts uno por uno. Convertirla a `SECURITY DEFINER` haría que
+corriera con los privilegios del owner (superusuario) y **bypassearía por completo** ese gateo:
+cualquier cuenta autenticada, tenga o no permiso de escritura sobre Pacientes (o sobre Obras
+Sociales, para la cobertura), podría crear pacientes reales. Es el riesgo de seguridad más serio
+que introduce `C-05`/`integracion-pacientes`. La migración deja `REVOKE ALL ... FROM PUBLIC` y
+`FROM anon`, más `GRANT EXECUTE ... TO authenticated` únicamente, y un `COMMENT ON FUNCTION` con la
+misma advertencia visible desde el dashboard de Supabase sin tener que abrir el archivo de
+migración. Quien lea esta sección de la KB sin abrir `20260730180000_crear_paciente_completo.sql`
+tiene que quedar advertido igual: **no cambiar `SECURITY INVOKER` por `SECURITY DEFINER` bajo
+ninguna circunstancia**, ni siquiera "temporalmente para probar" — es el chequeo de seguridad final
+antes de archivar el change (`security-review`, ver `tasks.md` 7.8).
+
 ## Seed data inicial
 
 Migración inicial estimada: 50-60 pacientes (más de 50 activos), con su documentación asociada, a definir en detalle a partir de las planillas/Excel y estructura de carpetas actuales que aporte el cliente (ver `10_preguntas_abiertas.md` e `11` en `01_vision_y_objetivos.md` sección insumos pendientes).

@@ -208,7 +208,23 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 ## FASE 2 — Entidades dependientes
 
 ### [C-05] `pacientes-fichas-clinicas`
-- **Estado**: `[ ]` pendiente
+- **Estado**: 🔶 `integracion-pacientes` implementado (2026-07-30/31) — código, migración y tests
+  completos; **pendiente de revisión manual antes de archivar**. Ver `openspec/changes/integracion-pacientes/tasks.md`
+  para el detalle tarea por tarea.
+- **⏳ Pendiente de revisión (a cargo de Enzo/backend)** antes de poder archivar `integracion-pacientes`:
+  - `1.3` — consulta de humo (`select id from pacientes.paciente limit 1`) autenticado con una cuenta
+    real vía PostgREST/la app (no desde el SQL editor, que conecta como superusuario y no ejercita RLS).
+  - `1B.4` — verificación manual de `pacientes.crear_paciente_completo` con 3 cuentas reales
+    (`pacientes: write` da de alta completo; `pacientes: read` sin `write` falla `42501` y cero filas;
+    `pacientes: write` sin `obra_social: write` con afiliado cargado falla `42501` y rollback total) —
+    checklist completo en `openspec/changes/integracion-pacientes/design.md` §Migration Plan paso 4.
+  - `7.5`-`7.8` — verificación en navegador (`npm run dev`) con las mismas 3 cuentas, rastro en
+    `auditoria.logs`, prueba de rollback (volver `PacientesRoute.tsx` al mock y reaplicar), y
+    reconfirmar `select prosecdef from pg_proc where proname = 'crear_paciente_completo';` → `false`.
+  - Lo que **ya está confirmado**: migración aplicada al proyecto real vía SQL Editor (2026-07-30),
+    `SECURITY INVOKER` verificado, suite completa en 1385/1385 tests (0 regresiones), `tsc`/`oxlint`
+    limpios, cobertura ≥85% en `shared/lib/pacientes/`.
+  - Una vez confirmado todo lo anterior: `sdd-archive integracion-pacientes`.
 - **Scope**:
   - Migración: tabla `paciente` (apellido(s), nombre(s), fecha de nacimiento, DNI, CUIL del titular, diagnóstico/condición, accesorio de movilidad, teléfono alternativo del responsable), FK a `obra_social`.
   - Campo identificador de afiliado **adaptable por obra social** (documento, alfanumérico, o CUIL + sufijo /01, /02...) — implementar como campo flexible, no columna fija única (RN-ID-02).
@@ -233,6 +249,10 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - **Pendiente**: el número de afiliado acá es un valor único y actual; el docx lo modela como "Cobertura del Paciente", una entidad histórica (N coberturas por paciente con fecha desde/hasta) — sin historial de coberturas ni de obras sociales anteriores acá.
   - **Pendiente**: el docx separa "Direcciones" (catálogo: calle + tipo) de "Recorridos" (dirección inicial/final + día + hora); acá están fusionados en un solo tipo `Direccion` con `tramo` (ida/vuelta), un campo que no existe en el docx.
   - **Pendiente**: el CUD del docx tiene un campo booleano "Vigente" propio; acá se calcula al vuelo, no se persiste.
+- **⚠️ Discrepancia con `Traslados-Modelo-Datos.docx`** (cableado del repository real, `integracion-pacientes`, 2026-07-30): al conectar `SupabasePacienteRepository.ts` contra `20260724100004_schema_pacientes.sql` aparecieron 11 discrepancias adicionales, ya documentadas en detalle en `04_modelo_de_datos.md` §Discrepancias, bloque "Pacientes vs. esquema real de `C-05`" — remitir ahí para el listado completo. Resumen de impacto en backend:
+  - **Columnas que el backend debería agregar**: `formato_afiliado` (en `obra_social.coberturas_paciente`, o derivarlo de `obra_social.identificadorOrigen`), `direcciones.localidad`, `amparo_judicial_aclaracion` (en `paciente` o en `clinicos`).
+  - **Preguntas abiertas sin decidir acá**: si `paciente.domicilio` es la columna legacy o la canónica frente a `direcciones` (hoy coexisten, y solo se lee, nunca se escribe, desde este change); si la cobertura de obra social debe modelarse como histórica (N filas con `fecha_desde`/`fecha_hasta`, como ya está en la base) o colapsarse a una sola actual (como asume hoy el frontend, que usa la más reciente e ignora el resto).
+  - La función de alta `pacientes.crear_paciente_completo` (`SECURITY INVOKER` a propósito, ver `04_modelo_de_datos.md`) es el contrato de escritura real de este módulo desde ahora.
 
 ### [C-09] `conductores`
 - **Estado**: `[ ]` pendiente

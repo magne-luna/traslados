@@ -9,6 +9,7 @@ Extraídas literalmente de la sección 10 ("Supuestos y puntos a confirmar") y s
 **Documento B dice** (RF-400, sección 10): en la factura se debe confirmar si el identificador a usar es el DNI o el número de afiliado — no necesariamente el mismo campo que RF-106.
 **Impacto**: si no se alinean ambos campos, la plantilla de factura por obra social podría generar un identificador distinto al que realmente pide cada entidad pagadora.
 **Resolución propuesta**: definir explícitamente, por obra social, qué campo de la ficha del paciente alimenta el identificador de la factura (podría no ser el mismo para todas las obras sociales).
+**Hueco de esquema confirmado** (`integracion-pacientes`, 2026-07-30, contra `20260724100004_schema_pacientes.sql` real): `obra_social.coberturas_paciente` tiene la columna `num_afiliado TEXT`, pero **ninguna columna de formato** (documento / alfanumérico / CUIL + sufijo). Hoy el `formato` vive solo en el frontend (`numeroAfiliado.formato`, default editable client-side) y **no se persiste** — cada vez que se recarga la ficha, el formato vuelve al default en vez del que el usuario eligió. Detalle completo en `04_modelo_de_datos.md` §Discrepancias, bloque "Pacientes vs. esquema real de `C-05`" (discrepancia #1) y `openspec/changes/integracion-pacientes/design.md` §D9/§Open Questions. Sigue sin decidirse acá **si** el backend agrega `coberturas_paciente.formato_afiliado` o si el formato se deriva de `obra_social.identificadorOrigen` (ya existe ese campo del lado de Obras Sociales, `C-04`).
 
 ## Preguntas abiertas (priorizadas)
 
@@ -59,6 +60,33 @@ Además, la alerta de cupo excedido (RN-FA-02) se implementó como **aviso con c
 explícita, sin bloquear la emisión** — ver Open Question correspondiente en
 `openspec/changes/facturacion-ui/design.md`, pendiente de confirmar si el cliente prefiere
 bloqueo duro.
+
+## Preguntas técnicas abiertas — `integracion-pacientes` (2026-07-30)
+
+Dos decisiones técnicas, no de negocio, que surgieron al escribir la migración
+`supabase/migrations/20260730180000_crear_paciente_completo.sql` (D4 de
+`openspec/changes/integracion-pacientes/design.md`) y quedaron explícitamente **sin resolver en
+este change** (tarea 1B.5 de `tasks.md`):
+
+- **¿Se monta pgTAP (o un Supabase local vía `supabase start`) antes del segundo change de
+  integración?** Hoy el repo no tiene `supabase/config.toml`, ni pgTAP, ni CI con Docker — el
+  único mecanismo para verificar una función de Postgres como `crear_paciente_completo` (atomicidad
+  de la transacción, gateo real por RLS con `SECURITY INVOKER`) es el checklist manual del
+  §Migration Plan de `design.md` (tres cuentas reales + SQL editor). Ese mismo precedente ya lo
+  había sentado `C-02` (`design.md` §Testing de `usuarios-permisos-auditoria`). Con dos changes de
+  integración usando el mismo patrón, el costo de no automatizarlo se vuelve concreto: repetir un
+  checklist SQL de 5+ pasos a mano por cada función nueva. **Decisor**: equipo técnico, antes de
+  arrancar el próximo change que agregue una función de escritura multi-tabla.
+- **¿Se indexan las FK `paciente_id` de las tablas hijas de Pacientes?**
+  `20260724100004_schema_pacientes.sql` no crea índices sobre `cud.paciente_id`,
+  `clinicos.paciente_id`, `direcciones.paciente_id`, `personas_a_cargo.paciente_id` ni
+  `accesorios_pacientes.paciente_id`, y los embeds anidados de `SupabasePacienteRepository.list()`
+  (D2 de `design.md`, la consulta anti-N+1) filtran/hacen join sobre esas columnas en cada listado
+  de pacientes. `integracion-pacientes` **no** agrega estos índices porque su única migración es la
+  función de alta (sección 1B de `tasks.md`, no toca tablas) — queda reportado para que backend lo
+  evalúe cuando el volumen real de pacientes lo justifique (la KB estima 50-60 pacientes iniciales,
+  ver §Seed data inicial de `04_modelo_de_datos.md`; con ese volumen el impacto de no indexar es
+  bajo, pero conviene decidirlo antes de que crezca). **Decisor**: backend.
 
 ## Insumos pendientes del cliente
 

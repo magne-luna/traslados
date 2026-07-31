@@ -95,7 +95,7 @@ Esto también te blindea de los puntos que todavía están sin cerrar con el cli
 - Cartelitos `AvisoModeloDatos` visibles en la UI (`RecorridoCard.tsx`, `HojaDeRutaPage.tsx`) por los agregados sobre el docx (`conductorId` en `Recorrido`, entidad `HojaDeRuta`, orden/coordenadas del mapa, franja horaria y notas) — detalle en `CHANGES.md` dentro del scope de `C-10`.
 - **Leer antes**: `06_funcionalidades.md` §Épica 8, `05_reglas_de_negocio.md` §RN-HR-01 a 03, `07_flujos_principales.md` §Flujo 2.
 
-## FASE FE-6 — Facturación, asistencias y cobros ✅ completo (falta verificación manual)
+## FASE FE-6 — Facturación, asistencias y cobros ✅ completo
 
 **Depende de**: FE-2 (obras sociales, plantilla), FE-3 (pacientes), FE-4 (cupo autorizado). **Corresponde a**: `C-07`.
 
@@ -104,19 +104,19 @@ Esto también te blindea de los puntos que todavía están sin cerrar con el cli
 - Exclusión visual de feriados en el selector de días facturables.
 - Cálculo de fecha estimada de cobro (90 días default / 45 si amparo judicial — dejalo como constante configurable, no hardcodeada, porque son valores aún sin confirmar con el cliente).
 - Estados del circuito (a facturar → facturado → cobrado → pagado parcialmente) y registro de cobros/pagos parciales.
-- Change OPSX `facturacion-ui` implementado (`openspec/changes/facturacion-ui/`, pendiente de archivar), 61/61 tasks — governance CRITICO, aprobado punto por punto por el usuario. Suite del frontend en verde (640 tests), `tsc`/lint limpios.
-- Cartel `AvisoModeloDatos` agrupado (`FacturaAvisoDiscrepancias.tsx`, visible en `FacturaDetail`) con las 5 discrepancias de impacto backend — detalle en `CHANGES.md` dentro del scope de `C-07`. Pendiente: verificación manual en navegador y coordinar con backend/cliente los puntos abiertos antes de cerrar el esquema.
+- Change OPSX `facturacion-ui` implementado y **archivado** (`openspec/changes/archive/2026-07-27-facturacion-ui/`), 61/61 tasks — governance CRITICO, aprobado punto por punto por el usuario. Suite del frontend en verde (640 tests), `tsc`/lint limpios. Verificación manual en navegador confirmada por el usuario.
+- Cartel `AvisoModeloDatos` agrupado (`FacturaAvisoDiscrepancias.tsx`, visible en `FacturaDetail`) con las 5 discrepancias de impacto backend — detalle en `CHANGES.md` dentro del scope de `C-07`. Coordinar con backend/cliente los puntos abiertos antes de cerrar el esquema.
 - **Leer antes**: `06_funcionalidades.md` §Épica 5, `05_reglas_de_negocio.md` §RN-FA-01 a 08, `10_preguntas_abiertas.md` (varias preguntas Alta afectan esta pantalla).
 
-## FASE FE-7 — Panel principal y reportes ✅ completo (falta verificación manual)
+## FASE FE-7 — Panel principal y reportes ✅ completo
 
 **Depende de**: todo lo anterior (agrega datos de los demás módulos, mockeados). **Corresponde a**: `C-11`.
 
 - Dashboard: recorridos del día en primer plano, tarjetas de resumen (facturas en mora, CUD por vencer, alertas de mantenimiento), diferencia facturado vs. cobrado por período configurable, resumen anual.
 - Es la pantalla más fácil de mockear bien porque solo agrega datos que ya vas a tener de los módulos anteriores.
 - Capa de agregación pura en `shared/lib/reportes/` (períodos, facturado vs. cobrado, resumen anual, facturas en mora, CUD por vencer, alertas de mantenimiento, resumen del día), sin duplicar reglas de negocio: reutiliza `estadoVencimientoFactura`/`estadoCud`/`estadoServicePreventivo`/`estadoHabilitacion` de sus módulos dueños. `CobroRepository` gana `list()` de forma aditiva (no rompe `facturacion-ui`).
-- Change OPSX `dashboard-ui` implementado (`openspec/changes/dashboard-ui/`, pendiente de archivar), 59/60 tasks — governance BAJO. Suite del frontend en verde, `tsc`/lint limpios.
-- Cartel `AvisoModeloDatos` agrupado (`DashboardAvisoDiscrepancias.tsx`, visible al tope del Dashboard) con las 4 discrepancias de impacto backend — detalle en `CHANGES.md` dentro del scope de `C-11`. Pendiente: verificación manual en navegador (9.5) y coordinar con backend/cliente los puntos abiertos antes de cerrar el esquema de las vistas SQL / RPC.
+- Change OPSX `dashboard-ui` implementado y **archivado** (`openspec/changes/archive/2026-07-26-dashboard-ui/`), 59/60 tasks — governance BAJO. Suite del frontend en verde, `tsc`/lint limpios. Verificación manual en navegador confirmada por el usuario.
+- Cartel `AvisoModeloDatos` agrupado (`DashboardAvisoDiscrepancias.tsx`, visible al tope del Dashboard) con las 4 discrepancias de impacto backend — detalle en `CHANGES.md` dentro del scope de `C-11`. Coordinar con backend/cliente los puntos abiertos antes de cerrar el esquema de las vistas SQL / RPC.
 - **Leer antes**: `06_funcionalidades.md` §Épica 9 (US-800), `04_modelo_de_datos.md` (referencias cruzadas Factura/Vehículo/Paciente/Recorrido).
 
 ---
@@ -125,19 +125,21 @@ Esto también te blindea de los puntos que todavía están sin cerrar con el cli
 
 No es una fase que arrancás vos sola/o de una — se va haciendo módulo por módulo, cuando la persona de backend cierra (archiva) el `C-0X` correspondiente:
 
-| Backend archivado | Reemplazás el mock de... |
-|---|---|
-| `C-01` foundation-setup | Cliente Supabase real disponible (`shared/lib/supabaseClient.ts`) |
-| `C-02` usuarios-permisos-auditoria | ✅ **Completado** (`auth-frontend-real`, 2026-07-29) — `useAuth()` mock → Supabase Auth real (sesión de 3 estados); guard de rutas con permisos reales (`tienePermiso`/`moduloDeRuta`/`requiereRolAdmin`); pantalla de gestión de cuentas y matriz de permisos; navegación del `AppShell` filtrada por permisos + cierre de sesión real. Pendiente solo la verificación manual end-to-end (a cargo de la usuaria) |
-| `C-03` gestion-documental-core | Upload mock → buckets reales de Storage |
-| `C-04` obras-sociales-prestadores | `ObraSocialRepository` mock → Supabase |
-| `C-08` vehiculos-mantenimiento | `VehiculoRepository` mock → Supabase |
-| `C-05` pacientes-fichas-clinicas | `PacienteRepository` mock → Supabase |
-| `C-09` conductores | `ConductorRepository` mock → Supabase |
-| `C-06` presupuestos-autorizaciones | `PresupuestoRepository`/`AutorizacionRepository` mock → Supabase |
-| `C-10` hojas-de-ruta-recorridos | `HojaDeRutaRepository` mock → Supabase |
-| `C-07` facturacion-asistencias-cobros | `FacturaRepository` mock → Supabase |
-| `C-11` panel-principal-reportes | Queries agregadas mock → vistas/RPC reales de Supabase |
+| Backend archivado | Reemplazás el mock de... | Estado |
+|---|---|---|
+| `C-01` foundation-setup | Cliente Supabase real disponible (`shared/lib/supabaseClient.ts`) | ✅ Completado (2026-07-27) |
+| `C-02` usuarios-permisos-auditoria | ✅ **Completado** (`auth-frontend-real`, 2026-07-29) — `useAuth()` mock → Supabase Auth real (sesión de 3 estados); guard de rutas con permisos reales (`tienePermiso`/`moduloDeRuta`/`requiereRolAdmin`); pantalla de gestión de cuentas y matriz de permisos; navegación del `AppShell` filtrada por permisos + cierre de sesión real. Además, el split "gateo de escritura por permiso" (5 changes: `gateo-obrasocial`, `gateo-pacientes`, `gateo-conductores`, `gateo-facturacion`, `gateo-hojas-de-ruta`, todos archivados el 2026-07-30) cableó `usePuedeEscribir()`/`<CamposSoloLectura>` en todos los módulos de dominio. El change `permisos-modulos-granulares` (en curso, 27/28 tareas) extiende el catálogo de 4 a 7 módulos — es el único change activo del repo hoy. | ✅ Auth/permisos real de punta a punta |
+| `C-03` gestion-documental-core | Upload mock → buckets reales de Storage | ⏳ Pendiente — 4 buckets creados en Storage, pero `mockDocumentoRepository` sigue simulando el upload |
+| `C-04` obras-sociales-prestadores | `ObraSocialRepository` mock → Supabase | ⏳ Pendiente — schema+RLS listos en backend, frontend sigue en `mockObraSocialRepository` |
+| `C-08` vehiculos-mantenimiento | `VehiculoRepository` mock → Supabase | ⏳ Pendiente — ídem, `mockVehiculoRepository` |
+| `C-05` pacientes-fichas-clinicas | `PacienteRepository` mock → Supabase | 🔶 Implementado (`integracion-pacientes`, 2026-07-30/31), pendiente de revisión manual — `SupabasePacienteRepository.ts` + `pacienteMapping.ts` por TDD estricto, migración `pacientes.crear_paciente_completo` **aplicada al proyecto real y verificada `SECURITY INVOKER`**, `PacientesRoute.tsx` ya cableado al repository real (sección 4 hecha). Suite completa 1385/1385 tests, `tsc`/`oxlint` limpios, cobertura ≥85%. **Falta** (a cargo de Enzo/backend, ver `CHANGES.md` §C-05): tareas `1.3`, `1B.4` y `7.5`-`7.8` de `openspec/changes/integracion-pacientes/tasks.md` antes de archivar. Límites de persistencia conocidos: 11 discrepancias contra el schema real, ninguna resuelta unilateralmente — ver `knowledge-base/04_modelo_de_datos.md` §Discrepancias, bloque "Pacientes vs. esquema real de `C-05`". |
+| `C-09` conductores | `ConductorRepository` mock → Supabase | ⏳ Pendiente — ídem, `mockConductorRepository` |
+| `C-06` presupuestos-autorizaciones | `PresupuestoRepository`/`AutorizacionRepository` mock → Supabase | ⏳ Pendiente — ídem, `mockPresupuestoRepository`/`mockAutorizacionRepository` |
+| `C-10` hojas-de-ruta-recorridos | `HojaDeRutaRepository` mock → Supabase | ⏳ Pendiente — ídem, `mockHojaDeRutaRepository` |
+| `C-07` facturacion-asistencias-cobros | `FacturaRepository` mock → Supabase | ⏳ Pendiente — ídem, `mockFacturaRepository`/`mockCobroRepository` |
+| `C-11` panel-principal-reportes | Queries agregadas mock → vistas/RPC reales de Supabase | ⏳ Pendiente — `DashboardRoute.tsx` agrega datos de los 6+ repos mock de arriba, no hay vistas/RPC agregadas todavía |
+
+Relevamiento verificado 2026-07-30: **hoy solo Auth/Cuentas tienen integración real**. El schema, RLS y Edge Functions del resto de los dominios ya existen del lado backend (10 migraciones aplicadas al repo), pero ningún otro `*Repository` real fue escrito todavía — cada composition root (`*Route.tsx`) sigue inyectando su mock, con el comentario "cuando exista `SupabaseXRepository`, este es el único archivo que cambia" ya dejado como guía.
 
 Como cada pantalla habla con una interfaz y no con Supabase directamente, este reemplazo es mecánico: no tocás componentes ni lógica de UI, solo el adaptador de datos.
 
