@@ -135,6 +135,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 - **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** (`permisos-modulos-granulares`, señalizada con cartel `AvisoModeloDatos` en `CuentaDetail.tsx`, detalle completo en `04_modelo_de_datos.md`): el docx nombra explícitamente 4 módulos de ejemplo, uno por cada entidad del docx — la separación en 7 módulos **no es un pedido del cliente**, es una decisión de UX/administración confirmada con la usuaria, pendiente de confirmar con quien mantiene el docx si el catálogo real del backend queda en 4 o en 7 módulos.
 - **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** — **RESUELTA 2026-07-28**: el docx efectivamente describe un campo `Rol` fijo en Usuarios (Administrador con bypass total / Empleado con permisos por módulo) más "protección contra autopromoción de rol", confirmado al releer el docx completo — el docx manda en estructura, así que `03_actores_y_roles.md` queda desactualizado en este punto (pendiente de sincronizar).
 - **Progreso backend (real, C-02, 2026-07-28)**: ✅ implementado y pusheado al proyecto Supabase real (`pkryfoljypuzfifofdwp`) — schemas `usuarios` (tabla + `rol_enum` admin/empleado + trigger anti-autopromoción + `handle_new_user()` siempre `empleado`, admin se asigna a mano una única vez por SQL Editor), `modulos` (catálogo + `permisos` + `tiene_permiso()`), `auditoria` (`logs` + `log_action()` trigger genérico, lectura para cualquier usuario autenticado por texto explícito del docx). Funciones Edge (service-role): `create-user` (único camino de alta de cuenta, no hay registro público) y `update-permisos` (admin-only, reemplazo completo del set de permisos de una cuenta existente — upsert de lo que se manda, borra el resto). Catálogo de módulos seedeado con los 4 módulos reales del docx (`pacientes`, `obra_social`, `facturacion`, `conductores` — no los 9 nombres de carpeta del frontend). RF-004 (ingreso/egreso, prioridad Media) también implementado: trigger sobre `auth.users.last_sign_in_at` para `ingreso_at`, trigger sobre `auth.audit_log_entries` (acción `logout`) para `egreso_at`. De paso se revisaron y corrigieron bugs de RLS/nombres de módulo en las migraciones draft de `obra_social`/`pacientes`/`facturacion`/`conductores` (existían sin commitear desde 2026-07-24) y se corrigió `20260727000001_create_buckets.sql` (`storage.create_bucket()` no es una función SQL invocable — se cambió a `INSERT INTO storage.buckets`). Detalle completo en `openspec/changes/C-02-usuarios-permisos-auditoria/`.
+- **✅ Verificado end-to-end 2026-07-28**: signup real vía `/auth/v1/signup`, confirmación + bootstrap a `admin` por SQL manual, login vía `/auth/v1/token?grant_type=password`, y llamada real a la Edge Function `pacientes` con el JWT obtenido — devolvió `200 []` (lista vacía, esperable sin datos cargados). En el camino se encontró y corrigió un bug real: a ningún schema custom se le había otorgado `USAGE`/`ALL` a `service_role` (solo a `authenticated`) — sin esto, **toda** Edge Function fallaba con "permission denied for schema X" en el primer uso real. Fix en `20260729150000_grant_service_role_schemas.sql`. `BYPASSRLS` de `service_role` no reemplaza los GRANTs de schema/tabla — gotcha para tener en cuenta en cualquier schema nuevo que se agregue de acá en más.
 
 ---
 
@@ -143,7 +144,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 > Con auth y RLS listos, tres dominios independientes entre sí pueden avanzar en paralelo: documentación transversal, obras sociales, y flota. Ninguno depende de los otros dos.
 
 ### [C-03] `gestion-documental-core`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[~]` backend implementado y pusheado (2026-07-28); pendiente que frontend conecte `DocumentChecklist` (hoy mock) a Storage real
 - **Scope**:
   - Componente genérico de carga/consulta de documentos (imágenes/PDF) reutilizable por Pacientes, Vehículos, Conductores y Facturas — un patrón de tabla `documento_{entidad}` (o tabla polimórfica) + integración con los 4 buckets creados en C-01.
   - Reglas de acceso: solo usuarios con permiso sobre el módulo de la entidad pueden subir/ver/descargar sus documentos (usa RLS de C-02).
@@ -156,10 +157,11 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - `knowledge-base/06_funcionalidades.md` §Épica 10 (US-900)
   - `knowledge-base/08_arquitectura_propuesta.md` §Estructura de directorios (buckets), §Seguridad
   - `knowledge-base/05_reglas_de_negocio.md` §RN-GL-02
+- **Progreso backend (real, C-03, 2026-07-28)**: ✅ implementado y pusheado. Los patrones `documento_{entidad}` de Pacientes/Conductores/Vehículos ya existían de rebote (revisados y corregidos durante C-02). Lo que faltaba: `facturacion.documento_factura` (mismo patrón, FK a `obra_social.tipos_documento` compartido, con `comprobante ARCA`/`asistencia`/`CODEM` seedeados) y, más importante, **las políticas RLS de `storage.objects`** — los 4 buckets de C-01 tenían RLS habilitado sin ninguna política, o sea nadie podía subir/bajar nada todavía. Ahora cada bucket está gateado por `modulos.tiene_permiso()` según su módulo (`documentos-vehiculos` cae bajo `conductores`, no un módulo propio). Detalle en `openspec/changes/C-03-gestion-documental-core/`. **Falta**: nada del lado backend — el componente de UI reutilizable (`DocumentChecklist`) ya existe como mock (FE-1), pendiente de que frontend lo conecte a Storage real.
 - **Progreso frontend (mock, vía FE-1)**: ✅ `DocumentChecklist` reutilizable (`frontend/src/shared/components/DocumentChecklist.tsx`) + `DocumentoRepository`/`mockDocumentoRepository` (`frontend/src/shared/lib/documentos/`) con upload mock y latencia simulada. **Falta**: tabla `documento_{entidad}`, integración real con buckets, `audit_log`.
 
 ### [C-04] `obras-sociales-prestadores`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[~]` backend implementado y pusheado (2026-07-28/29), incl. Edge Functions `obra-social`/`prestadores`/`requisitos-os`/`plantilla-campo` (2026-07-30); pendiente verificación manual y que frontend reemplace el mock
 - **Scope**:
   - Migración: tabla `obra_social` (nombre, CUIT del prestador — **distinto** del CUIL del titular del paciente, RN-ID-01), plazo de cobro configurable, tipo de comprobante (A/B/C), modalidad de facturación (por prestación vs. general), si admite pagos parciales/por lote.
   - Migración: tabla `checklist_documentacion_obra_social` (ítems ordenados, configurable por obra social — respetar orden e ítems tal como los exige cada una) y tabla `plantilla_facturacion` (campos que la descripción de factura de esa obra social requiere).
@@ -179,9 +181,10 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - El checklist en el docx es una tabla de vínculo ("Requisitos de la Obra Social") contra un catálogo compartido de Tipos de Documento, no un array embebido en `obra_social`.
   - Faltan en el frontend campos que sí están en el docx: Código, Dirección, Teléfono, Condición frente al IVA.
   - El docx agrega una entidad "Prestadores" (razón social, CUIT, dirección, teléfono) que no está en el scope de este change ni en la KB — evaluar si entra acá o en un change propio.
+- **Progreso backend (real, C-04, 2026-07-28)**: ✅ implementado y pusheado. El schema `obra_social` (incl. `prestadores`, `tipos_documento`, `requisitos_os`) ya existía de rebote desde la revisión de C-02 y ya cubría Código/Dirección/Teléfono/Condición IVA y la entidad Prestadores del docx. Esta migración cerró lo que faltaba: `plazo_cobro_dias`/`modalidad_facturacion`/`admite_pagos_parciales`/`identificador_origen` en `obra_social.obra_social` (nombres/defaults tomados 1:1 de `frontend/src/shared/types/obraSocial.ts`), `orden`/`requerido` en `requisitos_os` (RN-FA-08), y tabla nueva `plantilla_campo`. **Falta**: cargar el checklist real de OSECAC como dato (contenido de negocio, no estructura — lo carga la administradora desde la app).
 
 ### [C-08] `vehiculos-mantenimiento`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[~]` backend implementado y pusheado (2026-07-30); falta verificación manual y que frontend reemplace el mock
 - **Scope**:
   - Migración: tabla `vehiculo` (patente, modelo, tipo, capacidad hasta 6, accesorios de movilidad compatibles, estado habilitado/fuera de servicio, kilometraje).
   - Migración: tabla `gasto_vehiculo` (evento con fecha y monto, sin frecuencia fija), tabla `mantenimiento_registro` (preventivo/correctivo, VTV, RTO — ambas habilitaciones registrables de forma independiente).
@@ -202,6 +205,22 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - VTV/RTO en el docx son solo ítems del catálogo genérico de documentos vehiculares, sin fecha de vencimiento propia (el vencimiento se rastrea vía mantenimiento) — distinto de `RegistroHabilitacion` en el frontend, que sí tiene `fechaVencimiento`.
   - Falta el campo `Notas` (observaciones sobre el vehículo) que sí está en el docx.
   - El docx ubica `gasto_vehiculo` bajo el módulo de permisos "facturacion", no "conductores" — importa para las RLS policies de este change.
+- **Progreso backend (real, C-08, 2026-07-30)**: ✅ implementado, pendiente deploy.
+  **Decisión confirmada con Enzo** sobre el punto de arriba: los gastos del vehículo viven en
+  `conductores.mantenimiento` (`categoria = 'gasto'`, tal cual el docx modela una única
+  "Categoría / Tipo de intervención"), no en `facturacion.gastos_vehiculos` — esa tabla queda sin
+  usar (no se dropea). `kilometrajeUltimoService`/`fechaUltimoService` quedan **derivados** del
+  último registro `preventivo` de `mantenimiento` (nunca columnas propias, para no tener 2
+  fuentes de verdad) — resuelve el primer punto de la discrepancia de arriba.
+  `habilitaciones_vehiculo` (tabla nueva) resuelve el segundo punto (VTV/RTO con vencimiento
+  propio, distinto de `documentacion_vehiculo`). Edge Functions `vehiculos` (habilitaciones,
+  gastos y `accesoriosCompatibles` embebidos con reemplazo completo) y `vehiculo-documentos`
+  (mismo patrón que `pacientes-documentos`). Detalle en
+  `openspec/changes/C-08-vehiculos-mantenimiento/`. **Falta**: `supabase db push` + deploy de
+  las 2 funciones (requiere OK explícito); una Edge Function para registrar mantenimiento
+  preventivo/correctivo cuando el frontend tenga esa pantalla (hoy no existe, `gasto`/
+  `kilometrajeUltimoService` son los únicos casos con consumidor real); el campo `Notas` (3er
+  punto de la discrepancia) queda igual de pendiente que antes, del lado frontend.
 
 ---
 
@@ -246,11 +265,12 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - ~~Diagnóstico y Condición son dos campos de una entidad aparte en el docx~~ — resuelto en `pacientes-ui`: `Paciente.condicion` (opcional) agregado junto a `diagnostico`, sin crear la entidad "Datos Clínicos" aparte (evaluar al construir el modelo real de `C-05` si conviene separarla).
   - ~~"Teléfono alternativo" está en `Paciente` acá; en el docx pertenece a Personas a Cargo~~ — resuelto en `pacientes-ui`: se sacó de `Paciente` y se sumó `PersonaACargo.telefono`/`telefonoAlternativo` (opcionales).
   - ~~"Accesorio de movilidad" acá admite uno solo; el docx permite varios por paciente (tabla de vínculo, igual que en `C-08`)~~ — resuelto en `pacientes-ui` (segunda tanda): `Paciente.accesorioMovilidad` pasó a `AccesorioMovilidad[]` (multi-selección, mismo patrón de checkboxes que `VehiculoForm`/`C-08`).
-  - **Pendiente**: el número de afiliado acá es un valor único y actual; el docx lo modela como "Cobertura del Paciente", una entidad histórica (N coberturas por paciente con fecha desde/hasta) — sin historial de coberturas ni de obras sociales anteriores acá.
-  - **Pendiente**: el docx separa "Direcciones" (catálogo: calle + tipo) de "Recorridos" (dirección inicial/final + día + hora); acá están fusionados en un solo tipo `Direccion` con `tramo` (ida/vuelta), un campo que no existe en el docx.
-  - **Pendiente**: el CUD del docx tiene un campo booleano "Vigente" propio; acá se calcula al vuelo, no se persiste.
-- **⚠️ Discrepancia con `Traslados-Modelo-Datos.docx`** (cableado del repository real, `integracion-pacientes`, 2026-07-30): al conectar `SupabasePacienteRepository.ts` contra `20260724100004_schema_pacientes.sql` aparecieron 11 discrepancias adicionales, ya documentadas en detalle en `04_modelo_de_datos.md` §Discrepancias, bloque "Pacientes vs. esquema real de `C-05`" — remitir ahí para el listado completo. Resumen de impacto en backend:
-  - **Columnas que el backend debería agregar**: `formato_afiliado` (en `obra_social.coberturas_paciente`, o derivarlo de `obra_social.identificadorOrigen`), `direcciones.localidad`, `amparo_judicial_aclaracion` (en `paciente` o en `clinicos`).
+  - ~~el número de afiliado acá es un valor único y actual; el docx lo modela como "Cobertura del Paciente"~~ — resuelto en el backend real (2026-07-28): `obra_social.coberturas_paciente` ya es histórica (N por paciente, `fecha_desde`/`fecha_hasta`), y esa migración le sumó `formato_afiliado`.
+  - ~~el docx separa "Direcciones" de "Recorridos"~~ — resuelto en el backend real (2026-07-28): `pacientes.direcciones` (catálogo) y `pacientes.recorridos` (día/hora + FK a 2 direcciones) ya son tablas separadas, sin el campo `tramo` que fusiona ambos conceptos en el mock del frontend.
+  - ~~el CUD del docx tiene un campo booleano "Vigente" propio~~ — resuelto en el backend real (2026-07-28): `pacientes.cud.vigente` ya se persiste (no se deriva).
+- **Progreso backend (real, C-05, 2026-07-28)**: ✅ implementado y pusheado. La estructura completa (`paciente`, `cud`, `clinicos`, `accesorios_pacientes`, `personas_a_cargo`, `direcciones`, `recorridos`, `historial_recorridos`, `documentos`, `coberturas_paciente`) ya existía de rebote desde C-02. Esta migración cerró los 3 gaps de arriba contra el contrato ya testeado del frontend (`shared/types/paciente.ts`): `amparo_judicial_aclaracion`, `formato_afiliado` en `coberturas_paciente`, y `localidad`/`dias`/`horario` + enum `tipo_direccion` en `direcciones`. `historial_recorridos` sigue como placeholder hasta que exista C-10, tal como scopeaba este change.
+- **⚠️ Discrepancia con `Traslados-Modelo-Datos.docx`** (cableado del repository real, `integracion-pacientes`, 2026-07-30): al conectar `SupabasePacienteRepository.ts` contra `20260724100004_schema_pacientes.sql` aparecieron 11 discrepancias adicionales (más allá de las 3 ya resueltas arriba el 2026-07-28), ya documentadas en detalle en `04_modelo_de_datos.md` §Discrepancias, bloque "Pacientes vs. esquema real de `C-05`" — remitir ahí para el listado completo. Resumen de impacto en backend:
+  - **Columnas que el backend debería agregar**: `direcciones.localidad`, `amparo_judicial_aclaracion` (en `paciente` o en `clinicos`) — ambas ya sumadas por la migración del 2026-07-28 de arriba, a confirmar que coinciden con lo que `integracion-pacientes` necesita.
   - **Preguntas abiertas sin decidir acá**: si `paciente.domicilio` es la columna legacy o la canónica frente a `direcciones` (hoy coexisten, y solo se lee, nunca se escribe, desde este change); si la cobertura de obra social debe modelarse como histórica (N filas con `fecha_desde`/`fecha_hasta`, como ya está en la base) o colapsarse a una sola actual (como asume hoy el frontend, que usa la más reciente e ignora el resto).
   - La función de alta `pacientes.crear_paciente_completo` (`SECURITY INVOKER` a propósito, ver `04_modelo_de_datos.md`) es el contrato de escritura real de este módulo desde ahora.
 
@@ -284,7 +304,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 ## FASE 3 — Reglas de negocio de facturación y operación diaria (paralelizable en 2 ramas)
 
 ### [C-06] `presupuestos-autorizaciones`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[~]` backend implementado y pusheado (2026-07-29), incl. Edge Functions `presupuestos`/`autorizaciones` (2026-07-30); pendiente verificación manual y que frontend reemplace el mock
 - **Scope**:
   - Migración: tabla `presupuesto` (estimación anual por paciente/prestación) y tabla `autorizacion` (respuesta de la obra social — igual o menor al presupuesto, **nunca mayor**; cupo de días/km por mes; estado: pendiente/autorizada/judicializada/rechazada; vigencia con soporte de carga retroactiva).
   - Validación dura: rechazar o alertar si `autorizacion > presupuesto` (RN-PA-01).
@@ -301,9 +321,10 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 - **Progreso frontend (mock, vía FE-4)**: ✅ completo y archivado 2026-07-24 como `presupuestos-ui` (`openspec/changes/archive/2026-07-24-presupuestos-ui/`), 32/32 tasks incluida la verificación manual en navegador. Contrato de tipos, mocks con `localStorage`, hooks, pantallas de Presupuesto/Autorización y validación RN-PA-01 (`validarAutorizacion`) implementados y testeados (397 tests del frontend en verde, `tsc`/`oxlint` limpios). **Falta**: coordinar con backend los 2 puntos bloqueantes de abajo antes de cerrar la tabla `autorizacion` real de `C-06` — governance ALTO.
 - **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** (detalle completo en `openspec/changes/presupuestos-ui/design.md` §Discrepancias, cartel `AvisoModeloDatos` implementado en `PresupuestoForm.tsx`/`AutorizacionForm.tsx`):
   - Documentación adjunta: el docx modela un solo campo "Archivo" por Presupuesto y por Autorización, NO el patrón multi-documento `DocumentChecklist` de `C-03` que este scope asume arriba.
-  - **Bloqueante para cerrar la tabla `autorizacion`**: la Autorización no tiene ningún campo numérico comparable con el `Monto` del Presupuesto — RN-PA-01 ("autorización ≤ presupuesto, nunca mayor") no es directamente validable con el modelo real tal como está. El frontend agregó `montoAutorizado?` al contrato para poder validarla, pero falta decidir con backend/cliente si se suma `monto_autorizado` a la tabla o si la regla en realidad compara cupos (días/km), no dinero.
-  - **Bloqueante para cerrar la tabla `autorizacion`**: no hay campo de vigencia retroactiva (RN-PA-02) — solo "Fecha de respuesta". El frontend agregó `vigenciaDesde?`, pendiente de que el backend sume `vigencia_desde`.
+  - ~~**Bloqueante**: la Autorización no tiene ningún campo numérico comparable con el `Monto` del Presupuesto~~ — resuelto: se sumó `monto_autorizado` (nullable, agregado real de negocio) + trigger `validar_autorizacion_monto` que rechaza duro si supera el presupuesto (RN-PA-01).
+  - ~~**Bloqueante**: no hay campo de vigencia retroactiva (RN-PA-02)~~ — resuelto: se sumó `vigencia_desde`.
   - Menor: el Presupuesto del docx es un monto único (no "estimación anual por prestación"), y trae `obraSocialId` explícito que el ERD de la KB no dibujaba — se siguió el docx en ambos casos, sin cartel dedicado.
+- **Progreso backend (real, C-06, 2026-07-28)**: ✅ implementado y pusheado. `presupuesto`/`autorizacion` ya existían de rebote desde C-02 (documentación adjunta correctamente modelada como archivo único, no patrón multi-doc de C-03, per docx). Esta migración cerró los 2 puntos bloqueantes de arriba. Detalle en `openspec/changes/C-06-presupuestos-autorizaciones/`.
 
 ### [C-10] `hojas-de-ruta-recorridos`
 - **Estado**: `[x]` completado (FE-5 frontend-only, 2026-07-25)
@@ -332,7 +353,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 ## FASE 4 — Facturación y cobros
 
 ### [C-07] `facturacion-asistencias-cobros`
-- **Estado**: `[ ]` pendiente
+- **Estado**: `[~]` backend implementado y pusheado (2026-07-30); falta verificación manual y que frontend reemplace el mock
 - **Scope**:
   - Migración: tabla `factura` (identificador del paciente — **definir por obra social si es DNI o N° de afiliado, ver pregunta abierta**; domicilio, prestación, mes/año, cantidad de días, dependencia y retorno, valor del km — nomenclador de carga manual, cantidad de km, total, tipo de comprobante A/B/C, estado: a facturar/facturado/cobrado/pagado parcialmente).
   - Migración: tabla `asistencia_prestacion` (se facturan íntegramente; el recorrido efectivo de `C-10` es independiente y no se deriva de acá, RN-FA-01) y tabla `cobro` (admite pagos parciales, N por factura).
@@ -382,6 +403,18 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   cliente los defaults de `10_preguntas_abiertas.md` (identificador DNI/afiliado, plazos 90/45/60
   y su precedencia, integración ARCA, período estructurado). Verificación manual en navegador
   confirmada por el usuario 2026-07-25.
+- **Progreso backend (real, C-07, 2026-07-30)**: ✅ implementado, pendiente deploy. Cerró los 3
+  puntos de la discrepancia de arriba (`asistencia_prestacion`, `cantidad_km`,
+  `fecha_estimada_cobro`) más 6 campos adicionales que el discrepancy log no tenía listados pero
+  el contrato real de `Factura` sí exige (`prestacion`, `mes_facturado`/`anio_facturado`,
+  `dependencia_y_retorno`, `domicilio_id`, `identificador_origen`/`identificador_valor`). Edge
+  Functions `facturas` (asistencias embebidas con reemplazo completo, mapeo de `estado` porque el
+  enum de la base todavía tiene `'pendiente'`) y `cobros` (sin `PATCH`, `CobroRepository` no lo
+  tiene). Detalle en `openspec/changes/C-07-facturacion-asistencias-cobros/`. **Falta**:
+  `supabase db push` + deploy de las 2 funciones (requiere OK explícito), y confirmar con el
+  cliente los defaults de `10_preguntas_abiertas.md` antes de implementar la validación de cupo y
+  el cálculo de fecha estimada de cobro como lógica de servidor (hoy son funciones puras del
+  frontend, no replicadas acá).
 
 ---
 
@@ -431,3 +464,22 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 **Primer change recomendado**: `C-01` (foundation-setup).
 
 Para arrancar: `/opsx:propose C-01-foundation-setup`
+
+---
+
+## ⚠️ Checklist de seguridad — antes de lanzar a producción
+
+Pendiente de que Enzo lo haga a mano en el dashboard de Supabase (no automatizable desde acá).
+Recordar cerca del final del proyecto, antes del go-live real — hay datos de salud de personas
+con discapacidad de por medio, esto no es opcional.
+
+- [ ] Deshabilitar el signup público (`Authentication > Settings` → apagar "Enable email
+      signups"). Quedó habilitado a propósito durante el desarrollo para poder testear
+      login end-to-end (2026-07-28) — hay que cerrarlo antes de producción.
+- [ ] Activar 2FA en la cuenta de Supabase que administra el proyecto (no la de la app).
+- [ ] Revisar restricciones de red (`Settings > Database > Network Restrictions`), si el
+      plan lo permite.
+- [ ] Borrar la cuenta de prueba `andrea.test@gmail.com` (creada 2026-07-28 para testear
+      login, bootstrapeada a `admin`) una vez exista la cuenta real de Andrea.
+- [ ] Confirmar que el connection string/password de la base (pooler URL) nunca se compartió
+      ni se commiteó — es distinto de las API keys.
