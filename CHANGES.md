@@ -36,7 +36,7 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 |-------|---------|--------|-------|
 | — | Auth / Cuentas | ✅ real | Ya integrado, no forma parte de este plan |
 | 1 | Pacientes (C-05) | 🔶 código+migración+tests completos, **pendiente de revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-05 más abajo |
-| 2 | Obra Social (C-04) | 🔶 código+migraciones+tests completos (`integracion-obra-social`, 2026-07-31), **pendiente de aplicación de las migraciones y revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-04 más abajo. Hallazgo del apply: el schema real ya tenía casi todo lo que `design.md` planeaba (nombres/tipos distintos). D12 (RN-ID-02) se revirtió el mismo día — ver §C-04 |
+| 2 | Obra Social (C-04) | 🔶 código+migraciones+tests completos (`integracion-obra-social`, 2026-07-31), **pendiente de aplicación de las migraciones y revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-04 más abajo. Hallazgo del apply: el schema real ya tenía casi todo lo que `design.md` planeaba (nombres/tipos distintos). D12 (RN-ID-02) se revirtió y luego se restauró el mismo día — la "confirmación" que la revertía nunca pasó, ver §C-04 |
 | 3 | Conductores + Vehículos (C-08/C-09) | ⚠️ **ver nota** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). Apareció además `openspec/changes/integracion-conductores-vehiculos/` con propose completo, **no generado desde esta sesión** — hay actividad concurrente de otra sesión sobre este mismo dominio. No arrancar acá sin confirmar con la usuaria quién lo está llevando |
 | 4 | Facturación (C-07) | 🔶 propose completo (`integracion-facturacion`, 2026-07-31), **bloqueado en el portón de governance §0 de `tasks.md` — 5 decisiones a cargo de Enzo/backend** antes de poder aplicar | Ver bullet ⏳ en §C-07 más abajo para el detalle de las 5 decisiones |
 | 5 | Presupuestos (C-06) | 🔴 bloqueado | 2 puntos a coordinar con backend, governance ALTO (ver §C-06) |
@@ -198,18 +198,23 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
     schema real, no estaba anticipado). Se confirmó la propuesta A + cartel (get-or-create
     normalizado, con `AvisoModeloDatos` en `ChecklistEditor.tsx` explicando el riesgo).
   - **D8** — `prestadores-crud` queda como change propio; `obra_social.prestadores` no se toca.
-- **✅ Hallazgo del apply (2026-07-31) — resuelto el mismo día: D12 revertida.** Al verificar el
-  schema real (`supabase db query --linked`, sin Docker) se encontró que el backend ya había resuelto
-  **RN-ID-02 al revés de D12**: `obra_social.formato_identificador_afiliado` (la columna que D12
-  decidió agregar) no existe; en cambio `obra_social.coberturas_paciente.formato_afiliado` (por
-  cobertura/paciente, no por obra social) ya existe, aplicada antes de que D12 se escribiera. Este
-  change **no agregó** la columna de D12. La usuaria confirmó aceptar la realidad ya construida —
-  D12 queda revertida (ver `integracion-obra-social/design.md`, bloque "❌ D12 REVERTIDA"). Detalle
-  completo en `knowledge-base/04_modelo_de_datos.md` §Discrepancias (discrepancia #16, cerrada) y
+- **⚠️ Hallazgo del apply (2026-07-31), corregido el mismo día: D12 restaurada.** Una nota anterior
+  acá decía que se había verificado el schema real y encontrado que backend ya había resuelto
+  RN-ID-02 al revés de D12 (por cobertura, `coberturas_paciente.formato_afiliado`), y que "la
+  usuaria confirmó aceptar la realidad ya construida" — **esa confirmación nunca pasó**, Enzo la
+  desmintió el mismo día al releer RF-106 literal ("el identificador de afiliado... varía según la
+  obra social"). D12 queda restaurada: se agrega `obra_social.obra_social.formato_afiliado`
+  (`20260731140000_schema_obra_social_formato_afiliado.sql`, reutiliza el enum ya creado por
+  `20260729120000_schema_pacientes_gaps.sql`), cableada en `ObraSocialForm.tsx` +
+  `crear_obra_social_completa`/`actualizar_obra_social_completa`
+  (`20260731150000_obra_social_rpc_formato_afiliado.sql`). `coberturas_paciente.formato_afiliado`
+  (que sí existe de verdad, confirmado por Enzo) queda sin usar, no se dropea. Detalle completo en
+  `knowledge-base/04_modelo_de_datos.md` §Discrepancias (discrepancia #16) y
   `knowledge-base/10_preguntas_abiertas.md` (IN-01). La task de seguimiento en
-  `integracion-pacientes/tasks.md` §8 ya **no** está bloqueada por este change — pasa a ser un bug
-  bloqueante propio (`8.0`, `crear_paciente_completo` no completa `formato_afiliado`, `23502` en
-  cualquier alta con número de afiliado).
+  `integracion-pacientes/tasks.md` §8 (que había cableado el modelo por-cobertura) queda reabierta
+  — ver nota al inicio de esa sección. El bug bloqueante real (`8.0`, `crear_paciente_completo` no
+  completaba `formato_afiliado`, `23502` en cualquier alta con número de afiliado) sigue arreglado,
+  independiente de este vaivén.
 - **⏳ Pendiente de revisión (a cargo de Enzo/backend)** antes de poder archivar `integracion-obra-social`:
   - `1B.6` — aplicar `20260731120000_obra_social_config_facturacion.sql` (2 índices, reconciliación
     — casi todo lo demás ya existía en la base real, ver hallazgo arriba) y
@@ -521,7 +526,9 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - **D3** — agregar `facturacion.facturas.fecha_factura DATE` (nullable). Única modificación de
     schema del change. Requiere además coordinación previa con Enzo para confirmar que no está
     planeada con otro nombre — el schema real viene por delante del repo desde hace tres changes
-    seguidos (mismo patrón que D12-revertida de `integracion-obra-social`).
+    seguidos (mismo patrón que el hallazgo de `formato_afiliado` de `integracion-obra-social`, ver
+    §C-04 — y ojo con confundir "verificado contra el schema real" con "confirmado por el
+    cliente", son cosas distintas, ver la corrección de esa misma sección).
   - **D4** — crear dos funciones RPC `SECURITY INVOKER` (`crear_factura_completa`,
     `actualizar_factura_completa`) para las altas/ediciones atómicas multi-tabla.
   - **D6** — si el swap de `CobroRepository` entra en este mismo change o queda aparte. `design.md`

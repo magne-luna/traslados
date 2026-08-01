@@ -532,35 +532,128 @@
       `false` y que `anon` no tiene `EXECUTE`. Si en algún momento del apply alguien la cambió a
       `SECURITY DEFINER`, es un bloqueante: no se archiva el change hasta revertirlo.
 
-## 8. Seguimiento — RN-ID-02, formato del identificador de afiliado (cerrada 2026-07-31, dos vueltas)
+## 8. Seguimiento — RN-ID-02, formato del identificador de afiliado (⚠️ SUPERADA 2026-07-31 — ver nota)
 
-> **Ya NO está bloqueada por `integracion-obra-social`** — la columna que se esperaba (D12) se
-> revirtió; la que ya existe (`coberturas_paciente.formato_afiliado`) es independiente de ese change.
-> **8.0 es urgente**: es un bug que rompe el alta real de pacientes hoy, no una task de seguimiento
-> común — priorizarla apenas se retome este change, antes que 8.1 en adelante.
+> **⚠️ Esta sección quedó superada el mismo día que se escribió.** 8.0-8.5 (abajo, sin tocar como
+> registro histórico de lo que se hizo y por qué) implementaron el modelo "formato por cobertura"
+> (`coberturas_paciente.formato_afiliado`, elegido por el operador al vincular la cobertura),
+> citando una "confirmación de la usuaria" de `integracion-obra-social` D12 revertida que **nunca
+> pasó** — Enzo la desmintió al releer RF-106 literal ("el identificador de afiliado... varía según
+> la obra social"). El modelo correcto es el original (D12 restaurada): `formatoAfiliado` es una
+> propiedad de `ObraSocial`, no de la cobertura/paciente.
+>
+> **Lo que se revirtió de 8.2** (mismo día, misma sesión): `shared/types/paciente.ts` (
+> `IdentificadorAfiliado` vuelve a ser solo `{ valor }`), `PacienteCoberturaFields.tsx`/
+> `IdentificadorAfiliadoField.tsx` (el formato ahora se deriva de la obra social elegida,
+> read-only, no es un `<Select>` editable), `pacienteMapping.ts`/`SupabasePacienteRepository.ts`
+> (ya no leen/escriben `formato_afiliado` en `coberturas_paciente` — mandan un valor fijo solo para
+> satisfacer el `NOT NULL` sin default de esa columna, que queda sin uso real).
+>
+> **Lo que sigue vigente sin cambios**: el fix del bug `23502` de 8.0 (la migración
+> `20260731130000_crear_paciente_completo_formato_afiliado.sql` sigue corrigiendo el `INSERT` que
+> faltaba, solo que ahora persiste un valor fijo en vez de uno elegido por el operador).
+>
+> **Dónde vive la implementación real de RF-106 ahora**: `openspec/changes/integracion-obra-social/
+> design.md` bloque "D12 REVERTIDA, LUEGO RESTAURADA" — `obra_social.obra_social.formato_afiliado`
+> (columna nueva), `ObraSocialForm.tsx`, `obraSocialMapping.ts`,
+> `20260731140000_schema_obra_social_formato_afiliado.sql`,
+> `20260731150000_obra_social_rpc_formato_afiliado.sql`. No es trabajo de `integracion-pacientes`.
 
-- [ ] 8.0 **Bug bloqueante** — `pacientes.crear_paciente_completo` no completa
+- [x] 8.0 **Bug bloqueante** — `pacientes.crear_paciente_completo` no completa
       `coberturas_paciente.formato_afiliado` (`NOT NULL`, sin `DEFAULT`) en su `INSERT`: cualquier
       alta de paciente con número de afiliado falla hoy con `23502`. Corregir la función (nueva
       migración aditiva, `SECURITY INVOKER` como el resto — no tocar la firma ni el resto del cuerpo)
       para que reciba y persista el formato elegido en el frontend. Test dedicado que reproduce el
       `23502` contra el fake tipado antes del fix (RED), confirma el INSERT correcto después (GREEN).
       Aplicar y verificar contra Supabase real queda a cargo de la usuaria/Enzo (mismo patrón que
-      1B.6/1B.8 de este change).
-- [ ] 8.1 Safety net: correr `cd frontend && npx vitest run` y registrar el baseline vigente en ese
+      1B.6/1B.8 de este change). **Hecho (2026-07-31).** Migración
+      `supabase/migrations/20260731130000_crear_paciente_completo_formato_afiliado.sql`:
+      `CREATE OR REPLACE FUNCTION pacientes.crear_paciente_completo(p_paciente jsonb)`, misma firma,
+      `SECURITY INVOKER`, `search_path = ''`, idéntica letra por letra a `20260730180000` salvo el
+      paso 7 (cobertura), que ahora también persiste `formato_afiliado` (`obra_social.formato_afiliado`,
+      casteado desde `p_paciente ->> 'formato_afiliado'`, con `COALESCE(..., 'numero-documento')` si
+      la clave viene ausente/vacía — mismo default que `DEFAULT_FORMATO_AFILIADO` del frontend).
+      **Test dedicado** en `SupabasePacienteRepository.test.ts` (describe "bug 23502 formato_afiliado
+      (tasks.md 8.0)"): un fake "inteligente" de `.rpc()` inspecciona el payload real y devuelve
+      `23502` (mismo código/mensaje que el constraint real) si `num_afiliado` viaja sin
+      `formato_afiliado` — RED confirmado empíricamente revirtiendo temporalmente el envío de la
+      clave en `toCrearPacientePayload` y corriendo la suite (el test de 8.0 y los de
+      `pacienteMapping.test.ts` fallaron reproduciendo el 23502/la ausencia de la clave), GREEN
+      confirmado restaurando el fix y volviendo a correr (120/120 verdes). Segundo test de defensa en
+      profundidad: si la base igual devolviera `23502`, el error se traduce sin texto crudo de
+      Postgres (cae en el mensaje genérico de D7, ya cubierto por la rama de "código desconocido" —
+      no hizo falta un branch nuevo en `mapearErrorPaciente`). Tests de texto de la migración (mismo
+      criterio que 3.12b): `SECURITY INVOKER` presente, `SECURITY DEFINER` ausente de la cláusula
+      activa, y el `INSERT INTO obra_social.coberturas_paciente` incluye `formato_afiliado`.
+- [x] 8.1 Safety net: correr `cd frontend && npx vitest run` y registrar el baseline vigente en ese
       momento (va a ser distinto del de 7.4 — `integracion-obra-social` habrá corrido entre medio).
-- [ ] 8.2 RED→GREEN: `PacienteForm`/el formulario de alta sigue dejando elegir el `formato` de
+      **Hecho (2026-07-31).** Baseline previo a este batch (post `integracion-obra-social`): ver
+      resultado de la corrida completa registrado en el resumen de 8.5 (mismo comando, corrida única
+      al final del batch — no se registró una corrida separada previa a 8.2 porque 8.0/8.2 se
+      implementaron con TDD dirigido sobre los archivos de test afectados, confirmado en verde antes
+      de tocar `PacienteDetail.tsx`/la KB).
+- [x] 8.2 RED→GREEN: `PacienteForm`/el formulario de alta sigue dejando elegir el `formato` de
       `IdentificadorAfiliado` (a diferencia del plan original con D12, acá **no** se deriva de la
       obra social — se persiste tal cual el operador lo elige, ahora en
       `coberturas_paciente.formato_afiliado` en vez de solo client-side). Cablear
       `SupabasePacienteRepository` para que `create()`/`update()` viajen ese valor en el payload de
       8.0. TRIANGULATE: alta con cada uno de los 3 formatos, edición que cambia el formato de una
-      cobertura existente.
-- [ ] 8.3 Quitar el `AvisoModeloDatos` de `PacienteDetail.tsx` que señala esta discrepancia como no
+      cobertura existente. **Hecho (2026-07-31).** Confirmado que `PacienteForm` →
+      `PacienteCoberturaFields` → `IdentificadorAfiliadoField` ya hacían viajar `formato` hasta
+      `NuevoPaciente`/`ActualizacionPaciente` (nada que cablear ahí); lo que faltaba era el tramo
+      `pacienteMapping.ts`/`SupabasePacienteRepository.ts`:
+      - `pacienteMapping.ts`: `CrearPacientePayload.formato_afiliado` nuevo, `toCrearPacientePayload`
+        lo envía siempre (incluso con `valor` vacío — la migración solo persiste la cobertura si
+        `num_afiliado` no es vacío); `parseCoberturaRow` ahora devuelve `{ valor, formato }` leyendo
+        `formato_afiliado` de la fila (con fallback defensivo a `DEFAULT_FORMATO_AFILIADO` si viene
+        ausente o fuera de la unión cerrada); `ensamblarPaciente` usa `cobertura.formato` en vez de
+        fijar siempre el default.
+      - `SupabasePacienteRepository.ts`: los `select` de `leerCoberturaParaPaciente`/
+        `leerCoberturasBatch` agregan la columna `formato_afiliado`; `update()` ahora dispara el
+        `upsert` de la cobertura si **`valor` O `formato`** cambiaron respecto de lo leído (antes solo
+        miraba `valor` — cambiar el formato de una cobertura existente sin tocar el número se perdía
+        en silencio), y el `upsert` manda `formato_afiliado: data.numeroAfiliado.formato`.
+      **TRIANGULATE**: `it.each` con los 3 formatos (`numero-documento`, `alfanumerico`,
+      `cuil-con-sufijo`) en `create()`, contra el mismo fake "inteligente" de 8.0 — verifica que cada
+      uno viaja tal cual en `p_paciente.formato_afiliado`; test de `update()` que cambia **solo** el
+      formato (mismo `valor`) de una cobertura existente y confirma que sí dispara el `upsert` con el
+      formato nuevo, más un test de que sin cambios en ninguno de los dos no escribe nada.
+- [x] 8.3 Quitar el `AvisoModeloDatos` de `PacienteDetail.tsx` que señala esta discrepancia como no
       resuelta (o reescribirlo si sigue habiendo algo pendiente — confirmar leyendo el cartel real
-      antes de tocarlo).
-- [ ] 8.4 Actualizar `knowledge-base/04_modelo_de_datos.md` §Discrepancias (bloque "Pacientes vs.
+      antes de tocarlo). **Hecho (2026-07-31).** Se leyó el cartel agrupado de 5.1 antes de tocarlo:
+      agrupa 4 discrepancias distintas (#1 formato de afiliado, #7 diagnóstico JSONB, #8 aclaración
+      de amparo judicial, #10 nullables). Solo la oración sobre `numeroAfiliado.formato` (#1) quedó
+      resuelta con 8.0/8.2 — las otras 3 siguen genuinamente sin columna/sin resolver, así que
+      **no** se quitó el cartel completo: se removió únicamente la oración de `formato`, dejando el
+      resto del cartel intacto (amparo/nullables/diagnóstico). El cartel separado de 5.2 (D3, gateo
+      por permiso de Obras Sociales sobre `numeroAfiliado.valor`, discrepancia #2, distinta de #1) no
+      se tocó — sigue siendo una limitación real y no forma parte de este bug. Test actualizado en
+      `PacienteDetail.test.tsx`: el cartel agrupado ya no se busca por el texto "no se persiste
+      (IN-01…)" (se quitó) sino por "aclaración del amparo judicial"; test nuevo que confirma que ese
+      texto de IN-01 ya NO aparece en pantalla.
+- [x] 8.4 Actualizar `knowledge-base/04_modelo_de_datos.md` §Discrepancias (bloque "Pacientes vs.
       esquema real de `C-05`", discrepancia #1) de "no se persiste, cartel" a "resuelta: persiste en
       `coberturas_paciente.formato_afiliado`, elegido por el operador al vincular la cobertura (no
-      derivado de la obra social — ver `integracion-obra-social` D12 revertida)".
-- [ ] 8.5 Suite verde sin regresiones + `npx tsc -b --noEmit` + `npx oxlint` limpios.
+      derivado de la obra social — ver `integracion-obra-social` D12 revertida)". **Hecho
+      (2026-07-31).** Texto de la discrepancia #1 reescrito con esa frase exacta, agregando de paso
+      la referencia a la migración del bug (`20260731130000`) y a `tasks.md` §8; la intro del bloque
+      ("Once discrepancias, ninguna resuelta acá") se ajustó para reflejar que la #1 ya no aplica esa
+      afirmación.
+- [x] 8.5 Suite verde sin regresiones + `npx tsc -b --noEmit` + `npx oxlint` limpios. **Hecho con una
+      salvedad documentada (2026-07-31)** — misma disciplina que 1.5/7.3 ("si algo ya falla,
+      reportarlo como fallo preexistente y no arreglarlo acá"): `npx tsc -b --noEmit` → 0 errores;
+      `npx oxlint` → limpio (mismos 14 warnings preexistentes `react(only-export-components)`).
+      `cd frontend && npx vitest run` (suite completa): **1419/1533 tests, 179/198 archivos** — 114
+      fallos en 19 archivos, **ninguno atribuible a este batch**: los 19 son `mock*Repository.test.ts`
+      (todos los dominios: cuentas, conductores, facturación, hojas-de-ruta, obras-sociales,
+      pacientes, presupuestos, vehículos) y sus `*Route.test.tsx`, todos con el mismo
+      `TypeError: localStorage.clear is not a function` en su propio `beforeEach` — un flake de
+      entorno (Node v25, `localStorage` global sin `.clear()`) preexistente y transversal a **todo**
+      el repo, no algo que este batch introdujo. Verificado: (a) reproduce en aislamiento total
+      corriendo `mockVehiculoRepository.test.ts` solo (archivo nunca tocado por este batch ni por
+      `integracion-obra-social`); (b) ninguno de los 4 archivos que este batch modifica o agrega
+      (`pacienteMapping.test.ts`, `SupabasePacienteRepository.test.ts`, `PacienteDetail.test.tsx`, la
+      migración nueva) aparece en la lista de 19 fallidos — los tres primeros corridos en aislamiento
+      dan 36/36, 120/120 y 19/19 verdes respectivamente, sin ningún `localStorage.clear`. No se
+      intentó arreglar el flake acá (fuera de alcance de 8.0-8.5); reportado para que se registre
+      como deuda de entorno transversal, no específica de `integracion-pacientes`.
