@@ -9,6 +9,7 @@ import {
   toDireccionRows,
   toPersonaACargoRows,
 } from './pacienteMapping';
+import { DEFAULT_FORMATO_AFILIADO } from '../../../features/pacientes/formatoAfiliadoOptions';
 
 // Implementación real de PacienteRepository (design.md del change integracion-pacientes,
 // decisiones D1-D9). Toda la traducción fila<->dominio vive en `pacienteMapping.ts` (D1); acá solo
@@ -421,10 +422,13 @@ async function actualizarPaciente(id: string, data: ActualizacionPaciente): Prom
     await aplicarDiffAccesorios(id, existente.accesorioMovilidad, data.accesorioMovilidad);
   }
 
-  // Cobertura (D3): solo se escribe si `numeroAfiliado.valor` cambió respecto de lo leído, y solo
-  // si hay una obra social a la cual asociarla (la del payload si se está cambiando, si no la ya
-  // leída). Vaciar el campo no borra la cobertura histórica — no hay tarea que lo exija y hacerlo
-  // adivinando iría contra la convención del change de no resolver discrepancias sin confirmar.
+  // Cobertura (D3): se escribe si `numeroAfiliado.valor` cambió respecto de lo leído. Sigue
+  // requiriendo que haya una obra social a la cual asociarla (la del payload si se está cambiando,
+  // si no la ya leída), y que `valor` no quede vacío: vaciar el campo no borra la cobertura
+  // histórica — no hay tarea que lo exija y hacerlo adivinando iría contra la convención del change
+  // de no resolver discrepancias sin confirmar. `formato_afiliado` viaja como el default fijo: la
+  // columna es `NOT NULL` sin default propio, pero desde RF-106 el formato real vive en
+  // `ObraSocial.formatoAfiliado`, no acá — esta columna queda sin uso (no se dropea).
   const obraSocialEfectivo = data.obraSocialId !== undefined ? data.obraSocialId : existente.obraSocialId;
   if (
     data.numeroAfiliado !== undefined &&
@@ -439,6 +443,7 @@ async function actualizarPaciente(id: string, data: ActualizacionPaciente): Prom
         paciente_id: id,
         obra_social_id: obraSocialEfectivo,
         num_afiliado: data.numeroAfiliado.valor,
+        formato_afiliado: DEFAULT_FORMATO_AFILIADO,
         fecha_desde: new Date().toISOString().slice(0, 10),
       });
     if (error) throw mapearErrorPaciente(error, { operacion: 'guardar-cobertura-edicion' });

@@ -33,7 +33,7 @@ const basePaciente: Paciente = {
   diagnostico: 'Parálisis cerebral',
   accesorioMovilidad: [],
   obraSocialId: null,
-  numeroAfiliado: { formato: 'numero-documento', valor: '45123456' },
+  numeroAfiliado: { valor: '45123456' },
   cud: null,
   direcciones: [],
   personasACargo: [],
@@ -362,9 +362,11 @@ describe('PacienteDetail', () => {
     expect(screen.queryByText(/falta teléfono.*teléfono alternativo/i)).not.toBeInTheDocument();
   });
 
-  // tasks.md 5.1 (integracion-pacientes), design.md D9 #1/#8/#10/#7: cartel agrupado con los
-  // campos que no persisten o degradan al leer/escribir contra pacientes.paciente.
-  it('muestra un cartel agrupado con las discrepancias de formato de afiliado, amparo judicial, nullables y diagnóstico JSONB', () => {
+  // tasks.md 5.1 (integracion-pacientes), design.md D9 #8/#10/#7: cartel agrupado con los campos
+  // que no persisten o degradan al leer/escribir contra pacientes.paciente. El formato del
+  // identificador de afiliado (#1) salió de este cartel en tasks.md 8.3 — ya persiste (ver el test
+  // "ya NO muestra..." más abajo).
+  it('muestra un cartel agrupado con las discrepancias de amparo judicial, nullables y diagnóstico JSONB', () => {
     render(
       <PacienteDetail
         paciente={basePaciente}
@@ -379,15 +381,32 @@ describe('PacienteDetail', () => {
     );
 
     const notas = screen.getAllByRole('note');
-    const cartel = notas.find((nota) => /no se persiste \(IN-01/i.test(nota.textContent ?? ''));
+    const cartel = notas.find((nota) => /aclaración del amparo judicial/i.test(nota.textContent ?? ''));
     if (!cartel) throw new Error('No se encontró el cartel agrupado de discrepancias (tasks.md 5.1)');
-    expect(cartel).toHaveTextContent(/formato/i);
-    expect(cartel).toHaveTextContent(/aclaración del amparo judicial/i);
     expect(cartel).toHaveTextContent(/fecha de nacimiento/i);
     expect(cartel).toHaveTextContent(/cuil del titular/i);
     expect(cartel).toHaveTextContent(/nullable en la base/i);
     expect(cartel).toHaveTextContent(/diagnóstico/i);
     expect(cartel).toHaveTextContent(/jsonb/i);
+  });
+
+  // tasks.md 8.3: la discrepancia #1 (formato del identificador de afiliado) quedó resuelta —
+  // ya no debe seguir señalizada como pendiente en ningún cartel de esta pantalla.
+  it('ya NO muestra el formato del identificador de afiliado como discrepancia sin resolver (8.3, D9 addendum)', () => {
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/no se persiste \(IN-01/i)).not.toBeInTheDocument();
   });
 
   // tasks.md 5.2 (integracion-pacientes), design.md D3/D9 #2: cartel separado sobre el gateo por

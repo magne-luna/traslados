@@ -19,12 +19,15 @@ describe('mockPacienteRepository', () => {
     vi.useRealTimers();
   });
 
-  it('siembra el fixture con los tres formatos de identificador de afiliado cuando no hay datos previos', async () => {
+  // El formato del identificador de afiliado ya no vive en Paciente (RF-106: es una propiedad de
+  // ObraSocial) — el fixture sigue sembrando tres `valor` con formas distintas (una por cada
+  // formato conceptual), pero acá solo se puede verificar la diversidad de `valor`.
+  it('siembra el fixture con pacientes con valores de identificador de afiliado distintos entre sí', async () => {
     const pacientes = await flushLatency(mockPacienteRepository.list());
 
     expect(pacientes.length).toBeGreaterThanOrEqual(2);
-    const formatos = new Set(pacientes.map((p) => p.numeroAfiliado.formato));
-    expect(formatos).toEqual(new Set(['numero-documento', 'alfanumerico', 'cuil-con-sufijo']));
+    const valores = new Set(pacientes.map((p) => p.numeroAfiliado.valor));
+    expect(valores.size).toBe(pacientes.length);
     expect(pacientes.some((p) => p.amparoJudicial)).toBe(true);
     expect(pacientes.some((p) => !p.amparoJudicial)).toBe(true);
   });
@@ -61,7 +64,7 @@ describe('mockPacienteRepository', () => {
         diagnostico: 'Test',
         accesorioMovilidad: [],
         obraSocialId: null,
-        numeroAfiliado: { formato: 'numero-documento', valor: '47000111' },
+        numeroAfiliado: { valor: '47000111' },
         cud: null,
         direcciones: [],
         personasACargo: [],

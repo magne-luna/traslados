@@ -151,12 +151,13 @@ export function PacienteDetail({
         hay historial de coberturas ni de obras sociales anteriores.
       </AvisoModeloDatos>
 
-      {/* tasks.md 5.1 (integracion-pacientes), design.md D9 #1/#7/#8/#10: cartel agrupado — todos
-          campos que se ven en pantalla pero no persisten limpio contra pacientes.paciente/clinicos. */}
+      {/* tasks.md 5.1 (integracion-pacientes), design.md D9 #7/#8/#10: cartel agrupado — campos
+          que se ven en pantalla pero no persisten limpio contra pacientes.paciente/clinicos.
+          El formato del identificador de afiliado (#1) salió de este cartel: ya no es un dato del
+          paciente, se muestra derivado (solo lectura) de ObraSocial.formatoAfiliado — RF-106,
+          ver openspec/changes/integracion-obra-social/design.md D12. */}
       <AvisoModeloDatos>
-        El <strong>formato</strong> del identificador de afiliado (DNI/CUIL/otro) no tiene columna
-        propia — no se persiste (IN-01, pendiente de confirmar con backend). La{' '}
-        <strong>aclaración del amparo judicial</strong> tampoco tiene columna: se pierde al recargar
+        La <strong>aclaración del amparo judicial</strong> no tiene columna: se pierde al recargar
         la página. <strong>Fecha de nacimiento</strong>, <strong>CUIL del titular</strong> y el{' '}
         <strong>DNI</strong> de cada persona a cargo son nullable en la base — si faltan, se
         muestran vacíos en vez de un error. El <strong>diagnóstico</strong> se guarda como JSON

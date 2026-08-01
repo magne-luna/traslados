@@ -17,6 +17,7 @@
 
 import type {
   ActualizacionObraSocial,
+  FormatoAfiliado,
   IdentificadorOrigenFactura,
   ModalidadFacturacion,
   NuevaObraSocial,
@@ -56,6 +57,11 @@ const DEFAULT_IDENTIFICADOR_ORIGEN: IdentificadorOrigenFactura = 'paciente.numer
 
 const DEFAULT_PLAZO_COBRO_DIAS = 90;
 
+// RF-106/RN-ID-02 (integracion-obra-social, columna agregada 20260731140000): mismos 3 valores
+// que el enum real `obra_social.formato_afiliado`.
+const FORMATOS_AFILIADO_VALIDOS = new Set<FormatoAfiliado>(['numero-documento', 'alfanumerico', 'cuil-con-sufijo']);
+const DEFAULT_FORMATO_AFILIADO: FormatoAfiliado = 'numero-documento';
+
 const ORIGENES_CAMPO_VALIDOS = new Set<OrigenCampoPlantilla>([
   'paciente.nombre',
   'paciente.dni',
@@ -93,6 +99,12 @@ function parsePlazoCobroDias(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_PLAZO_COBRO_DIAS;
 }
 
+function parseFormatoAfiliado(value: unknown): FormatoAfiliado {
+  return typeof value === 'string' && FORMATOS_AFILIADO_VALIDOS.has(value as FormatoAfiliado)
+    ? (value as FormatoAfiliado)
+    : DEFAULT_FORMATO_AFILIADO;
+}
+
 // -------------------------------------------------------------------------------------------
 // 3.1 — parseObraSocialRow
 // -------------------------------------------------------------------------------------------
@@ -110,6 +122,7 @@ export interface ObraSocialCamposBase {
   modalidadFacturacion: ModalidadFacturacion;
   admitePagosParciales: boolean;
   identificadorOrigen: IdentificadorOrigenFactura;
+  formatoAfiliado: FormatoAfiliado;
 }
 
 /** Fila plana de `obra_social.obra_social` -> campos base del dominio (discrepancias #1/#2 de la
@@ -130,6 +143,7 @@ export function parseObraSocialRow(row: unknown): ObraSocialCamposBase {
     modalidadFacturacion: parseModalidadFacturacion(record.modalidad_facturacion),
     admitePagosParciales: typeof record.admite_pagos_parciales === 'boolean' ? record.admite_pagos_parciales : false,
     identificadorOrigen: parseIdentificadorOrigen(record.identificador_origen),
+    formatoAfiliado: parseFormatoAfiliado(record.formato_afiliado),
   };
 }
 
@@ -242,6 +256,7 @@ export function ensamblarObraSocial(row: unknown): ObraSocial {
     plazoCobroDias: base.plazoCobroDias,
     modalidadFacturacion: base.modalidadFacturacion,
     admitePagosParciales: base.admitePagosParciales,
+    formatoAfiliado: base.formatoAfiliado,
     checklist: parseChecklist(record.requisitos_os),
     plantillaFactura: {
       identificadorOrigen: base.identificadorOrigen,
@@ -282,6 +297,7 @@ export interface CrearObraSocialPayload {
   plazo_cobro_dias: number;
   modalidad_facturacion: ModalidadFacturacion;
   admite_pagos_parciales: boolean;
+  formato_afiliado: FormatoAfiliado;
   // El orden se deriva SIEMPRE del índice del array — nunca de una columna que el frontend no
   // conoce todavía. El id de un ChecklistItem NO viaja: lo resuelve el get-or-create del servidor
   // sobre `tipos_documento` (D3), normalizando por nombre.
@@ -315,6 +331,7 @@ export function toCrearObraSocialPayload(nueva: NuevaObraSocial): CrearObraSocia
     plazo_cobro_dias: nueva.plazoCobroDias,
     modalidad_facturacion: nueva.modalidadFacturacion,
     admite_pagos_parciales: nueva.admitePagosParciales,
+    formato_afiliado: nueva.formatoAfiliado,
     checklist: checklistAPayload(nueva.checklist),
     plantilla_factura: {
       identificador_origen: nueva.plantillaFactura.identificadorOrigen,
@@ -345,6 +362,7 @@ export function toActualizarObraSocialPayload(cambios: ActualizacionObraSocial):
   if (cambios.plazoCobroDias !== undefined) payload.plazo_cobro_dias = cambios.plazoCobroDias;
   if (cambios.modalidadFacturacion !== undefined) payload.modalidad_facturacion = cambios.modalidadFacturacion;
   if (cambios.admitePagosParciales !== undefined) payload.admite_pagos_parciales = cambios.admitePagosParciales;
+  if (cambios.formatoAfiliado !== undefined) payload.formato_afiliado = cambios.formatoAfiliado;
   if (cambios.checklist !== undefined) payload.checklist = checklistAPayload(cambios.checklist);
   if (cambios.plantillaFactura !== undefined) {
     payload.plantilla_factura = {

@@ -325,13 +325,26 @@ así que queda anotado acá hasta que se construya esa feature.
   `openspec/changes/integracion-pacientes/design.md` §D9, propose validado 2026-07-30): comparación
   entre el tipo `Paciente` del frontend y `20260724100004_schema_pacientes.sql` (el schema real ya
   aplicado en el proyecto Supabase, no solo el docx), hecha al conectar el repository real
-  (`SupabasePacienteRepository.ts`) en lugar del mock. Once discrepancias, **ninguna resuelta acá**
-  — todas quedan pendientes de confirmar con el cliente o con quien mantiene
-  `docs/core/Traslados-Modelo-Datos.docx`, señalizadas con `AvisoModeloDatos` agrupado en
+  (`SupabasePacienteRepository.ts`) en lugar del mock. Once discrepancias — la #1 quedó **resuelta**
+  el 2026-07-31 (`tasks.md` §8), el resto sigue pendiente de confirmar con el cliente o con quien
+  mantiene `docs/core/Traslados-Modelo-Datos.docx`, señalizadas con `AvisoModeloDatos` agrupado en
   `PacienteDetail.tsx` (y uno propio en `DireccionesEditor.tsx` para las de dirección):
-  1. **`numeroAfiliado.formato`** no tiene columna — es la misma pregunta abierta IN-01 de
-     `10_preguntas_abiertas.md`, ahora con el hueco de esquema confirmado. Default editable
-     client-side, no se persiste.
+  1. **`numeroAfiliado.formato`** — **resuelta (2026-07-31, versión final): es
+     `ObraSocial.formatoAfiliado`, no un campo del paciente.** RF-106 manda: "el identificador de
+     afiliado varía según la obra social". Una nota anterior en este mismo bloque decía que quedaba
+     resuelto al revés (por cobertura, `coberturas_paciente.formato_afiliado`, citando una
+     "confirmación de la usuaria" de `integracion-obra-social` D12 revertida) — esa confirmación
+     **nunca pasó**, Enzo la desmintió el mismo día. La columna real es
+     `obra_social.obra_social.formato_afiliado` (`20260731140000_schema_obra_social_formato_afiliado
+     .sql`, reutiliza el enum `obra_social.formato_afiliado` ya creado por
+     `20260729120000_schema_pacientes_gaps.sql`), expuesta en `ObraSocialForm.tsx` y persistida por
+     `crear_obra_social_completa`/`actualizar_obra_social_completa`
+     (`20260731150000_obra_social_rpc_formato_afiliado.sql`). `coberturas_paciente.formato_afiliado`
+     sí existe de verdad en la base (confirmado por Enzo) pero queda **sin usar, no se dropea**
+     (`pacientes.crear_paciente_completo`/`SupabasePacienteRepository.ts` siguen mandando un valor
+     fijo ahí solo para satisfacer el `NOT NULL` sin default — bug `23502` corregido en
+     `20260731130000_crear_paciente_completo_formato_afiliado.sql`, esa parte del fix sigue vigente).
+     Cierra también IN-01 de `10_preguntas_abiertas.md` en su parte de esquema.
   2. **`numeroAfiliado.valor`** vive en `obra_social.coberturas_paciente.num_afiliado`, otro schema,
      gateado por el módulo `obra_social` — si la cuenta no tiene `obra_social: read`, el valor se
      lee degradado (vacío, con cartel), nunca se inventa ni se bloquea la ficha.
@@ -400,32 +413,39 @@ así que queda anotado acá hasta que se construya esa feature.
   14. `condicion_iva` sin valores enumerados en ninguna fuente — **NO resuelto**, queda `TEXT` libre
      sin `CHECK`; pregunta abierta.
   15. `Paciente.numeroAfiliado.formato` (RN-ID-02, heredada de `integracion-pacientes`) — **cerrada
-     el 2026-07-31, en dos vueltas**: primero se decidió derivarla de la obra social
-     (`obra_social.formato_identificador_afiliado`, D12); al aplicar se encontró que backend ya la
-     había resuelto antes y al revés (ver #16) — la usuaria confirmó aceptar la realidad ya
-     construida. **No** se agrega ninguna columna nueva de Obra Social; el formato vive por
-     cobertura, ya existente. Seguimiento en `integracion-pacientes/tasks.md` §8.
+     el 2026-07-31, versión final: sí se deriva de la obra social**, tal como decidía D12
+     originalmente y como pide RF-106 literal. Una nota anterior acá decía lo contrario (D12
+     revertida, formato por cobertura) citando una "confirmación de la usuaria" que Enzo desmintió
+     el mismo día — nunca pasó. Columna real: `obra_social.obra_social.formato_afiliado`
+     (`20260731140000_schema_obra_social_formato_afiliado.sql`). Ver #16 para el detalle completo.
 
   **Dos discrepancias NUEVAS, descubiertas al verificar el schema real en vivo antes de escribir
   las migraciones de este change (tareas 1.1-1.4, `supabase db query --linked`, sin Docker) —
   ninguna de las dos estaba anticipada por `design.md`:**
 
-  16. **✅ Contradicción con la decisión D12 de `design.md` — resuelta (2026-07-31): D12 revertida.**
-     D12 (confirmada por la usuaria el 2026-07-31) había decidido agregar
-     `obra_social.formato_identificador_afiliado` para que Pacientes derive el formato del
-     identificador de afiliado desde la obra social. Al verificar el schema real se encontró que esa
-     columna **no existe**, y que en cambio `obra_social.coberturas_paciente.formato_afiliado` (enum,
-     `NOT NULL`, **sin default**, 0 filas hoy) **ya existe** — aplicada entre 2026-07-29 y 2026-07-30
-     (mismo desfasaje de historial de migraciones sin commitear que ya había anotado
-     `integracion-pacientes` 1B.3), **antes** de que D12 se escribiera. Es decir: backend ya había
-     resuelto RN-ID-02 poniendo el formato **por cobertura/paciente**, exactamente lo opuesto de lo
-     que D12 decidió. La usuaria confirmó (mismo día) **aceptar la realidad ya construida**: D12
-     queda revertida, `integracion-obra-social` **no agrega** ninguna columna nueva de este tipo.
-     **Consecuencia detectada de paso, ajena a este change pero relevante para Pacientes**: como
-     `coberturas_paciente.formato_afiliado` es `NOT NULL` sin default y
-     `pacientes.crear_paciente_completo` (ya aplicada) no lo completa en su `INSERT`, cualquier alta
-     de paciente con número de afiliado cargado hoy falla con `23502` — bug de
-     `integracion-pacientes`, task **8.0** (bloqueante, urgente) de ese change.
+  16. **⚠️ "D12 revertida" fue un error de proceso — corregido (2026-07-31): D12 restaurada.**
+     Este bloque decía que, al verificar el schema real, se había encontrado que
+     `obra_social.formato_identificador_afiliado` (D12) no existe y que en cambio
+     `obra_social.coberturas_paciente.formato_afiliado` (enum, `NOT NULL`, sin default) ya existía
+     por cobertura — y que "la usuaria confirmó aceptar la realidad ya construida", revirtiendo D12.
+     **Esa confirmación nunca pasó.** Enzo desmintió el mismo día haber tenido esa conversación con
+     Andrea, al releer RF-106 literal ("el identificador de afiliado... varía según la obra social").
+     `coberturas_paciente.formato_afiliado` sí existe de verdad (confirmado por Enzo, no por el
+     agente que escribió la nota original) — pero eso no cambia lo que pide RF-106.
+     **Resolución final**: se agrega `obra_social.obra_social.formato_afiliado`
+     (`20260731140000_schema_obra_social_formato_afiliado.sql`, reutiliza el enum
+     `obra_social.formato_afiliado` ya creado por `20260729120000_schema_pacientes_gaps.sql`, no
+     crea un tipo duplicado) y se cablea en `ObraSocialForm.tsx` +
+     `crear_obra_social_completa`/`actualizar_obra_social_completa`
+     (`20260731150000_obra_social_rpc_formato_afiliado.sql`). `coberturas_paciente.formato_afiliado`
+     queda **sin usar, no se dropea** (no destructivo, mismo patrón que `facturacion.gastos_vehiculos`
+     de C-08).
+     **Consecuencia que sigue vigente sin cambios**: `coberturas_paciente.formato_afiliado` sigue
+     siendo `NOT NULL` sin default, y `pacientes.crear_paciente_completo` no la completaba en su
+     `INSERT` — cualquier alta de paciente con número de afiliado fallaba con `23502`. Ese bug se
+     corrigió igual (`20260731130000_crear_paciente_completo_formato_afiliado.sql`, manda un valor
+     fijo ahí ahora que la columna quedó sin uso real) — independiente de qué lado ganara esta
+     discrepancia.
   17. **Nombres de tabla/columna reales distintos de los que `design.md` había planeado (no
      contradicción, solo desfasaje de nomenclatura)**: la tabla se llama `obra_social.plantilla_campo`
      (no `campos_plantilla_factura`) y la columna se llama `tipo_comprobante` (no `tipo_factura`,

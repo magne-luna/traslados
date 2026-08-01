@@ -28,7 +28,7 @@ export function buildPacientesFixture(): Paciente[] {
     // ejercita el caso de 2+ accesorios cargados a la vez.
     accesorioMovilidad: ['silla-plegable', 'andador'],
     obraSocialId: 'osecac',
-    numeroAfiliado: { formato: 'numero-documento', valor: '45123456' },
+    numeroAfiliado: { valor: '45123456' },
     cud: { numero: 'CUD-2021-001', fechaEmision: '2021-01-10', fechaVencimiento: isoDateEnDias(400) },
     direcciones: [
       { id: 'dir-martina-domicilio-ida', tipo: 'domicilio', calle: 'Av. Rivadavia 4500', localidad: 'CABA', dias: 'Lunes a viernes', horario: '08:00' },
@@ -52,8 +52,7 @@ export function buildPacientesFixture(): Paciente[] {
     // Ninguno cargado (array vacío, no `null`): Facundo ejercita el caso de 0 accesorios.
     accesorioMovilidad: [],
     obraSocialId: 'osecac',
-    // Formato alfanumérico: alguna obras sociales emiten credenciales con letras (IN-01).
-    numeroAfiliado: { formato: 'alfanumerico', valor: 'OS-AB12345' },
+    numeroAfiliado: { valor: 'OS-AB12345' },
     // CUD "por-vencer": dentro del umbral de 60 días (design.md Decisión 3, RF-104).
     cud: { numero: 'CUD-2022-045', fechaEmision: '2022-02-01', fechaVencimiento: isoDateEnDias(30) },
     direcciones: [
@@ -85,8 +84,7 @@ export function buildPacientesFixture(): Paciente[] {
     // Uno solo cargado: Brisa ejercita el caso intermedio entre 0 (Facundo) y 2+ (Martina).
     accesorioMovilidad: ['andador'],
     obraSocialId: null,
-    // Formato CUIL con sufijo: el identificador de afiliado usa el CUIL del titular con /01.
-    numeroAfiliado: { formato: 'cuil-con-sufijo', valor: '27-28555666/01' },
+    numeroAfiliado: { valor: '27-28555666/01' },
     cud: null,
     direcciones: [],
     personasACargo: [],

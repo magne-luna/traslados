@@ -211,7 +211,7 @@ function buildNuevoPacienteMinimo(): NuevoPaciente {
     diagnostico: '',
     accesorioMovilidad: [],
     obraSocialId: null,
-    numeroAfiliado: { formato: 'numero-documento', valor: '' },
+    numeroAfiliado: { valor: '' },
     cud: null,
     direcciones: [],
     personasACargo: [],
@@ -223,7 +223,7 @@ function buildNuevoPacienteConAfiliado(): NuevoPaciente {
   return {
     ...buildNuevoPacienteMinimo(),
     obraSocialId: 'os-1',
-    numeroAfiliado: { formato: 'numero-documento', valor: 'AF-1' },
+    numeroAfiliado: { valor: 'AF-1' },
   };
 }
 
@@ -911,7 +911,7 @@ describe('supabasePacienteRepository.update — cobertura (3.11)', () => {
 
     await supabasePacienteRepository.update('p-1', {
       apellido: 'Nuevo',
-      numeroAfiliado: { formato: 'numero-documento', valor: 'AF-1' },
+      numeroAfiliado: { valor: 'AF-1' },
     });
 
     const escrituras = calls.filter((c) => c.table === 'coberturas_paciente' && c.op !== 'select');
@@ -923,7 +923,7 @@ describe('supabasePacienteRepository.update — cobertura (3.11)', () => {
     configurar('obra_social', 'coberturas_paciente', 'select', () => ok([{ num_afiliado: 'AF-VIEJO' }]));
 
     await supabasePacienteRepository.update('p-1', {
-      numeroAfiliado: { formato: 'numero-documento', valor: 'AF-NUEVO' },
+      numeroAfiliado: { valor: 'AF-NUEVO' },
     });
 
     const escrituras = calls.filter((c) => c.table === 'coberturas_paciente' && c.op === 'upsert');
@@ -936,7 +936,7 @@ describe('supabasePacienteRepository.update — cobertura (3.11)', () => {
     configurar('obra_social', 'coberturas_paciente', 'upsert', () => fail({ code: '42501', message: 'denied' }));
 
     await expect(
-      supabasePacienteRepository.update('p-1', { numeroAfiliado: { formato: 'numero-documento', valor: 'AF-NUEVO' } }),
+      supabasePacienteRepository.update('p-1', { numeroAfiliado: { valor: 'AF-NUEVO' } }),
     ).rejects.toThrow('No tenés permiso sobre Obras Sociales para editar el número de afiliado.');
   });
 });
@@ -1146,3 +1146,94 @@ describe('migración 20260730180000_crear_paciente_completo.sql (3.12b)', () => 
     expect(codigoActivo).not.toContain('SECURITY DEFINER');
   });
 });
+
+// -------------------------------------------------------------------------------------------
+// 8.0 — migración 20260731130000_crear_paciente_completo_formato_afiliado.sql: bug bloqueante
+// (`23502`, coberturas_paciente.formato_afiliado NOT NULL sin default nunca completado en el
+// INSERT de la RPC). Barrera de texto sobre el SQL, mismo criterio que 3.12b (no hay harness para
+// testear funciones de Postgres, D8/1B.5): declara SECURITY INVOKER, nunca SECURITY DEFINER, y el
+// INSERT a obra_social.coberturas_paciente ahora incluye formato_afiliado.
+// -------------------------------------------------------------------------------------------
+
+describe('migración 20260731130000_crear_paciente_completo_formato_afiliado.sql (8.0)', () => {
+  function leerMigracion(): string {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const ruta = resolve(
+      __dirname,
+      '../../../../../supabase/migrations/20260731130000_crear_paciente_completo_formato_afiliado.sql',
+    );
+    return readFileSync(ruta, 'utf-8');
+  }
+
+  it('declara SECURITY INVOKER y la cláusula activa nunca es SECURITY DEFINER', () => {
+    const codigoActivo = quitarComentariosYStrings(leerMigracion());
+
+    expect(codigoActivo).toContain('SECURITY INVOKER');
+    expect(codigoActivo).not.toContain('SECURITY DEFINER');
+  });
+
+  it('el INSERT a obra_social.coberturas_paciente incluye formato_afiliado (fix del bug 23502)', () => {
+    const codigoActivo = quitarComentariosYStrings(leerMigracion());
+    const inicioInsert = codigoActivo.indexOf('INSERT INTO obra_social.coberturas_paciente');
+    expect(inicioInsert).toBeGreaterThanOrEqual(0);
+
+    // La columna tiene que estar tanto en la lista de columnas como en los VALUES del mismo
+    // statement (no en otro lado del archivo) — se recorta el statement completo (hasta el `;`).
+    const finInsert = codigoActivo.indexOf(';', inicioInsert);
+    const statement = codigoActivo.slice(inicioInsert, finInsert === -1 ? undefined : finInsert + 1);
+
+    expect(statement).toContain('formato_afiliado');
+    // No debe seguir siendo un INSERT de solo 3 columnas (regresión al bug original: la firma
+    // completa antes del fix era `paciente_id, obra_social_id, num_afiliado, fecha_desde`, 4
+    // columnas, ninguna formato_afiliado).
+    expect(statement).toMatch(/formato_afiliado[^)]*\)\s*VALUES|VALUES[\s\S]*formato_afiliado/);
+  });
+
+  it('no toca la firma de la función (mismo nombre, mismo único argumento p_paciente jsonb)', () => {
+    const codigoActivo = quitarComentariosYStrings(leerMigracion());
+
+    expect(codigoActivo).toContain('CREATE OR REPLACE FUNCTION pacientes.crear_paciente_completo(p_paciente jsonb)');
+    expect(codigoActivo).toContain('RETURNS uuid');
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// 8.0 — create(): bug 23502 (`coberturas_paciente.formato_afiliado` NOT NULL sin default nunca
+// completado en el INSERT de la RPC, ver migración 20260731130000 y el test de texto en 8.0 más
+// arriba). RF-106 (revertida D12 → vigente de nuevo): `formato_afiliado` es una propiedad de la
+// obra social (`ObraSocial.formatoAfiliado`), no del paciente/cobertura — el payload de
+// `toCrearPacientePayload` NUNCA manda esa clave. El NOT NULL de la columna se sigue satisfaciendo
+// del lado de la base, con el propio `COALESCE(..., 'numero-documento')` de la migración — nunca
+// con un valor que viaje desde el frontend.
+// -------------------------------------------------------------------------------------------
+
+describe('supabasePacienteRepository.create — bug 23502 formato_afiliado (tasks.md 8.0)', () => {
+  it('el payload de la RPC no manda formato_afiliado: el NOT NULL se satisface del lado de la base (COALESCE de la migración), no con una clave del frontend', async () => {
+    configurarRpc('pacientes', 'crear_paciente_completo', () => ok('nuevo-uuid'));
+    configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente({ id: 'nuevo-uuid' })]));
+
+    await expect(supabasePacienteRepository.create(buildNuevoPacienteConAfiliado())).resolves.toBeDefined();
+
+    const llamadaRpc = calls.find((c) => c.op === 'rpc');
+    const args = llamadaRpc?.payload as { p_paciente: Record<string, unknown> };
+    expect(args.p_paciente).not.toHaveProperty('formato_afiliado');
+  });
+
+  it('si la base igual respondiera 23502 (defensa en profundidad), el error se traduce sin exponer texto crudo de Postgres', async () => {
+    configurarRpc('pacientes', 'crear_paciente_completo', () =>
+      fail({
+        code: '23502',
+        message:
+          'null value in column "formato_afiliado" of relation "coberturas_paciente" violates not-null constraint',
+      }),
+    );
+
+    const error = await supabasePacienteRepository.create(buildNuevoPacienteConAfiliado()).catch((err: unknown) => err);
+
+    expect(error).toBeInstanceOf(Error);
+    const mensaje = (error as Error).message;
+    expect(mensaje).toBe('No se pudo guardar el paciente.');
+    expect(mensaje).not.toMatch(/coberturas_paciente|violates|not-null|formato_afiliado/i);
+  });
+});
+

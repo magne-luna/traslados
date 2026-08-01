@@ -19,6 +19,10 @@ interface PacienteCoberturaFieldsProps {
 // paciente (tasks.md 6.2), extraído de PacienteForm para mantenerlo bajo ~200 líneas
 // (react-best-practices).
 export function PacienteCoberturaFields({ formId, values, obrasSociales, onChange }: PacienteCoberturaFieldsProps) {
+  // Formato derivado de la obra social elegida (RF-106, RN-ID-02) — ya no se guarda en el
+  // paciente, ver shared/types/obraSocial.ts.
+  const formatoAfiliado = obrasSociales.find((obraSocial) => obraSocial.id === values.obraSocialId)?.formatoAfiliado ?? null;
+
   return (
     <>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
@@ -68,6 +72,7 @@ export function PacienteCoberturaFields({ formId, values, obrasSociales, onChang
       <IdentificadorAfiliadoField
         value={values.numeroAfiliado}
         onChange={(numeroAfiliado) => onChange({ numeroAfiliado })}
+        formato={formatoAfiliado}
       />
     </>
   );

@@ -223,6 +223,7 @@ describe('ensamblarObraSocial (3.5)', () => {
       plazoCobroDias: 90,
       modalidadFacturacion: 'por-prestacion',
       admitePagosParciales: false,
+      formatoAfiliado: 'numero-documento',
       checklist: [{ id: 't-1', nombre: 'RHC', requerido: true }],
       plantillaFactura: {
         identificadorOrigen: 'paciente.numeroAfiliado',
@@ -260,6 +261,7 @@ describe('ensamblarObraSocial (3.5)', () => {
       plazoCobroDias: 90,
       modalidadFacturacion: 'por-prestacion',
       admitePagosParciales: false,
+      formatoAfiliado: 'numero-documento',
       checklist: [],
       plantillaFactura: { identificadorOrigen: 'paciente.numeroAfiliado', campos: [] },
     });
@@ -291,6 +293,7 @@ function nuevaObraSocialMinima(): NuevaObraSocial {
     tipoComprobante: 'A',
     modalidadFacturacion: 'por-prestacion',
     admitePagosParciales: false,
+    formatoAfiliado: 'numero-documento',
     checklist: [],
     plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
   };
@@ -311,6 +314,7 @@ describe('toCrearObraSocialPayload (3.6)', () => {
       plazo_cobro_dias: 90,
       modalidad_facturacion: 'por-prestacion',
       admite_pagos_parciales: false,
+      formato_afiliado: 'numero-documento',
       checklist: [],
       plantilla_factura: { identificador_origen: 'paciente.numeroAfiliado', campos: [] },
     });

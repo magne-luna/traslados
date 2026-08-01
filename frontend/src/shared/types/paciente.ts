@@ -5,18 +5,14 @@
 
 import type { AccesorioMovilidad } from './vehiculo';
 
-// Unión cerrada de formatos de identificador de afiliado (RN-ID-02, IN-01). Nunca `string`
-// libre: el formato varía por obra social (número de documento, alfanumérico, o CUIL del
-// titular con sufijo /01, /02) y debe poder mostrarse/validarse sin ramas de tipo ad-hoc.
-export type FormatoAfiliado = 'numero-documento' | 'alfanumerico' | 'cuil-con-sufijo';
-
 /**
- * Identificador de afiliado adaptable (design.md Decisión 1): `valor` es libre, `formato` solo
- * etiqueta/valida en UI. El default al crear se documenta y se define en la capa de formulario
- * (nunca hardcodeado en el tipo ni en la lógica de dominio).
+ * Identificador de afiliado (RF-106, RN-ID-02): `valor` es libre. El formato (número de
+ * documento, alfanumérico, o CUIL del titular con sufijo) NO vive acá — es una propiedad de la
+ * obra social del paciente (`ObraSocial.formatoAfiliado` en `shared/types/obraSocial.ts`), nunca
+ * un dato que el operador elija por paciente/cobertura. Ver `knowledge-base/10_preguntas_
+ * abiertas.md` IN-01.
  */
 export interface IdentificadorAfiliado {
-  formato: FormatoAfiliado;
   valor: string;
 }
 
