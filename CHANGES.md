@@ -37,7 +37,7 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 | — | Auth / Cuentas | ✅ real | Ya integrado, no forma parte de este plan |
 | 1 | Pacientes (C-05) | 🔶 código+migración+tests completos, **pendiente de revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-05 más abajo |
 | 2 | Obra Social (C-04) | 🔶 código+migraciones+tests completos (`integracion-obra-social`, 2026-07-31), **pendiente de aplicación de las migraciones y revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-04 más abajo. Hallazgo del apply: el schema real ya tenía casi todo lo que `design.md` planeaba (nombres/tipos distintos). D12 (RN-ID-02) se revirtió y luego se restauró el mismo día — la "confirmación" que la revertía nunca pasó, ver §C-04 |
-| 3 | Conductores + Vehículos (C-08/C-09) | ⚠️ **ver nota** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). Apareció además `openspec/changes/integracion-conductores-vehiculos/` con propose completo, **no generado desde esta sesión** — hay actividad concurrente de otra sesión sobre este mismo dominio. No arrancar acá sin confirmar con la usuaria quién lo está llevando |
+| 3 | Conductores + Vehículos (C-08/C-09) | 🔶 **reconciliado (2026-08-01), bloqueado en 1 gap** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). `openspec/changes/integracion-conductores-vehiculos/` (mock→Supabase de Vehículos+Conductores) se escribió en paralelo con `C-08-vehiculos-mantenimiento` de Enzo (ya mergeado a `main`, commit `f840a96`), sin que ninguno de los dos supiera del otro. **Vehículos**: reconciliado contra el backend real de Enzo (gasto, habilitaciones y kilometraje adoptan su implementación) — ver bullet ⚠️ en §C-08 más abajo, **bloqueado en un gap real** (falta fuente de datos para `mantenimientos`, necesita decisión de Enzo). **Conductores**: sin conflicto con lo que Enzo mergeó (confirmado, ninguna de sus 15 migraciones toca `conductores.conductores`/`conductores_vehiculos`); tanda de mapeo puro (`conductorMapping.ts`, `semanaIso.ts`) completa; el repository real (§7) queda bloqueado porque las migraciones de asignación semanal/estado (`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`) todavía no las escribió nadie |
 | 4 | Facturación (C-07) | 🔶 propose completo (`integracion-facturacion`, 2026-07-31), **bloqueado en el portón de governance §0 de `tasks.md` — 5 decisiones a cargo de Enzo/backend** antes de poder aplicar | Ver bullet ⏳ en §C-07 más abajo para el detalle de las 5 decisiones |
 | 5 | Presupuestos (C-06) | 🔴 bloqueado | 2 puntos a coordinar con backend, governance ALTO (ver §C-06) |
 | 6 | Hojas de Ruta (C-10) | ⏳ pendiente | — |
@@ -303,7 +303,52 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - **Categoría de mantenimiento en dos niveles** (nuevo, `vehiculo-mantenimiento-registro`): el campo Categoría del docx en la entidad Mantenimiento combina nivel 1 (gasto/preventivo/correctivo) con el sub-tipo de US-500 — el frontend ya lo modela tipado como unión discriminada; el nombre de columna real de `mantenimiento_registro` para nivel 1 + nivel 2 queda a definir con el backend `C-08`.
   - `gasto_vehiculo` no tiene campo de categoría (confirmado contra el docx); `mantenimiento_registro` no tiene monto — el importe de una intervención se carga como un gasto aparte, sin FK entre ambas tablas (el docx no la tiene).
   - `GastoVehiculo.descripcion` es un agregado del frontend (no existe en el docx) — a confirmar si el backend lo suma a `gasto_vehiculo`.
-- **⚠️ Posible discrepancia backend/frontend sin resolver (detectada en merge, 2026-07-31)**: el punto de arriba (frontend, `vehiculo-mantenimiento-registro`) describe `gasto_vehiculo`/`mantenimiento_registro` como dos tablas reales separadas, sin FK. El "Progreso backend" de abajo (C-08, escrito en paralelo, nunca pusheado a la base real) asume en cambio que los gastos viven *dentro* de `conductores.mantenimiento` (`categoria = 'gasto'`) y que `facturacion.gastos_vehiculos` queda sin usar. **No verificado cuál de los dos coincide con el schema real** — confirmar antes de pushear la migración `20260730110000_schema_vehiculo_gaps.sql`.
+- **✅ RESUELTO (2026-08-01)** — discrepancia backend/frontend detectada en merge 2026-07-31: el
+  punto de arriba (frontend, `vehiculo-mantenimiento-registro`) describía `gasto_vehiculo`/
+  `mantenimiento_registro` como dos tablas reales separadas, sin FK. Reconciliado contra
+  `openspec/changes/C-08-vehiculos-mantenimiento/` de Enzo, ya mergeado a `main` (commit `f840a96`):
+  **la versión de Enzo es la que va** — los gastos viven como filas `categoria = 'gasto'` dentro de
+  `conductores.mantenimiento` (columnas `monto`/`descripcion`/`categoria_gasto` de
+  `20260730110000_schema_vehiculo_gaps.sql`), no en `facturacion.gastos_vehiculos` (que queda
+  muerta/sin usar, no se dropea). Ver `openspec/changes/integracion-conductores-vehiculos/design.md`
+  §Reconciliación con C-08-vehiculos-mantenimiento (D9/D11) para el detalle completo.
+- **✅ RESUELTO (2026-08-01) — Habilitaciones VTV/RTO**: el design de `integracion-conductores-vehiculos`
+  había decidido (D3, opción B) NO crear tabla propia — derivar habilitaciones del historial de
+  mantenimiento client-side. Enzo creó exactamente la tabla que esa decisión descartaba:
+  `conductores.habilitaciones_vehiculo(id, vehiculo_id, tipo, fecha_emision, fecha_vencimiento)`
+  (`20260730110000_schema_vehiculo_gaps.sql`, RLS corregida en
+  `20260730150000_fix_habilitaciones_vehiculo_modulo.sql`). Se adopta la tabla real de Enzo como
+  fuente de verdad — `derivarHabilitaciones()` queda superada para el repository real (sigue viva
+  como función solo del lado mock, sin motivo para tocarla).
+- **✅ RESUELTO (2026-08-01) — Kilometraje**: el plan quería `kilometraje NOT NULL DEFAULT 0` más dos
+  columnas persistidas nuevas (`kilometraje_ultimo_service`/`fecha_ultimo_service`). Realidad: Enzo
+  ya agregó `kilometraje` (nullable, sin default — distinto de lo planeado) y
+  `kilometrajeUltimoService`/`fechaUltimoService` se **derivan** en la Edge Function del último
+  registro `categoria='preventivo'` de `mantenimiento`, nunca como columnas propias. Se adopta la
+  forma de Enzo.
+- **⚠️ GAP ABIERTO — necesita decisión de Enzo (detectado 2026-08-01)**: la Edge Function
+  `supabase/functions/vehiculos/index.ts` de Enzo devuelve `gastos` y `habilitaciones` derivadas,
+  pero **no expone ningún array de eventos de mantenimiento** (sin historial preventivo/correctivo).
+  Su propio comentario de cabecera dice *"preventivo/correctivo se gestionan por separado en
+  `supabase/functions/mantenimiento/index.ts`"* — **ese archivo no existe** en el repo. Gap real: la
+  pantalla ya shippeada `VehiculoMantenimiento.tsx` (consume `Vehiculo.mantenimientos`, campo
+  obligatorio) no tiene hoy ninguna fuente de datos real. Dos caminos posibles, **sin decidir**:
+  (a) extender `toApi()` de `vehiculos/index.ts` para devolver también las filas crudas de
+  mantenimiento (requiere sumar las columnas `subtipo`/`detalle` que el D4 de
+  `integracion-conductores-vehiculos` necesita y que hoy no existen en el schema de Enzo), o
+  (b) construir el endpoint separado `supabase/functions/mantenimiento/index.ts`. Detalle completo en
+  `openspec/changes/integracion-conductores-vehiculos/design.md` §Reconciliación, bloque "Gap
+  abierto". **Bloquea** §5/§4B de `integracion-conductores-vehiculos/tasks.md` hasta que Enzo elija
+  un camino.
+- **✅ Adoptado (2026-08-01) — patrón de acceso**: el design asumía PostgREST + RPC directo con RLS
+  por tabla como frontera de enforcement; la realidad es que la Edge Function de Enzo hace un único
+  chequeo grueso `tiene_permiso('vehiculos', nivel)` y de ahí en más usa un cliente service-role
+  (legítimo — la regla dura del proyecto es que la service-role key nunca vive en frontend, y acá
+  sigue viviendo solo en la Edge Function; es una granularidad de permiso distinta, no una violación).
+  `SupabaseVehiculoRepository.ts` (no construido todavía) va a llamar la Edge Function vía
+  `supabase.functions.invoke()`, mismo patrón que ya usa
+  `frontend/src/shared/lib/cuentas/SupabaseCuentaRepository.ts` (el único repository del repo que ya
+  hace esto — `SupabaseObraSocialRepository.ts` sigue siendo PostgREST directo, no es precedente acá).
 - **Progreso backend (real, C-08, 2026-07-30)**: ✅ implementado, pendiente deploy.
   **Decisión confirmada con Enzo** sobre el punto de arriba: los gastos del vehículo viven en
   `conductores.mantenimiento` (`categoria = 'gasto'`, tal cual el docx modela una única
@@ -395,8 +440,9 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   5. (Interna, sin cartel en UI) Coordinar los nombres exactos de campos de `Conductor`/`AsignacionSemanal` y si la semana se guarda como etiqueta ISO `YYYY-Www` (elegido por el frontend) o como fecha de inicio de semana, antes de cerrar la interfaz del repository real.
 - **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** (señalizada con carteles `AvisoModeloDatos` en `ConductorDetail.tsx`, detalle en `04_modelo_de_datos.md`):
   - ~~Faltan campos que sí están en el docx: Domicilio, CUIL (acá solo hay Documento/DNI) y **Estado** (operando / fuera de servicio)~~ — resuelto 2026-07-24: se sumaron `Conductor.domicilio`, `Conductor.cuil` y `Conductor.estado` al frontend.
-  - **Pendiente**: "Restricciones" acá es un catálogo cerrado (`RestriccionConductor[]`); en el docx es texto libre dentro de un único campo "Notas" junto con las observaciones — reconciliar con el punto 1 de arriba (catálogo cerrado pendiente de confirmar con el cliente) **y coordinar con Enzo (backend) antes de cerrar C-09**.
+  - ~~**Pendiente**: "Restricciones" acá es un catálogo cerrado (`RestriccionConductor[]`); en el docx es texto libre dentro de un único campo "Notas" junto con las observaciones — reconciliar con el punto 1 de arriba (catálogo cerrado pendiente de confirmar con el cliente) **y coordinar con Enzo (backend) antes de cerrar C-09**.~~ — **RESUELTO por decisión de diseño D6-B** (`integracion-conductores-vehiculos/design.md`, opción B elegida): `Conductor.restricciones` desaparece por completo del dominio, todo pasa a un único campo `notas`/`observaciones` de texto libre, alineado 1:1 al docx. Costo asumido: `C-10` pierde el filtro computable por restricción (RN-GL-03 pasa a ser lectura humana, no validación automática).
   - El docx modela la asignación semanal con **Fecha de inicio** y **Fecha de fin de semana** como dos campos de fecha independientes, no como la etiqueta ISO única del punto 5 de arriba.
+  - **Bloqueante para §7 (repository real de Conductores), no relacionado con Vehículos**: las migraciones de asignación semanal/estado planeadas en `integracion-conductores-vehiculos/tasks.md` §1B.1/1B.2 (`20260801120000_conductores_vehiculos_campos.sql` y `_rpc.sql`) **no existen todavía en ningún lado** — ni en esta rama, ni en lo que Enzo mergeó. Alguien tiene que escribirlas y aplicarlas antes de poder avanzar el repository real de Conductores.
 
 ---
 

@@ -107,7 +107,9 @@ así que queda anotado acá hasta que se construya esa feature.
   `pacientes` → `pacientes` + `hojas_de_ruta` (nuevo), `facturacion` → `facturacion` +
   `presupuestos` (nuevo), `conductores` → `conductores` + `vehiculos` (nuevo); `obra_social` queda
   igual. `facturacion.gastos_vehiculos` permanece bajo `facturacion` (confirmado con la usuaria — es
-  un gasto, no una operación sobre el vehículo). Migración de datos aditiva: ninguna cuenta pierde
+  un gasto, no una operación sobre el vehículo) — **nota 2026-08-01**: esa confirmación describía la
+  ubicación del módulo de permisos, no la tabla de destino real; ver discrepancia "Gastos de
+  Vehículo" más abajo, donde se aclara que `facturacion.gastos_vehiculos` terminó sin usar. Migración de datos aditiva: ninguna cuenta pierde
   acceso a una pantalla que ya tenía (`modulos.permisos` se copia, nunca se mueve, del módulo padre
   al hijo). **No se resuelve la discrepancia contra el docx "borrándola"** — queda documentada acá y
   con cartel `AvisoModeloDatos` en la pantalla de Cuentas (`CuentaDetail.tsx`), a confirmar con
@@ -159,8 +161,28 @@ así que queda anotado acá hasta que se construya esa feature.
   reales (RN-FA-07/08) que se sumaron a la migración, no se descartaron por ausencia en el docx.
 - **Vehículo — kilometraje/habilitaciones**: cartel en UI (Vehículos). En el docx viven en la tabla
   Mantenimiento (kilometraje actual + próximo vencimiento por fecha/km), no embebidos en Vehículo.
+  **Actualización 2026-08-01** (reconciliación con `C-08-vehiculos-mantenimiento` de Enzo, ya
+  mergeado a `main`, commit `f840a96`, ver
+  `openspec/changes/integracion-conductores-vehiculos/design.md` §Reconciliación): el backend real
+  terminó en un punto intermedio, ni el docx puro ni lo que este change tenía planeado. Habilitaciones
+  VTV/RTO SÍ quedaron en tabla propia, `conductores.habilitaciones_vehiculo(id, vehiculo_id, tipo,
+  fecha_emision, fecha_vencimiento)` (`20260730110000_schema_vehiculo_gaps.sql`) — exactamente la
+  tabla que este change había decidido (D3, opción B) NO crear, prefiriendo derivar del historial de
+  mantenimiento. Se adopta la tabla real de Enzo como fuente de verdad. Kilometraje: `kilometraje`
+  quedó como columna propia del vehículo (nullable, sin default), pero
+  `kilometrajeUltimoService`/`fechaUltimoService` SÍ se derivan — de la Edge Function, a partir del
+  último registro `categoria='preventivo'` de `mantenimiento` — al revés de lo que planeaba este
+  change (las tres iban a ser columnas propias). Se adopta la forma real de Enzo.
 - **Gastos de Vehículo**: cartel en UI (Vehículos). En el docx el módulo de permisos que controla el
-  acceso es "facturacion", no "conductores" — importa para las RLS policies.
+  acceso es "facturacion", no "conductores" — importa para las RLS policies. **Actualización
+  2026-08-01**: en la implementación real de Enzo (`C-08-vehiculos-mantenimiento`,
+  `20260730110000_schema_vehiculo_gaps.sql`) el gasto no es una tabla propia — es una fila de
+  `conductores.mantenimiento` con `categoria = 'gasto'` — y queda gateado por `vehiculos`/
+  `conductores`, no por `facturacion`. Esto contradice la lectura del docx de este mismo bullet y
+  también la confirmación de la usuaria citada arriba en "Catálogo de módulos de permisos" (que
+  asumía `facturacion.gastos_vehiculos` como tabla real bajo el módulo `facturacion`) — ambas
+  confirmaciones se hicieron en paralelo, sin que ninguna supiera de la otra. Se adopta el
+  esquema real de Enzo: `facturacion.gastos_vehiculos` queda sin usar (no se dropea).
 - **Categoría de gasto inventada / entidad Mantenimiento faltante** — resuelto parcialmente en
   frontend 2026-07-31 (`openspec/changes/vehiculo-mantenimiento-registro/design.md`): `vehiculos-ui`
   había agregado `GastoVehiculo.categoria: 'mantenimiento' | 'reparacion' | 'service'`, valores **sin
@@ -181,18 +203,41 @@ así que queda anotado acá hasta que se construya esa feature.
   2. La duplicación del vencimiento VTV/RTO entre `Vehiculo.habilitaciones[].fechaVencimiento` y
      `MantenimientoRegistro.proximoVencimientoFecha` — este change no deriva las alertas del
      historial (queda `habilitaciones` como única fuente), la duplicación se resuelve junto al
-     esquema de `C-08` backend.
+     esquema de `C-08` backend. **Actualización 2026-08-01**: `C-08` backend (Enzo, mergeado a
+     `main`) resolvió la parte de esquema creando `conductores.habilitaciones_vehiculo` como tabla
+     propia — pero **no elimina la duplicación**, la confirma como permanente: sigue habiendo dos
+     lugares con fecha de vencimiento (`habilitaciones_vehiculo` y `MantenimientoRegistro` del
+     frontend), ahora ambos reales. Ver bullet "Vehículo — kilometraje/habilitaciones" más arriba.
   3. Si `MantenimientoRegistro` debería tener un `gastoId?` (o `GastoVehiculo` un `mantenimientoId?`)
      para vincular la intervención correctiva con el gasto que la pagó — el docx no tiene esa FK.
   4. Si `GastoVehiculo.descripcion` (agregado del frontend, no está en el docx) queda como campo real
      de `gasto_vehiculo` en el backend.
+- **⚠️ Mantenimientos sin fuente en la API real — GAP ABIERTO, necesita decisión de Enzo (detectado
+  2026-08-01, reconciliación de `integracion-conductores-vehiculos` contra `C-08-vehiculos-mantenimiento`
+  ya mergeado, commit `f840a96`)**: la Edge Function `supabase/functions/vehiculos/index.ts` devuelve
+  `gastos` y `habilitaciones` (derivadas), pero **no expone ningún array de eventos de mantenimiento**
+  preventivo/correctivo. Su propio comentario de cabecera dice que esos casos "se gestionan por
+  separado en `supabase/functions/mantenimiento/index.ts`" — **ese archivo no existe** en el repo.
+  `Vehiculo.mantenimientos: MantenimientoRegistro[]` (campo obligatorio, consumido por la pantalla ya
+  shippeada `VehiculoMantenimiento.tsx`) no tiene hoy ninguna fuente real. Dos caminos posibles, sin
+  decidir: (a) extender `toApi()` de `vehiculos/index.ts` para devolver las filas crudas de
+  `mantenimiento` (requiere sumar las columnas `subtipo`/`detalle` que el modelo de dos niveles del
+  frontend necesita y que no existen en el schema de Enzo), o (b) construir el endpoint separado
+  `mantenimiento/index.ts`. Detalle completo en
+  `openspec/changes/integracion-conductores-vehiculos/design.md` §Reconciliación, bloque "Gap
+  abierto"; ver también `CHANGES.md` §C-08.
 - **Conductor**: cartel en UI (`ConductorDetail`). ~~Faltan campos que sí están en el docx:
   Domicilio, CUIL (acá solo hay Documento/DNI) y Estado (operando / fuera de servicio)~~ — resuelto
   2026-07-24: los 3 campos se sumaron al frontend (`Conductor.domicilio`, `Conductor.cuil`,
-  `Conductor.estado`). Queda pendiente: "Restricciones" acá es un catálogo cerrado
+  `Conductor.estado`). ~~Queda pendiente: "Restricciones" acá es un catálogo cerrado
   (`RestriccionConductor[]`); en el docx es texto libre dentro de un único campo "Notas" junto con
   las observaciones — a coordinar con Enzo (backend) antes de cerrar C-09: decidir si se mantiene
-  estructurado o se funde en un campo de texto.
+  estructurado o se funde en un campo de texto.~~ — **RESUELTO 2026-08-01, decisión de diseño D6-B**
+  (`openspec/changes/integracion-conductores-vehiculos/design.md`): gana el docx. `restricciones`
+  desaparece del dominio por completo — se elimina el catálogo cerrado y todo pasa a un único campo
+  de texto libre (`notas`/`observaciones`). Costo asumido: `C-10` pierde el filtro computable por
+  restricción de perfil (RN-GL-03 pasa a depender de lectura humana de la nota, no de una validación
+  automática).
 - **Asignación de Conductores a Vehículos**: cartel en UI (`ConductorDetail`, sección Flota). Acá la
   semana se guarda como etiqueta ISO (`semana: '2026-W30'`); el docx tiene Fecha de inicio y Fecha de
   fin de semana como dos campos de fecha independientes.

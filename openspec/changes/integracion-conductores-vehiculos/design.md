@@ -850,6 +850,166 @@ unilateralmente.
 
 ---
 
+## Reconciliación con C-08-vehiculos-mantenimiento (backend real de Enzo, mergeado 2026-08-01)
+
+> Este design se escribió **en paralelo** con el backend de Enzo (`C-08-vehiculos-mantenimiento`),
+> sin que ninguno de los dos lados supiera del otro. Ese change ya está mergeado en `origin/main`
+> (migraciones `20260729140000_seed_accesorios.sql`, `20260730110000_schema_vehiculo_gaps.sql`,
+> `20260730150000_fix_habilitaciones_vehiculo_modulo.sql`, y la Edge Function
+> `supabase/functions/vehiculos/index.ts`). **Decisión (2026-08-01): la implementación real de
+> Enzo es la fuente de verdad de acá en adelante para el esquema y la forma de la API.** Las
+> decisiones de abajo no se reabren ni se relitigan: se marcan **SUPERSEDED** y se documenta la
+> realidad que las reemplaza, conservando el razonamiento original completo — regla dura del
+> proyecto: nunca se borra la razón de una decisión superada, se marca como tal.
+
+### D3 — SUPERSEDED por la tabla real `conductores.habilitaciones_vehiculo`
+
+La opción B (derivar de `mantenimiento`) fue la resolución de la usuaria en el checkpoint `0.1`,
+pero Enzo implementó la **opción A** que este documento había descartado: una tabla propia
+`conductores.habilitaciones_vehiculo(id, vehiculo_id, tipo, fecha_emision, fecha_vencimiento)`
+(`20260730110000_schema_vehiculo_gaps.sql`), con RLS gateada por `vehiculos` (corregida en
+`20260730150000_fix_habilitaciones_vehiculo_modulo.sql`, que la había dejado bajo `conductores` por
+un desfasaje de timing con el split de módulos). La Edge Function la lee y escribe directamente
+(`SELECT_COLUMNS = '*, habilitaciones_vehiculo(*), mantenimiento(*)'`, `replaceHabilitaciones()` con
+`DELETE`+`INSERT` completo — el mismo patrón de reemplazo de colección que D9 proponía para otras
+tablas).
+
+**No hay conflicto de tipos que resolver.** `RegistroHabilitacion`
+(`frontend/src/shared/types/vehiculo.ts`) es `{ tipo, fechaEmision, fechaVencimiento }` — **sin
+`id`** — y `habilitacionToApi()` de la Edge Function tampoco lo expone en el JSON (aunque la fila de
+la tabla sí tiene su propio `id` interno, de uso exclusivo del backend). El tipo del frontend no
+necesita cambiar ni hace falta ninguna decisión sobre "de dónde sale el id de la habilitación":
+no hace falta ninguno.
+
+**Consecuencia real.** `derivarHabilitaciones(mantenimientos)` (tasks.md 2B.1, ya implementada con 9
+tests verdes) queda como función **viva solo para el mock** — sigue siendo válida ahí y no hay
+ninguna razón para tocarla ni tocar sus tests. Pero `SupabaseVehiculoRepository` (§5, no
+implementado todavía) **no** la va a llamar: consume el JSON ya resuelto por la Edge Function (que
+trae `habilitaciones` directo de la tabla, no derivado). La duplicación de vencimiento que D3
+buscaba eliminar en la causa raíz **no se eliminó en la realidad**: sigue existiendo como tabla
+separada de `mantenimiento`, tal como la opción A que este documento había descartado por ese
+motivo exacto. Se documenta como discrepancia con el docx (que dice *"se rastrea vía mantenimiento"*
+sin mencionar una tabla propia) — no se resuelve acá, es la realidad ya implementada y mergeada.
+
+### D9 / D11 — SUPERSEDED en Gastos: viven en `conductores.mantenimiento`, no en `facturacion.gastos_vehiculos`
+
+Real (`20260730110000_schema_vehiculo_gaps.sql`, confirmado en su propio comentario: *"decision
+confirmada con Enzo: los gastos del vehiculo NO van en una tabla aparte"*): los gastos son filas de
+`conductores.mantenimiento` con `categoria = 'gasto'`, usando las columnas nuevas `monto
+NUMERIC(10,2)`, `descripcion TEXT` y `categoria_gasto conductores.categoria_gasto_vehiculo` (enum
+`'mantenimiento'|'reparacion'|'service'`). Gateadas por `vehiculos`/`conductores` como el resto de
+la tabla — **no por `facturacion`**. `facturacion.gastos_vehiculos` (la tabla que D9/D11/D15
+asumían como destino) queda **abandonada, no dropeada** — nadie la usa ni la va a usar.
+
+**Hallazgo adicional, no anticipado por el conflicto original.** El `GastoInput`/`gastoToApi` de la
+Edge Function expone un campo `categoria: CategoriaGasto` (`'mantenimiento'|'reparacion'|'service'`,
+default `'mantenimiento'` si viene `null`) — exactamente el tipo `CategoriaGasto` que
+`vehiculo-gastos`/spec.md y `shared/types/vehiculo.ts` **explícitamente eliminaron** por no tener
+fuente en ningún docx/KB (comentario en el tipo: *"eran inventados... y se eliminaron"*). Enzo lo
+reintrodujo del lado del backend, con columna propia (`categoria_gasto`). **No se resuelve en este
+documento**: queda como parte del `#### Gap abierto` de abajo, para decidir si `GastoVehiculo`
+recupera el campo `categoria` o si el mapeo lo ignora en la lectura y nunca lo envía en la escritura
+(es opcional en `GastoInput`, así que omitirlo es seguro).
+
+**Consecuencia para D9** (escritura atómica vía 4 funciones `SECURITY INVOKER`): esas funciones **no
+existen y no se van a escribir**. Enzo resolvió la atomicidad multi-tabla **dentro de la Edge
+Function** (que corre con un cliente `service-role`, ver D10 abajo) llamando secuencialmente al
+cliente admin sobre cada tabla, no con RPC `plpgsql` invocadas desde el cliente. `tasks.md` 1B.8 se
+marca sin objeto.
+
+### D10 — SUPERSEDED: no hay degradación fina por permiso cruzado, hay un único chequeo grueso
+
+Real (`supabase/functions/_shared/auth.ts` `requirePermiso()`, usado por `vehiculos/index.ts`): la
+Edge Function hace **un solo** chequeo `tiene_permiso('vehiculos', nivel)` al principio de la
+request (GET→`read`, POST/PATCH/DELETE→`write`) y, si pasa, usa un cliente **service-role**
+(`admin`) para todo lo que sigue — incluida la resolución de accesorios contra
+`pacientes.accesorios` y de gastos contra `mantenimiento`. **No hay ningún punto donde RLS por
+tabla decida algo**: el cliente admin bypassea RLS por diseño. El comportamiento fino de D10
+(`accesoriosCompatibles: []` + aviso cuando falta `pacientes:read`, `gastos: []` + aviso cuando
+falta `facturacion:read`) **no existe en la realidad**: quien tiene `vehiculos:write` ve y escribe
+accesorios y gastos siempre, sin ningún gateo cruzado adicional — el comentario de cabecera del
+archivo lo dice explícitamente: *"el docx unifica Vehiculo/Accesorios/Documentacion/Mantenimiento
+bajo un unico modulo"*.
+
+Esto **simplifica** el modelo de permisos respecto de lo que D10 documentaba (ya no hay 4 módulos
+cruzados para Vehículos, hay uno). El `AvisoModeloDatos` de gastos/accesorios que D10/§8.1/§8.2
+planeaban para el gateo cruzado **ya no aplica tal como estaba escrito** — se reescribe (o se
+elimina, si ya no hay nada que señalizar) en el batch de apply que toque esas pantallas.
+
+### D11 — SUPERSEDED en el patrón de acceso: HTTP a una Edge Function, no PostgREST+RPC directo
+
+`SupabaseVehiculoRepository.ts` (§5, no implementado todavía) **no** va a hacer
+`supabase.schema('conductores').from('vehiculo').select(...)` contra Postgres. Va a llamar la Edge
+Function `vehiculos` con el patrón que ya usa el único repository de este repo que **sí** llama
+Edge Functions: `frontend/src/shared/lib/cuentas/SupabaseCuentaRepository.ts`, que usa
+`supabase.functions.invoke(nombre, { body, method? })` (adjunta automáticamente el JWT de la sesión
+activa como `Authorization`) y traduce el error con un helper (`mapearErrorEdgeFunction`) que
+inspecciona `error.context` (una `Response`) por `status` (401/403/404/400 con body `{ error }`),
+nunca propagando el mensaje crudo. La diferencia es que `vehiculos/index.ts` es un endpoint **REST
+completo** (GET/POST/PATCH/DELETE, con el id como segmento de path vía `extractIdFromPath`), no una
+acción única como `create-user`/`update-permisos` — `supabase.functions.invoke('vehiculos/' + id, {
+method: 'PATCH', body })` es la forma de expresar eso con el mismo cliente (el nombre de función de
+`invoke()` se concatena literal a la URL `/functions/v1/`, así que un path con `/` funciona).
+
+`SupabaseObraSocialRepository.ts` **no** sirve de precedente para este patrón: sigue haciendo
+PostgREST + RPC directo, no Edge Functions — no pasó por este swap todavía. El único precedente real
+en el repo, hoy, es `SupabaseCuentaRepository.ts`.
+
+#### Gap abierto: no hay `mantenimientos` en la respuesta de la Edge Function
+
+`vehiculos/index.ts::toApi()` devuelve `habilitaciones` (de `habilitaciones_vehiculo`) y `gastos`
+(de `mantenimiento` filtrado a `categoria='gasto'`), y usa `mantenimiento` filtrado a
+`categoria='preventivo'` **solo** para derivar `kilometrajeUltimoService`/`fechaUltimoService` — pero
+**no expone ningún array de intervenciones preventivas/correctivas**. `Vehiculo.mantenimientos:
+MantenimientoRegistro[]` (obligatorio, no opcional, en `shared/types/vehiculo.ts`) no tiene de dónde
+salir con la API actual. Confirmado leyendo `toApi()` completo: no hay ninguna clave
+`mantenimientos` en el objeto devuelto.
+
+El comentario de cabecera de `vehiculos/index.ts` dice: *"preventivo/correctivo se gestionan por
+separado en `supabase/functions/mantenimiento/index.ts`"* — **ese archivo no existe** en
+`supabase/functions/` (confirmado por listado completo del directorio). Es un gap real y confirmado,
+no una suposición: la pantalla `VehiculoMantenimiento.tsx` (ya shippeada sobre el mock) no tiene hoy
+ninguna fuente real de datos. Tampoco existen las columnas `subtipo`/`detalle` que D4 planeaba para
+`conductores.mantenimiento` (Enzo solo agregó `monto`, `descripcion` y `categoria_gasto`): sin esas
+columnas, ni siquiera una futura `mantenimiento/index.ts` podría persistir el nivel 2 de la
+clasificación tal como lo modela `MantenimientoRegistro`.
+
+**No se inventa una solución acá.** Dos caminos posibles, a decidir con Enzo antes de implementar
+§5/§4B de `tasks.md`:
+1. Extender `vehiculos/index.ts::toApi()` para incluir `mantenimientos:` a partir de
+   `row.mantenimiento` filtrado a `categoria !== 'gasto'`, y sumar las columnas `subtipo`/`detalle`
+   que D4 ya especificaba.
+2. Construir la función `mantenimiento/index.ts` que el comentario da por existente, como endpoint
+   separado, con esas mismas columnas.
+
+Se documenta como discrepancia pendiente en `knowledge-base/04_modelo_de_datos.md` §Discrepancias y
+en `CHANGES.md` §C-08 (regla dura del proyecto), y con un `AvisoModeloDatos` en
+`VehiculoMantenimiento.tsx` cuando se implemente el swap real, hasta que Enzo confirme cuál de los
+dos caminos toma.
+
+### Kilometraje — la columna real ya existe, con forma distinta a la planeada (afecta 1B.1, no una decisión numerada)
+
+El Non-Goals de este documento y la tarea 1B.1 planeaban 3 columnas aditivas: `kilometraje INTEGER
+NOT NULL DEFAULT 0`, `kilometraje_ultimo_service INTEGER NOT NULL DEFAULT 0`, `fecha_ultimo_service
+DATE`. La realidad (`20260730110000_schema_vehiculo_gaps.sql`): solo se agregó `kilometraje INT`
+(**nullable, sin default**) a `conductores.vehiculo`. Las otras dos **no existen como columnas**:
+`kilometrajeUltimoService`/`fechaUltimoService` se derivan en la Edge Function (`toApi()`) del
+último registro `categoria='preventivo'` de `mantenimiento` (`ultimoService?.km_actual ?? 0`,
+`ultimoService?.fecha ?? ''`) — la misma estrategia de derivación que D3 proponía para
+habilitaciones, aplicada acá en cambio, con el historial de mantenimiento como fuente en vez de
+columnas propias del vehículo.
+
+**Esto invierte, no solo modifica, el Non-Goal original** ("siguen calculándose de campos propios
+del vehículo"): en la realidad, **kilometraje** es columna propia (parcialmente, como se planeaba)
+pero **kilometrajeUltimoService/fechaUltimoService son derivados del historial** (lo opuesto de lo
+planeado). `tasks.md` 1B.1 se ajusta: no agregar `kilometraje_ultimo_service`/`fecha_ultimo_service`,
+no repetir `ADD COLUMN kilometraje` (ya aplicado — y nullable en vez de `NOT NULL DEFAULT 0`).
+**Decisión**: el mapeo del repository real trata `kilometraje: null` como `0` en la lectura, igual
+que ya hace `toApi()` ahí mismo, en vez de pedir una migración de ajuste de nullability que nadie
+pidió.
+
+---
+
 ## Risks / Trade-offs
 
 - **[El gateo cruzado de cuatro módulos deja pantallas silenciosamente parciales]** → riesgo #1 del

@@ -139,6 +139,24 @@ puramente técnica (índices) que sí quedó resuelta:
 faltantes de las tablas hijas de Pacientes (`cud.paciente_id`, etc., ver bullet de arriba) **sigue
 sin resolverse** — no forma parte de este change.
 
+## Preguntas técnicas abiertas — `integracion-conductores-vehiculos` (2026-08-01)
+
+`openspec/changes/integracion-conductores-vehiculos/` (mock→Supabase de Vehículos+Conductores) se
+escribió en paralelo con `C-08-vehiculos-mantenimiento` de Enzo, sin que ninguno de los dos supiera
+del otro; ya mergeado a `main` (commit `f840a96`). Reconciliado el 2026-08-01 — detalle completo en
+`design.md` §Reconciliación con C-08-vehiculos-mantenimiento y en `CHANGES.md` §C-08. Queda un solo
+punto genuinamente abierto:
+
+- **¿De dónde sale `Vehiculo.mantenimientos` (historial preventivo/correctivo)?** La Edge Function real
+  `supabase/functions/vehiculos/index.ts` no expone ese array — su comentario de cabecera da por
+  existente `supabase/functions/mantenimiento/index.ts`, que no existe en el repo. Dos caminos
+  posibles (extender `vehiculos/index.ts::toApi()`, o construir el endpoint separado), ninguno
+  implementado. **Decisor**: Enzo/backend.
+
+**Nota de estado, no una pregunta**: las migraciones de asignación semanal/estado de Conductores
+(`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`, `tasks.md` §1B.1/1B.2) todavía no las
+escribió nadie — bloquea el repository real de Conductores (§7), sin relación con el gap de arriba.
+
 ## Insumos pendientes del cliente
 
 - Logo (árbol de discapacidad) y colores de marca; fondo de pantalla de referencia.

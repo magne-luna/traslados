@@ -39,6 +39,22 @@
 > Entre §5 y §7 hay un **estado transitorio conocido y documentado** (§5.6): el selector de vehículo
 > de la pantalla de Conductores muestra vehículos reales mientras las asignaciones siguen en
 > `localStorage`. Si el change se detiene ahí, revertir §5 devuelve la coherencia.
+>
+> **⚠️⚠️ RECONCILIACIÓN CON EL BACKEND REAL (2026-08-01).** `C-08-vehiculos-mantenimiento`, el change
+> de Enzo, ya está mergeado en `origin/main` (migraciones `20260729140000_seed_accesorios.sql`,
+> `20260730110000_schema_vehiculo_gaps.sql`, `20260730150000_fix_habilitaciones_vehiculo_modulo.sql`,
+> y la Edge Function `supabase/functions/vehiculos/index.ts`) y **es la fuente de verdad** para
+> Vehículos de acá en adelante — ver `design.md` §Reconciliación con C-08-vehiculos-mantenimiento
+> para el detalle completo con cita exacta. Resumen de lo que cambia en **este** archivo, marcado
+> inline en cada tarea afectada: **1B.1** (kilometraje ya aplicado, distinto de lo planeado; no se
+> agregan `kilometraje_ultimo_service`/`fecha_ultimo_service`), **1B.3** (accesorios ya sembrados),
+> **1B.5** (la tabla `habilitaciones_vehiculo` que acá se daba por descartada **sí existe**),
+> **1B.8** (las 4 RPC `SECURITY INVOKER` no se escriben: la atomicidad la resuelve la Edge Function),
+> **§4B** (nueva, guía de reconciliación de `vehiculoMapping.ts` para el próximo batch de apply) y
+> **§5** (el repository real llama a la Edge Function por HTTP, no a PostgREST+RPC). **Esto NO toca
+> nada de Conductores**: D4/D6/D7/§1B.4/§1B.6/§1B.9/§6/§7 siguen exactamente como estaban, sin
+> conflicto con el backend de Enzo. El código de mapeo (`vehiculoMapping.ts`, §4, ya implementado)
+> **no se reescribe en este batch** — eso es trabajo del próximo `sdd-apply`.
 
 ## 0. Checkpoint de diseño (antes de escribir código) — GOVERNANCE ALTO
 
@@ -166,15 +182,29 @@
 > Tras la resolución de D3 por la opción B, **este change no crea ninguna tabla**: la regla queda sin
 > objeto acá y las 7 tablas existentes conservan sus policies vigentes sin tocarse.
 
-- [ ] 1B.1 Escribir `supabase/migrations/20260801120000_conductores_vehiculos_campos.sql`
-      (**expand aditivo**, ninguna columna existente se altera ni se borra). Cabecera con el bloque
-      ⚠️ de `SECURITY INVOKER` y el rollback escrito.
-      - `ALTER TABLE conductores.vehiculo ADD COLUMN kilometraje INTEGER NOT NULL DEFAULT 0`
-      - `… ADD COLUMN kilometraje_ultimo_service INTEGER NOT NULL DEFAULT 0`
-      - `… ADD COLUMN fecha_ultimo_service DATE`
+- [ ] 1B.1 ~~Escribir `supabase/migrations/20260801120000_conductores_vehiculos_campos.sql`~~
+      **⚠️ RECONCILIADO (2026-08-01, ver `design.md` §Reconciliación).** Enzo ya aplicó
+      `20260730110000_schema_vehiculo_gaps.sql` con parte de este contenido, en forma distinta a la
+      planeada acá:
+      - ~~`ALTER TABLE conductores.vehiculo ADD COLUMN kilometraje INTEGER NOT NULL DEFAULT 0`~~ —
+        **ya existe**: `kilometraje INT` (**nullable, sin default**, no `NOT NULL DEFAULT 0`). **No
+        re-emitir este `ADD COLUMN`** (fallaría por duplicado). El mapeo del repository real trata
+        `null` como `0` en la lectura, igual que ya hace la Edge Function — no se pide una migración
+        de ajuste de nullability que nadie pidió.
+      - ~~`… ADD COLUMN kilometraje_ultimo_service INTEGER NOT NULL DEFAULT 0`~~ /
+        ~~`… ADD COLUMN fecha_ultimo_service DATE`~~ — **no se agregan**: la Edge Function los deriva
+        del último registro `preventivo` de `mantenimiento`, no de columnas propias (ver design.md,
+        invierte el Non-Goal original).
       - `ALTER TABLE conductores.mantenimiento ADD COLUMN subtipo TEXT, ADD COLUMN detalle TEXT,
-        ADD COLUMN descripcion TEXT` (D4)
-      - `ALTER TABLE facturacion.gastos_vehiculos ADD COLUMN descripcion TEXT`
+        ADD COLUMN descripcion TEXT` (D4) — **`descripcion` ya existe** (Enzo la agregó para
+        `gastoToApi`/`descripcion` del gasto, columna compartida con el uso de mantenimiento que
+        planeaba D4). **`subtipo`/`detalle` siguen sin existir** — es parte del `#### Gap abierto`
+        de `design.md` (no hay dónde persistir el nivel 2 de la intervención todavía). No se escribe
+        esta migración hasta coordinar con Enzo cuál de los dos caminos del gap se toma.
+      - ~~`ALTER TABLE facturacion.gastos_vehiculos ADD COLUMN descripcion TEXT`~~ — **sin objeto**:
+        D9/D11 quedaron SUPERSEDED, los gastos viven en `conductores.mantenimiento` (`categoria =
+        'gasto'`), no en `facturacion.gastos_vehiculos`. Esa tabla queda abandonada, no se le agrega
+        nada.
 - [ ] 1B.2 En el **mismo archivo**, el CHECK de coherencia de la unión discriminada (D4), con
       `NOT VALID` a propósito — la validación es la tarea 1B.7, separada y posterior:
       ```sql
@@ -187,24 +217,29 @@
       ```
       Los valores son **exactamente** los de las uniones de `frontend/src/shared/types/vehiculo.ts`
       (`SubtipoPreventivo`, `SubtipoCorrectivoConocido`). **No inventar ninguno.**
-- [ ] 1B.3 En el **mismo archivo**, el catálogo de accesorios (D5). Solo después de que 1.4 haya
-      confirmado que la tabla está vacía o tiene exactamente estos valores:
-      - `ALTER TABLE pacientes.accesorios ADD CONSTRAINT uq_accesorios_tipo UNIQUE (tipo)`
-      - `INSERT INTO pacientes.accesorios (tipo) VALUES ('silla-plegable'), ('silla-rigida'),
-        ('silla-postural'), ('andador'), ('tripode') ON CONFLICT (tipo) DO NOTHING;`
-        — los 5 valores **exactos** de la unión `AccesorioMovilidad`. Idempotente: la migración se
-        puede re-ejecutar sin duplicar ni pisar nada.
+- [x] 1B.3 ~~En el **mismo archivo**, el catálogo de accesorios (D5).~~ **✅ Ya aplicado por Enzo
+      (2026-08-01, ver design.md §Reconciliación).** `20260729140000_seed_accesorios.sql` ya hace
+      exactamente esto: `ALTER TABLE pacientes.accesorios ADD CONSTRAINT accesorios_tipo_unique
+      UNIQUE (tipo)` (mismo efecto que el `uq_accesorios_tipo` planeado, distinto nombre — cosmético,
+      no se renombra) + `INSERT … VALUES ('silla-plegable'), ('silla-rigida'), ('silla-postural'),
+      ('andador'), ('tripode') ON CONFLICT (tipo) DO NOTHING`, los mismos 5 valores exactos. **No
+      se re-escribe ni se re-aplica.**
 - [x] 1B.4 ~~Columna de restricciones del conductor.~~ **Sin trabajo: D6 resolvió por B.** No se
       agrega ninguna columna a `conductores.conductores` — `notas TEXT` ya existe y es el único
       lugar donde viven observaciones y restricciones de perfil. Verificar, al escribir 1B.1, que la
       migración **no** incluye ningún `ADD COLUMN restricciones`. El trabajo real de esta decisión
       es de frontend y está en **§2C**.
-- [x] 1B.5 ~~Tabla `conductores.habilitaciones_vehiculo`.~~ **Sin trabajo: D3 resolvió por B.** No
-      se crea ninguna tabla: las habilitaciones se derivan de `conductores.mantenimiento` en el
-      mapeo puro (4.7) y la UI se ajusta en **§2B**. Consecuencia importante para toda la §1B:
-      **este change no crea ninguna tabla nueva**, así que no hay RLS ni triggers nuevos que
-      escribir, y la advertencia de "toda tabla nueva define su RLS en el mismo archivo" queda sin
-      objeto acá.
+- [x] 1B.5 ~~Tabla `conductores.habilitaciones_vehiculo`.~~ **Sin trabajo, pero por un motivo
+      distinto al que decía esta entrada** — **⚠️ RECONCILIADO (2026-08-01)**: esta línea decía "D3
+      resolvió por B, no se crea ninguna tabla". **La realidad es la inversa**: Enzo **sí** creó
+      `conductores.habilitaciones_vehiculo(id, vehiculo_id, tipo, fecha_emision,
+      fecha_vencimiento)` en `20260730110000_schema_vehiculo_gaps.sql`, con RLS gateada por
+      `vehiculos` (corregida en `20260730150000_fix_habilitaciones_vehiculo_modulo.sql`) y trigger
+      de auditoría — exactamente la opción A que D3 había descartado. Ver design.md §Reconciliación
+      D3 para el detalle completo. **Sigue sin haber trabajo de migración pendiente acá** (la tabla
+      ya existe, no se re-crea), pero **sí** cambia 4.7/5.x: el repository real no deriva
+      habilitaciones con `derivarHabilitaciones()`, consume el JSON que la Edge Function ya arma
+      desde esa tabla (ver §4B).
 - [ ] 1B.6 En el **mismo archivo** (`…_campos.sql`), el constraint que hace imposible la colisión de
       asignación semanal (D7 §Colisión). **Bloqueado por 1.7**, que verifica que no haya filas
       violatorias:
@@ -227,8 +262,14 @@
       corre **después** de confirmar que no hay filas violatorias
       (`select id, categoria, subtipo, detalle from conductores.mantenimiento where …`). Si las hay,
       **se reportan a backend**, no se borran ni se "arreglan" desde acá.
-- [ ] 1B.8 Escribir `supabase/migrations/20260801120001_conductores_vehiculos_rpc.sql` con las
-      **cuatro funciones `SECURITY INVOKER`** (D9):
+- [ ] 1B.8 ~~Escribir `supabase/migrations/20260801120001_conductores_vehiculos_rpc.sql` con las
+      cuatro funciones `SECURITY INVOKER`.~~ **⚠️ SIN OBJETO (2026-08-01, ver design.md
+      §Reconciliación D9/D11).** Estas 4 funciones **no existen y no se van a escribir para
+      Vehículos**: Enzo resolvió la atomicidad multi-tabla dentro de la Edge Function
+      `supabase/functions/vehiculos/index.ts`, que corre con un cliente `service-role` tras un único
+      chequeo grueso `tiene_permiso('vehiculos', nivel)` (D10 SUPERSEDED). **No se aplica esta
+      tarea.** El texto original queda abajo como registro de lo que este documento planeaba antes
+      de conocer el backend real — no se borra, se mantiene sin marcar como pendiente:
       `conductores.crear_vehiculo_completo(p_vehiculo jsonb) RETURNS uuid`,
       `conductores.actualizar_vehiculo_completo(p_id uuid, p_cambios jsonb) RETURNS uuid`,
       `conductores.crear_conductor_completo(p_conductor jsonb) RETURNS uuid`,
@@ -595,9 +636,55 @@
       funciones** (umbral del proyecto: 80, precedente de `integracion-pacientes`: 85, pedido acá:
       ≥85 %) — medido con `vitest run --coverage --coverage.include='...vehiculoMapping.ts'`.
 
+## 4B. Reconciliación de `vehiculoMapping.ts` con la Edge Function real de Enzo (C-08)
+
+> **Nueva sección (2026-08-01), consecuencia directa de design.md §Reconciliación con
+> C-08-vehiculos-mantenimiento.** `vehiculoMapping.ts` (§4) ya está implementado y verde sobre la
+> forma que este documento había planeado (PostgREST + RPC directo). **Esta sección documenta lo
+> que hay que cambiar, no lo reescribe todavía** — la reescritura del mapeo es trabajo del **próximo
+> batch de `sdd-apply`**, no de esta reconciliación. Nada de lo siguiente se implementa acá.
+
+- [ ] 4B.1 `parseGastoRow`/`toGastoRows`: dejar de leer/escribir `facturacion.gastos_vehiculos` (D9/
+      D11 SUPERSEDED). Deben leer/escribir filas de `conductores.mantenimiento` con `categoria =
+      'gasto'`, usando `monto`, `descripcion` y `categoria_gasto` (columnas ya aplicadas por Enzo).
+      Decidir, junto con Enzo, si `GastoVehiculo` recupera un campo `categoria` (gap documentado en
+      design.md) o si el mapeo lo ignora en la lectura y nunca lo emite en la escritura.
+- [ ] 4B.2 Habilitaciones: dejar de llamar `derivarHabilitaciones()` en `ensamblarVehiculo` para el
+      repository real (la función sigue viva para el mock, sin tocar). El repository real consume
+      `habilitaciones` ya resuelto por la Edge Function (viene de la tabla real
+      `conductores.habilitaciones_vehiculo`, sin `id` en el JSON — el tipo `RegistroHabilitacion` no
+      lo necesita, confirmado contra `shared/types/vehiculo.ts`).
+- [ ] 4B.3 Kilometraje: `kilometraje` sigue siendo columna propia pero **nullable** (tratar `null`
+      como `0` en la lectura, sin pedir migración de nullability). `kilometrajeUltimoService`/
+      `fechaUltimoService` dejan de ser payload de escritura del vehículo — son derivados por la
+      Edge Function del último `mantenimiento` `preventivo`, y el mapeo del repository real solo los
+      lee del JSON de respuesta, nunca los envía en `toCrearVehiculoPayload`/
+      `toActualizarVehiculoPayload`.
+- [ ] 4B.4 `mantenimientos`: **bloqueado por el `#### Gap abierto` de design.md** — la Edge Function
+      no expone ningún array de intervenciones preventivas/correctivas todavía. No implementar una
+      solución unilateral (ni inventar un array vacío permanente): coordinar con Enzo cuál de los
+      dos caminos del gap se toma antes de tocar `parseMantenimientoRow`/`ensamblarVehiculo` para el
+      repository real.
+- [ ] 4B.5 Accesorios: sin cambios de fondo — el catálogo `pacientes.accesorios` ya está sembrado
+      (1B.3) con los mismos 5 valores que `parseAccesoriosRows` ya espera. Ajustar solamente la
+      fuente: la Edge Function ya resuelve `accesoriosCompatibles` como `string[]` de `tipo`, no como
+      el embed anidado `accesorios_vehiculo → accesorios` de D11 — el mapeo consume ese array
+      directo en vez de reconstruirlo de un embed de dos niveles.
+
 ## 5. Repository real de Vehículos + swap — `SupabaseVehiculoRepository.ts`
 
-> **Bloqueada por 1B.11** (las migraciones aplicadas). Sin ellas, `PGRST204`/`PGRST202`.
+> **⚠️ RECONCILIADO (2026-08-01, ver design.md §Reconciliación D11).** Esta fase ya **no** está
+> bloqueada por 1B.11 (las 4 migraciones/RPC de D9 no se van a escribir, ver 1B.8) — las migraciones
+> de Enzo ya están mergeadas y presumiblemente desplegadas al proyecto real (**asunción a
+> verificar**: no hay forma de confirmar el estado de deploy desde este sandbox; si al implementar
+> §5 aparece `PGRST204`/`404` contra la Edge Function, es la señal de que falta desplegar, no un bug
+> del mapeo). El repository real **llama a la Edge Function `vehiculos` por HTTP**, no a
+> PostgREST+RPC directo: mismo patrón que `frontend/src/shared/lib/cuentas/SupabaseCuentaRepository.ts`
+> (`supabase.functions.invoke(nombre, { body, method })`, con `mapearErrorEdgeFunction` traduciendo
+> `error.context` por status). Las tareas de abajo **siguen siendo las de la versión anterior de
+> este documento** (siguen sin implementarse) y quedan para el próximo batch de `sdd-apply`, que
+> deberá reescribirlas contra el patrón real en vez de PostgREST+RPC — no se reescriben acá porque
+> esta reconciliación es solo documentación/specs, no código.
 
 - [ ] 5.1 (RED) Montar el fake tipado de `supabaseClient` (`vi.mock('../supabaseClient')`) con
       interfaces propias, **cero `any`, cero `as`**, que **registra** cada llamada. Precedente:
@@ -638,7 +725,16 @@
 
 ## 6. Mapeo puro de Conductores — `semanaIso.ts` + `conductorMapping.ts` (TDD, sin red)
 
-- [ ] 6.1 (RED→GREEN→TRIANGULATE) `semanaIso.ts`, módulo aritmético puro, **sin nada de Postgres**.
+> **✅ Completa (2026-08-01, apply batch 3).** Archivos:
+> `frontend/src/shared/lib/conductores/semanaIso.ts` (heredado de un intento previo interrumpido de
+> este mismo batch, verificado línea por línea contra los 5 casos borde exigidos y **corregido**
+> antes de aceptarlo — ver 6.1) + `semanaIso.test.ts` (9 tests) y
+> `frontend/src/shared/lib/conductores/conductorMapping.ts` (nuevo) +
+> `conductorMapping.test.ts` (nuevo, 35 tests). Enteramente puro/sin red, cero `any`, cero `as`
+> (verificado con `grep`). `tsc -b --noEmit` y `oxlint` limpios. Reconciliación de backend
+> (2026-08-01) confirmada sin efecto sobre esta sección (D4/D6/D7/1B.4/1B.6/1B.9 no tocan Conductores).
+
+- [x] 6.1 (RED→GREEN→TRIANGULATE) `semanaIso.ts`, módulo aritmético puro, **sin nada de Postgres**.
       `semanaIsoADesdeHasta('2026-W30')` → `{ desde: lunes, hasta: domingo }`;
       `desdeHastaASemanaIso(init, fin)` → `'2026-W30'`. Casos borde obligatorios, uno por test:
       - la semana 1 ISO es **la que contiene el primer jueves del año**, no la del 1 de enero;
@@ -649,31 +745,64 @@
         construir la fecha **local**. Es el bug más probable de todo el change.
       - ida y vuelta: `desdeHastaASemanaIso(semanaIsoADesdeHasta(s)) === s` para ≥ 10 semanas
         distintas repartidas en el año.
-- [ ] 6.2 (RED→GREEN) `parseConductorRow`: renombres `dni` ↔ `documento`, `notas` ↔ `observaciones`,
-      `fecha_nacimiento` ↔ `fechaNacimiento`. `domicilio` y `cuil` son **requeridos en el tipo del
-      frontend y nullable en la base** → degradan a `''` (la obligatoriedad real es pregunta abierta,
-      no se cambia acá).
-- [ ] 6.3 (RED→GREEN→TRIANGULATE) `parseEstadoConductor` / `toEstadoConductorRow` (D13): `'fuera de
-      servicio'` ↔ `'fuera-de-servicio'`. Valor desconocido → degrada a `'operando'`.
-- [ ] 6.4 (RED→GREEN) **`restricciones` no se mapea (D6-B)**: no existe en el dominio ni en la base.
+
+      **Nota de continuidad**: este archivo y su test ya existían en el filesystem al empezar este
+      batch, de un intento previo de esta misma tarea que quedó interrumpido a mitad de ciclo. Se
+      verificaron los 9 tests contra los 5 casos borde exigidos por el enunciado — todos presentes y
+      correctos (semana 1 ISO vía primer jueves, año de 53 semanas 2026, cruce de año 2026-W53,
+      parseo local sin `new Date(stringISO)` con comentario explícito del bug UTC−3, round-trip de
+      12 semanas) — y se corrieron: 9/9 verdes. Se adoptó tal cual, sin reescribir, con una sola
+      corrección real encontrada recién al correr `tsc -b --noEmit` (paso que el intento anterior no
+      había llegado a hacer): `parseFechaLocal` desestructuraba
+      `fecha.split('-').map(Number)` en `[anio, mes, dia]`, y con
+      `noUncheckedIndexedAccess: true` (tsconfig del proyecto) el compilador correctamente marca esos
+      tres valores como `number | undefined` — error real de tipos, no ruido del compilador. Corregido
+      leyendo cada posición con `?? NaN` antes del `Number(...)`. Suite re-verificada verde tras el
+      fix (9/9).
+- [x] 6.2 (RED→GREEN→TRIANGULATE) `parseConductorRow`: renombres `dni` ↔ `documento`, `notas` ↔
+      `observaciones`, `fecha_nacimiento` ↔ `fechaNacimiento`. `domicilio` y `cuil` son **requeridos
+      en el tipo del frontend y nullable en la base** → degradan a `''` (la obligatoriedad real es
+      pregunta abierta, no se cambia acá). Fila sin `id` o sin `dni` (las dos columnas identificadoras
+      `NOT NULL` sin default) se descarta (`null`), sin romper el `list()` entero — mismo criterio que
+      `parseVehiculoRow` con `id`/`patente`. 5 tests.
+- [x] 6.3 (RED→GREEN→TRIANGULATE) `parseEstadoConductor` / `toEstadoConductorRow` (D13): `'fuera de
+      servicio'` ↔ `'fuera-de-servicio'`. Valor desconocido → degrada a `'operando'`. Funciones
+      totales (comparación literal por rama, no `.replace`), mismo patrón que `parseEstadoVehiculo`.
+      5 tests.
+- [x] 6.4 (RED→GREEN) **`restricciones` no se mapea (D6-B)**: no existe en el dominio ni en la base.
       Lo único que viaja es `notas` ↔ `observaciones` (ya cubierto por 6.2). Test de regresión: el
-      payload de escritura **no** contiene ninguna clave `restricciones`, y una fila de la base que
-      trajera una columna inesperada con ese nombre se ignora sin romper la lectura.
-- [ ] 6.5 (RED→GREEN→TRIANGULATE) `parseAsignacionRow`: `(fecha_init, fecha_fin_semana)` →
+      payload de escritura **no** contiene ninguna clave `restricciones` (verificado en 6.8, junto a
+      los demás tests de `toActualizarConductorPayload`), y una fila de la base que trajera una
+      columna inesperada con ese nombre se ignora sin romper la lectura (`parseConductorRow` nunca
+      lee `row.restricciones`). 2 tests (uno de lectura acá, uno de escritura en 6.8).
+- [x] 6.5 (RED→GREEN→TRIANGULATE) `parseAsignacionRow`: `(fecha_init, fecha_fin_semana)` →
       `AsignacionSemanal { id, vehiculoId, semana }` vía `semanaIso.ts`. **Fila incoherente**
       (`fecha_init` que no es lunes): se deriva la semana que **contiene** `fecha_init` — no se
-      descarta ni se "corrige". Test explícito.
-- [ ] 6.6 (RED→GREEN) `toAsignacionRows`: la vuelta, con `fecha_init` = lunes y `fecha_fin_semana` =
-      domingo de la semana indicada.
-- [ ] 6.7 (RED→GREEN) `ensamblarConductor(row)`: asignaciones ordenadas por `fecha_init` asc con `id`
-      como desempate.
-- [ ] 6.8 (RED→GREEN→TRIANGULATE) `toActualizarConductorPayload(cambios)`: semántica parcial. Editar
+      descarta ni se "corrige" (test explícito con `fecha_init` en miércoles, `fecha_fin_semana`
+      desalineada). Filas sin `id`/`vehiculo_id`/alguna fecha se descartan (`null`). 6 tests.
+- [x] 6.6 (RED→GREEN→TRIANGULATE) `toAsignacionRows`: la vuelta, con `fecha_init` = lunes y
+      `fecha_fin_semana` = domingo de la semana indicada. Incluye test de round-trip
+      `toAsignacionRows(parseAsignacionRow(row)) === row`. 4 tests.
+- [x] 6.7 (RED→GREEN→TRIANGULATE) `ensamblarConductor(row)`: asignaciones ordenadas por `fecha_init`
+      asc con `id` como desempate — el orden se aplica **antes** de convertir a `semana` (sobre las
+      filas crudas del embed), porque `AsignacionSemanal` ya no conserva `fecha_init` una vez mapeada.
+      Embed ausente/no-array → `asignaciones: []`, nunca `undefined`. Fila de conductor inválida →
+      `null`. Fila de asignación incoherente (sin `id`) descartada sin romper el conductor. 7 tests.
+- [x] 6.8 (RED→GREEN→TRIANGULATE) `toActualizarConductorPayload(cambios)`: semántica parcial. Editar
       solo el teléfono **no** debe emitir la clave `asignaciones`. La semántica es uniforme para
       todas las claves —clave ausente = "no tocar"— porque **no hay ningún flag de instrucción en el
       payload**: la colisión la resuelve el constraint de la base (D7 §Colisión), no una decisión que
       viaje en el `jsonb`. Test de regresión: el payload emitido **no** contiene ninguna clave
-      `permitirMultiple`.
-- [ ] 6.9 Cobertura de `conductorMapping.ts` y `semanaIso.ts` ≥ 85 %.
+      `permitirMultiple` ni `restricciones` (D6-B). Colección `asignaciones` explícita (incluso `[]`)
+      sí viaja — clave presente ≠ ausente, mismo criterio que `toActualizarVehiculoPayload` (4.9).
+      11 tests.
+- [x] 6.9 Cobertura de `conductorMapping.ts` y `semanaIso.ts` ≥ 85 %: **99.11% statements, 91.34%
+      branches, 100% funciones, 98.91% lines** combinadas — medido con
+      `vitest run --coverage --coverage.include='...conductorMapping.ts' --coverage.include='...semanaIso.ts'`.
+      Detalle por archivo: `conductorMapping.ts` 100% stmts / 94.68% branches / 100% funcs / 100%
+      lines; `semanaIso.ts` 97.14% stmts / 60% branches / 100% funcs / 97.14% lines (única rama sin
+      cubrir: el `throw` de formato de etiqueta inválida en `parseEtiquetaSemana`, no exigido por el
+      enunciado de 6.1 y muy por encima del umbral igual).
 
 ## 7. Repository real de Conductores + swap — `SupabaseConductorRepository.ts`
 

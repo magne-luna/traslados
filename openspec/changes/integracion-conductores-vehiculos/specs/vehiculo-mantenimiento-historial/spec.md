@@ -14,6 +14,15 @@ El nivel 2 de **correctivo** MUST admitir sub-tipos fuera del catálogo conocido
 
 Con la implementación real, los dos niveles MUST persistirse en columnas propias de `conductores.mantenimiento`: `categoria` (el enum de Postgres ya existente, que coincide exactamente con el nivel 1), más `subtipo TEXT`, `detalle TEXT` y `descripcion TEXT`, aditivas. El sistema SHALL escribir en `subtipo` y `detalle` exactamente los valores de las uniones del frontend — el mismo literal que usa el tipo `MantenimientoRegistro`, sin traducirlos ni abreviarlos — y MUST NOT inventar ningún valor que esas uniones no contemplen. La coherencia entre `categoria`, `subtipo` y `detalle` MUST estar reforzada en la base con el constraint `chk_categoria_subtipo`, declarado `NOT VALID` en la migración que lo crea (patrón expand/contract: se valida en un paso posterior y separado, después de confirmar que no hay filas existentes que lo violen).
 
+> ⚠️ **Gap abierto (2026-08-01) — ver `design.md` §Reconciliación, `#### Gap abierto`.** `descripcion`
+> ya fue agregada por el backend real (`C-08-vehiculos-mantenimiento`, `20260730110000_schema_vehiculo_gaps.sql`),
+> compartida con el uso de `vehiculo-gastos`. **`subtipo` y `detalle` todavía no existen** en la base
+> real, y la Edge Function `vehiculos/index.ts` no expone ningún array de intervenciones
+> preventivas/correctivas para leerlas o escribirlas. El párrafo de arriba sigue siendo la
+> especificación normativa de la forma deseada; su implementación real está bloqueada hasta
+> coordinar con Enzo cuál de los dos caminos del gap abierto se toma — no se resuelve
+> unilateralmente en este documento.
+
 #### Scenario: Sub-tipos ofrecidos para una intervención preventiva
 - **WHEN** se registra una intervención de tipo preventivo
 - **THEN** los sub-tipos disponibles son exactamente cambio de aceite/filtros, VTV y RTO
@@ -94,6 +103,14 @@ El tipo de intervención y el sub-tipo MUST comunicarse con **texto**, no solo c
 
 El historial MUST ser legible con nivel de acceso `read` sobre el módulo `vehiculos`; solo el alta MUST requerir nivel `write`.
 
+> ⚠️ **Gap abierto (2026-08-01) — ver `design.md` §Reconciliación, `#### Gap abierto`.** El párrafo
+> de abajo asume que el historial completo (`mantenimiento`) viaja embebido en la respuesta del
+> vehículo. La Edge Function real `vehiculos/index.ts` **no expone ningún array `mantenimientos`**:
+> solo deriva `kilometrajeUltimoService`/`fechaUltimoService` del último registro `preventivo` y
+> filtra `gastos` de `categoria = 'gasto'`, pero no devuelve las intervenciones preventivas/
+> correctivas en sí. Este requisito queda **bloqueado** hasta que se resuelva el gap (extender la
+> Edge Function o construir `mantenimiento/index.ts`) — no se implementa una solución unilateral.
+
 Con la implementación real, el historial se lee embebido en la misma consulta que el resto del vehículo (`conductores.vehiculo` → `mantenimiento`). Una fila cuya combinación de `categoria`/`subtipo`/`detalle` sea incoherente con la unión discriminada del frontend (posible mientras `chk_categoria_subtipo` es `NOT VALID`) MUST descartarse en el mapeo puro sin romper la lectura del resto del historial ni del vehículo.
 
 #### Scenario: Historial poblado
@@ -126,29 +143,59 @@ Con la implementación real, el historial se lee embebido en la misma consulta q
 ### Requirement: El historial no es la fuente de verdad de los vencimientos
 
 > ✅ **Resuelto por el checkpoint D3 del `design.md` de `integracion-conductores-vehiculos` (opción B, 2026-07-31).** Este requisito, que antes valía por igual para el service preventivo y para las habilitaciones VTV/RTO, **se parte en dos**: sigue valiendo tal cual para el service preventivo y **se invierte** para VTV/RTO, que pasan a derivarse del historial. La duplicación que este requisito señalizaba como pendiente **deja de existir**, y el aviso en pantalla cambia de contenido en consecuencia.
+>
+> ⚠️ **SUPERSEDED (2026-08-01) — ver `design.md` §Reconciliación con C-08-vehiculos-mantenimiento,
+> D3.** La resolución de la usuaria fue la opción B (derivar de `mantenimiento`), descripta abajo.
+> El backend real, ya mergeado (Enzo, `C-08-vehiculos-mantenimiento`), implementó la **opción A**
+> que D3 había descartado: una tabla propia `conductores.habilitaciones_vehiculo(id, vehiculo_id,
+> tipo, fecha_emision, fecha_vencimiento)`, con RLS gateada por `vehiculos`. **Las habilitaciones
+> VTV/RTO NO se derivan del historial en la implementación real** — se leen y se escriben
+> directamente en esa tabla, vía la Edge Function `vehiculos/index.ts`. La duplicación de
+> vencimiento que este requisito daba por eliminada **sigue existiendo** en la base real: un
+> vencimiento de VTV puede estar cargado como intervención preventiva en `mantenimiento` **y**
+> como fila de `habilitaciones_vehiculo`, sin nada que las mantenga sincronizadas. Se documenta como
+> discrepancia con el docx (que no distingue una tabla propia) — no se resuelve acá. El párrafo
+> original se conserva abajo como registro de la decisión que la usuaria tomó, todavía válida para
+> el **mock** (`derivarHabilitaciones()`, tasks.md 2B.1), pero no para el repository real.
 
 El sistema SHALL seguir calculando el estado del **service preventivo** (capability `vehiculo-mantenimiento`, RN-VE-03) a partir del kilometraje y las fechas del propio vehículo (`kilometraje`, `kilometrajeUltimoService`, `fechaUltimoService`), y MUST NOT derivarlo de los registros del historial. Los campos de próximo vencimiento **por kilometraje** de un registro de mantenimiento siguen siendo informativos: registrar una intervención MUST NOT alterar por sí solo el estado de alerta del service.
 
-En cambio, las **habilitaciones VTV y RTO** (RN-VE-04) SHALL derivarse del historial: `Vehiculo.habilitaciones` se calcula de las intervenciones preventivas de sub-tipo `'vtv'` / `'rto'` con próximo vencimiento por fecha informado, según la regla fijada en `vehiculo-contract` y en la capability `vehiculo-repository-supabase`. El historial SHALL ser, para esos dos sub-tipos, **la única fuente de verdad**; el sistema MUST NOT mantener ninguna colección de habilitaciones persistida aparte, ni ofrecer un alta de habilitación separada del alta de intervención de mantenimiento.
+Con la decisión original de este documento (vigente para el **mock**, superada para el repository real — ver nota de arriba), las **habilitaciones VTV y RTO** (RN-VE-04) SHALL derivarse del historial: `Vehiculo.habilitaciones` se calcula de las intervenciones preventivas de sub-tipo `'vtv'` / `'rto'` con próximo vencimiento por fecha informado, según la regla fijada en `vehiculo-contract` y en la capability `vehiculo-repository-supabase`. El historial SHALL ser, para esos dos sub-tipos, **la única fuente de verdad**; el sistema MUST NOT mantener ninguna colección de habilitaciones persistida aparte, ni ofrecer un alta de habilitación separada del alta de intervención de mantenimiento.
 
-Esta asimetría —service preventivo calculado del vehículo, habilitaciones derivadas del historial— MUST quedar señalizada en la pantalla con el componente de aviso de modelo de datos del proyecto. El `AvisoModeloDatos` MUST decir que el vencimiento de VTV/RTO se registra y se lee **como intervención preventiva del historial**, alineado con el docx (*"el vencimiento se rastrea vía mantenimiento"*), y que lo que sigue divergiendo del docx es el kilometraje y el último service, que son campos propios de Vehículo. MUST NOT seguir anunciando una duplicación de vencimientos: ya no la hay.
+**Con la implementación real (vigente para `SupabaseVehiculoRepository`):** las habilitaciones VTV/RTO SHALL leerse y escribirse directamente en la tabla `conductores.habilitaciones_vehiculo` a través de la Edge Function `vehiculos` (reemplazo completo por `DELETE`+`INSERT`, igual semántica de colección que el resto de las tablas hijas). El repository real MUST NOT llamar a `derivarHabilitaciones()` — esa función queda vigente únicamente para `mockVehiculoRepository`.
+
+Esta asimetría —service preventivo calculado del vehículo, habilitaciones derivadas del historial (mock) / leídas de tabla propia (real)— MUST quedar señalizada en la pantalla con el componente de aviso de modelo de datos del proyecto. El `AvisoModeloDatos` MUST decir que, en la implementación real, el vencimiento de VTV/RTO se registra en una tabla propia (`habilitaciones_vehiculo`) y no vía el historial de mantenimiento como describe el docx (*"el vencimiento se rastrea vía mantenimiento"*) — divergencia que sigue abierta — y que el kilometraje y el último service son campos propios de Vehículo, derivados del historial por la Edge Function.
 
 #### Scenario: Alta de intervención sin efecto sobre la alerta de service preventivo
 - **WHEN** se registra una intervención preventiva de cambio de aceite con un próximo vencimiento por kilometraje
 - **THEN** el estado de alerta del service preventivo del vehículo sigue siendo el que calculan las funciones puras a partir del kilometraje y la fecha del último service del vehículo, sin cambiar por el registro nuevo
 
-#### Scenario: Alta de una VTV sí actualiza la habilitación mostrada
+#### Scenario: Alta de una VTV sí actualiza la habilitación mostrada — vigente solo en el mock
+> Con `mockVehiculoRepository` (que sigue usando `derivarHabilitaciones()`), este escenario se
+> cumple igual. Con `SupabaseVehiculoRepository` real, el alta de habilitación **no** pasa por una
+> intervención de mantenimiento: es una fila propia en `habilitaciones_vehiculo` (ver nota
+> SUPERSEDED arriba) — el escenario equivalente para la implementación real se agrega abajo.
 - **WHEN** se registra una intervención preventiva de sub-tipo VTV con próximo vencimiento por fecha
 - **THEN** tras la relectura del vehículo, la habilitación VTV mostrada pasa a ser la derivada de ese registro
 - **AND** no hace falta ninguna carga adicional en otra sección de la pantalla
 
-#### Scenario: No existe un alta de habilitación separada del historial
+#### Scenario: Alta de una VTV/RTO en la tabla propia (implementación real, vigente)
+- **GIVEN** un usuario con `vehiculos: write`
+- **WHEN** guarda un vehículo con una entrada de `habilitaciones` de tipo VTV con fecha de emisión y de vencimiento
+- **THEN** la Edge Function reemplaza por completo las filas de `conductores.habilitaciones_vehiculo` de ese vehículo (`DELETE` + `INSERT`)
+- **AND** la relectura posterior del vehículo devuelve esa habilitación
+
+#### Scenario: No existe un alta de habilitación separada del historial — ⚠️ SUPERSEDED para el repository real
+> Vigente solo para el mock. En la implementación real, el alta de habilitación **es** un flujo
+> separado del alta de intervención de mantenimiento (ambos viajan en el mismo payload de
+> `update()`/`create()`, pero como colecciones distintas — `habilitaciones` y `mantenimientos`/
+> `gastos` — no como una derivación de la otra). Se conserva como registro de la decisión superada.
 - **WHEN** el usuario busca dónde cargar el vencimiento de una VTV o una RTO
 - **THEN** el único lugar es el alta de intervención de mantenimiento, eligiendo tipo preventivo y el sub-tipo correspondiente
 - **AND** la sección que muestra las habilitaciones indica de dónde salen cuando está vacía, en vez de sugerir que faltan datos por cargar en otro lado
 
-#### Scenario: Aviso de modelo de datos actualizado
+#### Scenario: Aviso de modelo de datos actualizado — contenido ajustado a la realidad
 - **WHEN** el usuario abre la sección de mantenimiento de un vehículo
-- **THEN** el aviso explica que VTV/RTO se rastrean vía el historial de mantenimiento, como en el docx
-- **AND** el aviso NO menciona ninguna duplicación de vencimientos pendiente de resolver
-- **AND** el aviso sigue señalando que el kilometraje y el último service son campos propios del vehículo y no derivados del historial
+- **THEN** el aviso explica que VTV/RTO se registran en una tabla propia (`habilitaciones_vehiculo`), divergente del docx (*"se rastrea vía mantenimiento"*)
+- **AND** el aviso señala que esa divergencia con el docx sigue abierta, pendiente de confirmar con Enzo/backend
+- **AND** el aviso sigue señalando que el kilometraje y el último service son campos propios del vehículo, derivados del historial por la Edge Function y no del lado del frontend

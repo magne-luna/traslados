@@ -67,7 +67,15 @@ a estas funciones.
 
 ### Requirement: Lectura del vehículo en una consulta con embeds y una segunda consulta batcheada de gastos
 
-El sistema SHALL resolver `list()` y `getById()` con una única consulta a `conductores.vehiculo` que
+> ⚠️ **SUPERSEDED en el mecanismo de acceso (2026-08-01) — ver `design.md` §Reconciliación con
+> C-08-vehiculos-mantenimiento, D11.** Este requisito asume que `SupabaseVehiculoRepository` habla
+> PostgREST directo contra `conductores.vehiculo`. La implementación real llama en cambio a la Edge
+> Function `vehiculos` (GET `/vehiculos` para `list()`, GET `/vehiculos/:id` para `getById()`) vía
+> `supabase.functions.invoke()`, con el mismo patrón que `SupabaseCuentaRepository.ts` — ver el
+> requisito "Lectura vía la Edge Function `vehiculos`" más abajo, que es la especificación vigente.
+> Se conserva el texto original como registro de lo planeado antes de conocer el backend real.
+
+Con la decisión original de este documento (superada), el sistema SHALL resolver `list()` y `getById()` con una única consulta a `conductores.vehiculo` que
 embeba `accesorios_vehiculo → accesorios` y `mantenimiento`:
 
 ```sql
@@ -105,11 +113,58 @@ vehículo (patrón N+1): para N vehículos, `list()` SHALL emitir exactamente 2 
 - **THEN** la promesa resuelve a `null`
 - **AND** NO se emite ninguna consulta de gastos, porque no hay vehículo al cual asociarlos
 
-#### Scenario: RLS que filtra la fila se comporta como "no existe"
+#### Scenario: RLS que filtra la fila se comporta como "no existe" — ⚠️ SUPERSEDED
+> No aplica tal cual con la implementación real: la Edge Function usa un cliente `service-role`
+> que no está sujeto a RLS. Un vehículo inexistente sigue resolviendo `null` (la función devuelve
+> `404`), pero por ausencia de fila, no por filtrado de RLS. Se conserva como registro.
 - **GIVEN** un usuario sin permiso `vehiculos: read`
 - **WHEN** se invoca `getById(id)` sobre un vehículo que sí existe en la base
 - **THEN** la consulta a `conductores.vehiculo` devuelve 0 filas porque la policy de RLS la filtra
 - **AND** `getById` resuelve a `null` en lugar de lanzar un error de permisos
+
+### Requirement: Lectura y escritura vía la Edge Function `vehiculos` (implementación real, vigente)
+
+El sistema SHALL resolver las cuatro operaciones de `VehiculoRepository` llamando a la Edge Function
+`vehiculos` (`supabase/functions/vehiculos/index.ts`) por HTTP, con el mismo patrón que ya usa
+`frontend/src/shared/lib/cuentas/SupabaseCuentaRepository.ts`: `supabase.functions.invoke(nombre,
+{ body, method })`, que adjunta automáticamente el JWT de la sesión activa como header
+`Authorization`. `list()` SHALL invocar GET sobre `'vehiculos'`; `getById(id)` SHALL invocar GET
+sobre `` `vehiculos/${id}` ``; `create(data)` SHALL invocar POST sobre `'vehiculos'`; `update(id,
+data)` SHALL invocar PATCH sobre `` `vehiculos/${id}` ``. El sistema MUST NOT construir consultas
+PostgREST directas (`supabase.schema('conductores').from('vehiculo')`) para estas operaciones: la
+Edge Function ya resuelve internamente los embeds, la resolución de accesorios contra
+`pacientes.accesorios` y la agregación de gastos y habilitaciones.
+
+El sistema SHALL traducir el error de `supabase.functions.invoke()` inspeccionando
+`error.context` (una `Response`) por su `status`, siguiendo el mismo mapeo de
+`mapearErrorEdgeFunction` que ya usa `SupabaseCuentaRepository.ts`, y MUST NOT propagar el cuerpo
+crudo de la respuesta.
+
+#### Scenario: list() invoca GET sobre la Edge Function
+- **WHEN** se invoca `list()`
+- **THEN** se emite `supabase.functions.invoke('vehiculos', { method: 'GET' })`
+- **AND** NO se emite ninguna consulta directa a `conductores.vehiculo` vía PostgREST
+
+#### Scenario: getById(id) invoca GET con el id en el path
+- **GIVEN** un id de vehículo existente
+- **WHEN** se invoca `getById(id)`
+- **THEN** se emite `supabase.functions.invoke(`vehiculos/${id}`, { method: 'GET' })`
+
+#### Scenario: getById de un vehículo inexistente resuelve null sin lanzar
+- **GIVEN** un id que no corresponde a ningún vehículo
+- **WHEN** la Edge Function responde `404`
+- **THEN** `getById` resuelve `null`, no rechaza
+
+#### Scenario: create() invoca POST y update() invoca PATCH
+- **GIVEN** un `NuevoVehiculo` válido
+- **WHEN** se invoca `create(data)`
+- **THEN** se emite `supabase.functions.invoke('vehiculos', { method: 'POST', body })`
+- **AND** un `update(id, cambios)` posterior emite `supabase.functions.invoke(`vehiculos/${id}`, { method: 'PATCH', body: cambios })`
+
+#### Scenario: El error de la Edge Function se traduce sin propagar el cuerpo crudo
+- **GIVEN** una respuesta de error de la Edge Function con status `403`
+- **WHEN** `supabase.functions.invoke()` rechaza con ese error
+- **THEN** el repository lo traduce a un `Error` con mensaje en castellano, sin exponer el JSON crudo de la respuesta
 
 ### Requirement: Reconstrucción de la unión discriminada MantenimientoRegistro desde categoría, subtipo y detalle
 
@@ -154,7 +209,17 @@ del vehículo — misma política que una fila hija malformada.
 
 ### Requirement: Habilitaciones VTV/RTO derivadas del historial de mantenimiento
 
-No existe ninguna tabla de habilitaciones en la base y este change MUST NOT crearla (decisión D3,
+> ⚠️ **SUPERSEDED para `SupabaseVehiculoRepository` (2026-08-01) — ver `design.md` §Reconciliación
+> con C-08-vehiculos-mantenimiento, D3.** El backend real (Enzo, `C-08-vehiculos-mantenimiento`,
+> ya mergeado) creó `conductores.habilitaciones_vehiculo(id, vehiculo_id, tipo, fecha_emision,
+> fecha_vencimiento)` — la tabla que este requisito decía que "no existe en la base y este change
+> MUST NOT crearla". La implementación real de `SupabaseVehiculoRepository` MUST leer y escribir esa
+> tabla directamente a través de la Edge Function (que ya expone `habilitaciones` en su respuesta
+> JSON, sin `id`, resuelto contra esa tabla), y MUST NOT llamar a `derivarHabilitaciones()`. Ese
+> texto y esos escenarios siguen siendo la especificación vigente para `mockVehiculoRepository`
+> únicamente. Se conservan sin editar como registro de la decisión original.
+
+Con la decisión original de este documento (vigente para el mock, superada para el repository real), no existe ninguna tabla de habilitaciones en la base y este change MUST NOT crearla (decisión D3,
 opción B). El sistema SHALL derivar `Vehiculo.habilitaciones` de las filas de
 `conductores.mantenimiento` con `categoria = 'preventivo'` y `subtipo IN ('vtv','rto')`, mediante una
 función pura `derivarHabilitaciones(mantenimientos)` ubicada junto al resto de las funciones puras de
@@ -243,7 +308,17 @@ lectura del vehículo ni del listado.
 
 ### Requirement: Escritura multi-tabla atómica mediante funciones de Postgres SECURITY INVOKER
 
-El sistema SHALL resolver `create()` con una **única** llamada
+> ⚠️ **SUPERSEDED en el mecanismo (2026-08-01) — ver `design.md` §Reconciliación con
+> C-08-vehiculos-mantenimiento, D9/D11.** Las cuatro funciones `SECURITY INVOKER` que describe este
+> requisito **no existen y no se van a escribir**: el backend real (Enzo) resolvió la escritura
+> multi-tabla dentro de la Edge Function `vehiculos/index.ts`, que corre con un cliente
+> `service-role` tras un único chequeo grueso `tiene_permiso('vehiculos', nivel)` (ver el requisito
+> de "Degradación explícita..." más abajo, también SUPERSEDED). El texto y los escenarios de abajo
+> quedan como registro de la decisión original — ninguno de los dos `rpc()` que describen existe en
+> el repo. La forma vigente de `create()`/`update()` es la del requisito "Lectura y escritura vía la
+> Edge Function `vehiculos`" de arriba (POST/PATCH sobre el mismo endpoint).
+
+Con la decisión original de este documento (superada), el sistema SHALL resolver `create()` con una **única** llamada
 `supabase.schema('conductores').rpc('crear_vehiculo_completo', { p_vehiculo })` y `update()` con una
 única llamada `rpc('actualizar_vehiculo_completo', { p_id, p_cambios })`. Ambas funciones SHALL
 escribir `conductores.vehiculo` y, según las claves presentes en el payload, `accesorios_vehiculo`,
@@ -308,7 +383,17 @@ con valor `null`. Cuando una clave sí está presente, la función SHALL reempla
 
 ### Requirement: Degradación explícita, nunca dato inventado, cuando falta un permiso cruzado
 
-El sistema SHALL degradar explícitamente, en vez de fallar, cuando RLS oculta una colección
+> ⚠️ **SUPERSEDED (2026-08-01) — ver `design.md` §Reconciliación con C-08-vehiculos-mantenimiento,
+> D10.** La Edge Function real hace **un solo** chequeo grueso `tiene_permiso('vehiculos', nivel)` y
+> usa un cliente `service-role` para todo lo demás (accesorios, gastos, habilitaciones incluidos):
+> no hay ningún punto donde RLS por tabla filtre nada, porque el cliente admin la bypassea. **No
+> existe ninguna degradación cruzada que implementar**: un usuario con `vehiculos: write` ve y
+> escribe accesorios y gastos siempre, sin necesitar `pacientes: read` ni `facturacion: read`/
+> `write`. Los escenarios de abajo describen un comportamiento que no ocurre en la implementación
+> real — se conservan como registro de la decisión original, no como comportamiento a testear
+> contra `SupabaseVehiculoRepository`.
+
+Con la decisión original de este documento (superada), el sistema SHALL degradar explícitamente, en vez de fallar, cuando RLS oculta una colección
 perteneciente a otro módulo de permisos. Sin `pacientes: read`, el embed
 `accesorios_vehiculo → accesorios` vuelve vacío y el sistema SHALL resolver
 `accesoriosCompatibles: []` señalizado en la UI, MUST NOT interpretarlo como "este vehículo no admite
@@ -346,7 +431,20 @@ resto del vehículo SHALL guardarse con normalidad.
 
 ### Requirement: Traducción de errores de PostgREST a mensajes de dominio en castellano
 
-El sistema SHALL lanzar siempre instancias de `Error` con un `message` en castellano apto para
+> ⚠️ **Parcialmente SUPERSEDED (2026-08-01) — ver `design.md` §Reconciliación con
+> C-08-vehiculos-mantenimiento.** La Edge Function real propaga la mayoría de los errores como
+> `jsonResponse(400, { error: error.message })` — el texto crudo del motor, sin traducir códigos
+> como `23505`/`23503`/`23514` a una forma reconocible por separado; y los casos `401`/`403`/`404`
+> sí tienen status HTTP propio (ver el requisito "Lectura y escritura vía la Edge Function..." de
+> arriba, con `mapearErrorEdgeFunction`). La tabla de códigos de abajo (`PGRST202`, `PGRST204`,
+> `45201`–`45204`, etc.) **no aplica tal cual**, porque no hay RPC ni códigos propios `45xxx` en la
+> implementación real. Queda como **gap a resolver junto con el próximo batch de `sdd-apply`**: el
+> repository real va a necesitar su propia estrategia para no propagar mensajes crudos en inglés/
+> con nombres de tabla, dado que la Edge Function no se los evita. No se resuelve unilateralmente
+> acá — se conserva la tabla original como referencia de qué señales conviene distinguir si Enzo
+> extiende la Edge Function para emitirlas con status/código propio.
+
+Con la decisión original de este documento (parcialmente superada), el sistema SHALL lanzar siempre instancias de `Error` con un `message` en castellano apto para
 mostrarse tal cual al usuario, porque `useVehiculos` pinta `err.message` directamente. El sistema
 SHALL implementar `mapearErrorVehiculo` traduciendo, como mínimo, `23505` sobre `vehiculo.patente`,
 `23503` (FK a un vehículo inexistente), `23514` (violación de `chk_categoria_subtipo`), `22P02`
@@ -391,25 +489,41 @@ tablas o columnas hacia la UI.
 - **WHEN** `getById` no encuentra el vehículo
 - **THEN** la promesa resuelve `null`, no rechaza — es el único caso que MUST NOT traducirse a `Error`
 
-### Requirement: RLS existente como única autorización, sin duplicarla ni bypassearla
+### Requirement: Autorización delegada a la Edge Function, sin duplicarla ni bypassearla del lado del frontend
 
-El sistema SHALL apoyarse exclusivamente en las policies de RLS ya definidas
+> ⚠️ **Mecanismo SUPERSEDED (2026-08-01) — ver `design.md` §Reconciliación con
+> C-08-vehiculos-mantenimiento, D10/D11.** La autorización real no pasa por RLS evaluada por el
+> cliente del frontend (`anon key`), sino por el chequeo `requirePermiso(req, 'vehiculos', nivel)`
+> que corre **dentro** de la Edge Function, antes de usar un cliente `service-role`. RLS sigue
+> definida sobre las tablas (segunda capa de defensa contra un acceso directo que se saltee la Edge
+> Function), pero **no** es el punto de enforcement que ve el frontend. El requisito original
+> (RLS como única autorización desde PostgREST directo) se conserva abajo; la forma vigente es la
+> que sigue a continuación.
+
+Con la decisión original de este documento (superada en el mecanismo, vigente en el espíritu — nunca reimplementar la autorización del lado del cliente), el sistema SHALL apoyarse exclusivamente en las policies de RLS ya definidas
 (`tiene_permiso('vehiculos', 'read' | 'write')`, `tiene_permiso('pacientes', 'read')`,
 `tiene_permiso('facturacion', 'read' | 'write')`) para autorizar lecturas y escrituras. El sistema
 MUST NOT reimplementar, replicar ni anticipar esa lógica de permisos en el repository, y MUST NOT
 tratar el gateo de escritura de la UI (`usePuedeEscribir`) como control de acceso, dado que es
 client-side y evitable.
 
+**Con la implementación real (vigente):** el sistema SHALL delegar toda la autorización al chequeo
+`tiene_permiso('vehiculos', nivel)` que corre dentro de la Edge Function `vehiculos`, y MUST NOT
+reimplementar ni anticipar esa verificación en `SupabaseVehiculoRepository.ts` ni en ningún otro
+punto del frontend. El repository SHALL tratar cualquier respuesta `403` de la Edge Function como
+un rechazo de autorización, traducido a mensaje visible, sin haber permitido la operación
+localmente.
+
 #### Scenario: El repository no consulta la tabla de permisos
 - **GIVEN** el código de `SupabaseVehiculoRepository.ts`
 - **WHEN** se inspeccionan sus consultas
 - **THEN** no lee `modulos.permisos` ni `modulos.modulos` para decidir si operar
-- **AND** delega la decisión a la policy de RLS del servidor
+- **AND** delega la decisión a la Edge Function, que a su vez llama a `tiene_permiso()` del lado del servidor
 
 #### Scenario: Un intento de escritura sin permiso falla en el servidor
 - **GIVEN** un usuario sin `vehiculos: write` que evita el gateo de UI
 - **WHEN** se invoca `create()` o `update()`
-- **THEN** la escritura es rechazada por la base
+- **THEN** la Edge Function responde `403` antes de tocar ninguna tabla
 - **AND** el repository traduce ese rechazo a un error visible, sin haberla permitido localmente
 
 ### Requirement: Catálogo de accesorios de movilidad sembrado y validado contra la unión cerrada
