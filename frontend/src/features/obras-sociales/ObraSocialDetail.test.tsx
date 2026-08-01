@@ -1,9 +1,30 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render as rtlRender, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { PrestadorRepository } from '../../shared/lib/prestadores/PrestadorRepository';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
+import { PrestadorRepositoryProvider } from '../prestadores/PrestadorRepositoryContext';
 import { ObraSocialDetail } from './ObraSocialDetail';
+
+// `ObraSocialDetail` monta `PrestadoresDeObraSocial` (design.md D2, tasks.md 5.2) en modo
+// edición, que exige un `PrestadorRepositoryProvider` en el árbol (`usePrestadorRepository()`
+// lanza si falta). Fake mínimo tipado (sin `any`/`as`) que resuelve sin vínculos — este archivo no
+// testea el panel de solo lectura en sí (eso es plomería sin test dedicado, ver
+// PrestadoresDeObraSocial.tsx), solo necesita que `ObraSocialDetail` no explote al montarse.
+const fakePrestadorRepository: PrestadorRepository = {
+  list: () => Promise.resolve([]),
+  getById: () => Promise.resolve(null),
+  create: () => Promise.reject(new Error('no implementado en este test')),
+  update: () => Promise.reject(new Error('no implementado en este test')),
+  listarPorObraSocial: () => Promise.resolve([]),
+};
+
+// Sombra local de `render` (mismo nombre, wrapper agregado) para no tocar ninguno de los ~20
+// call-sites de este archivo: todos ya asumían que `render(<ObraSocialDetail .../>)` alcanzaba.
+function render(ui: React.ReactElement) {
+  return rtlRender(<PrestadorRepositoryProvider repository={fakePrestadorRepository}>{ui}</PrestadorRepositoryProvider>);
+}
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);

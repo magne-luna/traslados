@@ -65,8 +65,35 @@ Recorrido N---1 Paciente (por tramo, con dirección de ida y de vuelta independi
   consentimiento, declaración de domicilio, mapa, presupuesto, CBU, habilitación, FIM; **persistido
   relacional** contra el catálogo compartido `obra_social.tipos_documento`, no como array embebido),
   plantilla de descripción de factura, modalidad de facturación (por prestación vs. factura
-  general), condiciones por prestador (plazo de cobro, tipo de comprobante A/B/C), si admite pagos
-  parciales/por lote.
+  general), si admite pagos parciales/por lote.
+  - ⚠️ **Plazo de cobro y tipo de comprobante (A/B/C) se movieron a Prestador** (change
+    `prestadores-crud`, propuesto y aplicado en frontend 2026-08-01, **provisorio — SIN confirmar
+    con Andrea**, ver §Discrepancias y `10_preguntas_abiertas.md`). Las columnas gemelas
+    `obra_social.obra_social.plazo_cobro_dias`/`.tipo_comprobante` siguen existiendo en la base
+    (nadie las dropea sin confirmación — D3 de `prestadores-crud/design.md`) pero quedan
+    vestigiales: el frontend ya no las lee ni las escribe desde `ObraSocialForm.tsx`.
+- Relaciones: **N:N con Prestador** (tabla de vínculo `obra_social.obra_social_prestador`, ver
+  entidad `Prestador` abajo) — provisorio, mismo change, sin confirmar con Andrea.
+
+### Prestador
+- ⚠️ **Entidad nueva en el frontend, change `prestadores-crud` (propuesto y aplicado 2026-08-01,
+  rama de demo, provisorio — SIN confirmar con Andrea).** `obra_social.prestadores` existe en la
+  base real desde el 2026-07-24 (creada por `integracion-obra-social`) pero sin ninguna vía de alta
+  en la app hasta este change.
+- Atributos: razón social, CUIT (**ambigüedad sin resolver** frente a `obra_social.cuit`, ver
+  §Discrepancias discrepancia #12), dirección (opcional), teléfono (opcional), **más** plazo de
+  cobro y tipo de comprobante (A/B/C) — movidos desde `ObraSocial` (lectura literal de US-300:
+  "se registra plazo de cobro, tipo de comprobante... y demás condiciones particulares **por
+  prestador**"), provisorio.
+- Relaciones: **N:N con ObraSocial** vía `obra_social.obra_social_prestador` (PK compuesta
+  `(obra_social_id, prestador_id)`, ambas FK `ON DELETE CASCADE`, sin columna propia — la fila no
+  guarda ningún dato además del par). El multi-select de edición vive en `PrestadorForm.tsx`; el
+  panel de solo lectura vive en `ObraSocialDetail.tsx`. Escritura por diff (no reemplazo total),
+  no atómica (dos requests PostgREST sin transacción) — aceptado en esta rama de demo porque el
+  vínculo todavía no alimenta ninguna factura.
+- **Sin resolver, explícitamente fuera de alcance de este change**: si una ObraSocial tiene varios
+  Prestadores vinculados, ¿cuál aplica al generar una factura general? Ver
+  `10_preguntas_abiertas.md`.
 
 ### Presupuesto / Autorizacion
 - Atributos: estimación anual solicitada (Presupuesto) vs. respuesta de la obra social (Autorizacion — igual o menor, nunca mayor), cupo de días/km por mes, estado (pendiente, autorizada, judicializada, rechazada), vigencia (permite carga retroactiva, ej. autorizada en abril con vigencia desde enero).
@@ -400,6 +427,10 @@ así que queda anotado acá hasta que se construya esa feature.
   6-9. `plazoCobroDias`, `modalidadFacturacion`, `admitePagosParciales`, `plantillaFactura.campos[]`
      — resuelto: ya existían en la base real (columnas/tabla `plantilla_campo`, no
      `campos_plantilla_factura` como se había planeado — ver discrepancia nueva #17).
+     ⚠️ **`plazoCobroDias` ya no aplica esta resolución**: el change `prestadores-crud`
+     (2026-08-01) lo mueve a `Prestador` junto con `tipoComprobante` (ver discrepancia nueva #18)
+     — provisorio, sin confirmar con Andrea. `modalidadFacturacion`/`admitePagosParciales` **no**
+     se mueven, siguen resueltos acá tal como dice este bullet.
   10. `plantillaFactura.identificadorOrigen` (IN-01) — resuelto como columna configurable
      (`obra_social.identificador_origen`); la pregunta de fondo (qué campo va en la factura) sigue
      abierta, ver `10_preguntas_abiertas.md`.
@@ -453,6 +484,27 @@ así que queda anotado acá hasta que se construya esa feature.
      policies y trigger de auditoría propios cuando se verificó el schema — no son tablas/columnas
      que este change haya creado. El mapeo del frontend (`obraSocialMapping.ts`) usa los nombres
      reales, no los que `design.md` había asumido.
+
+  18. **⚠️ "Condiciones particulares por prestador" (US-300) — movida a Prestador, provisorio, SIN
+     confirmar con Andrea** (change `prestadores-crud`, propose 2026-08-01, apply del frontend el
+     mismo día). Este bullet reemplaza el estado anterior de esta nota ("resuelta en ObraSocial",
+     ver 6-9 arriba): US-300 dice literalmente *"se registra plazo de cobro, tipo de comprobante
+     (A/B/C) y demás condiciones particulares **por prestador**"*, pero `plazoCobroDias`/
+     `tipoComprobante` habían quedado implementados como columnas de `obra_social.obra_social`
+     (`integracion-obra-social`, misma mañana) — la misma clase de discrepancia que #16
+     (`formato_afiliado`): la palabra literal del requisito apunta a una entidad y lo implementado
+     quedó en otra. **Resolución provisoria**: `plazoCobroDias`/`tipoComprobante` se mudan al tipo
+     `Prestador` nuevo (`frontend/src/shared/types/prestador.ts`); `modalidadFacturacion`/
+     `admitePagosParciales` se quedan en `ObraSocial` (son preferencias de la obra social pagadora,
+     no condiciones fiscales del prestador — confirmado con Enzo, no con Andrea). Migración
+     `20260801100000_prestadores_condiciones.sql`: **aditiva únicamente** —
+     `ALTER TABLE obra_social.prestadores ADD COLUMN plazo_cobro_dias, tipo_comprobante` — **no
+     escrita** contra `obra_social.obra_social` (el `DROP COLUMN` queda solo documentado en
+     comentario dentro de `prestadores-crud/design.md` D3, nunca como archivo `.sql`, hasta que
+     Andrea confirme el modelo). Consecuencia directa: `FacturaForm.tsx` pierde su fuente real de
+     default para `tipoComprobante` (antes `obraSocial.tipoComprobante`) — queda con un fallback
+     fijo `TIPO_COMPROBANTE_DEFAULT = 'A'` marcado `⚠️ PROVISORIO`, documentado como pendiente en
+     vez de resuelto. Ver `10_preguntas_abiertas.md` y entidad `Prestador` arriba.
 
   Además, esta verificación encontró que el catálogo `tipos_documento` es compartido por **tres**
   entidades, no dos: `pacientes.documentos.id_tipo_documento` **y**

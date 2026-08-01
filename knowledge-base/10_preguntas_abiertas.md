@@ -139,6 +139,37 @@ puramente técnica (índices) que sí quedó resuelta:
 faltantes de las tablas hijas de Pacientes (`cud.paciente_id`, etc., ver bullet de arriba) **sigue
 sin resolverse** — no forma parte de este change.
 
+## Preguntas nuevas — `prestadores-crud` (2026-08-01)
+
+⚠️ **Rama de demo**, no un change confirmado con Andrea. Los 5 supuestos de abajo son la base sobre
+la que se construyó el CRUD de Prestador y el vínculo N:N para mostrarle el concepto a Andrea —
+**ninguno se cierra acá**, y no se mergea `feature/prestadores-crud` a `main` sin validarlos primero
+(ver `openspec/changes/prestadores-crud/proposal.md`).
+
+- **¿Prestador se relaciona con ObraSocial, y cómo?** Supuesto provisorio de esta rama: **N:N**
+  (confirmado con Enzo, 2026-08-01, no con Andrea) — una ObraSocial puede tener varios Prestadores y
+  viceversa, vía tabla de vínculo `obra_social.obra_social_prestador`. **Decisor**: cliente (Andrea
+  Pastor).
+- **¿Qué representa `prestadores.cuit` frente a `obra_social.cuit`?** Sigue sin resolver (mismo
+  problema que la discrepancia #12 de `04_modelo_de_datos.md`) — construir la pantalla de Prestador
+  no lo resuelve, lo vuelve visible en dos lugares cargables al mismo tiempo. **Decisor**: cliente /
+  quien mantiene el docx.
+- **¿"Condiciones particulares por prestador" (US-300) vive en Prestador o en ObraSocial?** Supuesto
+  de esta rama: se mueven **solo** `plazoCobroDias` y `tipoComprobante` a Prestador (lectura literal
+  de US-300); `modalidadFacturacion`/`admitePagosParciales` se quedan en ObraSocial. Ver
+  `04_modelo_de_datos.md` §Discrepancias discrepancia #18. **Decisor**: cliente.
+- **¿Alcance de esta primera versión de Prestador?** Supuesto: los 4 campos ya existentes (razón
+  social, CUIT, dirección, teléfono) más los 2 movidos desde ObraSocial (el bullet anterior). No
+  incluye ningún otro campo del docx. **Decisor**: cliente / equipo técnico.
+- **Nueva, surgida de mover los 2 campos anteriores**: si una ObraSocial tiene varios Prestadores
+  vinculados (N:N), ¿cuál Prestador aplica al generar una factura general? **Explícitamente sin
+  decidir** — la lectura de trabajo de esta rama es "se elige a mano al generar la factura general",
+  pero ni siquiera eso está confirmado del todo con Enzo, y con Andrea no se conversó. **Bloqueante
+  real** del futuro change `desacople-prestacion-factura` (no de `prestadores-crud`, que solo
+  necesita que el vínculo exista y sea navegable) — ese change debe leer
+  `prestadores-crud/proposal.md` supuesto #5 antes de proponer cómo resolverlo. **Decisor**: cliente
+  / equipo técnico.
+
 ## Insumos pendientes del cliente
 
 - Logo (árbol de discapacidad) y colores de marca; fondo de pantalla de referencia.

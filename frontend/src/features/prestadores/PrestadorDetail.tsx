@@ -1,12 +1,19 @@
 import { useState } from 'react';
 import { AvisoModeloDatos, Button, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
 import { Card } from '../../design-system/layout';
+import { tieneVinculo } from '../../shared/lib/prestadores/prestadorMapping';
+import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ActualizacionPrestador, NuevoPrestador, Prestador } from '../../shared/types/prestador';
 import { PrestadorForm, type PrestadorFormValues } from './PrestadorForm';
 
 interface PrestadorDetailProps {
   /** null = alta de un Prestador nuevo. */
   prestador: Prestador | null;
+  /** Vínculo N:N (D2, tasks.md 5.1): lista completa de ObrasSociales para las opciones del
+   * multi-select de PrestadorForm. Default `[]` para no romper el smoke test de alta (4.6), que
+   * no ejercita el vínculo — `PrestadoresPage` siempre pasa la lista real resuelta vía
+   * `ObraSocialRepository`. */
+  obrasSociales?: ObraSocial[];
   crear: (data: NuevoPrestador) => Promise<Prestador>;
   actualizar: (id: string, data: ActualizacionPrestador) => Promise<Prestador>;
   onCreated: (prestador: Prestador) => void;
@@ -21,12 +28,18 @@ function toErrorMessage(err: unknown): string {
 // PrestadorForm contra el hook usePrestadores (crear/actualizar), con manejo de error visible y
 // edición diferida (nunca modal) — en edición arranca colapsado detrás de "Editar datos", en alta
 // arranca visible directamente.
-export function PrestadorDetail({ prestador, crear, actualizar, onCreated, onBack }: PrestadorDetailProps) {
+export function PrestadorDetail({ prestador, obrasSociales = [], crear, actualizar, onCreated, onBack }: PrestadorDetailProps) {
   const [editing, setEditing] = useState(prestador === null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  async function handleSubmit(values: PrestadorFormValues) {
+  // D2: `undefined` en alta (el vínculo inicial no viaja en `crear()`); en edición, el conjunto
+  // real ya vinculado (`[]` incluido) resuelto vía `tieneVinculo` — ver su comentario en
+  // prestadorMapping.ts.
+  const obrasSocialesVinculadasIds =
+    prestador !== null && tieneVinculo(prestador) ? prestador.obrasSocialesIds : undefined;
+
+  async function handleSubmit(values: PrestadorFormValues, obrasSocialesIds?: string[]) {
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -34,7 +47,10 @@ export function PrestadorDetail({ prestador, crear, actualizar, onCreated, onBac
         const creado = await crear(values);
         onCreated(creado);
       } else {
-        await actualizar(prestador.id, values);
+        await actualizar(prestador.id, {
+          ...values,
+          ...(obrasSocialesIds !== undefined ? { obrasSocialesIds } : {}),
+        });
         setEditing(false);
       }
     } catch (err) {
@@ -88,6 +104,8 @@ export function PrestadorDetail({ prestador, crear, actualizar, onCreated, onBac
         ) : (
           <PrestadorForm
             initial={prestador ?? undefined}
+            obrasSociales={obrasSociales}
+            obrasSocialesVinculadasIds={obrasSocialesVinculadasIds}
             onSubmit={handleSubmit}
             onCancel={prestador ? () => setEditing(false) : onBack}
             submitting={submitting}

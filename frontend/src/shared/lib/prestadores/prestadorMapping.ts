@@ -70,6 +70,19 @@ export interface PrestadorConVinculo extends Prestador {
   obrasSocialesIds: string[];
 }
 
+/**
+ * Type guard estructural (design.md D2, tasks.md 5.1): todo `Prestador` que devuelve
+ * `SupabasePrestadorRepository` (`list`/`getById`/`listarPorObraSocial`) es en runtime un
+ * `PrestadorConVinculo` — `parsePrestadorRow` siempre completa `obrasSocialesIds` — pero el
+ * contrato declarado de `PrestadorRepository` solo expone `Prestador` (D1), sin ese campo. La UI
+ * que necesita leer el vínculo para precargar el multi-select de `PrestadorForm` (§5, work unit
+ * futuro) angosta con este guard en vez de un cast `as` (regla dura: nunca `any`, angostar en vez
+ * de castear). Un `Prestador` armado a mano en un test (sin pasar por el mapeo) da `false`.
+ */
+export function tieneVinculo(prestador: Prestador): prestador is PrestadorConVinculo {
+  return 'obrasSocialesIds' in prestador;
+}
+
 /** Fila de `obra_social.prestadores` (con el embed del vínculo) -> `PrestadorConVinculo`.
  * Renombre `razon_social`->`razonSocial`, NULLables -> `undefined`, `tipo_comprobante`/
  * `plazo_cobro_dias` inválidos -> defaults. */

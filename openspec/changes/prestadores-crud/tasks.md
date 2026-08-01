@@ -100,6 +100,15 @@ como tracker) o como **stacked-to-main** directo, antes de arrancar `sdd-apply`.
 > (1.1, esta rama — solo el `ALTER TABLE`) y una migración posterior con el `CREATE TABLE`
 > `obra_social.obra_social_prestador` + su RLS + trigger, a escribir en el work unit del vínculo
 > N:N. Ninguna sentencia SQL cambia respecto a `design.md`, solo el corte de archivo.
+>
+> **Actualización (work unit 4, 2026-08-01)**: la migración diferida se escribió —
+> `supabase/migrations/20260801110000_prestadores_vinculo_obra_social.sql`. `CREATE TABLE
+> obra_social.obra_social_prestador` (PK compuesta `(obra_social_id, prestador_id)`, dos FK `ON
+> DELETE CASCADE`), `CREATE INDEX idx_obra_social_prestador_prestador`, RLS con `GRANT` explícito
+> por tabla + las dos policies `Read`/`Write obra_social_prestador` (`FOR ALL`/`USING`, sin `WITH
+> CHECK`, mismo estilo que el resto del schema), y `trg_audit_obra_social_prestador`. Ninguna
+> sentencia SQL distinta de la que ya describía `design.md` D2/D3 en el bloque conceptual único —
+> solo el corte de archivo. **Tampoco se aplica** (ver 7.4, bloqueado, requiere a Enzo).
 
 - [x] 1.1 Escribir `supabase/migrations/20260801100000_prestadores_condiciones.sql`: `ALTER
       TABLE obra_social.prestadores ADD COLUMN plazo_cobro_dias INT NOT NULL DEFAULT 90, ADD COLUMN
@@ -283,50 +292,96 @@ como tracker) o como **stacked-to-main** directo, antes de arrancar `sdd-apply`.
 > siempre después de §4. Sin batería de tests dedicada — el smoke test de `update()` en §3.5 ya
 > cubre la aserción que importa (no-op sobre el vínculo si no hay cambios reales).
 
-- [ ] 5.1 Multi-select de ObrasSociales dentro de `PrestadorForm.tsx` (no en `ObraSocialForm.tsx` —
+- [x] 5.1 Multi-select de ObrasSociales dentro de `PrestadorForm.tsx` (no en `ObraSocialForm.tsx` —
       decisión D2, ver checkpoint 0.3): lista las obras sociales existentes, precarga las ya
       vinculadas en edición, y en el submit arma `cambios.obrasSocialesIds` para
-      `usePrestadores().actualizar`.
-- [ ] 5.2 `features/prestadores/PrestadoresDeObraSocial.tsx`: componente de solo lectura que consume
+      `usePrestadores().actualizar`. **Nota de apply (work unit 4, 2026-08-01)**: el multi-select
+      solo se muestra en edición (`obrasSocialesVinculadasIds !== undefined`) — en alta no hay
+      forma de que el vínculo viaje (`toCrearPrestadorPayload`/`NuevoPrestador` no lo declaran, D2
+      lo resuelve con un `update()` posterior), mismo criterio que "el checklist solo se edita con
+      la obra social ya creada" de `ObraSocialDetail.tsx`. La lista de ObrasSociales se resuelve
+      inyectando `supabaseObraSocialRepository` por prop en `PrestadoresRoute.tsx` →
+      `PrestadoresPage.tsx` (mismo patrón que `PacientesRoute.tsx`/`PacientesPage.tsx`, no un
+      Context nuevo). La precarga de vinculadas usa un type guard nuevo `tieneVinculo()` en
+      `prestadorMapping.ts` (angosta `Prestador` a `PrestadorConVinculo` sin `as`, ver su
+      comentario) porque `PrestadorRepository` solo declara `Prestador` en sus retornos (D1), no
+      `PrestadorConVinculo`.
+- [x] 5.2 `features/prestadores/PrestadoresDeObraSocial.tsx`: componente de solo lectura que consume
       `PrestadorRepository.listarPorObraSocial(obraSocialId)`, montado dentro de
       `ObraSocialDetail.tsx`. Sin test dedicado.
-- [ ] 5.3 `ObraSocialesRoute.tsx`: montar `PrestadorRepositoryProvider` junto al de ObraSocial —
+- [x] 5.3 `ObraSocialesRoute.tsx`: montar `PrestadorRepositoryProvider` junto al de ObraSocial —
       único lugar que conoce ambas implementaciones concretas (design.md D2 §Panel de solo lectura).
       Ajustar `ObraSocialesRoute.test.tsx` con el doble correspondiente si el test existente lo
-      exige para compilar.
-- [ ] 5.4 Verificar con grep dirigido que `shared/types/obraSocial.ts`, `obraSocialMapping.ts` y
+      exige para compilar. **Hallazgo de apply**: `ObraSocialesRoute.test.tsx` no necesitó ajuste
+      (se queda en la vista de lista, nunca monta el detalle) pero **sí hicieron falta ajustes en
+      `ObraSocialDetail.test.tsx` y `ObraSocialesPage.test.tsx`** — ninguno de los dos estaba
+      listado en esta tarea y ambos SÍ navegan a modo edición, donde `PrestadoresDeObraSocial`
+      exige el Provider en el árbol. Se agregó un `fakePrestadorRepository` tipado (sin `any`/`as`)
+      y se envolvió cada `render(...)` — en `ObraSocialDetail.test.tsx` sombreando localmente el
+      `render` importado (cero cambios en los ~20 call-sites existentes), en
+      `ObraSocialesPage.test.tsx` editando los dos helpers `renderPage`/`renderPageConPermiso`.
+      Detectado por una corrida completa de `vitest run` (2 tests rojos), no por lectura de código.
+- [x] 5.4 Verificar con grep dirigido que `shared/types/obraSocial.ts`, `obraSocialMapping.ts` y
       `SupabaseObraSocialRepository.ts` **no** se tocaron por el vínculo (solo por la baja de §2) —
-      D2 lo exige explícitamente.
-- [ ] 5.5 `cd frontend && npx tsc -b --noEmit` y `npx oxlint` limpios + `npx vitest run` sin
-      regresiones contra el baseline de §4.
+      D2 lo exige explícitamente. **Confirmado** (`git status --porcelain` de este work unit): los
+      3 archivos no aparecen en el diff de esta rama del apply — los únicos archivos de Obra Social
+      tocados son `ObraSocialDetail.tsx`/`.test.tsx` y `ObraSocialesRoute.tsx`/
+      `ObraSocialesPage.test.tsx` (composition-root y su panel de solo lectura, no el contrato).
+- [x] 5.5 `cd frontend && npx tsc -b --noEmit` y `npx oxlint` limpios + `npx vitest run` sin
+      regresiones contra el baseline de §4. Ver Work Unit Evidence del reporte de apply para el
+      resultado exacto (0 fallos, no el baseline histórico del flake — ver nota de Fase 7).
 
 ## 6. Documentación (fuera del código)
 
-- [ ] 6.1 `knowledge-base/10_preguntas_abiertas.md`: agregar los 5 supuestos provisorios como
+- [x] 6.1 `knowledge-base/10_preguntas_abiertas.md`: agregar los 5 supuestos provisorios como
       preguntas abiertas (relación N:N sin confirmar, ambigüedad de CUIT, mudanza de
       `plazoCobroDias`/`tipoComprobante`, alcance de 6 campos) y la pregunta **#5 nueva** —
       selección de Prestador al facturar en modo general cuando hay varios vinculados, marcada como
-      bloqueante real del futuro `desacople-prestacion-factura`, no de este change.
-- [ ] 6.2 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: mover la nota de "condiciones por
+      bloqueante real del futuro `desacople-prestacion-factura`, no de este change. Nueva sección
+      `## Preguntas nuevas — prestadores-crud (2026-08-01)`, mismo formato que la sección
+      equivalente de `integracion-obra-social`.
+- [x] 6.2 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: mover la nota de "condiciones por
       prestador" de "resuelta en ObraSocial" a "movida a Prestador, provisorio — SIN confirmar con
       Andrea", documentando `plazo_cobro_dias`/`tipo_comprobante` como vestigiales en
       `obra_social.obra_social` hasta el día del `DROP` (no escrito, D3). Agregar la tabla nueva
-      `obra_social.obra_social_prestador` a la sección de entidades.
-- [ ] 6.3 `CHANGES.md`: registrar `prestadores-crud` como change de rama de demo, con las mismas 5
+      `obra_social.obra_social_prestador` a la sección de entidades. **Nota de apply**: se agregó
+      discrepancia nueva #18 (bullet 6-9 original solo decía "resuelto", ahora aclara que
+      `plazoCobroDias` queda excluido de esa resolución) y una sección `### Prestador` nueva en
+      §Entidades, junto a un ajuste del bullet de `ObraSocial` (quita "condiciones por prestador"
+      de sus atributos, agrega nota de mudanza + relación N:N).
+- [x] 6.3 `CHANGES.md`: registrar `prestadores-crud` como change de rama de demo, con las mismas 5
       preguntas sin cerrar y la referencia a que `integracion-facturacion` debe coordinarse antes de
-      cerrar sus propias aprobaciones si el modelo se confirma (proposal.md §Impacto).
+      cerrar sus propias aprobaciones si el modelo se confirma (proposal.md §Impacto). **Nota de
+      apply**: se agregó como bullet nuevo dentro de la sección `[C-04] obras-sociales-prestadores`
+      existente (mismo lugar donde vive `integracion-obra-social`), no como sección nueva de nivel
+      superior — no existía precedente de una sección "ramas de demo" separada del roadmap C-01..
+      C-11, y `prestadores-crud` es literalmente la continuación de D8 de ese mismo change.
 
 ## 7. Verificación
 
-- [ ] 7.1 `cd frontend && npx tsc -b --noEmit` sin errores (nunca `tsc --noEmit` a secas).
-- [ ] 7.2 `cd frontend && npx oxlint` limpio.
-- [ ] 7.3 `cd frontend && npx vitest run` verde, sin regresiones reales contra el baseline de 0.2 —
-      documentar explícitamente el flake preexistente de `localStorage.clear is not a function`
-      (Node v25/v26 + jsdom + vitest, 19 archivos / 114 tests) como **baseline a comparar**, no como
-      algo a arreglar en este change.
-- [ ] 7.4 **BLOQUEADO — requiere a Enzo.** Aplicar `20260801100000_prestadores_condiciones_y_vinculo.sql`
-      contra el proyecto real (`supabase db push`, verificando antes `supabase migration list
-      --linked` por el desfasaje de historial ya conocido de otros changes de esta sesión).
+- [x] 7.1 `cd frontend && npx tsc -b --noEmit` sin errores (nunca `tsc --noEmit` a secas).
+      **Resultado de apply (work unit 4)**: 0 errores.
+- [x] 7.2 `cd frontend && npx oxlint` limpio. **Resultado de apply**: 0 errores — quedan las mismas
+      15 advertencias preexistentes `react(only-export-components)` sobre archivos `*Context.tsx`
+      (incluido `PrestadorRepositoryContext.tsx`, ya presente desde el work unit 4 anterior), sin
+      ninguna advertencia nueva de este work unit.
+- [x] 7.3 `cd frontend && npx vitest run` verde. **Corrección de nota (work unit 4, 2026-08-01)**:
+      el flake `localStorage.clear is not a function` (Node v25/v26 + jsdom + vitest, 19
+      archivos/114 tests) que este ítem pedía documentar como baseline **ya no existe** — corriendo
+      con `NODE_OPTIONS="--no-experimental-webstorage" npx vitest run` (mismo flag usado en el resto
+      de esta sesión) el resultado es **201/201 archivos, 1527/1527 tests, 0 fallos**, no el
+      baseline histórico. La primera corrida completa de este work unit sí encontró 2 fallos reales
+      (no el flake): `ObraSocialesPage.test.tsx` sin `PrestadorRepositoryProvider` al navegar a modo
+      edición — corregido (ver nota de apply de 5.3) y confirmado en la segunda corrida completa.
+- [ ] 7.4 **BLOQUEADO — requiere a Enzo.** Aplicar las 2 migraciones de esta rama contra el proyecto
+      real (`supabase db push`, verificando antes `supabase migration list --linked` por el
+      desfasaje de historial ya conocido de otros changes de esta sesión): **corrección de
+      nombre de archivo** (ver nota de deviación de §1, actualizada en work unit 4) — el archivo
+      único `20260801100000_prestadores_condiciones_y_vinculo.sql` que design.md describe
+      conceptualmente se dividió en dos archivos reales,
+      `20260801100000_prestadores_condiciones.sql` (columnas planas, work unit 1) y
+      `20260801110000_prestadores_vinculo_obra_social.sql` (tabla de vínculo + RLS + trigger, work
+      unit 4) — ninguna sentencia SQL distinta, aplicar ambas en orden.
 - [ ] 7.5 **BLOQUEADO — requiere a la usuaria / Enzo.** Verificación manual en navegador
       (`npm run dev`) con 3 cuentas: `obra_social: write` (alta/edición de Prestador, vincular y
       desvincular ObrasSociales); `obra_social: read` sin `write` (solo lectura, sin guardado

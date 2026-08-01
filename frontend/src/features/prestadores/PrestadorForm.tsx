@@ -3,7 +3,7 @@ import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
-import type { TipoComprobante } from '../../shared/types/obraSocial';
+import type { ObraSocial, TipoComprobante } from '../../shared/types/obraSocial';
 import { validatePrestadorForm, type PrestadorFormErrors } from './validatePrestadorForm';
 
 export interface PrestadorFormValues {
@@ -39,7 +39,19 @@ interface PrestadorFormProps {
   // PrestadorDetail en modo edición) modela `direccion`/`telefono` como opcionales — el form los
   // normaliza a cadena vacía internamente.
   initial?: Partial<PrestadorFormValues>;
-  onSubmit: (values: PrestadorFormValues) => void;
+  /** Vínculo N:N (D2, tasks.md 5.1): lista completa de ObrasSociales para las opciones del
+   * multi-select. Default `[]` para no romper el smoke test de alta (4.6), que no ejercita el
+   * vínculo — `PrestadorDetail`/`PrestadoresPage` siempre pasan la lista real. */
+  obrasSociales?: ObraSocial[];
+  /**
+   * IDs de las ObrasSociales ya vinculadas a este prestador (D2). `undefined` en alta: el
+   * vínculo inicial no viaja en `crear()` (`toCrearPrestadorPayload` lo documenta explícito, D2 lo
+   * resuelve con un `update()` posterior) — por eso el multi-select solo se muestra cuando este
+   * prop está presente (`!== undefined`), igual criterio que "el checklist solo se edita con la
+   * obra social ya creada" en `ObraSocialDetail.tsx`.
+   */
+  obrasSocialesVinculadasIds?: string[];
+  onSubmit: (values: PrestadorFormValues, obrasSocialesIds?: string[]) => void;
   onCancel: () => void;
   submitting?: boolean;
   submitError?: string | null;
@@ -60,19 +72,37 @@ function FieldGroupHeading({ children }: { children: string }) {
 // librería de formularios: son 6 campos, mismo criterio YAGNI que ObraSocialForm. La validación de
 // requeridos vive en validatePrestadorForm (función pura) para poder testearla aislada del DOM.
 //
-// NO incluye todavía el multi-select de ObrasSociales vinculadas (D2 de design.md) — eso es
-// tasks.md 5.1, un work unit posterior de esta cadena de PRs (vínculo N:N).
-export function PrestadorForm({ initial, onSubmit, onCancel, submitting = false, submitError = null }: PrestadorFormProps) {
+// Incluye el multi-select de ObrasSociales vinculadas (D2 de design.md, tasks.md 5.1): solo
+// visible en edición (`obrasSocialesVinculadasIds !== undefined`) — en alta el vínculo inicial no
+// tiene forma de viajar (ver el comentario de `obrasSocialesVinculadasIds` arriba).
+export function PrestadorForm({
+  initial,
+  obrasSociales = [],
+  obrasSocialesVinculadasIds,
+  onSubmit,
+  onCancel,
+  submitting = false,
+  submitError = null,
+}: PrestadorFormProps) {
   const [values, setValues] = useState<PrestadorFormValues>({ ...DEFAULT_VALUES, ...initial });
   const [errors, setErrors] = useState<PrestadorFormErrors>({});
+  const [vinculadas, setVinculadas] = useState<string[]>(obrasSocialesVinculadasIds ?? []);
   const formId = useId();
+
+  const esEdicion = obrasSocialesVinculadasIds !== undefined;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const validationErrors = validatePrestadorForm(values);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
-    onSubmit(values);
+    onSubmit(values, esEdicion ? vinculadas : undefined);
+  }
+
+  function toggleObraSocial(obraSocialId: string) {
+    setVinculadas((prev) =>
+      prev.includes(obraSocialId) ? prev.filter((id) => id !== obraSocialId) : [...prev, obraSocialId],
+    );
   }
 
   return (
@@ -159,6 +189,37 @@ export function PrestadorForm({ initial, onSubmit, onCancel, submitting = false,
           </Field>
         </div>
       </div>
+
+      {/* Vínculo N:N (D2 de design.md, tasks.md 5.1): solo en edición — un prestador nuevo no
+          tiene id todavía para escribir el vínculo (ver comentario de `obrasSocialesVinculadasIds`
+          arriba). Checkboxes sueltos (no hay un componente Checkbox en el design system todavía),
+          mismo criterio que `admitePagosParciales` en ObraSocialForm.tsx. */}
+      {esEdicion && (
+        <div>
+          <FieldGroupHeading>Obras Sociales vinculadas</FieldGroupHeading>
+          {obrasSociales.length === 0 ? (
+            <p className="font-body text-sm text-muted">No hay obras sociales cargadas todavía.</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-sm md:grid-cols-2">
+              {obrasSociales.map((obraSocial) => (
+                <label
+                  key={obraSocial.id}
+                  htmlFor={`${formId}-obra-social-${obraSocial.id}`}
+                  className="flex items-center gap-sm font-body text-[13px] text-text"
+                >
+                  <input
+                    id={`${formId}-obra-social-${obraSocial.id}`}
+                    type="checkbox"
+                    checked={vinculadas.includes(obraSocial.id)}
+                    onChange={() => toggleObraSocial(obraSocial.id)}
+                  />
+                  {obraSocial.nombre}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       </div>
       </CamposSoloLectura>
 
