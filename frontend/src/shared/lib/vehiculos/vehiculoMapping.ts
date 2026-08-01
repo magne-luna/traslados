@@ -1,14 +1,27 @@
-// Mapeo puro fila<->dominio para Vehículos (tasks.md §4, design.md D3/D4/D5/D10/D12/D13 del
-// change `integracion-conductores-vehiculos`). Funciones exportadas, sin red, sin `any`, **sin
-// `as`** (regla dura de esta sección, más estricta que el resto del repo): toda unión cerrada se
-// angosta con un type guard explícito (`esValorDe`), nunca con una aserción de tipo.
-// `SupabaseVehiculoRepository.ts` (§5) es la única capa de I/O; acá solo se traduce.
+// Mapeo puro fila<->dominio para Vehículos (tasks.md §4 y §4B, design.md D3/D4/D5/D10/D12/D13 +
+// §Reconciliación con C-08-vehiculos-mantenimiento, del change `integracion-conductores-vehiculos`).
+// Funciones exportadas, sin red, sin `any`, **sin `as`** (regla dura de esta sección, más estricta
+// que el resto del repo): toda unión cerrada se angosta con un type guard explícito (`esValorDe`),
+// nunca con una aserción de tipo. `SupabaseVehiculoRepository.ts` (§5, todavía sin construir) es
+// la única capa de I/O; acá solo se traduce.
 //
-// Columnas reales de `conductores.vehiculo` (design.md D11, verificado contra la migración
-// `…campos.sql` de 1B.1): `id, patente, modelo, tipo, capacidad, año, estado, notas, kilometraje,
-// kilometraje_ultimo_service, fecha_ultimo_service`. La columna `año` NO tiene campo en el
-// dominio (D15 #14, discrepancia documentada y NO resuelta en este change) — se ignora
-// deliberadamente, nunca se mapea.
+// **RECONCILIADO (2026-08-01, §4B).** El backend real de Enzo (`C-08-vehiculos-mantenimiento`,
+// ya mergeado) es la fuente de verdad para Vehículos de acá en adelante. `parseVehiculoRow`/
+// `ensamblarVehiculo` consumen la respuesta JSON de la Edge Function
+// `supabase/functions/vehiculos/index.ts::toApi()`, no una fila cruda de PostgREST con embeds —
+// ver la nota de cada sección tocada (4B.1 gastos, 4B.2 habilitaciones, 4B.3 kilometraje, 4B.5
+// accesorios) para el detalle exacto de qué cambió y por qué. **4B.4 (mantenimientos) queda
+// bloqueado y sin tocar**: la Edge Function todavía no expone ese array (gap abierto,
+// design.md `#### Gap abierto`), pendiente de una decisión con Enzo.
+//
+// Columnas reales de `conductores.vehiculo` (migración `20260730110000_schema_vehiculo_gaps.sql`):
+// `id, patente, modelo, tipo, capacidad, año, estado, notas, kilometraje` (**nullable, sin
+// default** — distinto de lo que 1B.1 planeaba). Ya **no existen** columnas propias
+// `kilometraje_ultimo_service`/`fecha_ultimo_service`: la Edge Function las deriva del último
+// registro `preventivo` de `mantenimiento` y las expone en el JSON de respuesta como
+// `kilometrajeUltimoService`/`fechaUltimoService` (camelCase, no columnas de tabla). La columna
+// `año` NO tiene campo en el dominio (D15 #14, discrepancia documentada y NO resuelta en este
+// change) — se ignora deliberadamente, nunca se mapea.
 
 import type {
   AccesorioMovilidad,
@@ -22,7 +35,6 @@ import type {
   SubtipoPreventivo,
   Vehiculo,
 } from '../../types/vehiculo';
-import { derivarHabilitaciones } from '../mantenimiento/derivarHabilitaciones';
 
 // -------------------------------------------------------------------------------------------
 // 4.10 (REFACTOR) — type guards compartidos
@@ -108,10 +120,19 @@ export interface VehiculoCamposBase {
   notas?: string;
 }
 
-/** Fila plana de `conductores.vehiculo` -> campos base del dominio. Una fila sin `id` o sin
- * `patente` se descarta (`null`) en vez de romper el `list()` entero — son las dos columnas
- * `NOT NULL` sin default que identifican inequívocamente al vehículo; el resto degrada a su
- * valor por defecto sin descartar la fila. */
+/** Fila/respuesta -> campos base del dominio. Una fila sin `id` o sin `patente` se descarta
+ * (`null`) en vez de romper el `list()` entero — son las dos columnas `NOT NULL` sin default que
+ * identifican inequívocamente al vehículo; el resto degrada a su valor por defecto sin descartar
+ * la fila.
+ *
+ * **4B.3 (RECONCILIADO 2026-08-01).** `kilometraje` sigue siendo columna propia de
+ * `conductores.vehiculo`, pero ahora **nullable, sin default** (migración
+ * `20260730110000_schema_vehiculo_gaps.sql`) — `readNumber` ya trata cualquier valor no-numérico,
+ * incluido `null`, como `0`, así que no hace falta un camino especial para esta columna.
+ * `kilometrajeUltimoService`/`fechaUltimoService` YA NO son columnas propias
+ * (`kilometraje_ultimo_service`/`fecha_ultimo_service` no existen): la Edge Function las deriva
+ * del último registro `preventivo` de `mantenimiento` y las devuelve en el JSON de respuesta con
+ * esas claves camelCase — se leen tal cual, sin traducir un nombre de columna. */
 export function parseVehiculoRow(row: unknown): VehiculoCamposBase | null {
   if (!isRecord(row)) return null;
 
@@ -128,8 +149,8 @@ export function parseVehiculoRow(row: unknown): VehiculoCamposBase | null {
     capacidad: readNumber(row, 'capacidad'),
     estado: parseEstadoVehiculo(row.estado),
     kilometraje: readNumber(row, 'kilometraje'),
-    kilometrajeUltimoService: readNumber(row, 'kilometraje_ultimo_service'),
-    fechaUltimoService: readString(row, 'fecha_ultimo_service'),
+    kilometrajeUltimoService: readNumber(row, 'kilometrajeUltimoService'),
+    fechaUltimoService: readString(row, 'fechaUltimoService'),
     notas: readOptionalString(row, 'notas'),
   };
 }
@@ -259,7 +280,12 @@ export function toMantenimientoRows(registros: MantenimientoRegistro[]): Manteni
 }
 
 // -------------------------------------------------------------------------------------------
-// 4.5 — parseAccesoriosRows: embed de dos niveles `accesorios_vehiculo -> accesorios.tipo`.
+// 4B.5 (RECONCILIADO 2026-08-01, ver design.md §Reconciliación D11 y tasks.md 4B.5) —
+// parseAccesoriosRows: sin cambio de fondo (el catálogo `pacientes.accesorios` ya está sembrado,
+// 1B.3, con los mismos 5 valores), pero cambia la FUENTE. Antes: embed anidado de dos niveles
+// `accesorios_vehiculo -> accesorios.tipo` (D11 original, PostgREST+RPC directo). Ahora: la Edge
+// Function `vehiculos/index.ts::toApi()` ya resuelve `accesoriosCompatibles` como un `string[]`
+// plano de `tipo` — el mapeo consume ese array directo, no reconstruye un embed.
 // -------------------------------------------------------------------------------------------
 
 const ACCESORIOS_VALIDOS: readonly AccesorioMovilidad[] = [
@@ -272,26 +298,72 @@ const ACCESORIOS_VALIDOS: readonly AccesorioMovilidad[] = [
 
 const esAccesorioMovilidad = esValorDe(ACCESORIOS_VALIDOS);
 
-/** `accesorios_vehiculo ( accesorios ( tipo ) )` embebido (D11) -> `AccesorioMovilidad[]`. Un
- * `tipo` que no pertenece a la unión cerrada se descarta (nunca se castea); una fila sin el embed
- * anidado (RLS lo ocultó, o vino incompleta) también se descarta, sin romper el resto de la
- * colección. Embed vacío -> `[]` **sin distinguir todavía** si es "no tiene accesorios" o "RLS lo
- * ocultó entero" — esa distinción la agrega el repository con un flag de degradación (D10, §5.4),
- * no el mapeo puro. */
-export function parseAccesoriosRows(rows: unknown): AccesorioMovilidad[] {
-  if (!Array.isArray(rows)) return [];
-
-  const tipos: AccesorioMovilidad[] = [];
-  for (const row of rows) {
-    if (!isRecord(row) || !isRecord(row.accesorios)) continue;
-    const tipo = row.accesorios.tipo;
-    if (esAccesorioMovilidad(tipo)) tipos.push(tipo);
-  }
-  return tipos;
+/** `accesoriosCompatibles: string[]` ya resuelto por la Edge Function -> `AccesorioMovilidad[]`.
+ * Un valor que no pertenece a la unión cerrada se descarta (nunca se castea), sin romper el resto
+ * de la colección. Valor no-array -> `[]` **sin distinguir todavía** si es "no tiene accesorios" o
+ * "RLS lo ocultó entero" — esa distinción la agrega el repository con un flag de degradación (D10,
+ * §5.4), no el mapeo puro. */
+export function parseAccesoriosRows(value: unknown): AccesorioMovilidad[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(esAccesorioMovilidad);
 }
 
 // -------------------------------------------------------------------------------------------
-// 4.6 — parseGastoRow: `facturacion.gastos_vehiculos`.
+// 4B.2 (RECONCILIADO 2026-08-01, ver design.md §Reconciliación D3 y tasks.md 4B.2) —
+// parseHabilitacionRow / parseHabilitacionesRows: D3 (opción B, derivar de `mantenimiento`) quedó
+// SUPERSEDED — Enzo implementó la opción A que este documento descartaba, una tabla real
+// `conductores.habilitaciones_vehiculo(id, vehiculo_id, tipo, fecha_emision, fecha_vencimiento)`.
+// La Edge Function ya la resuelve en el array `habilitaciones` de su respuesta
+// (`habilitacionToApi()`: `{ tipo, fechaEmision, fechaVencimiento }`, **sin `id`** — confirmado
+// que `RegistroHabilitacion` no lo necesita). El mapeo real ya NO llama a `derivarHabilitaciones`
+// (esa función sigue viva, sin tocar, solo para el mock — ver `mockVehiculoRepository.ts` y
+// `VehiculoDetail.tsx`, que la importan directamente).
+// -------------------------------------------------------------------------------------------
+
+const TIPOS_HABILITACION_VALIDOS: readonly RegistroHabilitacion['tipo'][] = ['vtv', 'rto'];
+const esTipoHabilitacion = esValorDe(TIPOS_HABILITACION_VALIDOS);
+
+/** Elemento del array `habilitaciones` que ya arma `habilitacionToApi()` (Edge Function) ->
+ * `RegistroHabilitacion`. Un `tipo` fuera de `{'vtv','rto'}` descarta la fila entera (nunca se
+ * castea). `fechaEmision`/`fechaVencimiento` son columnas nullable en la base
+ * (`habilitaciones_vehiculo.fecha_emision`/`fecha_vencimiento`) que la Edge Function propaga tal
+ * cual (pueden llegar `null`) — acá degradan a `''` con el mismo criterio que el resto del
+ * archivo, sin descartar la fila por eso. */
+export function parseHabilitacionRow(value: unknown): RegistroHabilitacion | null {
+  if (!isRecord(value)) return null;
+
+  const tipo = value.tipo;
+  if (!esTipoHabilitacion(tipo)) return null;
+
+  return {
+    tipo,
+    fechaEmision: readString(value, 'fechaEmision'),
+    fechaVencimiento: readString(value, 'fechaVencimiento'),
+  };
+}
+
+/** `habilitaciones` (array ya resuelto por la Edge Function) -> `RegistroHabilitacion[]`. Una
+ * fila con `tipo` inválido se descarta sin romper el resto de la colección. Valor no-array ->
+ * `[]`. */
+export function parseHabilitacionesRows(value: unknown): RegistroHabilitacion[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(parseHabilitacionRow).filter((habilitacion): habilitacion is RegistroHabilitacion => habilitacion !== null);
+}
+
+// -------------------------------------------------------------------------------------------
+// 4B.1 (RECONCILIADO 2026-08-01, ver design.md §Reconciliación D9/D11 y tasks.md 4B.1) —
+// parseGastoRow: dejó de leer/escribir `facturacion.gastos_vehiculos` (D9/D11 SUPERSEDED, esa
+// tabla queda abandonada). Los gastos son ahora filas de `conductores.mantenimiento` con
+// `categoria = 'gasto'` (columnas `monto`, `descripcion`, `categoria_gasto` — aplicadas por Enzo
+// en `20260730110000_schema_vehiculo_gaps.sql`), ya resueltas por la Edge Function
+// `supabase/functions/vehiculos/index.ts::gastoToApi()` en el array `gastos` de su respuesta.
+//
+// ⚠️ ASUNCIÓN REVERSIBLE, pendiente de confirmar con Enzo (design.md `#### Gap abierto` /
+// hallazgo de `categoria: CategoriaGasto`): `GastoVehiculo` NO gana un campo `categoria`. La
+// columna `categoria_gasto` (expuesta como `categoria` en el JSON de `gastoToApi()`) se **ignora
+// por completo en la lectura** — nunca se surface en el dominio — y **nunca se emite en la
+// escritura** (es opcional en el `GastoInput` de la Edge Function, así que omitirla es seguro).
+// Si Enzo confirma que hace falta, esto se revisa sin tocar el resto del mapeo.
 // -------------------------------------------------------------------------------------------
 
 /** `monto NUMERIC(10,2)` puede llegar como `string` desde PostgREST en algunas versiones — se
@@ -305,8 +377,10 @@ function parseMontoNumerico(value: unknown): number | null {
   return null;
 }
 
-/** Fila de `facturacion.gastos_vehiculos` -> `GastoVehiculo`. Sin `id`, sin `fecha` o con un
- * `monto` no parseable, la fila se descarta (`null`) — nunca se inventa un monto. */
+/** Elemento del array `gastos` que ya arma `gastoToApi()` (Edge Function) -> `GastoVehiculo`.
+ * Sin `id`, sin `fecha` o con un `monto` no parseable, la fila se descarta (`null`) — nunca se
+ * inventa un monto. `categoria`/`categoria_gasto`, si vienen, se ignoran (ver nota de la
+ * sección). */
 export function parseGastoRow(row: unknown): GastoVehiculo | null {
   if (!esFilaConId(row)) return null;
 
@@ -337,25 +411,39 @@ function ordenarPorFechaDescYId<T extends { fecha: string; id: string }>(items: 
 }
 
 // -------------------------------------------------------------------------------------------
-// 4.7 / 4.8 — ensamblarVehiculo(row, gastosRows): combina la fila con sus embeds
-// (`accesorios_vehiculo`, `mantenimiento`) más la segunda consulta batcheada de
-// `facturacion.gastos_vehiculos` (D11) en un `Vehiculo` completo.
+// 4.7 / 4.8 / 4B — ensamblarVehiculo(row): combina la fila con sus arrays ya resueltos en un
+// `Vehiculo` completo.
 //
-// Habilitaciones derivadas (D3-B, 4.7): NO hay `parseHabilitacionRow` ni tabla que leer.
-// `Vehiculo.habilitaciones` sale de `derivarHabilitaciones(mantenimientos)` (2B.1), aplicada
-// DESPUÉS de mapear (y filtrar) el historial — una fila de mantenimiento descartada por
-// incoherente (4.3) nunca llega a `derivarHabilitaciones`, así que no puede producir una
-// habilitación fantasma.
+// **RECONCILIADO (2026-08-01, ver design.md §Reconciliación y tasks.md 4B).** `row` ya no es una
+// fila PostgREST con embeds crudos + una segunda consulta batcheada — es la respuesta JSON de
+// `supabase/functions/vehiculos/index.ts::toApi()` (D11 SUPERSEDED: acceso vía Edge Function
+// HTTP, no PostgREST+RPC directo). Consecuencia: `ensamblarVehiculo` deja de tomar un segundo
+// parámetro `gastosRows` (esa segunda consulta a `facturacion.gastos_vehiculos` ya no existe, D9/
+// D11 SUPERSEDED) — `gastos` sale de `record.gastos`, ya resuelto por `gastoToApi()` (4B.1).
+// `accesoriosCompatibles` sale de `record.accesoriosCompatibles`, ya un `string[]` plano (4B.5).
+// `habilitaciones` sale de `record.habilitaciones`, ya resuelto por `habilitacionToApi()` desde la
+// tabla real `conductores.habilitaciones_vehiculo` (4B.2) — **ya NO se llama a
+// `derivarHabilitaciones`** en este camino (esa función sigue viva, sin tocar, únicamente para el
+// mock).
+//
+// **4B.4 — BLOQUEADO, sin tocar (gap abierto, ver design.md `#### Gap abierto`).** La
+// Edge Function real no expone ningún array `mantenimientos` todavía (pendiente de decisión con
+// Enzo). El cálculo de `mantenimientos` de abajo se deja **exactamente como estaba** (sigue
+// leyendo `record.mantenimiento`, el embed crudo de `parseMantenimientoRow`/`toMantenimientoRows`)
+// — con la respuesta real de hoy, `record.mantenimiento` es `undefined` y esto degrada
+// naturalmente a `mantenimientos: []`, sin necesidad de tocar código acá. No se implementa una
+// solución unilateral a este gap en este batch.
 // -------------------------------------------------------------------------------------------
 
-export function ensamblarVehiculo(row: unknown, gastosRows: unknown): Vehiculo | null {
+export function ensamblarVehiculo(row: unknown): Vehiculo | null {
   const base = parseVehiculoRow(row);
   if (base === null) return null;
 
   const record = isRecord(row) ? row : {};
 
-  const accesoriosCompatibles = parseAccesoriosRows(record.accesorios_vehiculo);
+  const accesoriosCompatibles = parseAccesoriosRows(record.accesoriosCompatibles);
 
+  // 4B.4 — bloqueado, sin tocar (ver nota de la sección).
   const mantenimientosRaw = Array.isArray(record.mantenimiento) ? record.mantenimiento : [];
   const mantenimientos = ordenarPorFechaDescYId(
     mantenimientosRaw
@@ -363,12 +451,12 @@ export function ensamblarVehiculo(row: unknown, gastosRows: unknown): Vehiculo |
       .filter((registro): registro is MantenimientoRegistro => registro !== null),
   );
 
-  const gastosRawList = Array.isArray(gastosRows) ? gastosRows : [];
+  const gastosRawList = Array.isArray(record.gastos) ? record.gastos : [];
   const gastos = ordenarPorFechaDescYId(
     gastosRawList.map((fila) => parseGastoRow(fila)).filter((gasto): gasto is GastoVehiculo => gasto !== null),
   );
 
-  const habilitaciones: RegistroHabilitacion[] = derivarHabilitaciones(mantenimientos);
+  const habilitaciones: RegistroHabilitacion[] = parseHabilitacionesRows(record.habilitaciones);
 
   return {
     id: base.id,
@@ -392,13 +480,20 @@ export function ensamblarVehiculo(row: unknown, gastosRows: unknown): Vehiculo |
 // 4.9 / 4.7b — toCrearVehiculoPayload / toActualizarVehiculoPayload.
 //
 // `habilitaciones` NUNCA se lee de `NuevoVehiculo`/`ActualizacionVehiculo` ni se emite en ningún
-// payload (D3-B, 4.7b): es un campo de salida (se calcula en `ensamblarVehiculo` con
-// `derivarHabilitaciones`) y no hay tabla donde escribirlo. Un payload que la trajera no rompe
-// nada — la clave simplemente no existe del lado de la escritura.
+// payload (4.7b). Esto se mantiene sin cambios tras la reconciliación 4B.2: aunque
+// `conductores.habilitaciones_vehiculo` es ahora una tabla real que la Edge Function sí acepta
+// escribir (`habilitaciones?: HabilitacionInput[]` en el body de POST/PATCH), soportar esa
+// escritura no está en el alcance de 4B — queda como trabajo futuro documentado, no una decisión
+// tomada acá. Por ahora la clave simplemente no existe del lado de la escritura.
 // -------------------------------------------------------------------------------------------
 
+/** Fila de escritura para `conductores.mantenimiento` con `categoria = 'gasto'` (4B.1). **Sin
+ * `id`**: a diferencia de la vieja `facturacion.gastos_vehiculos`, la colección se reemplaza
+ * entera (delete + insert), el mismo patrón de `replaceGastos()` de la Edge Function — el `id`
+ * de `GastoVehiculo` es un detalle de identidad del dominio/UI, no algo que haya que reenviar.
+ * **Nunca incluye `categoria`/`categoria_gasto`** (asunción reversible, ver nota de
+ * `parseGastoRow`). */
 export interface GastoRowInput {
-  id: string;
   monto: number;
   fecha: string;
   descripcion: string | null;
@@ -406,13 +501,18 @@ export interface GastoRowInput {
 
 function toGastoRows(gastos: GastoVehiculo[]): GastoRowInput[] {
   return gastos.map((gasto) => ({
-    id: gasto.id,
     monto: gasto.monto,
     fecha: gasto.fecha,
     descripcion: gasto.descripcion ?? null,
   }));
 }
 
+/** **4B.3 (RECONCILIADO 2026-08-01).** `kilometrajeUltimoService`/`fechaUltimoService` YA NO
+ * forman parte de ningún payload de escritura — ni acá ni en `toActualizarVehiculoPayload` — son
+ * derivados server-side por la Edge Function del último `mantenimiento` `preventivo`; el mapeo
+ * solo los **lee** de la respuesta (`parseVehiculoRow`/`ensamblarVehiculo`), nunca los escribe.
+ * Antes existían como columnas propias (`kilometraje_ultimo_service`/`fecha_ultimo_service`) y
+ * viajaban en el payload; esa columna no existe más (design.md §Reconciliación, kilometraje). */
 export interface CrearVehiculoPayload {
   patente: string;
   modelo: string;
@@ -421,15 +521,16 @@ export interface CrearVehiculoPayload {
   estado: string;
   notas: string | null;
   kilometraje: number;
-  kilometraje_ultimo_service: number;
-  fecha_ultimo_service: string | null;
   accesorios: AccesorioMovilidad[];
   mantenimientos: MantenimientoRowInput[];
   gastos: GastoRowInput[];
 }
 
-/** Argumento `p_vehiculo jsonb` de `conductores.crear_vehiculo_completo` (D9, 1B.8). No incluye
- * `habilitaciones`: ver nota de la sección. */
+/** Argumento `p_vehiculo jsonb` de `conductores.crear_vehiculo_completo` (D9, 1B.8 — nota:
+ * esta RPC está SUPERSEDED/sin escribir, ver design.md §Reconciliación D9/D11; la forma del
+ * payload se conserva para no expandir el alcance de 4B más allá de lo asignado). No incluye
+ * `habilitaciones` (ver nota de la sección) ni `kilometrajeUltimoService`/`fechaUltimoService`
+ * (4B.3, ver nota de `CrearVehiculoPayload`). */
 export function toCrearVehiculoPayload(nuevo: NuevoVehiculo): CrearVehiculoPayload {
   return {
     patente: nuevo.patente,
@@ -439,15 +540,14 @@ export function toCrearVehiculoPayload(nuevo: NuevoVehiculo): CrearVehiculoPaylo
     estado: toEstadoVehiculoRow(nuevo.estado),
     notas: nuevo.notas ?? null,
     kilometraje: nuevo.kilometraje,
-    kilometraje_ultimo_service: nuevo.kilometrajeUltimoService,
-    fecha_ultimo_service: nuevo.fechaUltimoService || null,
     accesorios: nuevo.accesoriosCompatibles,
     mantenimientos: toMantenimientoRows(nuevo.mantenimientos),
     gastos: toGastoRows(nuevo.gastos),
   };
 }
 
-/** Argumento `p_cambios jsonb` de `conductores.actualizar_vehiculo_completo` (D9, 1B.8).
+/** Argumento `p_cambios jsonb` de `conductores.actualizar_vehiculo_completo` (D9, 1B.8 — nota:
+ * ídem, RPC SUPERSEDED/sin escribir).
  * **Semántica parcial real**: una clave ausente en `cambios` (`undefined`) NO aparece en el
  * objeto devuelto — la RPC la distingue con el operador `?` de `jsonb` (D9) y no toca esa
  * columna/colección. Una clave presente con una colección vacía (`mantenimientos: []`) SÍ viaja
@@ -464,18 +564,16 @@ export function toActualizarVehiculoPayload(cambios: ActualizacionVehiculo): Rec
   if (cambios.estado !== undefined) payload.estado = toEstadoVehiculoRow(cambios.estado);
   if (cambios.notas !== undefined) payload.notas = cambios.notas === '' ? null : cambios.notas;
   if (cambios.kilometraje !== undefined) payload.kilometraje = cambios.kilometraje;
-  if (cambios.kilometrajeUltimoService !== undefined) {
-    payload.kilometraje_ultimo_service = cambios.kilometrajeUltimoService;
-  }
-  if (cambios.fechaUltimoService !== undefined) {
-    payload.fecha_ultimo_service = cambios.fechaUltimoService || null;
-  }
   if (cambios.accesoriosCompatibles !== undefined) payload.accesorios = cambios.accesoriosCompatibles;
   if (cambios.mantenimientos !== undefined) payload.mantenimientos = toMantenimientoRows(cambios.mantenimientos);
   if (cambios.gastos !== undefined) payload.gastos = toGastoRows(cambios.gastos);
 
-  // `cambios.habilitaciones` NUNCA se lee acá (D3-B, 4.7b), aunque `ActualizacionVehiculo` la
-  // admita por ser `Partial<Omit<Vehiculo, 'id'>>`.
+  // `cambios.habilitaciones` NUNCA se lee acá (4.7b), aunque `ActualizacionVehiculo` la admita
+  // por ser `Partial<Omit<Vehiculo, 'id'>>`.
+  //
+  // 4B.3 (RECONCILIADO 2026-08-01): `cambios.kilometrajeUltimoService`/`cambios.fechaUltimoService`
+  // TAMPOCO se leen acá nunca, aunque el tipo `ActualizacionVehiculo` los admita — son derivados
+  // server-side (ver nota de `CrearVehiculoPayload`), no hay columna propia donde escribirlos.
 
   return payload;
 }

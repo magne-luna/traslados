@@ -638,38 +638,50 @@
 
 ## 4B. Reconciliación de `vehiculoMapping.ts` con la Edge Function real de Enzo (C-08)
 
-> **Nueva sección (2026-08-01), consecuencia directa de design.md §Reconciliación con
-> C-08-vehiculos-mantenimiento.** `vehiculoMapping.ts` (§4) ya está implementado y verde sobre la
-> forma que este documento había planeado (PostgREST + RPC directo). **Esta sección documenta lo
-> que hay que cambiar, no lo reescribe todavía** — la reescritura del mapeo es trabajo del **próximo
-> batch de `sdd-apply`**, no de esta reconciliación. Nada de lo siguiente se implementa acá.
+> **Sección creada 2026-08-01 como guía, consecuencia directa de design.md §Reconciliación con
+> C-08-vehiculos-mantenimiento** — en ese momento documentaba lo que había que cambiar sin
+> reescribir nada. **✅ Actualización (2026-08-01, apply batch 4): 4B.1/4B.2/4B.3/4B.5 ya están
+> implementadas** en `frontend/src/shared/lib/vehiculos/vehiculoMapping.ts` +
+> `vehiculoMapping.test.ts` (78 tests, todos verdes; 100% stmts/lines/funcs, 97.12% branches).
+> **4B.4 sigue bloqueado**, ver su propia entrada — pendiente de una decisión de Enzo sobre el
+> `#### Gap abierto` de design.md antes de tocar `mantenimientos` para el repository real.
 
-- [ ] 4B.1 `parseGastoRow`/`toGastoRows`: dejar de leer/escribir `facturacion.gastos_vehiculos` (D9/
-      D11 SUPERSEDED). Deben leer/escribir filas de `conductores.mantenimiento` con `categoria =
-      'gasto'`, usando `monto`, `descripcion` y `categoria_gasto` (columnas ya aplicadas por Enzo).
-      Decidir, junto con Enzo, si `GastoVehiculo` recupera un campo `categoria` (gap documentado en
-      design.md) o si el mapeo lo ignora en la lectura y nunca lo emite en la escritura.
-- [ ] 4B.2 Habilitaciones: dejar de llamar `derivarHabilitaciones()` en `ensamblarVehiculo` para el
-      repository real (la función sigue viva para el mock, sin tocar). El repository real consume
-      `habilitaciones` ya resuelto por la Edge Function (viene de la tabla real
-      `conductores.habilitaciones_vehiculo`, sin `id` en el JSON — el tipo `RegistroHabilitacion` no
-      lo necesita, confirmado contra `shared/types/vehiculo.ts`).
-- [ ] 4B.3 Kilometraje: `kilometraje` sigue siendo columna propia pero **nullable** (tratar `null`
-      como `0` en la lectura, sin pedir migración de nullability). `kilometrajeUltimoService`/
-      `fechaUltimoService` dejan de ser payload de escritura del vehículo — son derivados por la
-      Edge Function del último `mantenimiento` `preventivo`, y el mapeo del repository real solo los
-      lee del JSON de respuesta, nunca los envía en `toCrearVehiculoPayload`/
-      `toActualizarVehiculoPayload`.
-- [ ] 4B.4 `mantenimientos`: **bloqueado por el `#### Gap abierto` de design.md** — la Edge Function
-      no expone ningún array de intervenciones preventivas/correctivas todavía. No implementar una
-      solución unilateral (ni inventar un array vacío permanente): coordinar con Enzo cuál de los
-      dos caminos del gap se toma antes de tocar `parseMantenimientoRow`/`ensamblarVehiculo` para el
-      repository real.
-- [ ] 4B.5 Accesorios: sin cambios de fondo — el catálogo `pacientes.accesorios` ya está sembrado
-      (1B.3) con los mismos 5 valores que `parseAccesoriosRows` ya espera. Ajustar solamente la
-      fuente: la Edge Function ya resuelve `accesoriosCompatibles` como `string[]` de `tipo`, no como
-      el embed anidado `accesorios_vehiculo → accesorios` de D11 — el mapeo consume ese array
-      directo en vez de reconstruirlo de un embed de dos niveles.
+- [x] 4B.1 **✅ Completa (2026-08-01, apply batch 4).** `parseGastoRow`/`toGastoRows` dejaron de
+      leer/escribir `facturacion.gastos_vehiculos`. Ahora consumen/producen el elemento del array
+      `gastos` que ya arma `gastoToApi()` en la Edge Function (`{id, fecha, monto, descripcion,
+      categoria}`, sourced de `conductores.mantenimiento` con `categoria='gasto'`). **Decisión
+      tomada (conservadora, ver ⚠️ ASUNCIÓN REVERSIBLE en el código, pendiente de confirmar con
+      Enzo)**: `GastoVehiculo` NO gana un campo `categoria` — `categoria`/`categoria_gasto` se
+      ignoran por completo en la lectura y nunca se emiten en la escritura (es opcional en
+      `GastoInput`, así que omitirlo es seguro). `toGastoRows`/`GastoRowInput` ya no incluyen `id`
+      (la colección se reemplaza entera, delete+insert, igual que `mantenimientos`). 1 test nuevo
+      de triangulación dedicado a la asunción de `categoria`/`categoria_gasto` ignorados.
+- [x] 4B.2 **✅ Completa (2026-08-01, apply batch 4).** `ensamblarVehiculo` dejó de llamar
+      `derivarHabilitaciones()` para el repository real — esa función sigue viva sin tocar,
+      importada directamente por `mockVehiculoRepository.ts`/`VehiculoDetail.tsx` (confirmado por
+      grep). Nuevas `parseHabilitacionRow`/`parseHabilitacionesRows` consumen `record.habilitaciones`
+      ya resuelto por `habilitacionToApi()` (Edge Function) desde la tabla real
+      `conductores.habilitaciones_vehiculo` — confirmado que `RegistroHabilitacion` no tiene ni
+      necesita `id`. 7 tests nuevos.
+- [x] 4B.3 **✅ Completa (2026-08-01, apply batch 4).** `kilometraje` sigue siendo columna propia,
+      ahora nullable — `readNumber` ya trataba cualquier no-numérico (incluido `null`) como `0`,
+      confirmado con test dedicado explícito. `kilometrajeUltimoService`/`fechaUltimoService`
+      **eliminados por completo** de `CrearVehiculoPayload`/`toCrearVehiculoPayload`/
+      `toActualizarVehiculoPayload` (nunca se emiten, ni con la clave `_ultimo_service` ni
+      camelCase) — el mapeo solo los lee de la respuesta JSON (`parseVehiculoRow`, claves camelCase
+      `kilometrajeUltimoService`/`fechaUltimoService`, ya no `kilometraje_ultimo_service`/
+      `fecha_ultimo_service`, columnas que no existen).
+- [ ] 4B.4 **BLOQUEADO, sin tocar (2026-08-01, apply batch 4).** Sigue pendiente de una decisión de
+      Enzo sobre el `#### Gap abierto` de design.md (la Edge Function no expone ningún array
+      `mantenimientos` todavía). `parseMantenimientoRow`/`toMantenimientoRows`/el cálculo de
+      `mantenimientos` en `ensamblarVehiculo` se dejaron **exactamente como estaban** — no se
+      implementó ninguna solución unilateral. Con la respuesta real de hoy (sin clave
+      `mantenimiento`), esto degrada naturalmente a `mantenimientos: []` sin necesidad de tocar
+      código, verificado con test dedicado.
+- [x] 4B.5 **✅ Completa (2026-08-01, apply batch 4).** `parseAccesoriosRows` reescrita para
+      consumir el array plano `accesoriosCompatibles: string[]` que ya resuelve la Edge Function,
+      en vez del embed anidado `accesorios_vehiculo → accesorios` de D11. Sin cambio de fondo (el
+      catálogo de 5 valores es el mismo, 1B.3).
 
 ## 5. Repository real de Vehículos + swap — `SupabaseVehiculoRepository.ts`
 

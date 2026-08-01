@@ -987,6 +987,29 @@ en `CHANGES.md` §C-08 (regla dura del proyecto), y con un `AvisoModeloDatos` en
 `VehiculoMantenimiento.tsx` cuando se implemente el swap real, hasta que Enzo confirme cuál de los
 dos caminos toma.
 
+#### Gap abierto: `estado` puede llegar con doble conversión desde la Edge Function
+
+`parseVehiculoRow` (§4, sin tocar en §4B por estar fuera de su alcance) llama a
+`parseEstadoVehiculo(row.estado)`, que espera el valor **crudo de la base**
+(`'fuera de servicio'`, con espacio) y lo convierte a la forma de dominio
+(`'fuera-de-servicio'`, con guión). Pero `vehiculos/index.ts::toApi()` **ya devuelve `estado`
+convertido** a la forma de API (con guión). Si la respuesta de la Edge Function se pasa tal cual a
+`parseEstadoVehiculo` en §5, un vehículo realmente fuera de servicio no matchea ningún valor
+conocido y degrada silenciosamente a `'habilitado'` — el comportamiento por defecto de la función
+ante un valor desconocido. Detectado en batch 4B (2026-08-01), sin corregir todavía porque 4.2/
+`parseEstadoVehiculo` no estaba en el alcance de esa tarea. **Bloquea §5** igual que el gap de
+mantenimientos: hay que decidir si `parseEstadoVehiculo` gana una segunda forma de entrada, o si
+§5 la evita pasando `row.estado` ya convertido directo al dominio sin reprocesarlo.
+
+#### Gap abierto: `notas` no viaja en la respuesta de la Edge Function
+
+`Vehiculo.notas` existe en el dominio (`shared/types/vehiculo.ts`, sumado en §2) y la columna
+existe en `conductores.vehiculo`, pero `vehiculos/index.ts::toApi()` **nunca incluye una clave
+`notas`** en el objeto que devuelve. Confirmado leyendo `toApi()` completo. En producción, con la
+Edge Function tal cual está hoy, este campo siempre volvería `undefined`. Detectado en batch 4B
+(2026-08-01). Mismo tratamiento que el gap de mantenimientos: no se inventa una solución, se
+documenta y se coordina con Enzo si `toApi()` debe sumar `notas` al payload de respuesta.
+
 ### Kilometraje — la columna real ya existe, con forma distinta a la planeada (afecta 1B.1, no una decisión numerada)
 
 El Non-Goals de este documento y la tarea 1B.1 planeaban 3 columnas aditivas: `kilometraje INTEGER

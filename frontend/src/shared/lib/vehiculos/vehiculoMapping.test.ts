@@ -7,6 +7,8 @@ import {
   toMantenimientoRows,
   parseAccesoriosRows,
   parseGastoRow,
+  parseHabilitacionRow,
+  parseHabilitacionesRows,
   ensamblarVehiculo,
   toCrearVehiculoPayload,
   toActualizarVehiculoPayload,
@@ -27,8 +29,11 @@ describe('parseVehiculoRow', () => {
       estado: 'habilitado',
       notas: 'Aire acondicionado roto',
       kilometraje: 50000,
-      kilometraje_ultimo_service: 48000,
-      fecha_ultimo_service: '2026-06-01',
+      // 4B.3 RECONCILIADO: kilometrajeUltimoService/fechaUltimoService ya no son columnas propias
+      // (`..._ultimo_service`) — la Edge Function las deriva server-side y las devuelve en
+      // camelCase en el JSON de respuesta, que es lo que este mapeo ahora lee directamente.
+      kilometrajeUltimoService: 48000,
+      fechaUltimoService: '2026-06-01',
       año: 2020, // discrepancia D15 #14: sin campo en el dominio, se ignora deliberadamente
     };
 
@@ -55,8 +60,8 @@ describe('parseVehiculoRow', () => {
       capacidad: 6,
       estado: 'habilitado',
       kilometraje: 1000,
-      kilometraje_ultimo_service: 0,
-      fecha_ultimo_service: null,
+      kilometrajeUltimoService: 0,
+      fechaUltimoService: null,
     };
 
     const parsed = parseVehiculoRow(row);
@@ -89,14 +94,29 @@ describe('parseVehiculoRow', () => {
       capacidad: 'no-es-numero',
       estado: 'habilitado',
       kilometraje: null,
-      kilometraje_ultimo_service: undefined,
-      fecha_ultimo_service: null,
+      kilometrajeUltimoService: undefined,
+      fechaUltimoService: null,
     };
 
     const parsed = parseVehiculoRow(row);
     expect(parsed?.capacidad).toBe(0);
     expect(parsed?.kilometraje).toBe(0);
     expect(parsed?.kilometrajeUltimoService).toBe(0);
+  });
+
+  it('4B.3: kilometraje null (columna real ahora nullable, sin default) degrada a 0, no es un caso distinto del resto de los no-numéricos', () => {
+    const row = {
+      id: 'v-4',
+      patente: 'AD321EF',
+      modelo: 'Fiat Fiorino',
+      tipo: 'utilitario',
+      capacidad: 2,
+      estado: 'habilitado',
+      kilometraje: null,
+      kilometrajeUltimoService: 0,
+      fechaUltimoService: null,
+    };
+    expect(parseVehiculoRow(row)?.kilometraje).toBe(0);
   });
 });
 
@@ -342,30 +362,21 @@ describe('toMantenimientoRows — la vuelta de parseMantenimientoRow', () => {
   });
 });
 
-describe('parseAccesoriosRows — embed de dos niveles accesorios_vehiculo -> accesorios.tipo', () => {
-  it('mapea los tipos válidos del embed', () => {
-    const rows = [
-      { accesorio_id: 'ac-1', accesorios: { id: 'ac-1', tipo: 'andador' } },
-      { accesorio_id: 'ac-2', accesorios: { id: 'ac-2', tipo: 'tripode' } },
-    ];
-    expect(parseAccesoriosRows(rows)).toEqual(['andador', 'tripode']);
+describe('parseAccesoriosRows — 4B.5 RECONCILIADO: array plano `accesoriosCompatibles` ya resuelto por la Edge Function, ya no el embed de dos niveles accesorios_vehiculo -> accesorios.tipo', () => {
+  it('mapea los tipos válidos del array plano', () => {
+    expect(parseAccesoriosRows(['andador', 'tripode'])).toEqual(['andador', 'tripode']);
   });
 
   it('un tipo que no pertenece a la unión cerrada se descarta (no se castea), se conserva el resto', () => {
-    const rows = [
-      { accesorio_id: 'ac-1', accesorios: { id: 'ac-1', tipo: 'andador' } },
-      { accesorio_id: 'ac-2', accesorios: { id: 'ac-2', tipo: 'silla de oficina' } },
-    ];
-    expect(parseAccesoriosRows(rows)).toEqual(['andador']);
+    expect(parseAccesoriosRows(['andador', 'silla de oficina'])).toEqual(['andador']);
   });
 
-  it('embed vacío -> [] (sin distinguir todavía "no tiene" de "RLS lo ocultó" — eso lo agrega el repository en 5.4)', () => {
+  it('un elemento no-string dentro del array (defensivo) se descarta sin romper el resto', () => {
+    expect(parseAccesoriosRows(['andador', 42, null, 'tripode'])).toEqual(['andador', 'tripode']);
+  });
+
+  it('array vacío -> [] (sin distinguir todavía "no tiene" de "RLS lo ocultó" — eso lo agrega el repository en 5.4)', () => {
     expect(parseAccesoriosRows([])).toEqual([]);
-  });
-
-  it('fila sin el embed anidado (RLS lo ocultó parcialmente) se descarta sin romper el resto', () => {
-    const rows = [{ accesorio_id: 'ac-1' }, { accesorio_id: 'ac-2', accesorios: { id: 'ac-2', tipo: 'tripode' } }];
-    expect(parseAccesoriosRows(rows)).toEqual(['tripode']);
   });
 
   it('valor no-array -> []', () => {
@@ -375,7 +386,7 @@ describe('parseAccesoriosRows — embed de dos niveles accesorios_vehiculo -> ac
   });
 });
 
-describe('parseGastoRow — facturacion.gastos_vehiculos', () => {
+describe('parseGastoRow — 4B.1 RECONCILIADO: conductores.mantenimiento (categoria=\'gasto\'), ya no facturacion.gastos_vehiculos', () => {
   it('monto numérico normal', () => {
     const row = { id: 'g-1', fecha: '2026-06-01', monto: 1500.5, descripcion: 'Combustible' };
     expect(parseGastoRow(row)).toEqual({ id: 'g-1', fecha: '2026-06-01', monto: 1500.5, descripcion: 'Combustible' });
@@ -413,9 +424,72 @@ describe('parseGastoRow — facturacion.gastos_vehiculos', () => {
     expect(parseGastoRow(null)).toBeNull();
     expect(parseGastoRow('nope')).toBeNull();
   });
+
+  it(
+    'ASUNCIÓN REVERSIBLE (pendiente confirmar con Enzo, ver design.md §Reconciliación D9/D11): ' +
+      '`categoria`/`categoria_gasto` presente en la fila se ignora por completo, nunca se ' +
+      'surface en `GastoVehiculo` (el tipo no gana un campo `categoria`)',
+    () => {
+      const row = { id: 'g-7', fecha: '2026-06-07', monto: 100, descripcion: 'Aceite', categoria: 'mantenimiento', categoria_gasto: 'reparacion' };
+      const parsed = parseGastoRow(row);
+      expect(parsed).toEqual({ id: 'g-7', fecha: '2026-06-07', monto: 100, descripcion: 'Aceite' });
+      expect(parsed && 'categoria' in parsed).toBe(false);
+      expect(parsed && 'categoria_gasto' in parsed).toBe(false);
+    },
+  );
 });
 
-describe('ensamblarVehiculo — combina la fila con embeds y las habilitaciones derivadas (D3-B)', () => {
+describe('parseHabilitacionRow / parseHabilitacionesRows — 4B.2 RECONCILIADO (design.md §Reconciliación D3): ya no se derivan de mantenimientos, vienen resueltas por la Edge Function desde conductores.habilitaciones_vehiculo', () => {
+  it('mapea una habilitación válida (vtv) tal cual la resuelve habilitacionToApi() — sin id', () => {
+    const value = { tipo: 'vtv', fechaEmision: '2026-06-01', fechaVencimiento: '2026-12-01' };
+    expect(parseHabilitacionRow(value)).toEqual({ tipo: 'vtv', fechaEmision: '2026-06-01', fechaVencimiento: '2026-12-01' });
+  });
+
+  it('mapea rto igual que vtv (RN-VE-04: independientes entre sí, sin trato especial)', () => {
+    const value = { tipo: 'rto', fechaEmision: '2026-01-01', fechaVencimiento: '2026-07-01' };
+    expect(parseHabilitacionRow(value)).toEqual({ tipo: 'rto', fechaEmision: '2026-01-01', fechaVencimiento: '2026-07-01' });
+  });
+
+  it('tipo fuera de la unión cerrada (ni vtv ni rto) -> descartada (null)', () => {
+    expect(parseHabilitacionRow({ tipo: 'seguro', fechaEmision: '2026-01-01', fechaVencimiento: '2026-07-01' })).toBeNull();
+  });
+
+  it('fecha_emision/fecha_vencimiento null (columna nullable en la base) -> degradan a \'\', no se descarta la fila', () => {
+    const value = { tipo: 'vtv', fechaEmision: null, fechaVencimiento: null };
+    expect(parseHabilitacionRow(value)).toEqual({ tipo: 'vtv', fechaEmision: '', fechaVencimiento: '' });
+  });
+
+  it('valor no-objeto -> descartado (null)', () => {
+    expect(parseHabilitacionRow(null)).toBeNull();
+    expect(parseHabilitacionRow('nope')).toBeNull();
+  });
+
+  it('parseHabilitacionesRows: mapea un array completo, descartando los tipos inválidos sin romper el resto', () => {
+    const rows = [
+      { tipo: 'vtv', fechaEmision: '2026-06-01', fechaVencimiento: '2026-12-01' },
+      { tipo: 'invalido', fechaEmision: '2026-01-01', fechaVencimiento: '2026-07-01' },
+      { tipo: 'rto', fechaEmision: '2026-02-01', fechaVencimiento: '2026-08-01' },
+    ];
+    expect(parseHabilitacionesRows(rows)).toEqual([
+      { tipo: 'vtv', fechaEmision: '2026-06-01', fechaVencimiento: '2026-12-01' },
+      { tipo: 'rto', fechaEmision: '2026-02-01', fechaVencimiento: '2026-08-01' },
+    ]);
+  });
+
+  it('parseHabilitacionesRows: valor no-array -> []', () => {
+    expect(parseHabilitacionesRows(null)).toEqual([]);
+    expect(parseHabilitacionesRows(undefined)).toEqual([]);
+    expect(parseHabilitacionesRows('nope')).toEqual([]);
+  });
+});
+
+describe('ensamblarVehiculo — 4B RECONCILIADO: consume la respuesta JSON de toApi() (Edge Function), no una fila PostgREST con embeds + segunda consulta', () => {
+  // Forma de `filaVehiculoCompleta`, calcada de `toApi()` (supabase/functions/vehiculos/index.ts):
+  // `kilometrajeUltimoService`/`fechaUltimoService` en camelCase (derivados server-side, ya no
+  // columnas `..._ultimo_service`), `accesoriosCompatibles` plano (4B.5), `habilitaciones` y
+  // `gastos` ya resueltos (4B.2/4B.1) como arrays propios de la respuesta — ya NO hay un segundo
+  // argumento `gastosRows`. `mantenimiento` (4B.4, bloqueado, sin tocar) se deja como el embed
+  // crudo que el mapeo viejo esperaba, aunque la respuesta real de hoy no lo traiga.
   function filaVehiculoCompleta(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
       id: 'v-1',
@@ -426,60 +500,35 @@ describe('ensamblarVehiculo — combina la fila con embeds y las habilitaciones 
       estado: 'habilitado',
       notas: undefined,
       kilometraje: 50000,
-      kilometraje_ultimo_service: 48000,
-      fecha_ultimo_service: '2026-06-01',
-      accesorios_vehiculo: [],
+      kilometrajeUltimoService: 48000,
+      fechaUltimoService: '2026-06-01',
+      accesoriosCompatibles: [],
+      habilitaciones: [],
+      gastos: [],
       mantenimiento: [],
       ...overrides,
     };
   }
 
-  it('4.7: la VTV derivada de la fila de mantenimiento preventivo llega en `habilitaciones`', () => {
+  it('4B.2: las habilitaciones ya resueltas por la Edge Function (tabla real) llegan tal cual a `Vehiculo.habilitaciones`, sin derivar nada', () => {
     const row = filaVehiculoCompleta({
-      mantenimiento: [
-        {
-          id: 'm-1',
-          categoria: 'preventivo',
-          subtipo: 'vtv',
-          detalle: null,
-          descripcion: null,
-          fecha: '2026-06-01',
-          fecha_proximo_vencimiento: '2026-12-01',
-          km_actual: 50000,
-          km_proximo_vencimiento: null,
-        },
-      ],
+      habilitaciones: [{ tipo: 'vtv', fechaEmision: '2026-06-01', fechaVencimiento: '2026-12-01' }],
     });
 
-    const vehiculo = ensamblarVehiculo(row, []);
+    const vehiculo = ensamblarVehiculo(row);
     expect(vehiculo?.habilitaciones).toEqual([{ tipo: 'vtv', fechaEmision: '2026-06-01', fechaVencimiento: '2026-12-01' }]);
   });
 
-  it('4.7: una fila de mantenimiento descartada por incoherente (4.3) NO produce una habilitación fantasma', () => {
+  it('4B.2: una habilitación con `tipo` inválido se descarta sin romper el vehículo, independiente de mantenimientos', () => {
     const row = filaVehiculoCompleta({
-      mantenimiento: [
-        // categoria='correctivo' + subtipo='vtv' no calza ninguna de las 4 combinaciones del CHECK
-        // (D4): 'vtv' no es un subtipo correctivo válido ni 'otro'. Se descarta entera.
-        {
-          id: 'm-1',
-          categoria: 'correctivo',
-          subtipo: 'vtv',
-          detalle: null,
-          descripcion: null,
-          fecha: '2026-06-01',
-          fecha_proximo_vencimiento: '2026-12-01',
-          km_actual: 50000,
-          km_proximo_vencimiento: null,
-        },
-      ],
+      habilitaciones: [{ tipo: 'seguro-inventado', fechaEmision: '2026-01-01', fechaVencimiento: '2026-07-01' }],
     });
 
-    const vehiculo = ensamblarVehiculo(row, []);
-    expect(vehiculo?.mantenimientos).toEqual([]);
+    const vehiculo = ensamblarVehiculo(row);
     expect(vehiculo?.habilitaciones).toEqual([]);
   });
 
-  it('4.8: ordena mantenimientos por fecha desc, desempate por id desc, determinista', () => {
+  it('4.8 (sin tocar, 4B.4 bloqueado): ordena mantenimientos por fecha desc, desempate por id desc, determinista', () => {
     const row = filaVehiculoCompleta({
       mantenimiento: [
         { id: 'm-a', categoria: 'gasto', subtipo: null, detalle: null, descripcion: null, fecha: '2026-01-01', fecha_proximo_vencimiento: null, km_actual: 1000, km_proximo_vencimiento: null },
@@ -488,46 +537,64 @@ describe('ensamblarVehiculo — combina la fila con embeds y las habilitaciones 
       ],
     });
 
-    const vehiculo = ensamblarVehiculo(row, []);
+    const vehiculo = ensamblarVehiculo(row);
     expect(vehiculo?.mantenimientos.map((m) => m.id)).toEqual(['m-c', 'm-b', 'm-a']);
   });
 
-  it('4.8: ordena gastos por fecha desc, desempate por id desc', () => {
-    const row = filaVehiculoCompleta({});
-    const gastosRows = [
-      { id: 'g-a', fecha: '2026-01-01', monto: 100, descripcion: null },
-      { id: 'g-c', fecha: '2026-06-01', monto: 300, descripcion: null },
-      { id: 'g-b', fecha: '2026-06-01', monto: 200, descripcion: null },
-    ];
+  it('4B.4 bloqueado: sin la clave `mantenimiento` en la respuesta (gap real de hoy) degrada a [], sin romper el vehículo', () => {
+    const row = filaVehiculoCompleta();
+    delete row.mantenimiento;
+    const vehiculo = ensamblarVehiculo(row);
+    expect(vehiculo?.mantenimientos).toEqual([]);
+  });
 
-    const vehiculo = ensamblarVehiculo(row, gastosRows);
+  it('4B.1: los gastos ya resueltos por la Edge Function (`record.gastos`) se ordenan por fecha desc, desempate por id desc', () => {
+    const row = filaVehiculoCompleta({
+      gastos: [
+        { id: 'g-a', fecha: '2026-01-01', monto: 100, descripcion: null },
+        { id: 'g-c', fecha: '2026-06-01', monto: 300, descripcion: null },
+        { id: 'g-b', fecha: '2026-06-01', monto: 200, descripcion: null },
+      ],
+    });
+
+    const vehiculo = ensamblarVehiculo(row);
     expect(vehiculo?.gastos.map((g) => g.id)).toEqual(['g-c', 'g-b', 'g-a']);
   });
 
   it('4.8: colecciones vacías -> arrays vacíos, nunca undefined', () => {
-    const row = filaVehiculoCompleta({});
-    const vehiculo = ensamblarVehiculo(row, []);
+    const row = filaVehiculoCompleta();
+    const vehiculo = ensamblarVehiculo(row);
     expect(vehiculo?.mantenimientos).toEqual([]);
     expect(vehiculo?.gastos).toEqual([]);
     expect(vehiculo?.habilitaciones).toEqual([]);
     expect(vehiculo?.accesoriosCompatibles).toEqual([]);
   });
 
-  it('mapea accesorios del embed junto con el resto del vehículo', () => {
-    const row = filaVehiculoCompleta({
-      accesorios_vehiculo: [{ accesorio_id: 'ac-1', accesorios: { id: 'ac-1', tipo: 'andador' } }],
-    });
-    const vehiculo = ensamblarVehiculo(row, []);
+  it('4B.5: mapea accesorios del array plano `accesoriosCompatibles` junto con el resto del vehículo', () => {
+    const row = filaVehiculoCompleta({ accesoriosCompatibles: ['andador', 'tipo-invalido'] });
+    const vehiculo = ensamblarVehiculo(row);
     expect(vehiculo?.accesoriosCompatibles).toEqual(['andador']);
   });
 
   it('fila de vehículo inválida (sin id) -> null, no rompe el list() entero', () => {
-    expect(ensamblarVehiculo({ patente: 'AA123BB' }, [])).toBeNull();
+    expect(ensamblarVehiculo({ patente: 'AA123BB' })).toBeNull();
   });
 
-  it('gastosRows no-array -> gastos: []', () => {
-    const row = filaVehiculoCompleta({});
-    expect(ensamblarVehiculo(row, null)?.gastos).toEqual([]);
+  it('4B.1: `record.gastos` no-array (o ausente) -> gastos: []', () => {
+    const row = filaVehiculoCompleta({ gastos: null });
+    expect(ensamblarVehiculo(row)?.gastos).toEqual([]);
+  });
+
+  it('4B.3: kilometraje null (columna nullable, sin default) -> 0 en la lectura', () => {
+    const row = filaVehiculoCompleta({ kilometraje: null });
+    expect(ensamblarVehiculo(row)?.kilometraje).toBe(0);
+  });
+
+  it('4B.3: kilometrajeUltimoService/fechaUltimoService se leen tal cual de la respuesta JSON (derivados server-side, ya no columnas propias)', () => {
+    const row = filaVehiculoCompleta({ kilometrajeUltimoService: 62000, fechaUltimoService: '2026-07-15' });
+    const vehiculo = ensamblarVehiculo(row);
+    expect(vehiculo?.kilometrajeUltimoService).toBe(62000);
+    expect(vehiculo?.fechaUltimoService).toBe('2026-07-15');
   });
 });
 
@@ -562,7 +629,15 @@ describe('toCrearVehiculoPayload — alta (4.7b + escritura literal de los campo
     expect(payload.estado).toBe('habilitado');
     expect(payload.notas).toBe('Aire roto');
     expect(payload.kilometraje).toBe(0);
-    expect(payload.kilometraje_ultimo_service).toBe(0);
+  });
+
+  it('4B.3 RECONCILIADO: NUNCA emite kilometrajeUltimoService/fechaUltimoService — son derivados server-side por la Edge Function, no columnas propias que el alta pueda fijar', () => {
+    const nuevo: NuevoVehiculo = { ...buildNuevoVehiculoMinimo(), kilometrajeUltimoService: 48000, fechaUltimoService: '2026-06-01' };
+    const payload = toCrearVehiculoPayload(nuevo);
+    expect('kilometraje_ultimo_service' in payload).toBe(false);
+    expect('fecha_ultimo_service' in payload).toBe(false);
+    expect('kilometrajeUltimoService' in payload).toBe(false);
+    expect('fechaUltimoService' in payload).toBe(false);
   });
 
   it('estado se traduce con toEstadoVehiculoRow (D13)', () => {
@@ -597,7 +672,12 @@ describe('toCrearVehiculoPayload — alta (4.7b + escritura literal de los campo
         km_proximo_vencimiento: null,
       },
     ]);
-    expect(payload.gastos).toEqual([{ id: 'g-1', monto: 500, fecha: '2026-01-01', descripcion: null }]);
+    // 4B.1 RECONCILIADO: gastos ya no tienen fila propia con `id` estable en una tabla aparte —
+    // viven en `conductores.mantenimiento` y se reemplazan enteros (delete+insert), igual que
+    // `mantenimientos`. `toGastoRows` ya no emite `id` ni `categoria`/`categoria_gasto` (asunción
+    // reversible, ver describe de `parseGastoRow`).
+    expect(payload.gastos).toEqual([{ monto: 500, fecha: '2026-01-01', descripcion: null }]);
+    expect(payload.gastos.some((gasto) => 'id' in gasto)).toBe(false);
   });
 });
 
@@ -640,14 +720,18 @@ describe('toActualizarVehiculoPayload — semántica parcial (4.9, la trampa má
     expect(payload.estado).toBe('fuera de servicio');
   });
 
-  it('kilometrajeUltimoService y fechaUltimoService presentes se emiten en snake_case (RN-VE-03)', () => {
+  it('4B.3 RECONCILIADO: kilometrajeUltimoService/fechaUltimoService presentes en `cambios` NUNCA se emiten en el payload — son derivados server-side, el mapeo solo los lee de la respuesta, nunca los escribe', () => {
     const payload = toActualizarVehiculoPayload({ kilometrajeUltimoService: 55000, fechaUltimoService: '2026-07-01' });
-    expect(payload.kilometraje_ultimo_service).toBe(55000);
-    expect(payload.fecha_ultimo_service).toBe('2026-07-01');
+    expect('kilometraje_ultimo_service' in payload).toBe(false);
+    expect('fecha_ultimo_service' in payload).toBe(false);
+    expect('kilometrajeUltimoService' in payload).toBe(false);
+    expect('fechaUltimoService' in payload).toBe(false);
   });
 
-  it('fechaUltimoService: "" se escribe como null (vaciar), no como string vacío', () => {
-    expect(toActualizarVehiculoPayload({ fechaUltimoService: '' }).fecha_ultimo_service).toBeNull();
+  it('4B.3 RECONCILIADO: fechaUltimoService: "" en `cambios` tampoco se emite (mismo criterio: nunca sale en el payload)', () => {
+    const payload = toActualizarVehiculoPayload({ fechaUltimoService: '' });
+    expect('fecha_ultimo_service' in payload).toBe(false);
+    expect('fechaUltimoService' in payload).toBe(false);
   });
 
   it('notas: "" se escribe como null (vaciar el campo), notas ausente no aparece', () => {

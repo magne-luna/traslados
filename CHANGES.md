@@ -340,6 +340,16 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `openspec/changes/integracion-conductores-vehiculos/design.md` §Reconciliación, bloque "Gap
   abierto". **Bloquea** §5/§4B de `integracion-conductores-vehiculos/tasks.md` hasta que Enzo elija
   un camino.
+- **⚠️ GAP ABIERTO — `estado` con doble conversión (detectado en batch 4B, 2026-08-01)**: la Edge
+  Function ya devuelve `estado` convertido a la forma de dominio (`'fuera-de-servicio'`, con guión),
+  pero `parseEstadoVehiculo` (§4) todavía espera el valor crudo de la base (con espacio) y ante un
+  valor desconocido degrada silenciosamente a `'habilitado'`. Un vehículo real fuera de servicio
+  podría mostrarse como habilitado si §5 pasa la respuesta de la Edge Function sin ajustar esto
+  antes. Bloquea §5 igual que el gap de mantenimientos. Detalle en `design.md` §Reconciliación.
+- **⚠️ GAP ABIERTO — `notas` no viaja (detectado en batch 4B, 2026-08-01)**: `toApi()` de
+  `vehiculos/index.ts` nunca incluye la clave `notas` en la respuesta, aunque el campo existe en el
+  dominio y en la base (`Vehiculo.notas`, §2). En producción este campo siempre volvería
+  `undefined`. Sin decidir con Enzo si `toApi()` debe sumarlo.
 - **✅ Adoptado (2026-08-01) — patrón de acceso**: el design asumía PostgREST + RPC directo con RLS
   por tabla como frontera de enforcement; la realidad es que la Edge Function de Enzo hace un único
   chequeo grueso `tiene_permiso('vehiculos', nivel)` y de ahí en más usa un cliente service-role
