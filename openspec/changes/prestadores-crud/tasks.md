@@ -178,16 +178,16 @@ como tracker) o como **stacked-to-main** directo, antes de arrancar `sdd-apply`.
 > de triangulación que tiene el original — ver nota de testing reducido. Spec: `prestador-contract`
 > (ADDED).
 
-- [ ] 3.1 `shared/types/prestador.ts`: `Prestador` con `id`, `razonSocial`, `cuit`, `direccion?`,
+- [x] 3.1 `shared/types/prestador.ts`: `Prestador` con `id`, `razonSocial`, `cuit`, `direccion?`,
       `telefono?`, `plazoCobroDias`, `tipoComprobante` (`'A' | 'B' | 'C'`), más
       `NuevoPrestador = Omit<Prestador, 'id'>` y `ActualizacionPrestador =
       Partial<Omit<Prestador, 'id'>> & { obrasSocialesIds?: string[] }`. Sin `any`. Comentario de
       cabecera: campos movidos desde `ObraSocial`, supuesto #3, SIN confirmar con Andrea.
-- [ ] 3.2 `shared/lib/prestadores/PrestadorRepository.ts`: interfaz con `list(): Promise<Prestador[]>`,
+- [x] 3.2 `shared/lib/prestadores/PrestadorRepository.ts`: interfaz con `list(): Promise<Prestador[]>`,
       `getById(id): Promise<Prestador | null>`, `create(data): Promise<Prestador>`,
       `update(id, data): Promise<Prestador>`, `listarPorObraSocial(obraSocialId):
       Promise<Prestador[]>` (para el panel de solo lectura de §5). Sin test — es solo una interfaz.
-- [ ] 3.3 `shared/lib/prestadores/prestadorMapping.ts`: `parsePrestadorRow` (renombre
+- [x] 3.3 `shared/lib/prestadores/prestadorMapping.ts`: `parsePrestadorRow` (renombre
       `razon_social`→`razonSocial`, NULLables → `undefined`, `tipo_comprobante`/`plazo_cobro_dias`
       inválidos → defaults `DEFAULT_TIPO_COMPROBANTE`/`DEFAULT_PLAZO_COBRO_DIAS`, mudados desde
       `obraSocialMapping.ts` en §2.1, más el parseo del embed `obra_social_prestador (
@@ -196,22 +196,38 @@ como tracker) o como **stacked-to-main** directo, antes de arrancar `sdd-apply`.
       no viaja en el payload; `obrasSocialesIds` no viaja acá, se resuelve por diff en el repository
       en §3.4). **Un solo smoke test** (`prestadorMapping.test.ts`) que arma una fila completa,
       parsea, y confirma el objeto `Prestador` resultante — no se testean todas las ramas
-      defensivas por separado.
-- [ ] 3.4 `shared/lib/prestadores/SupabasePrestadorRepository.ts`: `list()`/`getById()`/`create()`/
+      defensivas por separado. **Nota de apply**: `parsePrestadorRow` devuelve `PrestadorConVinculo`
+      (`Prestador & { obrasSocialesIds: string[] }`, tipo exportado nuevo) en vez de `Prestador`
+      puro — `Prestador` (§3.1) no declara `obrasSocialesIds` como campo de lectura, así que el
+      embed se parsea en una propiedad extra estructuralmente compatible con `Prestador[]`/
+      `Prestador | null` (los retornos declarados por `PrestadorRepository`), consumida hoy solo por
+      el diff interno de `update()` (§3.4) y disponible para quien la necesite en §5 (work unit
+      futuro). Ningún archivo de este work unit lee `.obrasSocialesIds` de un valor tipado
+      `Prestador`.
+- [x] 3.4 `shared/lib/prestadores/SupabasePrestadorRepository.ts`: `list()`/`getById()`/`create()`/
       `update()`/`listarPorObraSocial()` sobre `obra_social.prestadores`, con el embed del vínculo en
       `list()`/`getById()`/`listarPorObraSocial()`. `update()` implementa el diff de D2: `.update()`
       de los campos planos y, solo si `cambios.obrasSocialesIds !== undefined`, `.select()` del
       vínculo actual + `.delete()` de los quitados + `.insert()` de los agregados, después
       `getById()`. `mapearErrorPrestador`: `23505` sobre `cuit`, `42501`/`PGRST301`, `PGRST204`,
       `PGRST106`, genérico — mensajes en castellano, nunca el texto crudo de Postgres.
-- [ ] 3.5 **Un solo smoke test** (`SupabasePrestadorRepository.test.ts`), con el mismo fake tipado
+      `listarPorObraSocial()` usa `obra_social_prestador!inner ( obra_social_id )` +
+      `.eq('obra_social_prestador.obra_social_id', obraSocialId)` para filtrar por el lado embebido
+      (PostgREST, sin tarea que especificara la sintaxis exacta — resuelto pragmáticamente).
+- [x] 3.5 **Un solo smoke test** (`SupabasePrestadorRepository.test.ts`), con el mismo fake tipado
       mínimo (sin `any`/`as`) usado en `SupabaseObraSocialRepository.test.ts`: cubre `create()` +
       `update()` con `obrasSocialesIds` sin cambios reales (confirma que **no** dispara
       `.delete()`/`.insert()` de más — es la única aserción de este change que vale la pena
       proteger con test, el resto de las ramas de error quedan sin cubrir a propósito en esta rama
-      de demo).
-- [ ] 3.6 `cd frontend && npx tsc -b --noEmit` limpio sobre `shared/lib/prestadores/`. Sin gate de
-      cobertura mínima (ver nota de testing reducido).
+      de demo). **Nota de apply**: el fake se recortó/adaptó (builder único `FakeQueryBuilder` con
+      `select`/`insert`/`update`/`delete`/`.eq()`/`.in()`/`.maybeSingle()`/`.single()`) porque
+      `SupabaseObraSocialRepository.test.ts` no ejercita `.update()`/`.delete()`/`.in()` (usa RPC,
+      no PostgREST directo) — se tomó como base más cercana el fake de
+      `SupabasePacienteRepository.test.ts`, que sí los tiene, agregándole `.in()`.
+- [x] 3.6 `cd frontend && npx tsc -b --noEmit` limpio sobre `shared/lib/prestadores/`. Sin gate de
+      cobertura mínima (ver nota de testing reducido). **Resultado de apply**: limpio, 0 errores,
+      corrido también sobre todo `frontend/` (no solo los archivos nuevos) por ser rama encadenada
+      sobre el work unit 1 — ver Work Unit Evidence del reporte de apply.
 
 ## 4. Pantalla de Prestador (UI) — espejo de `features/obras-sociales/`
 
