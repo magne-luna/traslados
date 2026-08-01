@@ -36,6 +36,13 @@ export type OrigenCampoPlantilla =
 // en mockObraSocialRepository.ts).
 export type IdentificadorOrigenFactura = 'paciente.dni' | 'paciente.numeroAfiliado';
 
+// RF-106/RN-ID-02: el formato del número de afiliado del paciente "varía según la obra social" —
+// es una propiedad de la obra social, no un dato editable por paciente/cobertura (antes vivía
+// como `numeroAfiliado.formato` en shared/types/paciente.ts). Unión cerrada, no `string` libre —
+// mismos valores que el enum real `obra_social.formato_afiliado` de la base (ya existente,
+// creado por 20260729120000_schema_pacientes_gaps.sql para coberturas_paciente).
+export type FormatoAfiliado = 'numero-documento' | 'alfanumerico' | 'cuil-con-sufijo';
+
 export interface PlantillaCampo {
   id: string;
   etiqueta: string;
@@ -68,6 +75,8 @@ export interface ObraSocial {
   modalidadFacturacion: ModalidadFacturacion;
   /** Si la obra social admite pagos parciales o por lote. */
   admitePagosParciales: boolean;
+  /** Formato del número de afiliado de sus pacientes (RF-106, RN-ID-02). */
+  formatoAfiliado: FormatoAfiliado;
   /** Checklist documental configurable (RN-FA-08); reutiliza ChecklistItem de FE-1. El orden
    * de los ítems del array es significativo y debe preservarse. */
   checklist: ChecklistItem[];

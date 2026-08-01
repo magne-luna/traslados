@@ -23,7 +23,7 @@ function buildNuevoPacienteMinimo(): NuevoPaciente {
     diagnostico: '',
     accesorioMovilidad: [],
     obraSocialId: null,
-    numeroAfiliado: { formato: 'numero-documento', valor: '' },
+    numeroAfiliado: { valor: '' },
     cud: null,
     direcciones: [],
     personasACargo: [],
@@ -44,7 +44,7 @@ function buildNuevoPacienteCompleto(): NuevoPaciente {
     condicion: 'Estable',
     accesorioMovilidad: ['andador', 'tripode'],
     obraSocialId: 'os-1',
-    numeroAfiliado: { formato: 'alfanumerico', valor: 'AF-999' },
+    numeroAfiliado: { valor: 'AF-999' },
     cud: { numero: 'C-1', fechaEmision: '2023-01-01', fechaVencimiento: '2027-01-01' },
     direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'San Martín 123', localidad: 'CABA', dias: 'Lun', horario: '08:00' }],
     personasACargo: [{ id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', telefono: '111' }],
@@ -356,7 +356,7 @@ describe('ensamblarPaciente', () => {
       condicion: 'Estable',
       accesorioMovilidad: ['andador'],
       obraSocialId: 'os-1',
-      numeroAfiliado: { formato: 'numero-documento', valor: 'AF-123' },
+      numeroAfiliado: { valor: 'AF-123' },
       cud: { numero: 'C-1', fechaEmision: '2023-01-01', fechaVencimiento: '2027-01-01' },
       direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'San Martín 123', localidad: '' }],
       personasACargo: [
@@ -367,10 +367,10 @@ describe('ensamblarPaciente', () => {
     });
   });
 
-  it('discrepancias #1/#2 (D9): coberturaRow null degrada a formato default y valor vacío, sin lanzar', () => {
+  it('discrepancia #2 (D9): coberturaRow null degrada a valor vacío, sin lanzar', () => {
     const paciente = ensamblarPaciente(buildRowCompleto(), null);
 
-    expect(paciente.numeroAfiliado).toEqual({ formato: 'numero-documento', valor: '' });
+    expect(paciente.numeroAfiliado).toEqual({ valor: '' });
   });
 
   it('robustez (2.10): una direccion malformada se descarta sin romper el paciente ni el resto de la lista', () => {
@@ -426,7 +426,9 @@ describe('ensamblarPaciente', () => {
 
 describe('toCrearPacientePayload', () => {
   // Tarea 2.11: debe espejar exactamente lo que consume
-  // 20260730180000_crear_paciente_completo.sql — mismas claves snake_case que sus `->>`.
+  // 20260730180000_crear_paciente_completo.sql — mismas claves snake_case que sus `->>`. El
+  // formato del identificador de afiliado NO viaja acá (RF-106, D12 vigente): es una propiedad de
+  // la obra social (`ObraSocial.formatoAfiliado`), no del payload de alta de paciente.
   it('paciente mínimo: sin CUD, sin colecciones', () => {
     const payload = toCrearPacientePayload(buildNuevoPacienteMinimo());
 
@@ -475,7 +477,7 @@ describe('toCrearPacientePayload', () => {
 
   it('paciente sin obraSocialId con numeroAfiliado.valor cargado: num_afiliado viaja igual', () => {
     const nuevo = buildNuevoPacienteMinimo();
-    nuevo.numeroAfiliado = { formato: 'numero-documento', valor: 'AF-777' };
+    nuevo.numeroAfiliado = { valor: 'AF-777' };
     nuevo.obraSocialId = null;
 
     const payload = toCrearPacientePayload(nuevo);
@@ -484,19 +486,11 @@ describe('toCrearPacientePayload', () => {
     expect(payload.obra_social_id).toBeNull();
   });
 
-  // Discrepancias #1, #3, #4, #6 (D9): datos que el usuario ve en pantalla pero la base no guarda.
+  // Discrepancias #3, #4, #6 (D9): datos que el usuario ve en pantalla pero la base no guarda.
   it('discrepancia #6: NO envía domicilio', () => {
     const payload = toCrearPacientePayload(buildNuevoPacienteCompleto());
 
     expect(payload).not.toHaveProperty('domicilio');
-  });
-
-  it('discrepancia #1: NO envía el formato del identificador de afiliado', () => {
-    const payload = toCrearPacientePayload(buildNuevoPacienteCompleto());
-
-    expect(payload.num_afiliado).toBe('AF-999');
-    expect(JSON.stringify(payload)).not.toContain('alfanumerico');
-    expect(payload).not.toHaveProperty('formato_afiliado');
   });
 
   it('discrepancias #3/#4: NO envía localidad/dias/horario de las direcciones', () => {

@@ -17,6 +17,7 @@ const osecac: ObraSocial = {
   tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
+  formatoAfiliado: 'numero-documento',
   checklist: [],
   plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
 };
@@ -35,7 +36,7 @@ describe('PacienteForm', () => {
     expect(screen.getByText(/el dni es obligatorio/i)).toBeInTheDocument();
   });
 
-  it('llama a onSubmit con los valores completados usando el formato de afiliado por defecto', async () => {
+  it('llama a onSubmit con los valores completados, numeroAfiliado sin formato (RF-106: vive en la obra social)', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
@@ -51,7 +52,7 @@ describe('PacienteForm', () => {
         apellido: 'Gómez',
         nombre: 'Martina',
         dni: '45123456',
-        numeroAfiliado: { formato: 'numero-documento', valor: '' },
+        numeroAfiliado: { valor: '' },
         obraSocialId: null,
         accesorioMovilidad: [],
         amparoJudicial: false,
@@ -185,7 +186,7 @@ describe('PacienteForm', () => {
           diagnostico: 'Parálisis cerebral',
           accesorioMovilidad: ['silla-plegable', 'andador'],
           obraSocialId: 'osecac',
-          numeroAfiliado: { formato: 'alfanumerico', valor: 'OS-1' },
+          numeroAfiliado: { valor: 'OS-1' },
           amparoJudicial: false,
         }}
         onSubmit={vi.fn()}
@@ -290,7 +291,8 @@ describe('PacienteForm — gateo de escritura', () => {
 
     expect(screen.getByLabelText(/^apellido$/i)).toBeEnabled();
     expect(screen.getByLabelText(/obra social/i)).toBeEnabled();
-    expect(screen.getByLabelText(/formato/i)).toBeEnabled();
+    // Nota: "formato" NO se prueba acá — es siempre solo-lectura (derivado de la obra social,
+    // RF-106), nunca lo habilita el permiso de escritura. Cubierto en el describe de arriba.
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');

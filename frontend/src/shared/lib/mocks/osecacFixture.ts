@@ -32,6 +32,8 @@ export function buildOsecacFixture(): ObraSocial {
     tipoComprobante: 'A',
     modalidadFacturacion: 'por-prestacion',
     admitePagosParciales: false,
+    // RF-106/RN-ID-02: sin fuente verificable para OSECAC todavía, se usa el default documentado.
+    formatoAfiliado: 'numero-documento',
     checklist: OSECAC_CHECKLIST_NOMBRES.map((nombre, index) => ({
       id: `osecac-item-${index}`,
       nombre,

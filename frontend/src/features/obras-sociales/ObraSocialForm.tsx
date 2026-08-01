@@ -3,7 +3,8 @@ import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
-import type { ModalidadFacturacion, TipoComprobante } from '../../shared/types/obraSocial';
+import type { FormatoAfiliado, ModalidadFacturacion, TipoComprobante } from '../../shared/types/obraSocial';
+import { DEFAULT_FORMATO_AFILIADO, FORMATO_AFILIADO_LABELS, FORMATO_AFILIADO_OPTIONS } from '../pacientes/formatoAfiliadoOptions';
 import { validateObraSocialForm, type ObraSocialFormErrors } from './validateObraSocialForm';
 
 export interface ObraSocialFormValues {
@@ -13,6 +14,8 @@ export interface ObraSocialFormValues {
   tipoComprobante: TipoComprobante;
   modalidadFacturacion: ModalidadFacturacion;
   admitePagosParciales: boolean;
+  /** RF-106/RN-ID-02: formato del número de afiliado de los pacientes de esta obra social. */
+  formatoAfiliado: FormatoAfiliado;
   // Los 4 campos del docx (integracion-obra-social D9, discrepancia #11): opcionales, nunca
   // obligatorios (ninguna fuente respalda esa regla — ver validateObraSocialForm.ts). Se modelan
   // como `string` (no `string | undefined`) para que los <Input> queden siempre controlados; una
@@ -32,6 +35,7 @@ const DEFAULT_VALUES: ObraSocialFormValues = {
   tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
+  formatoAfiliado: DEFAULT_FORMATO_AFILIADO,
   codigo: '',
   direccion: '',
   telefono: '',
@@ -146,6 +150,23 @@ export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false
               value={values.condicionIva}
               onChange={(event) => setValues((prev) => ({ ...prev, condicionIva: event.target.value }))}
             />
+          </Field>
+
+          <Field label="Formato del número de afiliado" htmlFor={`${formId}-formato-afiliado`}>
+            <Select
+              id={`${formId}-formato-afiliado`}
+              density="comfortable"
+              value={values.formatoAfiliado}
+              onChange={(event) =>
+                setValues((prev) => ({ ...prev, formatoAfiliado: event.target.value as FormatoAfiliado }))
+              }
+            >
+              {FORMATO_AFILIADO_OPTIONS.map((formato) => (
+                <option key={formato} value={formato}>
+                  {FORMATO_AFILIADO_LABELS[formato]}
+                </option>
+              ))}
+            </Select>
           </Field>
         </div>
       </div>

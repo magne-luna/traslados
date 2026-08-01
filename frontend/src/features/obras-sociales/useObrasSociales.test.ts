@@ -12,6 +12,7 @@ const osecac: ObraSocial = {
   tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
+  formatoAfiliado: 'numero-documento',
   checklist: [],
   plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
 };
@@ -64,6 +65,7 @@ describe('useObrasSociales', () => {
         tipoComprobante: 'B',
         modalidadFacturacion: 'general',
         admitePagosParciales: true,
+        formatoAfiliado: 'numero-documento',
         checklist: [],
         plantillaFactura: { campos: [], identificadorOrigen: 'paciente.dni' },
       });
@@ -100,6 +102,7 @@ describe('useObrasSociales', () => {
           tipoComprobante: 'A',
           modalidadFacturacion: 'por-prestacion',
           admitePagosParciales: false,
+          formatoAfiliado: 'numero-documento',
           checklist: [],
           plantillaFactura: { campos: [], identificadorOrigen: 'paciente.dni' },
         }),

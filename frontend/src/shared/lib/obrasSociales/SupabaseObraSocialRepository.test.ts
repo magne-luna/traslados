@@ -163,6 +163,7 @@ function nuevaObraSocialMinima(): NuevaObraSocial {
     tipoComprobante: 'A',
     modalidadFacturacion: 'por-prestacion',
     admitePagosParciales: false,
+    formatoAfiliado: 'numero-documento',
     checklist: [],
     plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
   };

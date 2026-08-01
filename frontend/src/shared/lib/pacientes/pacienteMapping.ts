@@ -14,7 +14,6 @@ import type {
   TipoDireccion,
 } from '../../types/paciente';
 import type { AccesorioMovilidad } from '../../types/vehiculo';
-import { DEFAULT_FORMATO_AFILIADO } from '../../../features/pacientes/formatoAfiliadoOptions';
 
 const TIPOS_DIRECCION_VALIDOS = new Set<TipoDireccion>(['domicilio', 'escuela', 'terapia', 'ciset', 'otro']);
 
@@ -258,9 +257,12 @@ export function parseAccesorios(rows: unknown): AccesorioMovilidad[] {
   return tipos;
 }
 
-/** `obra_social.coberturas_paciente` → `{ valor }` del número de afiliado (D3). Ausencia de fila
- * (0 filas, error de la consulta, o `null`/`undefined`) degrada a `valor: ''` sin lanzar — el
- * repository decide *por qué* no hay fila (0 filas vs. RLS), acá solo se normaliza el resultado. */
+/** `obra_social.coberturas_paciente` → `{ valor }` del número de afiliado (D3). El `formato` NO
+ * se lee de acá — es una propiedad de la obra social (RF-106, D12 vigente: `coberturas_paciente
+ * .formato_afiliado` existe en la base pero queda sin usar, no se dropea, ver
+ * `ObraSocial.formatoAfiliado`). Ausencia de fila (0 filas, error de la consulta, o
+ * `null`/`undefined`) degrada a `valor: ''` sin lanzar — el repository decide *por qué* no hay
+ * fila (0 filas vs. RLS), acá solo se normaliza el resultado. */
 export function parseCoberturaRow(row: unknown): { valor: string } {
   if (!isRecord(row)) return { valor: '' };
   return { valor: readNullableString(row, 'num_afiliado') ?? '' };
@@ -268,8 +270,8 @@ export function parseCoberturaRow(row: unknown): { valor: string } {
 
 /** Combina la fila con embeds de `pacientes.paciente` (D2) más la fila de cobertura (D3, segunda
  * consulta a otro schema) en un `Paciente` completo. Filas hijas malformadas se descartan en
- * silencio (tarea 2.10) sin romper el paciente. `coberturaRow === null` degrada `numeroAfiliado` a
- * `{ formato: DEFAULT_FORMATO_AFILIADO, valor: '' }` (discrepancias #1/#2 de D9). */
+ * silencio (tarea 2.10) sin romper el paciente. `coberturaRow === null` degrada `numeroAfiliado`
+ * a `{ valor: '' }` (discrepancia #1 de D9, vigente). */
 export function ensamblarPaciente(row: unknown, coberturaRow: unknown): Paciente {
   const base = parsePacienteRow(row);
   const record = isRecord(row) ? row : {};
@@ -300,9 +302,9 @@ export function ensamblarPaciente(row: unknown, coberturaRow: unknown): Paciente
     condicion: clinicos.condicion,
     accesorioMovilidad: parseAccesorios(record.accesorios_pacientes),
     obraSocialId: base.obraSocialId,
-    // Discrepancias #1/#2 (D9, D3 CONFIRMADA): sin columna de formato, default client-side; la
-    // lectura degradable de `valor` ya viene resuelta en `parseCoberturaRow`.
-    numeroAfiliado: { formato: DEFAULT_FORMATO_AFILIADO, valor: cobertura.valor },
+    // Discrepancia #1 (D9, vigente): `formato` no viaja acá — es propiedad de la obra social
+    // (RF-106, `ObraSocial.formatoAfiliado`), no del paciente. Solo `valor` viene de la cobertura.
+    numeroAfiliado: { valor: cobertura.valor },
     cud,
     direcciones,
     personasACargo,
@@ -313,11 +315,11 @@ export function ensamblarPaciente(row: unknown, coberturaRow: unknown): Paciente
 
 /** Argumento `p_paciente jsonb` de `pacientes.crear_paciente_completo` (D4). Espeja exactamente
  * las claves que lee `20260730180000_crear_paciente_completo.sql` (sus `->>`/`->`) — nunca agrega
- * una clave que la migración no consuma. Discrepancias #1 (`formato`), #3/#4 (`localidad`/`dias`/
- * `horario` de direcciones) y #6 (`domicilio`) NO viajan (D9): son datos que el usuario ve en
- * pantalla pero el esquema real no persiste. La mayoría de los campos de texto se pasan tal cual
- * (incluso `''`) porque la migración ya hace `NULLIF(..., '')` de su lado — duplicar esa decisión
- * acá sería un segundo criterio para la misma regla. */
+ * una clave que la migración no consuma. Discrepancias #1 (`formato`, vive en la obra social —
+ * RF-106), #3/#4 (`localidad`/`dias`/`horario` de direcciones) y #6 (`domicilio`) NO viajan (D9):
+ * son datos que el usuario ve en pantalla pero el esquema real no persiste acá. La mayoría de los
+ * campos de texto se pasan tal cual (incluso `''`) porque la migración ya hace `NULLIF(..., '')`
+ * de su lado — duplicar esa decisión acá sería un segundo criterio para la misma regla. */
 export interface CrearPacientePayload {
   nombre_a: string;
   nombre_b: string | null;
@@ -360,8 +362,8 @@ export function toCrearPacientePayload(nuevo: NuevoPaciente): CrearPacientePaylo
     direcciones: toDireccionRows(nuevo.direcciones),
     personas_a_cargo: toPersonaACargoRows(nuevo.personasACargo),
     accesorios: nuevo.accesorioMovilidad,
-    // Discrepancia #1 (D9): solo viaja `valor`; `numeroAfiliado.formato` no tiene columna y no se
-    // envía (IN-01 abierta).
+    // Discrepancia #1 (D9): solo viaja `valor`; `numeroAfiliado.formato` no tiene columna propia
+    // en pacientes/coberturas — es una propiedad de la obra social (RF-106).
     num_afiliado: nuevo.numeroAfiliado.valor,
   };
 }

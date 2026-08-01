@@ -3,52 +3,51 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { IdentificadorAfiliado } from '../../shared/types/paciente';
 import { IdentificadorAfiliadoField } from './IdentificadorAfiliadoField';
+import { FORMATO_AFILIADO_LABELS } from './formatoAfiliadoOptions';
+
+// El formato ya no es editable acá (RF-106/RN-ID-02): se derivó de la obra social del paciente y
+// llega como prop de solo lectura (ver IdentificadorAfiliadoField.tsx). Estas pruebas cubren la
+// etiqueta legible derivada, el placeholder sin obra social, y que el campo de valor sigue
+// editable e independiente del formato.
 
 describe('IdentificadorAfiliadoField', () => {
-  it('muestra las tres opciones de formato de la unión cerrada', () => {
-    const value: IdentificadorAfiliado = { formato: 'numero-documento', valor: '123' };
+  it('muestra la etiqueta legible del formato derivado de la obra social para cada valor de la unión', () => {
+    const value: IdentificadorAfiliado = { valor: '123' };
+    const { rerender } = render(<IdentificadorAfiliadoField value={value} onChange={vi.fn()} formato="numero-documento" />);
+    expect(screen.getByDisplayValue(FORMATO_AFILIADO_LABELS['numero-documento'])).toBeInTheDocument();
 
-    render(<IdentificadorAfiliadoField value={value} onChange={vi.fn()} />);
+    rerender(<IdentificadorAfiliadoField value={value} onChange={vi.fn()} formato="alfanumerico" />);
+    expect(screen.getByDisplayValue(FORMATO_AFILIADO_LABELS.alfanumerico)).toBeInTheDocument();
 
-    expect(screen.getByRole('option', { name: /número de documento/i })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /alfanumérico/i })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /cuil del titular con sufijo/i })).toBeInTheDocument();
+    rerender(<IdentificadorAfiliadoField value={value} onChange={vi.fn()} formato="cuil-con-sufijo" />);
+    expect(screen.getByDisplayValue(FORMATO_AFILIADO_LABELS['cuil-con-sufijo'])).toBeInTheDocument();
   });
 
-  it('cambiar el formato NO borra ni fuerza el valor cargado (RN-ID-02)', async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    const value: IdentificadorAfiliado = { formato: 'numero-documento', valor: '45123456' };
+  it('muestra un placeholder cuando todavía no hay obra social seleccionada (formato null)', () => {
+    const value: IdentificadorAfiliado = { valor: '' };
 
-    render(<IdentificadorAfiliadoField value={value} onChange={onChange} />);
+    render(<IdentificadorAfiliadoField value={value} onChange={vi.fn()} formato={null} />);
 
-    await user.selectOptions(screen.getByLabelText(/formato/i), 'cuil-con-sufijo');
-
-    expect(onChange).toHaveBeenCalledWith({ formato: 'cuil-con-sufijo', valor: '45123456' });
+    expect(screen.getByDisplayValue('Elegí una obra social primero')).toBeInTheDocument();
   });
 
-  it('editar el valor no cambia el formato seleccionado (triangulación)', async () => {
+  it('el campo de formato es de solo lectura: no se puede editar desde este componente', () => {
+    const value: IdentificadorAfiliado = { valor: '123' };
+
+    render(<IdentificadorAfiliadoField value={value} onChange={vi.fn()} formato="numero-documento" />);
+
+    expect(screen.getByLabelText(/formato/i)).toBeDisabled();
+  });
+
+  it('editar el valor dispara onChange solo con el valor nuevo, sin tocar el formato (RN-ID-02)', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    const value: IdentificadorAfiliado = { formato: 'alfanumerico', valor: '' };
+    const value: IdentificadorAfiliado = { valor: '' };
 
-    render(<IdentificadorAfiliadoField value={value} onChange={onChange} />);
+    render(<IdentificadorAfiliadoField value={value} onChange={onChange} formato="alfanumerico" />);
 
     await user.type(screen.getByLabelText(/valor/i), 'X');
 
-    expect(onChange).toHaveBeenCalledWith({ formato: 'alfanumerico', valor: 'X' });
-  });
-
-  it('el formato por defecto es editable: cualquier opción puede seleccionarse libremente', async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    const value: IdentificadorAfiliado = { formato: 'numero-documento', valor: '1' };
-
-    render(<IdentificadorAfiliadoField value={value} onChange={onChange} />);
-    const select = screen.getByLabelText(/formato/i) as HTMLSelectElement;
-
-    expect(select.value).toBe('numero-documento');
-    await user.selectOptions(select, 'alfanumerico');
-    expect(onChange).toHaveBeenCalledWith({ formato: 'alfanumerico', valor: '1' });
+    expect(onChange).toHaveBeenCalledWith({ valor: 'X' });
   });
 });

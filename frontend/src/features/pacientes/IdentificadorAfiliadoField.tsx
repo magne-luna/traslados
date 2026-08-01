@@ -1,20 +1,23 @@
 import { useId } from 'react';
-import { Field, Input, Select } from '../../design-system/form';
-import type { FormatoAfiliado, IdentificadorAfiliado } from '../../shared/types/paciente';
-import { FORMATO_AFILIADO_LABELS, FORMATO_AFILIADO_OPTIONS } from './formatoAfiliadoOptions';
+import { Field, Input } from '../../design-system/form';
+import type { IdentificadorAfiliado } from '../../shared/types/paciente';
+import type { FormatoAfiliado } from '../../shared/types/obraSocial';
+import { FORMATO_AFILIADO_LABELS } from './formatoAfiliadoOptions';
 
 interface IdentificadorAfiliadoFieldProps {
   value: IdentificadorAfiliado;
   onChange: (value: IdentificadorAfiliado) => void;
+  /** Derivado de la obra social elegida (RF-106, RN-ID-02) — `null` si todavía no hay obra
+   * social seleccionada. Solo lectura acá: nunca se elige por paciente. */
+  formato: FormatoAfiliado | null;
 }
 
 const labelClasses = 'font-body text-[12px] font-semibold text-muted';
 
-// Sub-formulario del identificador de afiliado (tasks.md 6.3, RN-ID-02/IN-01): select de
-// `formato` (unión cerrada) + input libre de `valor`. Cambiar el formato NUNCA borra ni fuerza
-// el valor — son dos campos independientes del mismo objeto, cada `onChange` solo toca el campo
-// que el usuario editó.
-export function IdentificadorAfiliadoField({ value, onChange }: IdentificadorAfiliadoFieldProps) {
+// Sub-formulario del identificador de afiliado (RF-106, RN-ID-02/IN-01): el formato es de solo
+// lectura, derivado de la obra social elegida en PacienteCoberturaFields — acá solo se edita el
+// valor libre.
+export function IdentificadorAfiliadoField({ value, onChange, formato }: IdentificadorAfiliadoFieldProps) {
   const formId = useId();
 
   return (
@@ -23,18 +26,13 @@ export function IdentificadorAfiliadoField({ value, onChange }: IdentificadorAfi
 
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
         <Field label="Formato" htmlFor={`${formId}-formato`}>
-          <Select
+          <Input
             id={`${formId}-formato`}
             density="comfortable"
-            value={value.formato}
-            onChange={(event) => onChange({ ...value, formato: event.target.value as FormatoAfiliado })}
-          >
-            {FORMATO_AFILIADO_OPTIONS.map((formato) => (
-              <option key={formato} value={formato}>
-                {FORMATO_AFILIADO_LABELS[formato]}
-              </option>
-            ))}
-          </Select>
+            value={formato ? FORMATO_AFILIADO_LABELS[formato] : 'Elegí una obra social primero'}
+            disabled
+            readOnly
+          />
         </Field>
 
         <Field label="Valor" htmlFor={`${formId}-valor`}>

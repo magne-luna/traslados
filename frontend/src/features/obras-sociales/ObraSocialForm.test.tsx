@@ -39,6 +39,7 @@ describe('ObraSocialForm', () => {
       tipoComprobante: 'A',
       modalidadFacturacion: 'por-prestacion',
       admitePagosParciales: false,
+      formatoAfiliado: 'numero-documento',
       // D9 (tasks.md 2.5/2.6): los 4 campos del docx no son obligatorios — un alta sin
       // completarlos se propaga con cadena vacía, nunca bloquea el submit.
       codigo: '',
