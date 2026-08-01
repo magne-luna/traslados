@@ -236,35 +236,45 @@ como tracker) o como **stacked-to-main** directo, antes de arrancar `sdd-apply`.
 > archivos de plomería/composition-root (`PrestadoresRoute.tsx`, `PrestadorRepositoryContext.tsx`,
 > `PrestadoresPage.tsx`) — mismo criterio que ya usa este repo para ese tipo de archivo.
 
-- [ ] 4.1 `features/prestadores/PrestadorRepositoryContext.tsx`: Context + Provider + hook que lanza
+- [x] 4.1 `features/prestadores/PrestadorRepositoryContext.tsx`: Context + Provider + hook que lanza
       si falta el Provider (espejo de `ObraSocialRepositoryContext.tsx`). Sin test.
-- [ ] 4.2 `usePrestadores.ts`: `loading`/`error`/`recargar`/`crear`/`actualizar`, `err.message`
+- [x] 4.2 `usePrestadores.ts`: `loading`/`error`/`recargar`/`crear`/`actualizar`, `err.message`
       directo a la UI. Sin test dedicado (se ejercita indirectamente por el smoke test de §4.6).
-- [ ] 4.3 `features/prestadores/PrestadoresRoute.tsx`: **único** archivo que importa
+- [x] 4.3 `features/prestadores/PrestadoresRoute.tsx`: **único** archivo que importa
       `SupabasePrestadorRepository` — corte real del change (Migration Plan paso 6 de `design.md`).
       Sin test dedicado (plomería de composition-root).
-- [ ] 4.4 `features/prestadores/PrestadoresPage.tsx`: `View = list | detail`. Sin test dedicado.
-- [ ] 4.5 `PrestadoresList.tsx`: grid de tarjetas, búsqueda local, estados vacío/error/loading. Sin
+- [x] 4.4 `features/prestadores/PrestadoresPage.tsx`: `View = list | detail`. Sin test dedicado.
+- [x] 4.5 `PrestadoresList.tsx`: grid de tarjetas, búsqueda local, estados vacío/error/loading. Sin
       test dedicado (cubierto indirectamente por el smoke test de §4.6 si se monta junto).
-- [ ] 4.6 `PrestadorDetail.tsx`: ficha + form embebido, edición diferida (nunca modal). Incluye el
+- [x] 4.6 `PrestadorDetail.tsx`: ficha + form embebido, edición diferida (nunca modal). Incluye el
       `AvisoModeloDatos` de la ambigüedad del CUIT (spec `prestador-crud` §Señalización de la
       ambigüedad del CUIT — supuesto #2, sin resolver). **Un solo smoke test**
       (`PrestadorDetail.test.tsx` o `PrestadorForm.test.tsx`, el que resulte más directo): completa
       los campos requeridos y confirma que el alta se dispara — no se testean por separado todas las
-      validaciones de campo.
-- [ ] 4.7 `PrestadorForm.tsx` + `validatePrestadorForm.ts`: estado controlado plano (sin librería,
+      validaciones de campo. **Resultado de apply**: se eligió `PrestadorDetail.test.tsx` (más
+      directo — ejercita PrestadorForm embebido igual que el smoke original de ObraSocialDetail).
+- [x] 4.7 `PrestadorForm.tsx` + `validatePrestadorForm.ts`: estado controlado plano (sin librería,
       YAGNI), captura de los 6 campos (razón social, CUIT, dirección opcional, teléfono opcional,
       plazo de cobro, tipo de comprobante). Validación mínima de campos requeridos (razón social,
       CUIT) — sin test propio más allá del smoke de §4.6.
-- [ ] 4.8 Gateo `<AvisoSoloLectura />` + `<CamposSoloLectura>` + `<Button requiereEscritura>` con
+- [x] 4.8 Gateo `<AvisoSoloLectura />` + `<CamposSoloLectura>` + `<Button requiereEscritura>` con
       `modulo: 'obra_social'` — **no** se crea módulo `prestadores` nuevo (spec §Gateo por el
       módulo de permisos obra_social). Sin test dedicado (la policy real es la defensa; ver §7.6).
-- [ ] 4.9 Ruta e ícono: `app/routes.ts` (`section: 'Operación'`, `modulo: 'obra_social'`),
+- [x] 4.9 Ruta e ícono: `app/routes.ts` (`section: 'Operación'`, `modulo: 'obra_social'`),
       `app/navIcons.tsx` + `IconKey` (SVG 24x24 `currentColor`), `app/router.tsx`
       (`ELEMENT_POR_RUTA` → `<PrestadoresRoute />`).
-- [ ] 4.10 `app/AppShell.test.tsx`: ajustar las aserciones de navegación existentes de 8 a 9
+- [x] 4.10 `app/AppShell.test.tsx`: ajustar las aserciones de navegación existentes de 8 a 9
       entradas (esto es corregir un test existente para que compile, no escribir uno nuevo).
-- [ ] 4.11 `cd frontend && npx tsc -b --noEmit` y `npx oxlint` limpios.
+      **Hallazgo de apply**: no hizo falta ningún edit — `AppShell.test.tsx` ya itera
+      dinámicamente sobre `APP_ROUTES` (`for (const route of APP_ROUTES) ...`) en las 3
+      aserciones de navegación relevantes, sin ningún conteo hardcodeado de "8 entradas" en el
+      archivo; agregar `/prestadores` a `APP_ROUTES` (4.9) alcanza para que las 25 pruebas de
+      `AppShell.test.tsx` sigan pasando sin tocar el archivo. Confirmado corriendo
+      `AppShell.test.tsx` con el flag del flake conocido — ver Work Unit Evidence del reporte de
+      apply.
+- [x] 4.11 `cd frontend && npx tsc -b --noEmit` y `npx oxlint` limpios. Ver Work Unit Evidence del
+      reporte de apply para el resultado exacto (corrido sobre todo `frontend/`, no solo los
+      archivos nuevos, por ser rama encadenada sobre los work units 1-2).
 
 ## 5. Vínculo N:N ObraSocial↔Prestador (D2/D6 — la UI vive en `PrestadorForm`, no en `ObraSocialForm`)
 
