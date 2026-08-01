@@ -1,6 +1,5 @@
 import { Button } from '../../design-system/components';
 import type { Factura } from '../../shared/types/factura';
-import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ValidarCupoFacturacionResultado } from '../../shared/lib/facturacion/validarCupoFacturacion';
 import { AlertaCupo } from './AlertaCupo';
@@ -9,7 +8,6 @@ import { FacturaResumen } from './FacturaResumen';
 interface FacturaAccionesEmisionProps {
   factura: Factura;
   paciente: Paciente | undefined;
-  obraSocial: ObraSocial | undefined;
   submitting: boolean;
   onEmitir: () => void;
   cupoParaConfirmar: ValidarCupoFacturacionResultado | null;
@@ -24,7 +22,6 @@ interface FacturaAccionesEmisionProps {
 export function FacturaAccionesEmision({
   factura,
   paciente,
-  obraSocial,
   submitting,
   onEmitir,
   cupoParaConfirmar,
@@ -32,7 +29,7 @@ export function FacturaAccionesEmision({
 }: FacturaAccionesEmisionProps) {
   return (
     <div className="flex flex-col gap-md">
-      <FacturaResumen factura={factura} paciente={paciente} obraSocial={obraSocial} />
+      <FacturaResumen factura={factura} paciente={paciente} />
       {factura.estado === 'a-facturar' && (
         <div className="flex flex-wrap items-center justify-end gap-sm">
           {/* gateo-facturacion (design.md D2, tasks.md 5.1): emitir es una escritura no-CRUD,

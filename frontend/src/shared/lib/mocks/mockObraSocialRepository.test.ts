@@ -46,8 +46,6 @@ describe('mockObraSocialRepository', () => {
       mockObraSocialRepository.create({
         nombre: 'Swiss Medical',
         cuit: '30-11111111-1',
-        plazoCobroDias: 90,
-        tipoComprobante: 'A',
         modalidadFacturacion: 'por-prestacion',
         admitePagosParciales: false,
         formatoAfiliado: 'numero-documento',
@@ -80,8 +78,6 @@ describe('mockObraSocialRepository', () => {
       mockObraSocialRepository.create({
         nombre: 'Swiss Medical',
         cuit: '30-11111111-1',
-        plazoCobroDias: 60,
-        tipoComprobante: 'B',
         modalidadFacturacion: 'general',
         admitePagosParciales: true,
         formatoAfiliado: 'numero-documento',
@@ -108,14 +104,14 @@ describe('mockObraSocialRepository', () => {
     if (!osecac) throw new Error('OSECAC debería existir tras el seed inicial');
 
     const actualizada = await flushLatency(
-      mockObraSocialRepository.update(osecac.id, { plazoCobroDias: 45 }),
+      mockObraSocialRepository.update(osecac.id, { condicionIva: 'Monotributo' }),
     );
 
-    expect(actualizada.plazoCobroDias).toBe(45);
+    expect(actualizada.condicionIva).toBe('Monotributo');
     expect(actualizada.nombre).toBe('OSECAC');
 
     const releida = await flushLatency(mockObraSocialRepository.getById(osecac.id));
-    expect(releida?.plazoCobroDias).toBe(45);
+    expect(releida?.condicionIva).toBe('Monotributo');
   });
 
   it('re-siembra desde el fixture si el schemaVersion en localStorage no coincide (dato corrupto/viejo)', async () => {

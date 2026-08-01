@@ -161,7 +161,6 @@ export function FacturaDetail({
           <FacturaAccionesEmision
             factura={factura}
             paciente={paciente}
-            obraSocial={obraSocial}
             submitting={submitting}
             onEmitir={() => void conIndicadorDeCarga(handleEmitirClick)}
             cupoParaConfirmar={cupoParaConfirmar}

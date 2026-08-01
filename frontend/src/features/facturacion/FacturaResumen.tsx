@@ -3,7 +3,6 @@ import { Chip, InlineIcon } from '../../design-system/components';
 import { Card } from '../../design-system/layout';
 import { iconCalendario, iconDocumento, iconMoneda, iconReloj, iconVelocimetro } from '../../design-system/icons';
 import type { EstadoFactura, Factura } from '../../shared/types/factura';
-import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
 import { PLAZO_COBRO_AMPARO_DIAS, PLAZO_COBRO_DEFAULT_DIAS } from '../../shared/lib/facturacion/constantes';
 import { estadoVencimientoFactura } from '../../shared/lib/facturacion/estadoVencimientoFactura';
@@ -22,11 +21,11 @@ const ESTADO_CHIP: Record<EstadoFactura, 'secondary' | 'warning' | 'success' | '
   'pagado-parcialmente': 'info',
 };
 
-function motivoPlazo(paciente: Paciente | undefined, obraSocial: ObraSocial | undefined): string {
+// `ObraSocial.plazoCobroDias` se mudó a `Prestador` (design.md D3/D4 de prestadores-crud, sin
+// confirmar con Andrea): sin esa relación resuelta todavía, solo quedan amparo judicial y el
+// plazo general — la rama "plazo propio de {nombre}" se retira.
+function motivoPlazo(paciente: Paciente | undefined): string {
   if (paciente?.amparoJudicial) return `amparo judicial (${PLAZO_COBRO_AMPARO_DIAS} días)`;
-  if (obraSocial?.plazoCobroDias !== undefined) {
-    return `plazo propio de ${obraSocial.nombre} (${obraSocial.plazoCobroDias} días)`;
-  }
   return `plazo general (${PLAZO_COBRO_DEFAULT_DIAS} días)`;
 }
 
@@ -71,7 +70,7 @@ function ResumenItem({ label, value }: { label: string; value: string }) {
 // de km — todos campos reales de Factura/Paciente, ninguno inventado) con el total destacado, y
 // fecha de factura/fecha estimada de cobro con el motivo del plazo aplicado (RF-406) al pie.
 // Extraído de FacturaDetail para mantener ambos componentes bajo las ~200 líneas (tasks.md 12.3).
-export function FacturaResumen({ factura, paciente, obraSocial }: { factura: Factura; paciente: Paciente | undefined; obraSocial: ObraSocial | undefined }) {
+export function FacturaResumen({ factura, paciente }: { factura: Factura; paciente: Paciente | undefined }) {
   const vencida =
     factura.fechaFactura !== undefined &&
     estadoVencimientoFactura({
@@ -155,7 +154,7 @@ export function FacturaResumen({ factura, paciente, obraSocial }: { factura: Fac
           {factura.fechaEstimadaCobro && (
             <Card radius="sm" padding="md" gap="sm">
               <StatTile icon={iconReloj} label="Fecha estimada de cobro" value={factura.fechaEstimadaCobro} />
-              <span className="font-body text-[12px] text-muted">({motivoPlazo(paciente, obraSocial)})</span>
+              <span className="font-body text-[12px] text-muted">({motivoPlazo(paciente)})</span>
             </Card>
           )}
         </div>

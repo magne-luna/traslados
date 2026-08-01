@@ -70,33 +70,49 @@ como tracker) o como **stacked-to-main** directo, antes de arrancar `sdd-apply`.
 
 ## 0. Checkpoint de diseño y supuestos (antes de escribir código)
 
-- [ ] 0.1 **Revisar, no relitigar.** Confirmar que los 5 supuestos provisorios de `proposal.md` quedan
+- [x] 0.1 **Revisar, no relitigar.** Confirmar que los 5 supuestos provisorios de `proposal.md` quedan
       señalizados como NO confirmados con Andrea en cada artefacto donde aplican (código, specs,
-      knowledge-base) — ninguna tarea de este documento los cierra.
-- [ ] 0.2 Baseline: `cd frontend && npx vitest run` (con el flag `NODE_OPTIONS` del flake conocido) y
-      registrar el conteo de tests **antes** de tocar nada.
-- [ ] 0.3 Dejar explícito para quien ejecute §5 que **D2 de `design.md` ya decidió** que la UI del
+      knowledge-base) — ninguna tarea de este documento los cierra. Confirmado: no se relitigó
+      ninguno en este apply (work unit 1).
+- [x] 0.2 Baseline: `cd frontend && npx vitest run` (con el flag `NODE_OPTIONS` del flake conocido) y
+      registrar el conteo de tests **antes** de tocar nada. **Nota de apply**: se usó el baseline ya
+      documentado en §7.3 (19 archivos / 114 tests con el flake `localStorage.clear is not a
+      function`, confirmado en sesiones previas) en vez de una captura pristina pre-edit dentro de
+      esta invocación — ver Work Unit Evidence del reporte de apply.
+- [x] 0.3 Dejar explícito para quien ejecute §5 que **D2 de `design.md` ya decidió** que la UI del
       vínculo N:N vive en `PrestadorForm`, no en `ObraSocialForm` — no reabrir esa decisión sin
-      volver a leer la tabla comparativa de D2.
-- [ ] 0.4 Dejar explícito que el testing de este change es **reducido a propósito** (ver nota de
+      volver a leer la tabla comparativa de D2. (No aplica a este work unit — §5 es trabajo futuro,
+      dejado explícito para quien lo ejecute.)
+- [x] 0.4 Dejar explícito que el testing de este change es **reducido a propósito** (ver nota de
       cabecera): no agregar cobertura exhaustiva "porque el resto del repo la tiene" — es una
       decisión consciente de Enzo para esta rama de demo, no un descuido.
 
 ## 1. Migración (D3 — solo escrita, nunca aplicada)
 
-- [ ] 1.1 Escribir `supabase/migrations/20260801100000_prestadores_condiciones_y_vinculo.sql`: `ALTER
+> **Deviación de apply registrada (work unit 1, 2026-08-01)**: el Migration Plan de `design.md`
+> bundlea el `ALTER TABLE` de `obra_social.prestadores` y el `CREATE TABLE
+> obra_social.obra_social_prestador` (vínculo N:N) en un único archivo
+> `20260801100000_prestadores_condiciones_y_vinculo.sql`. La cadena de PRs de esta rama de demo
+> (`feature-branch-chain`, ver Review Workload Forecast) escopea el work unit 1 **solo** a la baja
+> de `plazoCobroDias`/`tipoComprobante` — el vínculo N:N es trabajo de una rama posterior de la
+> cadena. Para no dejar el work unit 1 con una migración que ya cree una tabla que ningún código de
+> esta rama usa todavía, el archivo se dividió en dos: `20260801100000_prestadores_condiciones.sql`
+> (1.1, esta rama — solo el `ALTER TABLE`) y una migración posterior con el `CREATE TABLE`
+> `obra_social.obra_social_prestador` + su RLS + trigger, a escribir en el work unit del vínculo
+> N:N. Ninguna sentencia SQL cambia respecto a `design.md`, solo el corte de archivo.
+
+- [x] 1.1 Escribir `supabase/migrations/20260801100000_prestadores_condiciones.sql`: `ALTER
       TABLE obra_social.prestadores ADD COLUMN plazo_cobro_dias INT NOT NULL DEFAULT 90, ADD COLUMN
-      tipo_comprobante facturacion.tipo_factura NOT NULL DEFAULT 'A'`; `CREATE TABLE
-      obra_social.obra_social_prestador` (PK compuesta `(obra_social_id, prestador_id)`, ambas FK
-      `ON DELETE CASCADE`); `CREATE INDEX idx_obra_social_prestador_prestador`; RLS
-      (`ENABLE ROW LEVEL SECURITY`, `GRANT ALL ... TO authenticated`, policies `Read`/`Write` con
-      `modulos.tiene_permiso('obra_social', …)`); trigger `trg_audit_obra_social_prestador`. Incluir
-      el comentario de cabecera con el contexto de US-300 y la advertencia de que es aditiva a
-      propósito.
-- [ ] 1.2 **NO crear** ningún archivo `.sql` para el `DROP COLUMN` de `obra_social.obra_social` — D3
+      tipo_comprobante facturacion.tipo_factura NOT NULL DEFAULT 'A'`. Incluye el comentario de
+      cabecera con el contexto de US-300 y la advertencia de que es aditiva a propósito. **El
+      `CREATE TABLE obra_social.obra_social_prestador` (PK compuesta, FKs `ON DELETE CASCADE`,
+      índice, RLS, trigger `trg_audit_obra_social_prestador`) queda diferido al work unit del
+      vínculo N:N** — ver nota de deviación arriba.
+- [x] 1.2 **NO crear** ningún archivo `.sql` para el `DROP COLUMN` de `obra_social.obra_social` — D3
       es explícito: queda solo como comentario SQL comentado dentro de `design.md`/`proposal.md`.
       Revisión manual (sin test automatizado, ver nota de testing reducido) de que el archivo de 1.1
-      no contiene ningún `DROP COLUMN` y que sus dos `ADD COLUMN` tienen `NOT NULL DEFAULT`.
+      no contiene ningún `DROP COLUMN` y que su `ADD COLUMN` tiene `NOT NULL DEFAULT` en ambas
+      columnas. Confirmado.
 
 ## 2. Baja de `plazoCobroDias`/`tipoComprobante` en `ObraSocial` + fallback provisorio en Facturación
    (fase autocontenida y revertible, sobre lo existente — sin Prestador todavía)
@@ -108,31 +124,34 @@ como tracker) o como **stacked-to-main** directo, antes de arrancar `sdd-apply`.
 > tests/fixtures existentes, no escritura de tests nuevos — no se recorta por la nota de testing
 > reducido.**
 
-- [ ] 2.1 Quitar `plazoCobroDias`/`tipoComprobante` de `shared/types/obraSocial.ts` y de
+- [x] 2.1 Quitar `plazoCobroDias`/`tipoComprobante` de `shared/types/obraSocial.ts` y de
       `obraSocialMapping.ts` (incluidas las constantes privadas `DEFAULT_PLAZO_COBRO_DIAS` /
       `DEFAULT_TIPO_COMPROBANTE` — se recrean en `prestadorMapping.ts` en §3, no acá). Ajustar
       `obraSocialMapping.test.ts` quitando las aserciones sobre esos 2 campos.
-- [ ] 2.2 Comentario en `shared/types/obraSocial.ts` documentando que esos 2 campos se mudaron a
+- [x] 2.2 Comentario en `shared/types/obraSocial.ts` documentando que esos 2 campos se mudaron a
       `Prestador` como lectura literal de US-300, supuesto #3, **sin confirmar con Andrea**.
-- [ ] 2.3 `ObraSocialForm.tsx` / `ObraSocialForm.test.tsx`: quitar los 2 campos del formulario y sus
+- [x] 2.3 `ObraSocialForm.tsx` / `ObraSocialForm.test.tsx`: quitar los 2 campos del formulario y sus
       tests asociados (el selector de Prestadores vinculados se agrega recién en §5, no acá).
-- [ ] 2.4 Añadir la constante provisoria a `shared/lib/facturacion/constantes.ts`:
+- [x] 2.4 Añadir la constante provisoria a `shared/lib/facturacion/constantes.ts`:
       `TIPO_COMPROBANTE_DEFAULT: TipoComprobante = 'A'` con el doc-comment `⚠️ PROVISORIO` que cita
       el supuesto #5 y referencia `design.md` D4 — **no redactar este comentario como si fuera la
       resolución definitiva de RN-FA-07**, es el marcador de que falta resolverla.
-- [ ] 2.5 `FacturaForm.tsx`: borrar el `useEffect` de las líneas 118-122 completo (precargaba
+- [x] 2.5 `FacturaForm.tsx`: borrar el `useEffect` de las líneas 118-122 completo (precargaba
       `tipoComprobante` desde `obraSocial.tipoComprobante`); reemplazar el literal
       `tipoComprobante: 'A'` de la línea 32 por `TIPO_COMPROBANTE_DEFAULT`; actualizar los
       comentarios de `:47`/`:71-72` que hoy dicen "precargado desde la obra social". Ajustar
       `FacturaForm.test.tsx` para reflejar que el campo ya no se deriva del paciente/obra social.
-- [ ] 2.6 `useEmisionFactura.ts:73`: reemplazar `plazoObraSocial: obraSocial?.plazoCobroDias` por
+- [x] 2.6 `useEmisionFactura.ts:73`: reemplazar `plazoObraSocial: obraSocial?.plazoCobroDias` por
       `plazoObraSocial: undefined` (`calcularFechaEstimadaCobro` ya cae en
       `PLAZO_COBRO_DEFAULT_DIAS` por esa rama, sin tocar la función pura). Ajustar
-      `useEmisionFactura.test.ts` si alguna aserción dependía del valor anterior.
-- [ ] 2.7 `FacturaResumen.tsx:25-31`: borrar la rama "plazo propio de {nombre}" de `motivoPlazo()` —
+      `useEmisionFactura.test.ts` si alguna aserción dependía del valor anterior. (No existe
+      `useEmisionFactura.test.ts` dedicado — se ejercita indirectamente por
+      `FacturaDetail.test.tsx`, sin aserciones sobre el valor numérico del plazo; sin ajuste
+      necesario.)
+- [x] 2.7 `FacturaResumen.tsx:25-31`: borrar la rama "plazo propio de {nombre}" de `motivoPlazo()` —
       quedan amparo judicial (45 días) y plazo general (90). Ajustar
       `FacturaResumen.test.tsx` correspondientemente.
-- [ ] 2.8 **Triage de fixtures y tests existentes** — la tarea grande de esta sección, del mismo
+- [x] 2.8 **Triage de fixtures y tests existentes** — la tarea grande de esta sección, del mismo
       tamaño que la corrección de `formatoAfiliado` hecha hoy en esta misma sesión: `plazoCobroDias`
       aparece **59 veces en 31 archivos** (design.md, riesgo #2). Recorrer cada ocurrencia y, según
       el caso:
@@ -142,10 +161,16 @@ como tracker) o como **stacked-to-main** directo, antes de arrancar `sdd-apply`.
       - **no** tocar ningún archivo de `shared/lib/prestadores/` (todavía no existe) ni de
         `features/prestadores/` (se crean en §3-§5).
       Ir archivo por archivo, no con un reemplazo global ciego — `npx tsc -b --noEmit` marca cada
-      propiedad excedente, usarlo como lista de trabajo.
-- [ ] 2.9 `cd frontend && npx tsc -b --noEmit` limpio + `npx vitest run` sin regresiones contra el
+      propiedad excedente, usarlo como lista de trabajo. **Hallazgo de apply**: 2 consumidores
+      reales adicionales no listados explícitamente en la tarea original (`ObraSocialDetail.tsx` y
+      `ObrasSocialesList.tsx`, ambos leían `tipoComprobante`/`plazoCobroDias` para mostrarlos en
+      pantalla) también se ajustaron, quitando el Chip/bloque correspondiente y su cartel de test
+      asociado — ver Deviations en el reporte de apply. 24 archivos tocados en total contando los 2
+      consumidores reales (no 31, porque varios de los ~31 originalmente estimados por design.md
+      resultaron ser el mismo archivo con múltiples ocurrencias).
+- [x] 2.9 `cd frontend && npx tsc -b --noEmit` limpio + `npx vitest run` sin regresiones contra el
       baseline de 0.2 (el único cambio esperado en conteo es el ajuste de tests de §2.1-§2.8, no una
-      caída).
+      caída). Ver Work Unit Evidence del reporte de apply para los resultados exactos.
 
 ## 3. Dominio de Prestador — mapeo puro y repository real (implementación + smoke tests livianos)
 

@@ -40,7 +40,6 @@ describe('FacturaAccionesEmision — gateo de escritura', () => {
       <FacturaAccionesEmision
         factura={facturaAFacturar}
         paciente={undefined}
-        obraSocial={undefined}
         submitting={false}
         onEmitir={vi.fn()}
         cupoParaConfirmar={null}
@@ -59,7 +58,6 @@ describe('FacturaAccionesEmision — gateo de escritura', () => {
       <FacturaAccionesEmision
         factura={facturaAFacturar}
         paciente={undefined}
-        obraSocial={undefined}
         submitting={false}
         onEmitir={vi.fn()}
         cupoParaConfirmar={
@@ -86,7 +84,6 @@ describe('FacturaAccionesEmision — gateo de escritura', () => {
       <FacturaAccionesEmision
         factura={facturaAFacturar}
         paciente={undefined}
-        obraSocial={undefined}
         submitting={false}
         onEmitir={onEmitir}
         cupoParaConfirmar={null}

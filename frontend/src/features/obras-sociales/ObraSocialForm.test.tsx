@@ -35,8 +35,6 @@ describe('ObraSocialForm', () => {
     expect(onSubmit).toHaveBeenCalledWith<[ObraSocialFormValues]>({
       nombre: 'Swiss Medical',
       cuit: '30-11111111-1',
-      plazoCobroDias: 90,
-      tipoComprobante: 'A',
       modalidadFacturacion: 'por-prestacion',
       admitePagosParciales: false,
       formatoAfiliado: 'numero-documento',
@@ -55,8 +53,6 @@ describe('ObraSocialForm', () => {
         initial={{
           nombre: 'OSECAC',
           cuit: '30-54155200-6',
-          plazoCobroDias: 45,
-          tipoComprobante: 'B',
           modalidadFacturacion: 'general',
           admitePagosParciales: true,
         }}
@@ -67,7 +63,6 @@ describe('ObraSocialForm', () => {
 
     expect(screen.getByLabelText(/nombre/i)).toHaveValue('OSECAC');
     expect(screen.getByLabelText(/cuit/i)).toHaveValue('30-54155200-6');
-    expect(screen.getByLabelText(/plazo de cobro/i)).toHaveValue(45);
     expect(screen.getByLabelText(/admite pagos parciales/i)).toBeChecked();
   });
 
@@ -130,8 +125,6 @@ describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
         initial={{
           nombre: 'OSECAC',
           cuit: '30-54155200-6',
-          plazoCobroDias: 90,
-          tipoComprobante: 'A',
           modalidadFacturacion: 'por-prestacion',
           admitePagosParciales: false,
           codigo: 'OS-01',
@@ -156,8 +149,6 @@ describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
         initial={{
           nombre: 'OSECAC',
           cuit: '30-54155200-6',
-          plazoCobroDias: 90,
-          tipoComprobante: 'A',
           modalidadFacturacion: 'por-prestacion',
           admitePagosParciales: false,
         }}
@@ -171,7 +162,7 @@ describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
   });
 });
 
-// Gateo de escritura (gateo-obrasocial, tasks.md 4.3/4.4): los 8 campos y Guardar quedan
+// Gateo de escritura (gateo-obrasocial, tasks.md 4.3/4.4): los 6 campos y Guardar quedan
 // bloqueados sin permiso `write`; Cancelar sobrevive siempre (design.md D4/riesgos — el
 // envoltorio de solo lectura se aplica al bloque de campos, nunca a la barra de acciones).
 describe('ObraSocialForm — gateo de escritura', () => {
@@ -183,8 +174,6 @@ describe('ObraSocialForm — gateo de escritura', () => {
     expect(screen.getByLabelText(/^nombre$/i)).toBeDisabled();
     expect(screen.getByLabelText(/cuit/i)).toBeDisabled();
     expect(screen.getByLabelText(/modalidad de facturación/i)).toBeDisabled();
-    expect(screen.getByLabelText(/tipo de comprobante/i)).toBeDisabled();
-    expect(screen.getByLabelText(/plazo de cobro/i)).toBeDisabled();
     expect(screen.getByLabelText(/admite pagos parciales/i)).toBeDisabled();
 
     // toBeDisabled() ya cubre que el navegador no deja tipear, pero lo confirmamos por

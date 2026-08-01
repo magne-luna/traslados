@@ -69,9 +69,13 @@ export interface ObraSocial {
    * §Discrepancias. No se resuelve acá.
    */
   cuit: string;
-  /** Plazo de cobro en días, configurable por obra social (default documentado: 90 días). */
-  plazoCobroDias: number;
-  tipoComprobante: TipoComprobante;
+  /**
+   * `plazoCobroDias`/`tipoComprobante` se mudaron a `Prestador` (change `prestadores-crud`,
+   * design.md D3/D4): lectura literal de US-300 (supuesto provisorio #3), condiciones
+   * particulares "por prestador" — **SIN confirmar con Andrea**. Las columnas gemelas de
+   * `obra_social.obra_social` quedan en la base sin uso desde el frontend (no destructivo, ver
+   * migración `20260801100000_prestadores_condiciones.sql`).
+   */
   modalidadFacturacion: ModalidadFacturacion;
   /** Si la obra social admite pagos parciales o por lote. */
   admitePagosParciales: boolean;

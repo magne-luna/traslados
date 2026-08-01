@@ -159,8 +159,6 @@ function nuevaObraSocialMinima(): NuevaObraSocial {
   return {
     nombre: 'Swiss Medical',
     cuit: '30-11111111-1',
-    plazoCobroDias: 90,
-    tipoComprobante: 'A',
     modalidadFacturacion: 'por-prestacion',
     admitePagosParciales: false,
     formatoAfiliado: 'numero-documento',

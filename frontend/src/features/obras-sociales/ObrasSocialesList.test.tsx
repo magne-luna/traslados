@@ -13,8 +13,6 @@ const osecac: ObraSocial = {
   id: 'osecac',
   nombre: 'OSECAC',
   cuit: '30-54155200-6',
-  plazoCobroDias: 90,
-  tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
   formatoAfiliado: 'numero-documento',
@@ -26,8 +24,6 @@ const osde: ObraSocial = {
   id: 'osde',
   nombre: 'OSDE',
   cuit: '30-50110100-3',
-  plazoCobroDias: 60,
-  tipoComprobante: 'B',
   modalidadFacturacion: 'general',
   admitePagosParciales: true,
   formatoAfiliado: 'numero-documento',
@@ -70,7 +66,7 @@ describe('ObrasSocialesList', () => {
     expect(screen.queryByText(/cargando/i)).not.toBeInTheDocument();
   });
 
-  it('muestra cada fila con nombre, CUIT y tipo de comprobante, y dispara onSelect al hacer click', async () => {
+  it('muestra cada fila con nombre y CUIT, y dispara onSelect al hacer click', async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
 
@@ -80,7 +76,6 @@ describe('ObrasSocialesList', () => {
 
     expect(screen.getByText('OSECAC')).toBeInTheDocument();
     expect(screen.getByText(/30-54155200-6/)).toBeInTheDocument();
-    expect(screen.getByText(/comprobante a/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /editar osecac/i }));
     expect(onSelect).toHaveBeenCalledWith(osecac);
@@ -110,12 +105,11 @@ describe('ObrasSocialesList', () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
-  it('muestra plazo de cobro, cantidad de documentos e identificador de factura en la tarjeta', () => {
+  it('muestra cantidad de documentos e identificador de factura en la tarjeta', () => {
     render(
       <ObrasSocialesList obrasSociales={[osecac]} loading={false} error={null} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
     );
 
-    expect(screen.getByText('90 días')).toBeInTheDocument();
     expect(screen.getByText('Ninguno')).toBeInTheDocument();
     expect(screen.getByText('Nro. de afiliado')).toBeInTheDocument();
   });

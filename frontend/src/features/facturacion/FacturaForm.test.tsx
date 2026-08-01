@@ -28,8 +28,6 @@ const osecac: ObraSocial = {
   id: 'osecac',
   nombre: 'OSECAC',
   cuit: '30-54155200-6',
-  plazoCobroDias: 90,
-  tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
   formatoAfiliado: 'numero-documento',
@@ -87,13 +85,17 @@ describe('FacturaForm', () => {
     expect(screen.getByText(/el paciente es obligatorio/i)).toBeInTheDocument();
   });
 
-  it('precarga el tipo de comprobante desde la obra social del paciente seleccionado, editable', async () => {
+  // `tipoComprobante` ya no se precarga desde la obra social del paciente (design.md D3/D4 de
+  // prestadores-crud, sin confirmar con Andrea): arranca en el default provisorio
+  // (TIPO_COMPROBANTE_DEFAULT = 'A') sin importar qué paciente se elija, y sigue editable a mano.
+  it('arranca en el default provisorio de tipo de comprobante, sigue editable a mano', async () => {
     renderForm();
 
-    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
-
     const tipoComprobante = screen.getByLabelText(/tipo de comprobante/i) as HTMLSelectElement;
-    await waitFor(() => expect(tipoComprobante.value).toBe('A'));
+    expect(tipoComprobante.value).toBe('A');
+
+    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    expect(tipoComprobante.value).toBe('A');
 
     await userEvent.selectOptions(tipoComprobante, 'B');
     expect(tipoComprobante.value).toBe('B');

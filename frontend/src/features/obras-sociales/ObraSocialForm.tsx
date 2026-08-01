@@ -3,15 +3,13 @@ import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
-import type { FormatoAfiliado, ModalidadFacturacion, TipoComprobante } from '../../shared/types/obraSocial';
+import type { FormatoAfiliado, ModalidadFacturacion } from '../../shared/types/obraSocial';
 import { DEFAULT_FORMATO_AFILIADO, FORMATO_AFILIADO_LABELS, FORMATO_AFILIADO_OPTIONS } from '../pacientes/formatoAfiliadoOptions';
 import { validateObraSocialForm, type ObraSocialFormErrors } from './validateObraSocialForm';
 
 export interface ObraSocialFormValues {
   nombre: string;
   cuit: string;
-  plazoCobroDias: number;
-  tipoComprobante: TipoComprobante;
   modalidadFacturacion: ModalidadFacturacion;
   admitePagosParciales: boolean;
   /** RF-106/RN-ID-02: formato del número de afiliado de los pacientes de esta obra social. */
@@ -29,10 +27,6 @@ export interface ObraSocialFormValues {
 const DEFAULT_VALUES: ObraSocialFormValues = {
   nombre: '',
   cuit: '',
-  // Default documentado (knowledge-base/10_preguntas_abiertas.md: "confirmar 90 días de cobro
-  // general"), editable por obra social — nunca hardcodeado aguas abajo.
-  plazoCobroDias: 90,
-  tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
   formatoAfiliado: DEFAULT_FORMATO_AFILIADO,
@@ -186,32 +180,6 @@ export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false
               <option value="por-prestacion">Por prestación</option>
               <option value="general">Factura general</option>
             </Select>
-          </Field>
-
-          <Field label="Tipo de comprobante" htmlFor={`${formId}-comprobante`}>
-            <Select
-              id={`${formId}-comprobante`}
-              density="comfortable"
-              value={values.tipoComprobante}
-              onChange={(event) =>
-                setValues((prev) => ({ ...prev, tipoComprobante: event.target.value as TipoComprobante }))
-              }
-            >
-              <option value="A">A</option>
-              <option value="B">B</option>
-              <option value="C">C</option>
-            </Select>
-          </Field>
-
-          <Field label="Plazo de cobro (días)" htmlFor={`${formId}-plazo`}>
-            <Input
-              id={`${formId}-plazo`}
-              type="number"
-              min={0}
-              density="comfortable"
-              value={values.plazoCobroDias}
-              onChange={(event) => setValues((prev) => ({ ...prev, plazoCobroDias: Number(event.target.value) }))}
-            />
           </Field>
 
           <label
