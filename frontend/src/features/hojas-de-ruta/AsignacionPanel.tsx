@@ -134,10 +134,12 @@ export function AsignacionPanel({
           onDireccionDestinoChange={setDireccionDestinoId}
         />
 
-        <Button variant="secondary" requiereEscritura onClick={handleSubmit}>
-          <PlusIcon />
-          Agregar pasajero
-        </Button>
+        <div className="ml-auto">
+          <Button variant="primary" requiereEscritura onClick={handleSubmit}>
+            <PlusIcon />
+            Agregar pasajero
+          </Button>
+        </div>
       </div>
       </CamposSoloLectura>
 

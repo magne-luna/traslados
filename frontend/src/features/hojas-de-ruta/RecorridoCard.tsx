@@ -126,16 +126,18 @@ export function RecorridoCard({
 
       <div className="flex flex-1 flex-col gap-md">
         <div className="flex flex-wrap items-start justify-between gap-sm">
-          <ParadasList
-            paradas={recorrido.paradas}
-            nombrePaciente={nombrePaciente}
-            direccionTexto={direccionTexto}
-            editable={editing}
-            onReordenar={(paradas) => onUpdateRecorrido({ ...recorrido, paradas })}
-            onQuitar={(paradaId) => onUpdateRecorrido({ ...recorrido, paradas: quitarParada(recorrido.paradas, paradaId) })}
-          />
+          <div className="min-w-0 flex-1">
+            <ParadasList
+              paradas={recorrido.paradas}
+              nombrePaciente={nombrePaciente}
+              direccionTexto={direccionTexto}
+              editable={editing}
+              onReordenar={(paradas) => onUpdateRecorrido({ ...recorrido, paradas })}
+              onQuitar={(paradaId) => onUpdateRecorrido({ ...recorrido, paradas: quitarParada(recorrido.paradas, paradaId) })}
+            />
+          </div>
 
-          <div className="flex flex-wrap items-center gap-sm">
+          <div className="flex shrink-0 flex-wrap items-center gap-sm">
             {recorrido.manual && <Chip kind="info">Manual</Chip>}
             {vehiculo?.estado === 'fuera-de-servicio' && <Chip kind="danger">⛔ Vehículo fuera de servicio</Chip>}
             {conductor?.estado === 'fuera-de-servicio' && <Chip kind="danger">⛔ Conductor fuera de servicio</Chip>}

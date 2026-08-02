@@ -61,13 +61,15 @@ export function ParadasList({ paradas, nombrePaciente, direccionTexto, editable,
         return (
           <li
             key={parada.id}
-            className="flex flex-wrap items-center justify-between gap-sm rounded-sm border border-border bg-surface px-md py-sm"
+            className="flex items-start justify-between gap-sm rounded-sm border border-border bg-surface px-md py-sm"
           >
-            <div className="flex flex-wrap items-center gap-sm font-body text-[13px] text-text">
-              <span className="font-mono text-[11px] text-faint">{indice + 1}</span>
-              <span className="font-semibold text-ink">{nombre}</span>
-              <span className="text-muted">· {TRAMO_LABELS[parada.tramo]}</span>
-              {parada.horaEstimada && <span className="text-muted">· {parada.horaEstimada}</span>}
+            <div className="flex min-w-0 flex-1 flex-col gap-xs font-body text-[13px] text-text">
+              <div className="flex flex-wrap items-center gap-sm">
+                <span className="font-mono text-[11px] text-faint">{indice + 1}</span>
+                <span className="font-semibold text-ink">{nombre}</span>
+                <span className="text-muted">· {TRAMO_LABELS[parada.tramo]}</span>
+                {parada.horaEstimada && <span className="text-muted">· {parada.horaEstimada}</span>}
+              </div>
               <span className="text-muted">
                 {direccionTexto(parada.direccionOrigenId, parada.pacienteId)} →{' '}
                 {direccionTexto(parada.direccionDestinoId, parada.pacienteId)}
@@ -83,7 +85,7 @@ export function ParadasList({ paradas, nombrePaciente, direccionTexto, editable,
               // autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes',
               // 'write'). Mismo comentario que permisos.ts y usePuedeEscribir.ts.
               <CamposSoloLectura>
-              <div className="flex items-center gap-xs">
+              <div className="flex shrink-0 items-center gap-xs">
                 <Button
                   variant="secondary-accent"
                   size="xs"

@@ -3,6 +3,7 @@ import { AvisoModeloDatos, AvisoSoloLectura, Button, Chip, Section } from '../..
 import { Alert } from '../../design-system/feedback';
 import { generateId } from '../../shared/lib/id';
 import { agregarParada, quitarParada } from '../../shared/lib/hojas-de-ruta/paradasHelpers';
+import { ordenarRecorridosPorHorario } from '../../shared/lib/hojas-de-ruta/ordenarRecorridosPorHorario';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { VehiculoRepository } from '../../shared/lib/vehiculos/VehiculoRepository';
@@ -201,7 +202,7 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
               <p className="m-0 font-body text-sm text-muted">No hay recorridos cargados. Agregá el primero arriba.</p>
             ) : (
               <div className="flex flex-col gap-lg">
-                {hojaDelDia.recorridos.map((recorrido, index) => (
+                {ordenarRecorridosPorHorario(hojaDelDia.recorridos).map((recorrido, index) => (
                   <RecorridoCard
                     key={recorrido.id}
                     numero={index + 1}
