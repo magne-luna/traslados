@@ -3,6 +3,7 @@ import { AvisoModeloDatos, Button, CamposSoloLectura, Chip } from '../../design-
 import { Label, Textarea } from '../../design-system/form';
 import { conductoresDisponibles, vehiculosDisponibles } from '../../shared/lib/hojas-de-ruta/disponibilidad';
 import { agregarParada, quitarParada } from '../../shared/lib/hojas-de-ruta/paradasHelpers';
+import { pacienteDisponibleEnRecorrido } from '../../shared/lib/hojas-de-ruta/pacienteDisponibleEnRecorrido';
 import { sugerirOrdenPorCercania } from '../../shared/lib/hojas-de-ruta/sugerirOrdenPorCercania';
 import { vehiculosCompatibles } from '../../shared/lib/hojas-de-ruta/vehiculosCompatibles';
 import type { Conductor } from '../../shared/types/conductor';
@@ -11,8 +12,9 @@ import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { TRAMO_LABELS } from '../pacientes/direccionOptions';
 import { AsignacionPanel } from './AsignacionPanel';
-import { NotesIcon } from './icons';
+import { ArrowLeftIcon, ArrowRightIcon, NotesIcon } from './icons';
 import { ParadasList } from './ParadasList';
+import { RecorridoHorario } from './RecorridoHorario';
 import { RecorridoMapa } from './RecorridoMapa';
 import { RecorridoStat } from './RecorridoStat';
 import { RecorridoVehiculoConductor } from './RecorridoVehiculoConductor';
@@ -57,9 +59,9 @@ export function RecorridoCard({
   const [editing, setEditing] = useState(false);
   const [notas, setNotas] = useState(recorrido.notas ?? '');
 
-  const pacientesDisponibles = pacientes.filter(
-    (p) => !recorrido.paradas.some((parada) => parada.pacienteId === p.id),
-  );
+  // RN-HR-02 (feedback de usuario): ida y vuelta conviven en el mismo recorrido — un paciente
+  // sigue disponible mientras le falte al menos un tramo, no desaparece apenas tiene una parada.
+  const pacientesDisponibles = pacientes.filter((p) => pacienteDisponibleEnRecorrido(recorrido.paradas, p.id));
   // Paciente que se está por agregar en el panel de abajo, TODAVÍA sin confirmar (feedback de
   // usuario: "mismo comportamiento que crear recorrido" — el selector de vehículo debe reaccionar
   // en vivo a quién se está por sumar, no solo a los ya asignados).
@@ -115,14 +117,24 @@ export function RecorridoCard({
   // DireccionesEditor/PersonasACargoEditor (sección 12.3). Se deja `<div>` nativo.
   return (
     <div className="flex gap-lg rounded-sm border border-border bg-surface p-lg shadow-sm">
-      <div className="flex h-fit shrink-0 flex-col items-center justify-center gap-xs rounded-sm bg-success-soft px-md py-sm">
+      <div className="flex shrink-0 flex-col items-center justify-center gap-xs rounded-sm bg-success-soft px-md py-sm">
         <span className="font-heading text-[20px] font-bold text-success">{String(numero).padStart(2, '0')}</span>
         {primeraParada && (
-          <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-success">
-            {TRAMO_LABELS[primeraParada.tramo]}
-          </span>
+          <>
+            <span className="font-body text-[11px] font-semibold uppercase tracking-wide text-success">
+              {TRAMO_LABELS[primeraParada.tramo]}
+            </span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-surface text-success">
+              {primeraParada.tramo === 'ida' ? <ArrowRightIcon /> : <ArrowLeftIcon />}
+            </span>
+          </>
         )}
       </div>
+
+      {/* Resumen de horario (feedback de usuario, mockup "más énfasis en los horarios"): solo en
+          modo solo-lectura — en edición cada parada ya expone su propio campo "Hora estimada",
+          mostrar además el resumen sería redundante. */}
+      {!editing && <RecorridoHorario paradas={recorrido.paradas} />}
 
       <div className="flex flex-1 flex-col gap-md">
         <div className="flex flex-wrap items-start justify-between gap-sm">

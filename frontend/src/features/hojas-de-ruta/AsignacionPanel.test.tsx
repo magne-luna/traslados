@@ -224,6 +224,117 @@ describe('AsignacionPanel', () => {
 
     expect(onAgregar).toHaveBeenCalledTimes(1);
   });
+
+  // RN-HR-02 (feedback de usuario): ida y vuelta del mismo paciente conviven en el mismo
+  // recorrido (ver dashboard-recorridos-del-dia spec y resumenDelDia.test.ts) — el bloqueo debe
+  // ser SOLO el duplicado exacto (mismo paciente + mismo tramo ya cargado), nunca el paciente
+  // entero.
+  it('preselecciona el tramo que le falta al paciente elegido cuando ya tiene una parada en este recorrido', async () => {
+    const user = userEvent.setup();
+    const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+    const recorridoConIdaCargada = buildRecorrido({
+      paradas: [{ id: 'p-ida', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'a', direccionDestinoId: 'b', orden: 0 }],
+    });
+
+    render(
+      <AsignacionPanel
+        recorrido={recorridoConIdaCargada}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[compatible]}
+        onAgregar={vi.fn()}
+      />,
+    );
+
+    // pacientes[0] ya viene preseleccionado (comportamiento previo) — el tramo debe arrancar en
+    // "vuelta", no en "ida" (que ya está tomado).
+    expect(screen.getByLabelText(/tramo/i)).toHaveValue('vuelta');
+
+    // Reafirmar la misma elección disparando el onChange (mismo paciente ya seleccionado)
+    // también debe mantener "vuelta" (triangulación del mismo camino, no solo el mount inicial).
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    expect(screen.getByLabelText(/tramo/i)).toHaveValue('vuelta');
+  });
+
+  it('sugiere origen/destino invertidos (la vuelta natural) cuando el paciente ya tiene una parada en este recorrido', () => {
+    const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+    const recorridoConIdaCargada = buildRecorrido({
+      // buildPaciente() usa 'dir-ida' y 'dir-vuelta' como ids de direcciones reales del paciente.
+      paradas: [
+        { id: 'p-ida', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'dir-ida', direccionDestinoId: 'dir-vuelta', orden: 0 },
+      ],
+    });
+
+    render(
+      <AsignacionPanel
+        recorrido={recorridoConIdaCargada}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[compatible]}
+        onAgregar={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/dirección de origen/i)).toHaveValue('dir-vuelta');
+    expect(screen.getByLabelText(/dirección de destino/i)).toHaveValue('dir-ida');
+  });
+
+  it('sin ninguna parada previa del paciente, origen/destino arrancan vacíos (borde, comportamiento previo)', async () => {
+    const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+
+    render(
+      <AsignacionPanel recorrido={buildRecorrido()} vehiculo={vehiculoConSillaPlegable} pacientes={[compatible]} onAgregar={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText(/dirección de origen/i)).toHaveValue('');
+    expect(screen.getByLabelText(/dirección de destino/i)).toHaveValue('');
+  });
+
+  it('bloquea agregar una parada con el mismo tramo que el paciente ya tiene en este recorrido (RN-HR-02)', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+    const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+    const recorridoConIdaCargada = buildRecorrido({
+      paradas: [{ id: 'p-ida', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'a', direccionDestinoId: 'b', orden: 0 }],
+    });
+
+    render(
+      <AsignacionPanel
+        recorrido={recorridoConIdaCargada}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[compatible]}
+        onAgregar={onAgregar}
+      />,
+    );
+
+    // Fuerza el duplicado exacto: el tramo se preseleccionó en "vuelta", lo volvemos a "ida" a mano.
+    await user.selectOptions(screen.getByLabelText(/tramo/i), 'ida');
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/ya tiene una parada de ida/i);
+    expect(onAgregar).not.toHaveBeenCalled();
+  });
+
+  it('permite agregar la vuelta a un paciente que ya tiene la ida cargada en el mismo recorrido (RN-HR-02)', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+    const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
+    const recorridoConIdaCargada = buildRecorrido({
+      paradas: [{ id: 'p-ida', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'a', direccionDestinoId: 'b', orden: 0 }],
+    });
+
+    render(
+      <AsignacionPanel
+        recorrido={recorridoConIdaCargada}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[compatible]}
+        onAgregar={onAgregar}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+
+    expect(onAgregar).toHaveBeenCalledTimes(1);
+    expect(onAgregar.mock.calls[0]?.[0]).toMatchObject({ pacienteId: 'paciente-1', tramo: 'vuelta' });
+  });
 });
 
 // Gateo de escritura (gateo-hojas-de-ruta, design.md D4/D9, tasks.md 5.3): una sola inserción de

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Conductor } from '../../shared/types/conductor';
 import type { Paciente } from '../../shared/types/paciente';
@@ -303,6 +303,33 @@ describe('RecorridoCard', () => {
 
     expect(screen.queryByRole('option', { name: /ac123de/i })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: /ad456bc/i })).toBeInTheDocument();
+  });
+
+  // RN-HR-02 (feedback de usuario): ida y vuelta del mismo paciente conviven en el mismo
+  // recorrido (dashboard-recorridos-del-dia spec, resumenDelDia.test.ts) — un paciente con solo
+  // la ida cargada debe seguir eligible en "Agregar pasajero", para sumarle la vuelta.
+  it('un paciente con solo la ida cargada en el recorrido sigue apareciendo en "Agregar pasajero" (RN-HR-02)', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <RecorridoCard
+        // buildRecorrido() por defecto: pacienteA (Gómez) y pacienteB (Pereyra) con tramo "ida"
+        // únicamente — ninguno tiene la vuelta cargada todavía.
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+
+    const selectorPaciente = screen.getByLabelText(/^paciente$/i);
+    expect(within(selectorPaciente).getByRole('option', { name: /gómez/i })).toBeInTheDocument();
+    expect(within(selectorPaciente).getByRole('option', { name: /pereyra/i })).toBeInTheDocument();
   });
 
   it('muestra un aviso en vez de un select vacío cuando ningún vehículo sirve para el paciente que se está por agregar', async () => {
