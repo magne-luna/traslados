@@ -1,6 +1,8 @@
 // Sugerencias de horario para el combo de "Hora estimada" (feedback de usuario: ni el spinner
 // nativo de `type="time"` ni un <select> largo resultaban cómodos). El campo sigue siendo texto
-// libre (formato "HH:mm") — esto son sugerencias vía <datalist>, no una restricción de valores.
+// libre (formato "HH:mm") — esto son sugerencias vía HoraEstimadaCombo (antes <datalist>, que no
+// se podía acotar en alto/scroll por ser un popup dibujado por el browser), no una restricción de
+// valores.
 //
 // Rango acotado a horario operativo habitual (06:00-22:00, cada 30 min — feedback de usuario: la
 // lista completa de 24hs cada 15 min arrancaba en 00:00 y obligaba a scrollear mucho para llegar

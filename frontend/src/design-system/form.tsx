@@ -1,4 +1,6 @@
 import type { ComponentPropsWithoutRef, ReactElement, ReactNode } from 'react';
+import { InlineIcon } from './components';
+import { iconFlechaAbajo } from './icons';
 
 // Primitivos de campo de formulario (design.md Decisión 3). Reemplazan los `fieldClasses`/
 // `labelClasses` locales duplicados 227 veces en 25 archivos.
@@ -60,6 +62,17 @@ const invalidClasses: Record<'true' | 'false', string> = {
 
 const CONTROL_BASE = 'rounded-sm border border-border-strong bg-surface';
 
+// `<select>` nativo: mismo padding vertical/izquierdo que Input, pero con `pl`/`pr` explícitos
+// (nunca `px`) para poder reservarle a la flecha un padding derecho propio (`pr-xl`) sin pisarse
+// con el de la izquierda. `appearance-none` saca la flecha nativa (su distancia al borde varía
+// por navegador/SO y es lo que la pegaba al borde) — la reemplazamos por el chevron de
+// `InlineIcon` posicionado a mano en `Select`.
+const selectPaddingClasses: Record<FieldDensity, string> = {
+  comfortable: 'pl-md pr-xl py-2',
+  compact: 'pl-sm pr-xl py-1.5',
+  tight: 'pl-sm pr-xl py-1',
+};
+
 interface ControlVariantProps {
   /** Densidad de padding/tipografía. Default 'comfortable' (la mayoría de los sitios). */
   density?: FieldDensity;
@@ -85,11 +98,13 @@ function controlClassName({
   placeholderTone = 'default',
   fullWidth = true,
   invalid = false,
-}: ControlVariantProps): string {
+  forSelect = false,
+}: ControlVariantProps & { forSelect?: boolean }): string {
   return [
     CONTROL_BASE,
     fullWidth ? 'w-full' : '',
-    densitySpacingClasses[density],
+    forSelect ? selectPaddingClasses[density] : densitySpacingClasses[density],
+    forSelect ? 'appearance-none' : '',
     tone === 'default' ? densityTypographyClasses[density] : '',
     toneClasses[tone],
     placeholderToneClasses[placeholderTone],
@@ -121,15 +136,20 @@ export type SelectProps = Omit<ComponentPropsWithoutRef<'select'>, 'className' |
 
 export function Select({ density, tone, placeholderTone, fullWidth, invalid, id, children, ...rest }: SelectProps): ReactElement {
   return (
-    <select
-      id={id}
-      className={controlClassName({ density, tone, placeholderTone, fullWidth, invalid })}
-      aria-invalid={invalid ? 'true' : undefined}
-      aria-describedby={invalid ? errorIdFor(id) : undefined}
-      {...rest}
-    >
-      {children}
-    </select>
+    <div className={`relative ${fullWidth === false ? '' : 'w-full'}`}>
+      <select
+        id={id}
+        className={controlClassName({ density, tone, placeholderTone, fullWidth, invalid, forSelect: true })}
+        aria-invalid={invalid ? 'true' : undefined}
+        aria-describedby={invalid ? errorIdFor(id) : undefined}
+        {...rest}
+      >
+        {children}
+      </select>
+      <span className="pointer-events-none absolute inset-y-0 right-sm flex items-center text-muted">
+        <InlineIcon size={14}>{iconFlechaAbajo}</InlineIcon>
+      </span>
+    </div>
   );
 }
 

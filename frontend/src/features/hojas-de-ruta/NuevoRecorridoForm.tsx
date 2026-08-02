@@ -74,6 +74,10 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
   const [notas, setNotas] = useState('');
 
   const vehiculoSeleccionado = candidatos.find((v) => v.id === vehiculoId);
+  // "Crear recorrido" vive debajo de Notas (feedback de usuario) pero mantiene el mismo gateo que
+  // antes tenía en la fila de vehículo/conductor: sin vehículo compatible para el paciente
+  // elegido, no se puede enviar.
+  const puedeCrear = !pacienteSeleccionado || candidatos.length > 0;
 
   if (disponibles.length === 0) {
     return <p className="m-0 font-body text-sm text-muted">No hay vehículos habilitados disponibles hoy.</p>;
@@ -133,7 +137,7 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
           autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes', 'write').
           Mismo comentario que permisos.ts, usePuedeEscribir.ts y las pantallas ya cableadas. */}
       <CamposSoloLectura>
-      <div className="grid grid-cols-1 gap-md sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-md sm:grid-cols-2 lg:grid-cols-5 pb-3">
         {pacientes.length > 0 && (
           <SelectorPaciente
             formId={formId}
@@ -167,7 +171,7 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
           Ningún vehículo disponible tiene capacidad o accesorios compatibles con este paciente.
         </p>
       ) : (
-        <div className="flex flex-wrap items-end gap-md">
+        <div className="flex flex-wrap items-end gap-md pt-2">
           <div className="flex flex-col gap-xs">
             <Label htmlFor={`${formId}-vehiculo`}>Vehículo</Label>
             <div className={boxedSelectClasses}>
@@ -215,17 +219,10 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
             />
             Recorrido manual (sin turno fijo)
           </label>
-
-          <div className="ml-auto">
-            <Button variant="primary" requiereEscritura onClick={handleSubmit}>
-              <PlusIcon />
-              Crear recorrido
-            </Button>
-          </div>
         </div>
       )}
 
-      <div className="flex flex-col gap-xs">
+      <div className="flex flex-col gap-xs py-3">
         <Label htmlFor={`${formId}-notas`}>Notas del recorrido (opcional)</Label>
         <Textarea
           id={`${formId}-notas`}
@@ -239,6 +236,15 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
           {notas.length}/{NOTAS_MAX_LENGTH}
         </span>
       </div>
+
+      {puedeCrear && (
+        <div className="flex justify-end">
+          <Button variant="primary" requiereEscritura onClick={handleSubmit}>
+            <PlusIcon />
+            Crear recorrido
+          </Button>
+        </div>
+      )}
       </CamposSoloLectura>
     </div>
   );

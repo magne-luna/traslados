@@ -111,7 +111,9 @@ describe('Select', () => {
     );
     const select = screen.getByLabelText('comprobante') as HTMLSelectElement;
     expect(classSet(select.className)).toEqual(
-      classSet('w-full rounded-sm border border-border-strong bg-surface px-md py-2 font-body text-[13px] text-text'),
+      classSet(
+        'w-full rounded-sm border border-border-strong bg-surface appearance-none pl-md pr-xl py-2 font-body text-[13px] text-text',
+      ),
     );
     expect(select).toHaveValue('A');
   });
@@ -123,7 +125,7 @@ describe('Select', () => {
       </Select>,
     );
     expect(classSet(screen.getByLabelText('vehiculo').className)).toEqual(
-      classSet('w-full rounded-sm border border-border-strong bg-surface px-md py-2 text-muted'),
+      classSet('w-full rounded-sm border border-border-strong bg-surface appearance-none pl-md pr-xl py-2 text-muted'),
     );
   });
 });

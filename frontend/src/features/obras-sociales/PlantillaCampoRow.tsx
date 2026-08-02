@@ -1,5 +1,6 @@
 import { useState, type DragEvent } from 'react';
 import { InlineIcon } from '../../design-system/components';
+import { Select } from '../../design-system/form';
 import { iconArrastrar, iconFlechaAbajo, iconFlechaArriba, iconTacho } from '../../design-system/icons';
 import type { PlantillaCampo } from '../../shared/types/obraSocial';
 import { ORIGEN_CAMPO_LABELS, ORIGEN_CAMPO_OPTIONS } from './origenCampoOptions';
@@ -74,18 +75,19 @@ export function PlantillaCampoRow({
         className="min-w-0 flex-1 rounded-sm border border-border-strong bg-surface px-sm py-1.5 font-body text-[13px] text-text"
       />
 
-      <select
+      <Select
         aria-label={`Origen del campo ${campo.etiqueta}`}
         value={campo.origen}
         onChange={(event) => onChangeOrigen(campo.id, event.target.value as PlantillaCampo['origen'])}
-        className="rounded-sm border border-border-strong bg-surface px-sm py-1.5 font-body text-[13px] text-text"
+        density="compact"
+        fullWidth={false}
       >
         {ORIGEN_CAMPO_OPTIONS.map((origen) => (
           <option key={origen} value={origen}>
             {ORIGEN_CAMPO_LABELS[origen]}
           </option>
         ))}
-      </select>
+      </Select>
 
       <button
         type="button"

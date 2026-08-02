@@ -1,6 +1,7 @@
 import type { Direccion, Tramo } from '../../shared/types/hojaDeRuta';
 import { TRAMO_LABELS, TRAMO_OPTIONS } from '../pacientes/direccionOptions';
-import { Field, Input, Select } from '../../design-system/form';
+import { Field, Select } from '../../design-system/form';
+import { HoraEstimadaCombo } from './HoraEstimadaCombo';
 import { HORARIOS_SUGERIDOS } from './horaOptions';
 
 interface PacienteTramoCamposProps {
@@ -35,20 +36,13 @@ export function PacienteTramoCampos({
   return (
     <>
       <Field label="Hora estimada" htmlFor={`${formId}-hora`}>
-        <Input
+        <HoraEstimadaCombo
           id={`${formId}-hora`}
-          type="text"
-          inputMode="numeric"
           placeholder="HH:mm"
-          list={`${formId}-horarios`}
           value={horaEstimada}
-          onChange={(event) => onHoraChange(event.target.value)}
+          onChange={onHoraChange}
+          sugerencias={HORARIOS_SUGERIDOS}
         />
-        <datalist id={`${formId}-horarios`}>
-          {HORARIOS_SUGERIDOS.map((hora) => (
-            <option key={hora} value={hora} />
-          ))}
-        </datalist>
       </Field>
 
       <Field label="Tramo" htmlFor={`${formId}-tramo`}>

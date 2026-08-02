@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
-import { Button, CamposSoloLectura } from '../../design-system/components';
+import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
+import { iconFlechaAbajo } from '../../design-system/icons';
 import { capacidadDisponible } from '../../shared/lib/hojas-de-ruta/capacidadDisponible';
 import { validarCompatibilidadAccesorio } from '../../shared/lib/hojas-de-ruta/validarCompatibilidadAccesorio';
 import type { Conductor } from '../../shared/types/conductor';
@@ -127,22 +128,29 @@ export function VistaGlobalHojaDeRuta({ recorridos, vehiculos, conductores, paci
                     del navegador (negro puro), no `--color-text` (#2E3D3C). `Select`
                     (design-system/form.tsx) siempre agrega `text-text` (tone='default') o
                     `text-muted` (tone='muted'): no existe un tono "sin color declarado". Migrarlo
-                    cambiaría el color de este texto (viola REGLA 0). Se deja `<select>` nativo. */}
-                <select
-                  id={`${formId}-${filaKey(fila)}`}
-                  className="rounded-sm border border-border-strong bg-surface px-sm py-1 font-body text-[12px]"
-                  value={destinoPorFila[filaKey(fila)] ?? ''}
-                  onChange={(event) =>
-                    setDestinoPorFila((prev) => ({ ...prev, [filaKey(fila)]: event.target.value }))
-                  }
-                >
-                  <option value="">Elegir recorrido destino…</option>
-                  {recorridosDisponibles.map((destino) => (
-                    <option key={destino.id} value={destino.id}>
-                      {vehiculoDe(destino)?.patente ?? destino.id}
-                    </option>
-                  ))}
-                </select>
+                    cambiaría el color de este texto (viola REGLA 0). Se deja `<select>` nativo,
+                    con el mismo `appearance-none` + flecha propia que `Select` (arreglo de UI:
+                    la flecha nativa quedaba pegada al borde) — eso no toca el color del texto. */}
+                <span className="relative inline-block">
+                  <select
+                    id={`${formId}-${filaKey(fila)}`}
+                    className="appearance-none rounded-sm border border-border-strong bg-surface py-1 pl-sm pr-lg font-body text-[12px]"
+                    value={destinoPorFila[filaKey(fila)] ?? ''}
+                    onChange={(event) =>
+                      setDestinoPorFila((prev) => ({ ...prev, [filaKey(fila)]: event.target.value }))
+                    }
+                  >
+                    <option value="">Elegir recorrido destino…</option>
+                    {recorridosDisponibles.map((destino) => (
+                      <option key={destino.id} value={destino.id}>
+                        {vehiculoDe(destino)?.patente ?? destino.id}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="pointer-events-none absolute inset-y-0 right-xs flex items-center text-muted">
+                    <InlineIcon size={12}>{iconFlechaAbajo}</InlineIcon>
+                  </span>
+                </span>
                 <Button variant="secondary" requiereEscritura onClick={() => handleMover(fila)}>
                   Mover
                 </Button>
