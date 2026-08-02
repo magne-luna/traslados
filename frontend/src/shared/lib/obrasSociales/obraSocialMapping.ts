@@ -24,7 +24,6 @@ import type {
   ObraSocial,
   OrigenCampoPlantilla,
   PlantillaCampo,
-  TipoComprobante,
 } from '../../types/obraSocial';
 import type { ChecklistItem } from '../../types/documento';
 
@@ -46,16 +45,11 @@ function readOptionalString(record: Record<string, unknown>, key: string): strin
 // real (verificados con `supabase db query --linked`), no se inventan.
 // -------------------------------------------------------------------------------------------
 
-const TIPOS_COMPROBANTE_VALIDOS = new Set<TipoComprobante>(['A', 'B', 'C']);
-const DEFAULT_TIPO_COMPROBANTE: TipoComprobante = 'A';
-
 const MODALIDADES_VALIDAS = new Set<ModalidadFacturacion>(['por-prestacion', 'general']);
 const DEFAULT_MODALIDAD_FACTURACION: ModalidadFacturacion = 'por-prestacion';
 
 const IDENTIFICADORES_ORIGEN_VALIDOS = new Set<IdentificadorOrigenFactura>(['paciente.dni', 'paciente.numeroAfiliado']);
 const DEFAULT_IDENTIFICADOR_ORIGEN: IdentificadorOrigenFactura = 'paciente.numeroAfiliado';
-
-const DEFAULT_PLAZO_COBRO_DIAS = 90;
 
 // RF-106/RN-ID-02 (integracion-obra-social, columna agregada 20260731140000): mismos 3 valores
 // que el enum real `obra_social.formato_afiliado`.
@@ -77,12 +71,6 @@ const ORIGENES_CAMPO_VALIDOS = new Set<OrigenCampoPlantilla>([
   'valor-manual',
 ]);
 
-function parseTipoComprobante(value: unknown): TipoComprobante {
-  return typeof value === 'string' && TIPOS_COMPROBANTE_VALIDOS.has(value as TipoComprobante)
-    ? (value as TipoComprobante)
-    : DEFAULT_TIPO_COMPROBANTE;
-}
-
 function parseModalidadFacturacion(value: unknown): ModalidadFacturacion {
   return typeof value === 'string' && MODALIDADES_VALIDAS.has(value as ModalidadFacturacion)
     ? (value as ModalidadFacturacion)
@@ -93,10 +81,6 @@ function parseIdentificadorOrigen(value: unknown): IdentificadorOrigenFactura {
   return typeof value === 'string' && IDENTIFICADORES_ORIGEN_VALIDOS.has(value as IdentificadorOrigenFactura)
     ? (value as IdentificadorOrigenFactura)
     : DEFAULT_IDENTIFICADOR_ORIGEN;
-}
-
-function parsePlazoCobroDias(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_PLAZO_COBRO_DIAS;
 }
 
 function parseFormatoAfiliado(value: unknown): FormatoAfiliado {
@@ -117,16 +101,16 @@ export interface ObraSocialCamposBase {
   direccion?: string;
   telefono?: string;
   condicionIva?: string;
-  tipoComprobante: TipoComprobante;
-  plazoCobroDias: number;
   modalidadFacturacion: ModalidadFacturacion;
   admitePagosParciales: boolean;
   identificadorOrigen: IdentificadorOrigenFactura;
   formatoAfiliado: FormatoAfiliado;
 }
 
-/** Fila plana de `obra_social.obra_social` -> campos base del dominio (discrepancias #1/#2 de la
- * tabla D11: `razon_social`->`nombre`, `tipo_comprobante`->`tipoComprobante`). */
+/** Fila plana de `obra_social.obra_social` -> campos base del dominio (discrepancia #1 de la
+ * tabla D11: `razon_social`->`nombre`). `tipo_comprobante`/`plazo_cobro_dias` de esta tabla ya no
+ * se mapean acá: se mudaron a `Prestador` (change `prestadores-crud`, design.md D3, sin confirmar
+ * con Andrea) — las columnas gemelas quedan vestigiales en `obra_social.obra_social`. */
 export function parseObraSocialRow(row: unknown): ObraSocialCamposBase {
   const record = isRecord(row) ? row : {};
 
@@ -138,8 +122,6 @@ export function parseObraSocialRow(row: unknown): ObraSocialCamposBase {
     direccion: readOptionalString(record, 'direccion'),
     telefono: readOptionalString(record, 'telefono'),
     condicionIva: readOptionalString(record, 'condicion_iva'),
-    tipoComprobante: parseTipoComprobante(record.tipo_comprobante),
-    plazoCobroDias: parsePlazoCobroDias(record.plazo_cobro_dias),
     modalidadFacturacion: parseModalidadFacturacion(record.modalidad_facturacion),
     admitePagosParciales: typeof record.admite_pagos_parciales === 'boolean' ? record.admite_pagos_parciales : false,
     identificadorOrigen: parseIdentificadorOrigen(record.identificador_origen),
@@ -252,8 +234,6 @@ export function ensamblarObraSocial(row: unknown): ObraSocial {
     direccion: base.direccion,
     telefono: base.telefono,
     condicionIva: base.condicionIva,
-    tipoComprobante: base.tipoComprobante,
-    plazoCobroDias: base.plazoCobroDias,
     modalidadFacturacion: base.modalidadFacturacion,
     admitePagosParciales: base.admitePagosParciales,
     formatoAfiliado: base.formatoAfiliado,
@@ -293,8 +273,6 @@ export interface CrearObraSocialPayload {
   direccion: string | null;
   telefono: string | null;
   condicion_iva: string | null;
-  tipo_comprobante: TipoComprobante;
-  plazo_cobro_dias: number;
   modalidad_facturacion: ModalidadFacturacion;
   admite_pagos_parciales: boolean;
   formato_afiliado: FormatoAfiliado;
@@ -327,8 +305,6 @@ export function toCrearObraSocialPayload(nueva: NuevaObraSocial): CrearObraSocia
     direccion: vacioANull(nueva.direccion),
     telefono: vacioANull(nueva.telefono),
     condicion_iva: vacioANull(nueva.condicionIva),
-    tipo_comprobante: nueva.tipoComprobante,
-    plazo_cobro_dias: nueva.plazoCobroDias,
     modalidad_facturacion: nueva.modalidadFacturacion,
     admite_pagos_parciales: nueva.admitePagosParciales,
     formato_afiliado: nueva.formatoAfiliado,
@@ -358,8 +334,6 @@ export function toActualizarObraSocialPayload(cambios: ActualizacionObraSocial):
   if (cambios.direccion !== undefined) payload.direccion = vacioANull(cambios.direccion);
   if (cambios.telefono !== undefined) payload.telefono = vacioANull(cambios.telefono);
   if (cambios.condicionIva !== undefined) payload.condicion_iva = vacioANull(cambios.condicionIva);
-  if (cambios.tipoComprobante !== undefined) payload.tipo_comprobante = cambios.tipoComprobante;
-  if (cambios.plazoCobroDias !== undefined) payload.plazo_cobro_dias = cambios.plazoCobroDias;
   if (cambios.modalidadFacturacion !== undefined) payload.modalidad_facturacion = cambios.modalidadFacturacion;
   if (cambios.admitePagosParciales !== undefined) payload.admite_pagos_parciales = cambios.admitePagosParciales;
   if (cambios.formatoAfiliado !== undefined) payload.formato_afiliado = cambios.formatoAfiliado;

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { Factura } from '../../shared/types/factura';
-import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { FacturaResumen } from './FacturaResumen';
@@ -21,19 +20,6 @@ const paciente: Paciente = {
   direcciones: [],
   personasACargo: [],
   amparoJudicial: false,
-};
-
-const obraSocial: ObraSocial = {
-  id: 'osecac',
-  nombre: 'OSECAC',
-  cuit: '30-54155200-6',
-  plazoCobroDias: 90,
-  tipoComprobante: 'A',
-  modalidadFacturacion: 'por-prestacion',
-  admitePagosParciales: false,
-  formatoAfiliado: 'numero-documento',
-  checklist: [],
-  plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
 };
 
 const factura: Factura = {
@@ -63,7 +49,7 @@ describe('FacturaResumen — lectura preservada en modo solo lectura', () => {
   it('con solo `read`: se renderiza completo', () => {
     render(
       <PuedeEscribirContext.Provider value={false}>
-        <FacturaResumen factura={factura} paciente={paciente} obraSocial={obraSocial} />
+        <FacturaResumen factura={factura} paciente={paciente} />
       </PuedeEscribirContext.Provider>,
     );
 
@@ -74,7 +60,7 @@ describe('FacturaResumen — lectura preservada en modo solo lectura', () => {
   it('con `write`: se renderiza igual (triangulación)', () => {
     render(
       <PuedeEscribirContext.Provider value={true}>
-        <FacturaResumen factura={factura} paciente={paciente} obraSocial={obraSocial} />
+        <FacturaResumen factura={factura} paciente={paciente} />
       </PuedeEscribirContext.Provider>,
     );
 

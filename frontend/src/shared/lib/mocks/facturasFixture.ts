@@ -1,5 +1,6 @@
 import type { AsistenciaPrestacion, Factura } from '../../types/factura';
 import { calcularFechaEstimadaCobro } from '../facturacion/calcularFechaEstimadaCobro';
+import { TIPO_COMPROBANTE_DEFAULT } from '../facturacion/constantes';
 import { renderDescripcionFactura, type DatosDescripcionFactura } from '../facturacion/renderDescripcionFactura';
 import { resolverIdentificadorFactura } from '../facturacion/resolverIdentificadorFactura';
 import { calcularTotalFactura } from '../facturacion/totalesFactura';
@@ -72,7 +73,7 @@ export function buildFacturasFixture(): Factura[] {
     estado: 'a-facturar',
     fechaInicial: isoDate(primerDiaDelMes(periodoActual.anio, periodoActual.mes)),
     fechaTope: isoDate(ultimoDiaDelMes(periodoActual.anio, periodoActual.mes)),
-    tipoComprobante: osecac.tipoComprobante,
+    tipoComprobante: TIPO_COMPROBANTE_DEFAULT,
     cantidadKm: 40,
     prestacion: 'Kinesiología',
     mesFacturado: periodoActual.mes,
@@ -114,13 +115,13 @@ export function buildFacturasFixture(): Factura[] {
     estado: 'facturado',
     fechaInicial: isoDate(primerDiaDelMes(periodoFacturado.anio, periodoFacturado.mes)),
     fechaTope: isoDate(ultimoDiaDelMes(periodoFacturado.anio, periodoFacturado.mes)),
-    tipoComprobante: osecac.tipoComprobante,
+    tipoComprobante: TIPO_COMPROBANTE_DEFAULT,
     cantidadKm: datosDescripcionFacundo.cantidadKm,
     fechaFactura: fechaFacturaFacundo,
     fechaEstimadaCobro: calcularFechaEstimadaCobro({
       fechaFactura: fechaFacturaFacundo,
       amparoJudicial: facundo.amparoJudicial,
-      plazoObraSocial: osecac.plazoCobroDias,
+      plazoObraSocial: undefined,
     }),
     prestacion: datosDescripcionFacundo.prestacion,
     mesFacturado: periodoFacturado.mes,
@@ -170,13 +171,13 @@ export function buildFacturasFixture(): Factura[] {
     estado: 'cobrado',
     fechaInicial: isoDate(primerDiaDelMes(periodoCobrado.anio, periodoCobrado.mes)),
     fechaTope: isoDate(ultimoDiaDelMes(periodoCobrado.anio, periodoCobrado.mes)),
-    tipoComprobante: osecac.tipoComprobante,
+    tipoComprobante: TIPO_COMPROBANTE_DEFAULT,
     cantidadKm: datosDescripcionMartinaCobrado.cantidadKm,
     fechaFactura: fechaFacturaMartinaCobrado,
     fechaEstimadaCobro: calcularFechaEstimadaCobro({
       fechaFactura: fechaFacturaMartinaCobrado,
       amparoJudicial: martina.amparoJudicial,
-      plazoObraSocial: osecac.plazoCobroDias,
+      plazoObraSocial: undefined,
     }),
     prestacion: datosDescripcionMartinaCobrado.prestacion,
     mesFacturado: periodoCobrado.mes,
@@ -226,13 +227,13 @@ export function buildFacturasFixture(): Factura[] {
     estado: 'pagado-parcialmente',
     fechaInicial: isoDate(primerDiaDelMes(periodoParcial.anio, periodoParcial.mes)),
     fechaTope: isoDate(ultimoDiaDelMes(periodoParcial.anio, periodoParcial.mes)),
-    tipoComprobante: osecac.tipoComprobante,
+    tipoComprobante: TIPO_COMPROBANTE_DEFAULT,
     cantidadKm: datosDescripcionFacundoParcial.cantidadKm,
     fechaFactura: fechaFacturaFacundoParcial,
     fechaEstimadaCobro: calcularFechaEstimadaCobro({
       fechaFactura: fechaFacturaFacundoParcial,
       amparoJudicial: facundo.amparoJudicial,
-      plazoObraSocial: osecac.plazoCobroDias,
+      plazoObraSocial: undefined,
     }),
     prestacion: datosDescripcionFacundoParcial.prestacion,
     mesFacturado: periodoParcial.mes,

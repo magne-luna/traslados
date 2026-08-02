@@ -12,6 +12,7 @@ import { DiasFacturablesSelector } from './DiasFacturablesSelector';
 import { FacturaFormDatosBasicos } from './FacturaFormDatosBasicos';
 import { FacturaFormEconomicos } from './FacturaFormEconomicos';
 import { construirDatosDescripcion } from '../../shared/lib/facturacion/construirDatosDescripcion';
+import { TIPO_COMPROBANTE_DEFAULT } from '../../shared/lib/facturacion/constantes';
 import { cupoConsumido } from '../../shared/lib/facturacion/cupoConsumido';
 import { renderDescripcionFactura } from '../../shared/lib/facturacion/renderDescripcionFactura';
 import { validarCupoFacturacion } from '../../shared/lib/facturacion/validarCupoFacturacion';
@@ -29,7 +30,7 @@ function valoresPorDefecto(): FacturaFormValues {
     monto: 0,
     fechaInicial: ahora.toISOString().slice(0, 10),
     fechaTope: ahora.toISOString().slice(0, 10),
-    tipoComprobante: 'A',
+    tipoComprobante: TIPO_COMPROBANTE_DEFAULT,
     cantidadKm: 0,
     prestacion: '',
     mesFacturado: ahora.getMonth() + 1,
@@ -44,7 +45,7 @@ interface FacturaFormProps {
   initial?: FacturaFormValues;
   /** Solo lectura (design.md Decisión 15): puebla el selector de paciente. */
   pacientes: Paciente[];
-  /** Solo lectura: resuelve la plantilla y el tipo de comprobante por defecto del paciente. */
+  /** Solo lectura: resuelve la plantilla de descripción del paciente. */
   obrasSociales: ObraSocial[];
   /** Todas las facturas existentes (para validar cupo del período, excluyendo la propia). */
   facturasExistentes: Factura[];
@@ -68,8 +69,9 @@ const labelClasses = 'font-body text-[12px] font-semibold text-muted';
 
 // Formulario de alta/edición de factura (tasks.md 7.1 a 7.6): selector de paciente y de domicilio
 // inyectados (guardan solo el id), período estructurado (design.md Decisión 4), económicos con
-// valor del km de carga manual (RN-FA-05), tipo de comprobante precargado desde la obra social
-// (RN-FA-07, editable), asistencias embebidas (AsistenciasEditor, RN-FA-01), días facturables
+// valor del km de carga manual (RN-FA-05), tipo de comprobante con default fijo provisorio
+// (RN-FA-07, editable — ver TIPO_COMPROBANTE_DEFAULT, design.md D4 de prestadores-crud, SIN
+// confirmar con Andrea), asistencias embebidas (AsistenciasEditor, RN-FA-01), días facturables
 // sugeridos (DiasFacturablesSelector) y alerta de cupo persistente (AlertaCupo). Componentes
 // pesados extraídos aparte para mantenerse bajo las ~200 líneas (tasks.md 12.3).
 //
@@ -111,15 +113,6 @@ export function FacturaForm({
       cancelled = true;
     };
   }, [values.pacienteId, resolverCupoAutorizado]);
-
-  // Tipo de comprobante precargado desde la obra social del paciente (RN-FA-07), editable — solo
-  // se aplica al elegir el paciente por primera vez en un formulario nuevo (no pisa un valor ya
-  // editado a mano en una edición existente).
-  useEffect(() => {
-    if (initial !== undefined) return;
-    if (obraSocial) setValues((prev) => ({ ...prev, tipoComprobante: obraSocial.tipoComprobante }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [obraSocial?.id]);
 
   const resultadoCupo = useMemo(() => {
     const consumido = cupoConsumido(facturasExistentes, values.pacienteId, values.mesFacturado, values.anioFacturado, {

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, Chip, InlineIcon, SearchInput } from '../../design-system/components';
 import { Alert, EmptyState, Pill } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
-import { iconCredencial, iconDocumento, iconReloj } from '../../design-system/icons';
+import { iconCredencial, iconDocumento } from '../../design-system/icons';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 
 interface ObrasSocialesListProps {
@@ -75,17 +75,11 @@ export function ObrasSocialesList({ obrasSociales, loading, error, onSelect, onC
                     <h2 className="m-0 font-heading text-[17px] font-bold text-ink">{obraSocial.nombre}</h2>
                     <span className="font-mono text-[12px] text-muted">CUIT: {obraSocial.cuit}</span>
                   </div>
-                  <Chip kind="success">Comprobante {obraSocial.tipoComprobante}</Chip>
                 </div>
 
-                <div className="grid grid-cols-3 gap-sm border-y border-border py-sm">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="flex items-center gap-xs font-body text-[11px] text-muted">
-                      <InlineIcon>{iconReloj}</InlineIcon>
-                      Plazo de cobro
-                    </span>
-                    <span className="font-body text-[13px] font-semibold text-ink">{obraSocial.plazoCobroDias} días</span>
-                  </div>
+                {/* `tipoComprobante`/`plazoCobroDias` se mudaron a `Prestador` (design.md D3 de
+                    prestadores-crud, sin confirmar con Andrea) — dejan de mostrarse acá. */}
+                <div className="grid grid-cols-2 gap-sm border-y border-border py-sm">
                   <div className="flex flex-col gap-0.5">
                     <span className="flex items-center gap-xs font-body text-[11px] text-muted">
                       <InlineIcon>{iconDocumento}</InlineIcon>

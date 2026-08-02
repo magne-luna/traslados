@@ -33,8 +33,6 @@ const osecac: ObraSocial = {
   id: 'osecac',
   nombre: 'OSECAC',
   cuit: '30-54155200-6',
-  plazoCobroDias: 90,
-  tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
   formatoAfiliado: 'numero-documento',

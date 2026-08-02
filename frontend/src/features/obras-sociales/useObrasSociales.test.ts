@@ -8,8 +8,6 @@ const osecac: ObraSocial = {
   id: 'osecac',
   nombre: 'OSECAC',
   cuit: '30-54155200-6',
-  plazoCobroDias: 90,
-  tipoComprobante: 'A',
   modalidadFacturacion: 'por-prestacion',
   admitePagosParciales: false,
   formatoAfiliado: 'numero-documento',
@@ -61,8 +59,6 @@ describe('useObrasSociales', () => {
       await result.current.crear({
         nombre: 'Swiss Medical',
         cuit: '30-11111111-1',
-        plazoCobroDias: 60,
-        tipoComprobante: 'B',
         modalidadFacturacion: 'general',
         admitePagosParciales: true,
         formatoAfiliado: 'numero-documento',
@@ -81,10 +77,10 @@ describe('useObrasSociales', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
-      await result.current.actualizar('osecac', { plazoCobroDias: 45 });
+      await result.current.actualizar('osecac', { condicionIva: 'Monotributo' });
     });
 
-    expect(repository.update).toHaveBeenCalledWith('osecac', { plazoCobroDias: 45 });
+    expect(repository.update).toHaveBeenCalledWith('osecac', { condicionIva: 'Monotributo' });
     expect(repository.list).toHaveBeenCalledTimes(2);
   });
 
@@ -98,8 +94,6 @@ describe('useObrasSociales', () => {
         result.current.crear({
           nombre: 'OSECAC',
           cuit: '30-54155200-6',
-          plazoCobroDias: 90,
-          tipoComprobante: 'A',
           modalidadFacturacion: 'por-prestacion',
           admitePagosParciales: false,
           formatoAfiliado: 'numero-documento',

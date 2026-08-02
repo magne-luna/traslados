@@ -275,6 +275,36 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
      pantalla, y lo comparten Pacientes **y** Facturación (`documento_factura`, hallazgo no
      documentado hasta ahora).
 - **Progreso backend (real, C-04, 2026-07-28)**: ✅ implementado, pusheado y **archivado** (2026-08-01) como `C-04-obras-sociales-prestadores` (`openspec/changes/archive/2026-08-01-C-04-obras-sociales-prestadores/`). El schema `obra_social` (incl. `prestadores`, `tipos_documento`, `requisitos_os`) ya existía de rebote desde la revisión de C-02 y ya cubría Código/Dirección/Teléfono/Condición IVA y la entidad Prestadores del docx. Esta migración cerró lo que faltaba: `plazo_cobro_dias`/`modalidad_facturacion`/`admite_pagos_parciales`/`identificador_origen` en `obra_social.obra_social` (nombres/defaults tomados 1:1 de `frontend/src/shared/types/obraSocial.ts`), `orden`/`requerido` en `requisitos_os` (RN-FA-08), y tabla nueva `plantilla_campo`. Sin delta specs (cambio puro de schema/migraciones, mismo caso que `C-02`) — nada que fusionar en `openspec/specs/`. 12/12 tasks completas. **Falta**: cargar el checklist real de OSECAC como dato (contenido de negocio, no estructura — lo carga la administradora desde la app). Nota: este cierre de schema es un change distinto de `integracion-obra-social` (ver **Estado** arriba), que extiende este mismo dominio con la conexión del frontend a Supabase real y sigue abierto, pendiente de aplicación de migraciones y verificación manual a cargo de Enzo/backend.
+- **⚠️ `prestadores-crud` (rama de demo, `feature/prestadores-crud` como tracker de 4 branches
+  encadenadas, propose+apply 2026-08-01, **mergeada a `main` el 2026-08-02** por decisión de
+  Enzo/Delfina, sin validar los supuestos con Andrea — ver nota abajo)**: cierra D8 de arriba
+  ("`prestadores-crud` queda como change propio") — CRUD completo de Prestador (listado/alta/
+  edición, gateado por el módulo `obra_social` existente) más el vínculo N:N con ObraSocial
+  (`obra_social.obra_social_prestador`, multi-select en `PrestadorForm.tsx`, panel de solo lectura
+  en `ObraSocialDetail.tsx`). Migración `20260801100000_prestadores_condiciones.sql` **escrita, no
+  aplicada** (`supabase db push` sigue a cargo de Enzo). **Los 5 supuestos de abajo son la premisa
+  de toda la rama y NINGUNO está confirmado con Andrea** (ver `proposal.md`/`design.md` de
+  `prestadores-crud` y `knowledge-base/10_preguntas_abiertas.md` §`prestadores-crud`):
+  1. Relación Prestador↔ObraSocial: **N:N** (confirmado con Enzo, no con Andrea).
+  2. Ambigüedad `prestadores.cuit` vs. `obra_social.cuit` (discrepancia #12): sigue sin resolver,
+     esta rama la vuelve más visible, no la cierra.
+  3. "Condiciones particulares por prestador" (US-300): se mueven `plazoCobroDias`/
+     `tipoComprobante` de `ObraSocial` a `Prestador` (discrepancia #18 de `04_modelo_de_datos.md`).
+  4. Alcance de esta primera versión: 4 campos existentes + los 2 movidos, nada más.
+  5. **Nueva, bloqueante para el futuro `desacople-prestacion-factura`**: qué Prestador aplica al
+     facturar en modo general cuando una ObraSocial tiene varios vinculados — explícitamente sin
+     decidir, ver `10_preguntas_abiertas.md`.
+  - **⚠️ Colisión pendiente de coordinar con `integracion-facturacion`** (change en curso, swap de
+    backend real de Facturación): ese change asume hoy que `plazoCobroDias`/`tipoComprobante` viven
+    en `ObraSocial` — si el supuesto #3 de arriba se confirma con Andrea, `integracion-facturacion`
+    necesita coordinarse (releer este bullet y `prestadores-crud/proposal.md` §Impacto) antes de
+    cerrar sus propias aprobaciones pendientes. Esta rama **no** toca ningún archivo de
+    `integracion-facturacion` directamente.
+  - **⚠️ Mergeada a `main` sin validar los 5 supuestos con Andrea** (decisión de Enzo/Delfina,
+    2026-08-02: "hacemos el merge igual, si después hay que cambiar algo lo cambiamos"). Falta
+    todavía la confirmación con la clienta — si alguno de los 5 supuestos cambia, hay que revisar
+    schema/UI de Prestador y coordinar con `integracion-facturacion` (bullet de arriba). No se
+    aplicaron migraciones contra Supabase real (`db push` sigue a cargo de Enzo).
 
 ### [C-08] `vehiculos-mantenimiento`
 - **Estado**: `[x]` completado (frontend mock, 2026-07-31)

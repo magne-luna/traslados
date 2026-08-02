@@ -41,17 +41,15 @@ function filaObraSocialCompleta(overrides: Record<string, unknown> = {}): Record
 // -----------------------------------------------------------------------------------------------
 
 describe('parseObraSocialRow (3.1)', () => {
-  it('mapea una fila completa, incluidos los renombres razon_social->nombre y tipo_comprobante->tipoComprobante', () => {
+  it('mapea una fila completa, incluido el renombre razon_social->nombre', () => {
     const base = parseObraSocialRow(filaObraSocialCompleta());
 
     expect(base.nombre).toBe('OSECAC');
     expect(base.cuit).toBe('30-54155200-6');
-    expect(base.tipoComprobante).toBe('A');
     expect(base.codigo).toBe('OS-01');
     expect(base.direccion).toBe('Callao 100');
     expect(base.telefono).toBe('11-1111-2222');
     expect(base.condicionIva).toBe('Exento');
-    expect(base.plazoCobroDias).toBe(90);
     expect(base.modalidadFacturacion).toBe('por-prestacion');
     expect(base.admitePagosParciales).toBe(false);
     expect(base.identificadorOrigen).toBe('paciente.numeroAfiliado');
@@ -68,11 +66,6 @@ describe('parseObraSocialRow (3.1)', () => {
     expect(base.condicionIva).toBeUndefined();
   });
 
-  it('tipo_comprobante fuera de A|B|C (o NULL) cae al default documentado sin romper la obra social', () => {
-    expect(parseObraSocialRow(filaObraSocialCompleta({ tipo_comprobante: 'Z' })).tipoComprobante).toBe('A');
-    expect(parseObraSocialRow(filaObraSocialCompleta({ tipo_comprobante: null })).tipoComprobante).toBe('A');
-  });
-
   it('modalidad_facturacion/identificador_origen desconocidos caen al default documentado', () => {
     const base = parseObraSocialRow(
       filaObraSocialCompleta({ modalidad_facturacion: 'algo-raro', identificador_origen: 'algo-raro' }),
@@ -80,10 +73,6 @@ describe('parseObraSocialRow (3.1)', () => {
 
     expect(base.modalidadFacturacion).toBe('por-prestacion');
     expect(base.identificadorOrigen).toBe('paciente.numeroAfiliado');
-  });
-
-  it('plazo_cobro_dias no numérico cae al default de 90 días', () => {
-    expect(parseObraSocialRow(filaObraSocialCompleta({ plazo_cobro_dias: null })).plazoCobroDias).toBe(90);
   });
 });
 
@@ -219,8 +208,6 @@ describe('ensamblarObraSocial (3.5)', () => {
       direccion: 'Callao 100',
       telefono: '11-1111-2222',
       condicionIva: 'Exento',
-      tipoComprobante: 'A',
-      plazoCobroDias: 90,
       modalidadFacturacion: 'por-prestacion',
       admitePagosParciales: false,
       formatoAfiliado: 'numero-documento',
@@ -257,8 +244,6 @@ describe('ensamblarObraSocial (3.5)', () => {
       direccion: undefined,
       telefono: undefined,
       condicionIva: undefined,
-      tipoComprobante: 'A',
-      plazoCobroDias: 90,
       modalidadFacturacion: 'por-prestacion',
       admitePagosParciales: false,
       formatoAfiliado: 'numero-documento',
@@ -289,8 +274,6 @@ function nuevaObraSocialMinima(): NuevaObraSocial {
   return {
     nombre: 'Swiss Medical',
     cuit: '30-11111111-1',
-    plazoCobroDias: 90,
-    tipoComprobante: 'A',
     modalidadFacturacion: 'por-prestacion',
     admitePagosParciales: false,
     formatoAfiliado: 'numero-documento',
@@ -310,8 +293,6 @@ describe('toCrearObraSocialPayload (3.6)', () => {
       direccion: null,
       telefono: null,
       condicion_iva: null,
-      tipo_comprobante: 'A',
-      plazo_cobro_dias: 90,
       modalidad_facturacion: 'por-prestacion',
       admite_pagos_parciales: false,
       formato_afiliado: 'numero-documento',
@@ -408,8 +389,6 @@ describe('toActualizarObraSocialPayload (3.7) — semántica parcial (D6)', () =
       direccion: 'Calle Nueva 1',
       telefono: '11-0000-0000',
       condicionIva: 'Monotributo',
-      tipoComprobante: 'B',
-      plazoCobroDias: 45,
       modalidadFacturacion: 'general',
       admitePagosParciales: true,
     });
@@ -421,8 +400,6 @@ describe('toActualizarObraSocialPayload (3.7) — semántica parcial (D6)', () =
       direccion: 'Calle Nueva 1',
       telefono: '11-0000-0000',
       condicion_iva: 'Monotributo',
-      tipo_comprobante: 'B',
-      plazo_cobro_dias: 45,
       modalidad_facturacion: 'general',
       admite_pagos_parciales: true,
     });

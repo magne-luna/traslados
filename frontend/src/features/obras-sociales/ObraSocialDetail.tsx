@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { AvisoModeloDatos, Button, Chip, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
+import { AvisoModeloDatos, Button, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
+import { PrestadoresDeObraSocial } from '../prestadores/PrestadoresDeObraSocial';
 import type { ActualizacionObraSocial, NuevaObraSocial, ObraSocial } from '../../shared/types/obraSocial';
 import { ChecklistEditor } from './ChecklistEditor';
 import { DEFAULT_IDENTIFICADOR_ORIGEN } from './origenCampoOptions';
@@ -87,14 +88,11 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
             <div className="flex flex-wrap items-center gap-md">
               <span className="font-body text-[14px] font-semibold text-ink">{obraSocial.nombre}</span>
               <span className="font-mono text-[12px] text-muted">CUIT: {obraSocial.cuit}</span>
-              <Chip kind="info">Comprobante {obraSocial.tipoComprobante}</Chip>
             </div>
 
-            <div className="grid grid-cols-2 gap-md border-y border-border py-md md:grid-cols-4">
-              <div className="flex flex-col gap-0.5">
-                <span className="font-body text-[11px] text-muted">Plazo de cobro</span>
-                <span className="font-body text-[13px] font-semibold text-ink">{obraSocial.plazoCobroDias} días</span>
-              </div>
+            {/* `tipoComprobante`/`plazoCobroDias` se mudaron a `Prestador` (design.md D3 de
+                prestadores-crud, sin confirmar con Andrea) — dejan de mostrarse acá. */}
+            <div className="grid grid-cols-2 gap-md border-y border-border py-md md:grid-cols-3">
               <div className="flex flex-col gap-0.5">
                 <span className="font-body text-[11px] text-muted">Modalidad de facturación</span>
                 <span className="font-body text-[13px] font-semibold text-ink">
@@ -205,6 +203,13 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
 
           <Section label="Facturación" title="Plantilla de descripción de factura">
             <PlantillaFacturaEditor plantilla={obraSocial.plantillaFactura} onChange={handlePlantillaChange} />
+          </Section>
+
+          {/* Panel de solo lectura del vínculo N:N (design.md D2 de prestadores-crud, tasks.md
+              5.2/5.3): el multi-select de edición vive del lado de Prestador
+              (PrestadorForm.tsx) — acá solo se muestra quién ya está vinculado. */}
+          <Section label="Prestadores" title="Prestadores vinculados">
+            <PrestadoresDeObraSocial obraSocialId={obraSocial.id} />
           </Section>
         </>
       )}
