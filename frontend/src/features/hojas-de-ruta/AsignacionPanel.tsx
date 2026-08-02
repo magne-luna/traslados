@@ -163,6 +163,7 @@ export function AsignacionPanel({
         <div className="justify-self-end">
           <Button variant="primary" requiereEscritura onClick={handleSubmit} ariaLabel="Agregar pasajero">
             <PlusIcon />
+            Agregar pasajero
           </Button>
         </div>
       </div>
