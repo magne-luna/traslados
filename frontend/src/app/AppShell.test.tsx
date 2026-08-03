@@ -163,12 +163,15 @@ describe('AppShell — identidad y cierre de sesión (tasks.md 8.4)', () => {
     localStorage.clear();
   });
 
-  it('muestra el nombre, el email y el rol de la cuenta autenticada', async () => {
+  it('muestra el nombre y el email de la cuenta autenticada', async () => {
+    // El rol ya no se muestra acá (feedback de usuario: "arriba el nombre y abajo el mail, sin
+    // el rol") — SidebarIdentity.tsx dejó de renderizar el Chip de rol. El nombre completo
+    // tampoco: cuentas compartidas ("Facturación Pastor Traslados") no entran en el sidebar, así
+    // que solo se muestra la primera palabra (ver primeraPalabra() en SidebarIdentity.tsx).
     renderShellAt('/', { usuario: EMPLEADO_SOLO_PACIENTES, permisos: { pacientes: 'read' } });
 
-    expect(await screen.findByText('Juan Pérez')).toBeInTheDocument();
+    expect(await screen.findByText('Juan')).toBeInTheDocument();
     expect(screen.getByText('juan@x.com')).toBeInTheDocument();
-    expect(screen.getByText('empleado')).toBeInTheDocument();
   });
 
   it('el control de cerrar sesión cierra la sesión real y navega a /login', async () => {
