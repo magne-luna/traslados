@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router';
-import { NavIcon } from '../design-system/components';
+import { NavIcon, Tooltip } from '../design-system/components';
 import { Alert } from '../design-system/feedback';
 import { tienePermiso } from '../shared/lib/auth/permisos';
 import { iconPaths } from './navIcons';
@@ -70,25 +70,26 @@ export function SidebarNav({ rol, permisos, collapsed, onNavigate }: SidebarNavP
           <ul className="nav-list m-0 flex list-none flex-col gap-md p-0">
             {routes.map((route) => (
               <li key={route.path}>
-                <NavLink
-                  to={route.path}
-                  end={route.path === '/'}
-                  aria-label={collapsed ? route.label : undefined}
-                  title={collapsed ? route.label : undefined}
-                  className={({ isActive }) =>
-                    `nav-item flex items-center gap-sm rounded-sm px-md py-sm font-body text-[13px] font-semibold whitespace-nowrap no-underline ${
-                      collapsed ? 'justify-center' : 'justify-start'
-                    } ${
-                      isActive
-                        ? 'bg-surface-soft text-sidebar-text-active shadow-[inset_2px_0_0_var(--color-primary-soft)]'
-                        : 'bg-transparent text-sidebar-text shadow-none'
-                    }`
-                  }
-                  onClick={onNavigate}
-                >
-                  <NavIcon>{iconPaths[route.icon]}</NavIcon>
-                  {!collapsed && route.label}
-                </NavLink>
+                <Tooltip label={route.label} disabled={!collapsed}>
+                  <NavLink
+                    to={route.path}
+                    end={route.path === '/'}
+                    aria-label={collapsed ? route.label : undefined}
+                    className={({ isActive }) =>
+                      `nav-item flex items-center gap-sm rounded-sm px-md py-sm font-body text-[13px] font-semibold whitespace-nowrap no-underline ${
+                        collapsed ? 'justify-center' : 'justify-start'
+                      } ${
+                        isActive
+                          ? 'bg-surface-soft text-sidebar-text-active shadow-[inset_2px_0_0_var(--color-primary-soft)]'
+                          : 'bg-transparent text-sidebar-text shadow-none'
+                      }`
+                    }
+                    onClick={onNavigate}
+                  >
+                    <NavIcon>{iconPaths[route.icon]}</NavIcon>
+                    {!collapsed && route.label}
+                  </NavLink>
+                </Tooltip>
               </li>
             ))}
           </ul>

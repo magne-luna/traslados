@@ -1,4 +1,5 @@
-import { useEffect, useState, type MouseEvent, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type ReactElement, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { SemanticStatus } from './tokens';
 import { chipColors } from './semanticColors';
 import { Alert } from './feedback';
@@ -334,6 +335,55 @@ export function AvisoPendienteCliente({ children }: { children: ReactNode }) {
         {children}
       </Alert>
     </div>
+  );
+}
+
+// Cartelito de hover pensado para el sidebar colapsado, donde el ítem queda reducido a un ícono
+// sin label visible. `disabled` deja pasar `children` sin envoltorio cuando el caller no lo
+// necesita (ej. sidebar expandido, donde el label ya se ve y un tooltip sería redundante), para
+// no forzar un `if` en cada consumidor.
+//
+// Portal a document.body en vez de `position: absolute` dentro del propio flujo (bug reportado
+// por el usuario: el cartel aparecía cortado en el borde del sidebar): el <aside> del sidebar
+// tiene `overflow-hidden` (AppShell.tsx, necesario para el label que se desliza al costado
+// durante la transición de ancho) y además siempre tiene un `transform` activo (las clases
+// `translate-x-*` del drawer mobile), que por spec de CSS crea containing block para
+// `position: fixed` — un tooltip `fixed` sin portal seguiría clippeado por el mismo overflow del
+// <aside>. Mover el nodo del tooltip fuera del <aside> vía createPortal es la única forma de que
+// no quede recortado, sea cual sea el ancho/posición del sidebar.
+//
+// Excepción puntual a la regla dura "nunca style={{}} inline" (CLAUDE.md): acá no hay ningún
+// valor de diseño (color/spacing/tipografía) hardcodeado a mano, son coordenadas de layout
+// calculadas en runtime con getBoundingClientRect() — Tailwind no tiene forma de expresar un
+// valor que se conoce recién al hacer hover, así que no hay clase utilitaria posible.
+export function Tooltip({ label, disabled, children }: { label: string; disabled?: boolean; children: ReactElement }) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+
+  if (disabled) return children;
+
+  const show = () => {
+    const rect = anchorRef.current?.getBoundingClientRect();
+    if (rect) setCoords({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+  };
+  const hide = () => setCoords(null);
+
+  return (
+    <span ref={anchorRef} className="inline-flex" onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>
+      {children}
+      {coords &&
+        createPortal(
+          <span
+            role="tooltip"
+            style={{ top: coords.top, left: coords.left }}
+            className="pointer-events-none fixed z-50 -translate-y-1/2 rounded-sm bg-text px-sm py-xs font-body text-[12px] font-semibold whitespace-nowrap text-surface shadow-card"
+          >
+            <span className="absolute top-1/2 -left-1 h-2 w-2 -translate-y-1/2 rotate-45 rounded-[1px] bg-text" />
+            {label}
+          </span>,
+          document.body,
+        )}
+    </span>
   );
 }
 
