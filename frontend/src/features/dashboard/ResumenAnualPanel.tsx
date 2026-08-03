@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { Alert } from '../../design-system/feedback';
 import { Field, Select } from '../../design-system/form';
-import { Panel } from '../../design-system/layout';
+import { Card, Panel } from '../../design-system/layout';
 import { Table, Td, Th, Tr } from '../../design-system/table';
 import type { ResumenAnual } from '../../shared/types/reportes';
 import { formatoMoneda } from '../../shared/lib/reportes/formato';
@@ -51,7 +51,7 @@ export function ResumenAnualPanel({ anio, onChangeAnio, aniosDisponibles, resume
         <p className="m-0 font-body text-sm text-muted">Cargando resumen anual…</p>
       ) : error ? null : (
         <>
-          <dl className="m-0 flex flex-wrap gap-lg">
+          <dl className="m-0 grid grid-cols-2 gap-md sm:grid-cols-3 lg:grid-cols-5">
             <Total label="Facturado" valor={formatoMoneda(resumen.totalFacturado)} />
             <Total label="Cobrado" valor={formatoMoneda(resumen.totalCobrado)} />
             <Total label="Diferencia" valor={formatoMoneda(resumen.totalDiferencia)} />
@@ -94,9 +94,9 @@ export function ResumenAnualPanel({ anio, onChangeAnio, aniosDisponibles, resume
 
 function Total({ label, valor }: { label: string; valor: string }) {
   return (
-    <div>
+    <Card radius="sm" padding="md" gap="sm" background="surface-soft">
       <dt className="font-body text-[11px] font-semibold text-muted">{label}</dt>
       <dd className="m-0 font-heading text-[18px] font-bold text-ink">{valor}</dd>
-    </div>
+    </Card>
   );
 }
