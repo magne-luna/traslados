@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button } from '../../design-system/components';
+import { Button, FieldGroupHeading } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
@@ -53,6 +53,8 @@ export function CuentaForm({ onSubmit, onCancel, submitting = false, submitError
     <CardForm onSubmit={handleSubmit} gap="md" radius="sm" padding="lg">
       {submitError && <Alert tone="danger">{submitError}</Alert>}
 
+      <div>
+      <FieldGroupHeading>Datos de la cuenta</FieldGroupHeading>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
         <Field label="Nombre" htmlFor={`${formId}-nombre`} error={errors.nombre}>
           <Input
@@ -92,9 +94,10 @@ export function CuentaForm({ onSubmit, onCancel, submitting = false, submitError
           />
         </Field>
       </div>
+      </div>
 
       <div>
-        <p className="mb-md font-body text-[13px] font-semibold text-muted">Permisos iniciales (opcional)</p>
+        <FieldGroupHeading>Permisos iniciales (opcional)</FieldGroupHeading>
         <PermisosMatrizFields valores={permisosIniciales} onCambiarNivel={handleCambiarNivel} idPrefix={formId} />
       </div>
 
@@ -103,7 +106,7 @@ export function CuentaForm({ onSubmit, onCancel, submitting = false, submitError
           Cancelar
         </Button>
         <Button type="submit" variant="primary" disabled={submitting}>
-          {submitting ? 'Creando…' : 'Crear cuenta'}
+          {submitting ? 'Creando…' : '+ Crear cuenta'}
         </Button>
       </div>
     </CardForm>

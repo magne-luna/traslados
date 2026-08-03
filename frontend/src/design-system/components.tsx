@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactElement, ReactNode } from 'react';
+import { useEffect, useState, type MouseEvent, type ReactElement, type ReactNode } from 'react';
 import type { SemanticStatus } from './tokens';
 import { chipColors } from './semanticColors';
 import { Alert } from './feedback';
@@ -212,11 +212,43 @@ export function VolverAlListadoLink({ onClick }: { onClick: () => void }) {
   );
 }
 
+// Feedback de usuario: "en los módulos donde no se supere el alto de la pantalla, que solo
+// aparezca el primer link (arriba) para volver al listado" — si la pantalla ya entra sin scroll,
+// el botón de abajo es redundante (el de arriba ya está siempre visible). Recalcula en cada
+// resize de ventana y cuando cambia el alto del documento (secciones que aparecen/desaparecen
+// tras cargar datos async), vía ResizeObserver — con guarda porque jsdom (tests) no lo define.
+function useDesbordaViewport(): boolean {
+  const [desborda, setDesborda] = useState(false);
+
+  useEffect(() => {
+    function medir() {
+      setDesborda(document.documentElement.scrollHeight > window.innerHeight);
+    }
+    medir();
+    window.addEventListener('resize', medir);
+    if (typeof ResizeObserver === 'undefined') {
+      return () => window.removeEventListener('resize', medir);
+    }
+    const observer = new ResizeObserver(medir);
+    observer.observe(document.documentElement);
+    return () => {
+      window.removeEventListener('resize', medir);
+      observer.disconnect();
+    };
+  }, []);
+
+  return desborda;
+}
+
 // Botón de "volver" de abajo de cada pantalla de detalle. `Button` incluye `w-fit` en su clase
 // base, así que ya no necesita un <div> envolvente para no estirarse dentro de un `flex flex-col`
 // (ver buttonBaseClasses) — y a diferencia de `self-start`, `w-fit` no le impone una alineación
 // fija: el contenedor sigue decidiendo si el botón queda a la izquierda, centrado o a la derecha.
+// Solo se renderiza si la pantalla no entra sin scroll (ver useDesbordaViewport) — si entra, el
+// link de arriba (VolverAlListadoLink) ya alcanza.
 export function VolverAlListadoButton({ onClick }: { onClick: () => void }) {
+  const desborda = useDesbordaViewport();
+  if (!desborda) return null;
   return (
     <Button variant="secondary" onClick={onClick}>
       Volver al listado
@@ -331,6 +363,58 @@ export function InlineIcon({ children, size = 14 }: { children: ReactNode; size?
     >
       {children}
     </svg>
+  );
+}
+
+// Tarjeta clickeable de un checklist multi-selección (feedback de usuario: "en todos los
+// formularios donde haya checklists, que se vean así, mucho más amigables" — reemplaza el
+// `<input type="checkbox">` suelto en cualquier selector donde el usuario elige varios ítems de
+// una lista: accesorios de movilidad, obras sociales vinculadas, etc.). El input nativo se
+// mantiene (accesibilidad, semántica de formulario) pero chico y con `accent-primary`, en vez de
+// depender solo del checkbox por defecto del navegador para mostrar la selección.
+export function ChecklistOption({
+  id,
+  label,
+  icon,
+  selected,
+  onChange,
+  ariaLabel,
+}: {
+  id: string;
+  label: ReactNode;
+  icon?: ReactNode;
+  selected: boolean;
+  onChange: () => void;
+  ariaLabel?: string;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className={`flex cursor-pointer items-center gap-xs rounded-sm border px-md py-sm font-body text-[13px] transition-colors ${
+        selected
+          ? 'border-primary bg-primary-softer/30 text-primary'
+          : 'border-border bg-surface text-text hover:border-border-strong'
+      }`}
+    >
+      {icon && <InlineIcon size={18}>{icon}</InlineIcon>}
+      <span className="flex-1">{label}</span>
+      <input id={id} type="checkbox" className="h-4 w-4 accent-primary" checked={selected} onChange={onChange} aria-label={ariaLabel} />
+    </label>
+  );
+}
+
+// Encabezado de subsección dentro de un form (título + línea divisoria) — variante más liviana
+// de <Section>: esa lleva además un label mono superior que acá no aplica, son agrupaciones de
+// campos dentro de una sola card, no secciones de página. Antes vivía duplicado idéntico en
+// ObraSocialForm.tsx y PrestadorForm.tsx (feedback de usuario: "que todos los formularios tengan
+// los títulos de cada sección con el separador") — ahora es la única fuente para cualquier form
+// con más de un bloque de campos.
+export function FieldGroupHeading({ children }: { children: string }) {
+  return (
+    <div className="mb-lg flex items-baseline gap-sm">
+      <h3 className="m-0 font-heading text-[15px] font-bold text-ink">{children}</h3>
+      <div className="h-px flex-1 bg-border" />
+    </div>
   );
 }
 

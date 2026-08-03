@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button, CamposSoloLectura } from '../../design-system/components';
+import { Button, CamposSoloLectura, ChecklistOption, FieldGroupHeading } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
@@ -55,17 +55,6 @@ interface PrestadorFormProps {
   onCancel: () => void;
   submitting?: boolean;
   submitError?: string | null;
-}
-
-// Encabezado de subsección dentro del form — idéntico a ObraSocialForm.FieldGroupHeading (no se
-// extrae a un archivo compartido nuevo por 2 usos, YAGNI).
-function FieldGroupHeading({ children }: { children: string }) {
-  return (
-    <div className="mb-lg flex items-baseline gap-sm">
-      <h3 className="m-0 font-heading text-[15px] font-bold text-ink">{children}</h3>
-      <div className="h-px flex-1 bg-border" />
-    </div>
-  );
 }
 
 // Formulario de alta/edición (spec prestador-crud, tasks.md 4.7). Estado controlado plano — sin
@@ -192,29 +181,25 @@ export function PrestadorForm({
 
       {/* Vínculo N:N (D2 de design.md, tasks.md 5.1): solo en edición — un prestador nuevo no
           tiene id todavía para escribir el vínculo (ver comentario de `obrasSocialesVinculadasIds`
-          arriba). Checkboxes sueltos (no hay un componente Checkbox en el design system todavía),
-          mismo criterio que `admitePagosParciales` en ObraSocialForm.tsx. */}
+          arriba). `ChecklistOption` del design system (feedback de usuario: "en todos los
+          formularios donde haya checklists, que se vean así"), mismo componente que usa
+          PacienteDatosPersonalesFields/VehiculoForm para sus selectores de accesorios — sin ícono
+          acá porque una obra social no tiene uno propio en el catálogo. */}
       {esEdicion && (
         <div>
           <FieldGroupHeading>Obras Sociales vinculadas</FieldGroupHeading>
           {obrasSociales.length === 0 ? (
             <p className="font-body text-sm text-muted">No hay obras sociales cargadas todavía.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-sm md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-sm sm:grid-cols-2 lg:grid-cols-3">
               {obrasSociales.map((obraSocial) => (
-                <label
+                <ChecklistOption
                   key={obraSocial.id}
-                  htmlFor={`${formId}-obra-social-${obraSocial.id}`}
-                  className="flex items-center gap-sm font-body text-[13px] text-text"
-                >
-                  <input
-                    id={`${formId}-obra-social-${obraSocial.id}`}
-                    type="checkbox"
-                    checked={vinculadas.includes(obraSocial.id)}
-                    onChange={() => toggleObraSocial(obraSocial.id)}
-                  />
-                  {obraSocial.nombre}
-                </label>
+                  id={`${formId}-obra-social-${obraSocial.id}`}
+                  label={obraSocial.nombre}
+                  selected={vinculadas.includes(obraSocial.id)}
+                  onChange={() => toggleObraSocial(obraSocial.id)}
+                />
               ))}
             </div>
           )}

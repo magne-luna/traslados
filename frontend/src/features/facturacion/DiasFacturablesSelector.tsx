@@ -67,21 +67,32 @@ export function DiasFacturablesSelector({ mes, anio, feriados, facturaSabados, o
       {dias.map((dia) => {
         const fecha = isoDelDia(anio, mes, dia);
         const esFeriado = feriadosSet.has(fecha);
+        const seleccionado = seleccionados.has(fecha);
         return (
+          // Mismo lenguaje visual que ChecklistOption (feedback de usuario: "en todos los
+          // formularios donde haya checklists, que se vean así, mucho más amigables") pero sin
+          // usar ese componente: acá son 31 chips chicos en grilla densa, no tarjetas anchas con
+          // ícono. La selección manda sobre el color de feriado — ver un feriado ya elegido
+          // confirma la elección, no solo la advertencia.
           <label
             key={fecha}
-            className={`flex items-center gap-xs rounded-sm border px-sm py-xs font-body text-[12px] ${
-              esFeriado ? 'border-warning bg-warning-soft text-warning' : 'border-border bg-surface text-text'
+            className={`flex cursor-pointer items-center gap-xs rounded-sm border px-sm py-xs font-body text-[12px] transition-colors ${
+              seleccionado
+                ? 'border-primary bg-primary-softer/30 text-primary'
+                : esFeriado
+                  ? 'border-warning bg-warning-soft text-warning'
+                  : 'border-border bg-surface text-text hover:border-border-strong'
             }`}
           >
+            {dia}
+            {esFeriado && <span className="font-semibold">Feriado</span>}
             <input
               type="checkbox"
-              checked={seleccionados.has(fecha)}
+              className="h-3.5 w-3.5 accent-primary"
+              checked={seleccionado}
               onChange={() => toggle(fecha)}
               aria-label={`${dia} de ${nombreMes}`}
             />
-            {dia}
-            {esFeriado && <span className="font-semibold">Feriado</span>}
           </label>
         );
       })}

@@ -2,6 +2,7 @@ import type { TipoComprobante } from '../../shared/types/factura';
 import { calcularTotalFactura } from '../../shared/lib/facturacion/totalesFactura';
 import type { FacturaFormErrors } from './validateFacturaForm';
 import type { FacturaFormValues } from './FacturaForm';
+import { FieldGroupHeading } from '../../design-system/components';
 import { Field, Input, Select } from '../../design-system/form';
 
 interface FacturaFormEconomicosProps {
@@ -23,6 +24,10 @@ const TIPOS_COMPROBANTE: TipoComprobante[] = ['A', 'B', 'C'];
 export function FacturaFormEconomicos({ formId, values, errors, set }: FacturaFormEconomicosProps) {
   return (
     <>
+      <div className="md:col-span-2">
+        <FieldGroupHeading>Datos económicos</FieldGroupHeading>
+      </div>
+
       <Field label="Valor del km" htmlFor={`${formId}-valorkm`} error={errors.valorKm}>
         <Input id={`${formId}-valorkm`} type="number" min={0} value={values.valorKm} onChange={(e) => set('valorKm', Number(e.target.value))} />
       </Field>

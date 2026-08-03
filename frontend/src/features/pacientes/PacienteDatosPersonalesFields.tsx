@@ -1,5 +1,10 @@
-import { ACCESORIO_MOVILIDAD_LABELS, ACCESORIO_MOVILIDAD_OPTIONS } from '../vehiculos/accesorioMovilidadOptions';
+import {
+  ACCESORIO_MOVILIDAD_ICONS,
+  ACCESORIO_MOVILIDAD_LABELS,
+  ACCESORIO_MOVILIDAD_OPTIONS,
+} from '../vehiculos/accesorioMovilidadOptions';
 import type { AccesorioMovilidad } from '../../shared/types/vehiculo';
+import { ChecklistOption, FieldGroupHeading } from '../../design-system/components';
 import { Field, Input, Textarea } from '../../design-system/form';
 import type { PacienteFormErrors } from './validatePacienteForm';
 import type { PacienteFormValues } from './PacienteForm';
@@ -29,9 +34,9 @@ interface PacienteDatosPersonalesFieldsProps {
 // PacienteForm para mantenerlo bajo ~200 líneas (react-best-practices).
 export function PacienteDatosPersonalesFields({ formId, values, errors, onChange }: PacienteDatosPersonalesFieldsProps) {
   // Multi-selección (docx: tabla de vínculo Paciente-Accesorio, igual que Vehiculo-Accesorio en
-  // FE-2 — mismo patrón de checkboxes que `VehiculoForm.tsx`, sin extraer un componente
-  // compartido porque tampoco existe uno ahí: YAGNI, se reutiliza el catálogo de
-  // `accesorioMovilidadOptions.ts` pero no una UI en común).
+  // FE-2 — reutiliza el catálogo de `accesorioMovilidadOptions.ts` y el `ChecklistOption` del
+  // design system, mismo componente que usa `VehiculoForm.tsx` para su propio selector de
+  // accesorios).
   function toggleAccesorio(accesorio: AccesorioMovilidad) {
     onChange({
       accesorioMovilidad: values.accesorioMovilidad.includes(accesorio)
@@ -42,25 +47,9 @@ export function PacienteDatosPersonalesFields({ formId, values, errors, onChange
 
   return (
     <>
+      <div>
+      <FieldGroupHeading>Datos personales</FieldGroupHeading>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
-        <Field label="Apellido" htmlFor={`${formId}-apellido`} error={errors.apellido}>
-          <Input
-            id={`${formId}-apellido`}
-            density="comfortable"
-            value={values.apellido}
-            onChange={(event) => onChange({ apellido: event.target.value })}
-          />
-        </Field>
-
-        <Field label="Segundo apellido" htmlFor={`${formId}-segundo-apellido`}>
-          <Input
-            id={`${formId}-segundo-apellido`}
-            density="comfortable"
-            value={values.segundoApellido ?? ''}
-            onChange={(event) => onChange({ segundoApellido: event.target.value })}
-          />
-        </Field>
-
         <Field label="Nombre" htmlFor={`${formId}-nombre`} error={errors.nombre}>
           <Input
             id={`${formId}-nombre`}
@@ -76,6 +65,24 @@ export function PacienteDatosPersonalesFields({ formId, values, errors, onChange
             density="comfortable"
             value={values.segundoNombre ?? ''}
             onChange={(event) => onChange({ segundoNombre: event.target.value })}
+          />
+        </Field>
+
+        <Field label="Apellido" htmlFor={`${formId}-apellido`} error={errors.apellido}>
+          <Input
+            id={`${formId}-apellido`}
+            density="comfortable"
+            value={values.apellido}
+            onChange={(event) => onChange({ apellido: event.target.value })}
+          />
+        </Field>
+
+        <Field label="Segundo apellido" htmlFor={`${formId}-segundo-apellido`}>
+          <Input
+            id={`${formId}-segundo-apellido`}
+            density="comfortable"
+            value={values.segundoApellido ?? ''}
+            onChange={(event) => onChange({ segundoApellido: event.target.value })}
           />
         </Field>
 
@@ -106,50 +113,54 @@ export function PacienteDatosPersonalesFields({ formId, values, errors, onChange
             onChange={(event) => onChange({ cuilTitular: event.target.value })}
           />
         </Field>
-
-        <div className="md:col-span-2">
-          <Field label="Diagnóstico" htmlFor={`${formId}-diagnostico`}>
-            <Textarea
-              id={`${formId}-diagnostico`}
-              density="comfortable"
-              value={values.diagnostico}
-              onChange={(event) => onChange({ diagnostico: event.target.value })}
-            />
-          </Field>
-        </div>
-
-        <div className="md:col-span-2">
-          <Field label="Condición" htmlFor={`${formId}-condicion`}>
-            <Textarea
-              id={`${formId}-condicion`}
-              density="comfortable"
-              value={values.condicion ?? ''}
-              onChange={(event) => onChange({ condicion: event.target.value })}
-            />
-          </Field>
-        </div>
+      </div>
       </div>
 
-      <fieldset className="flex flex-col gap-xs border-none p-0">
-        <legend className="font-body text-[12px] font-semibold text-muted">Accesorios de movilidad</legend>
-        <div className="flex flex-wrap gap-md">
+      <div>
+      <FieldGroupHeading>Datos clínicos</FieldGroupHeading>
+
+      {/* Comparten fila (feedback de usuario: "que compartan la misma fila"): grid propio de 2
+          columnas en vez de dos `md:col-span-2` sueltos, así quedan siempre uno al lado del otro
+          sin importar la paridad de campos que los preceden en la grilla de arriba. */}
+      <div className="grid grid-cols-1 gap-md md:grid-cols-2">
+        <Field label="Diagnóstico" htmlFor={`${formId}-diagnostico`}>
+          <Textarea
+            id={`${formId}-diagnostico`}
+            density="comfortable"
+            value={values.diagnostico}
+            onChange={(event) => onChange({ diagnostico: event.target.value })}
+          />
+        </Field>
+
+        <Field label="Condición" htmlFor={`${formId}-condicion`}>
+          <Textarea
+            id={`${formId}-condicion`}
+            density="comfortable"
+            value={values.condicion ?? ''}
+            onChange={(event) => onChange({ condicion: event.target.value })}
+          />
+        </Field>
+      </div>
+
+      <fieldset className="mt-md flex flex-col gap-xs border-none p-0">
+        <legend className="mb-lg flex w-full items-baseline gap-sm">
+          <span className="font-heading text-[15px] font-bold text-ink">Accesorios de movilidad</span>
+          <span className="h-px flex-1 bg-border" />
+        </legend>
+        <div className="grid grid-cols-2 gap-sm sm:grid-cols-3 lg:grid-cols-5">
           {ACCESORIO_MOVILIDAD_OPTIONS.map((accesorio) => (
-            <label
+            <ChecklistOption
               key={accesorio}
-              htmlFor={`${formId}-accesorio-${accesorio}`}
-              className="flex items-center gap-xs font-body text-[13px] text-text"
-            >
-              <input
-                id={`${formId}-accesorio-${accesorio}`}
-                type="checkbox"
-                checked={values.accesorioMovilidad.includes(accesorio)}
-                onChange={() => toggleAccesorio(accesorio)}
-              />
-              {ACCESORIO_MOVILIDAD_LABELS[accesorio]}
-            </label>
+              id={`${formId}-accesorio-${accesorio}`}
+              label={ACCESORIO_MOVILIDAD_LABELS[accesorio]}
+              icon={ACCESORIO_MOVILIDAD_ICONS[accesorio]}
+              selected={values.accesorioMovilidad.includes(accesorio)}
+              onChange={() => toggleAccesorio(accesorio)}
+            />
           ))}
         </div>
       </fieldset>
+      </div>
     </>
   );
 }

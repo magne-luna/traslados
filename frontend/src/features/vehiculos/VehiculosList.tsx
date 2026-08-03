@@ -7,7 +7,7 @@ import { estadoHabilitacion } from '../../shared/lib/mantenimiento/estadoHabilit
 import { estadoServicePreventivo } from '../../shared/lib/mantenimiento/estadoServicePreventivo';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { ACCESORIO_MOVILIDAD_LABELS } from './accesorioMovilidadOptions';
-import { HABILITACION_COPY, SERVICE_COPY, TIPO_HABILITACION_LABELS } from './mantenimientoCopy';
+import { ESTADO_TEXT_CLASS, HABILITACION_COPY, SERVICE_COPY, TIPO_HABILITACION_LABELS } from './mantenimientoCopy';
 
 interface VehiculosListProps {
   vehiculos: Vehiculo[];
@@ -71,7 +71,7 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
           message="No hay vehículos cargados todavía."
           action={
             <Button variant="secondary" requiereEscritura onClick={onCreateNew}>
-              Crear el primer vehículo
+              + Crear el primer vehículo
             </Button>
           }
         />
@@ -88,46 +88,59 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
                 ahora,
               })
             ];
+            const habilitacionesCopy = vehiculo.habilitaciones.map((habilitacion) => ({
+              tipo: habilitacion.tipo,
+              copy: HABILITACION_COPY[estadoHabilitacion({ fechaVencimiento: habilitacion.fechaVencimiento, ahora })],
+            }));
             const gastos = totalGastos(vehiculo);
 
             return (
               <Card key={vehiculo.id} radius="md" elevated interactive onClick={() => onSelect(vehiculo)}>
-                <div className="flex flex-wrap items-start justify-between gap-sm">
-                  <div className="flex flex-col">
+                <div className="flex flex-col gap-xs">
+                  {/* Feedback de usuario: "quiero que [capacidad/estado] esté en la misma línea
+                      que la patente" — el par patente/capacidad-estado va en su propia fila
+                      (flex-wrap acá adentro es solo la salvaguarda de pantallas angostas), y el
+                      subtítulo modelo/tipo queda afuera, en su propia línea: así ya no compite
+                      por ancho con la fila de arriba ni la empuja a envolver antes de tiempo. */}
+                  <div className="flex flex-wrap items-start justify-between gap-sm">
                     <span className="font-mono text-[16px] font-bold text-ink">{vehiculo.patente}</span>
-                    <span className="flex items-center gap-xs font-body text-[12px] text-muted">
-                      <span>{vehiculo.modelo}</span>
-                      <span aria-hidden="true">·</span>
-                      <span>{vehiculo.tipo}</span>
-                    </span>
+                    <div className="flex flex-wrap items-center gap-sm">
+                      {/* Prueba visual a pedido del usuario ("ponele los pills, quiero ver como
+                          queda") — capacidad queda neutra (no es un estado). */}
+                      <span className="font-body text-[12px] text-muted">Capacidad {vehiculo.capacidad}</span>
+                      {vehiculo.estado === 'fuera-de-servicio' ? (
+                        <Chip kind="danger">Fuera de servicio</Chip>
+                      ) : (
+                        <Chip kind="success">Habilitado</Chip>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-xs">
-                    <Chip kind="info">Capacidad {vehiculo.capacidad}</Chip>
-                    {vehiculo.estado === 'fuera-de-servicio' ? (
-                      <Chip kind="danger">Fuera de servicio</Chip>
-                    ) : (
-                      <Chip kind="success">Habilitado</Chip>
-                    )}
-                  </div>
+                  <span className="flex items-center gap-xs font-body text-[12px] text-muted">
+                    <span>{vehiculo.modelo}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{vehiculo.tipo}</span>
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-3 gap-sm border-y border-border py-sm">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="flex items-center gap-xs font-body text-[11px] text-muted">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="flex items-center justify-center gap-xs font-body text-[11px] text-muted">
                       <InlineIcon>{iconVelocimetro}</InlineIcon>
                       Kilometraje
                     </span>
                     <span className="font-body text-[13px] font-semibold text-ink">{formatearKm(vehiculo.kilometraje)}</span>
                   </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="flex items-center gap-xs font-body text-[11px] text-muted">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="flex items-center justify-center gap-xs font-body text-[11px] text-muted">
                       <InlineIcon>{iconLlave}</InlineIcon>
                       Service
                     </span>
-                    <Chip kind={service.kind}>{service.texto}</Chip>
+                    <span className={`font-body text-[13px] font-semibold ${ESTADO_TEXT_CLASS[service.kind]}`}>
+                      {service.texto}
+                    </span>
                   </div>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="flex items-center gap-xs font-body text-[11px] text-muted">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span className="flex items-center justify-center gap-xs font-body text-[11px] text-muted">
                       <InlineIcon>{iconMoneda}</InlineIcon>
                       Gastos
                     </span>
@@ -137,17 +150,14 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
                   </div>
                 </div>
 
-                {vehiculo.habilitaciones.length > 0 && (
+                {habilitacionesCopy.length > 0 && (
                   <div className="flex flex-wrap items-center gap-sm">
-                    {vehiculo.habilitaciones.map((habilitacion) => {
-                      const copy = HABILITACION_COPY[estadoHabilitacion({ fechaVencimiento: habilitacion.fechaVencimiento, ahora })];
-                      return (
-                        <span key={habilitacion.tipo} className="flex items-center gap-xs font-body text-[12px] text-muted">
-                          {TIPO_HABILITACION_LABELS[habilitacion.tipo]}
-                          <Chip kind={copy.kind}>{copy.texto}</Chip>
-                        </span>
-                      );
-                    })}
+                    {habilitacionesCopy.map(({ tipo, copy }) => (
+                      <span key={tipo} className="flex items-center gap-xs font-body text-[12px] text-muted">
+                        {TIPO_HABILITACION_LABELS[tipo]}
+                        <span className={`font-semibold ${ESTADO_TEXT_CLASS[copy.kind]}`}>{copy.texto}</span>
+                      </span>
+                    ))}
                   </div>
                 )}
 
@@ -165,6 +175,7 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
                     ConductoresList — "Ver detalle" es un <button> nativo, cubierto por el
                     mismo envoltorio que "Editar". La fila (Card, más arriba) sigue navegando
                     al detalle por fuera de este envoltorio. */}
+                <div className="mt-auto">
                 <CamposSoloLectura>
                 <div className="flex items-center justify-end gap-md pt-xs">
                   <button
@@ -190,6 +201,7 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
                   </Button>
                 </div>
                 </CamposSoloLectura>
+                </div>
               </Card>
             );
           })}

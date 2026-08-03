@@ -1,6 +1,7 @@
 import type { Paciente } from '../../shared/types/paciente';
 import type { FacturaFormErrors } from './validateFacturaForm';
 import type { FacturaFormValues } from './FacturaForm';
+import { FieldGroupHeading } from '../../design-system/components';
 import { Field, Input, Select } from '../../design-system/form';
 
 interface FacturaFormDatosBasicosProps {
@@ -24,6 +25,10 @@ interface FacturaFormDatosBasicosProps {
 export function FacturaFormDatosBasicos({ formId, values, errors, pacientes, paciente, set }: FacturaFormDatosBasicosProps) {
   return (
     <>
+      <div className="md:col-span-2">
+        <FieldGroupHeading>Datos básicos</FieldGroupHeading>
+      </div>
+
       <Field label="Paciente" htmlFor={`${formId}-paciente`} error={errors.pacienteId}>
         <Select id={`${formId}-paciente`} value={values.pacienteId} onChange={(e) => set('pacienteId', e.target.value)}>
           <option value="">Seleccionar paciente…</option>

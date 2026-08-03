@@ -98,10 +98,12 @@ export function ConductorDetail({ conductor, crear, actualizar, documentoReposit
             <div className="flex flex-wrap items-center gap-md">
               <span className="font-body text-[14px] font-semibold text-ink">{conductor.apellido}</span>
               <span className="font-body text-[13px] text-muted">{conductor.nombre}</span>
+              {/* Prueba visual a pedido del usuario ("ponele los pills, quiero ver como queda")
+                  — vuelve al Chip, sin el emoji que tenía antes. */}
               {conductor.estado === 'fuera-de-servicio' ? (
-                <Chip kind="danger">⛔ Fuera de servicio</Chip>
+                <Chip kind="danger">Fuera de servicio</Chip>
               ) : (
-                <Chip kind="success">✅ Operando</Chip>
+                <Chip kind="success">Operando</Chip>
               )}
             </div>
 

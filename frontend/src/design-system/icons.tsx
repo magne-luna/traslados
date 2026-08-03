@@ -163,3 +163,50 @@ export const iconSubirArchivo: ReactNode = (
     <line x1={9} y1={15} x2={15} y2={15} strokeLinecap="round" />
   </>
 );
+
+// Accesorios de movilidad (accesorioMovilidadOptions.ts): un ícono por opción para que el
+// selector de PacienteDatosPersonalesFields sea reconocible de un vistazo, no solo texto.
+export const iconSillaPlegable: ReactNode = (
+  <>
+    <circle cx={8} cy={17} r={3} />
+    <path d="M8 17V8h5l3 9" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8 8V5h3" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx={19} cy={19.5} r={1} fill="currentColor" stroke="none" />
+  </>
+);
+
+export const iconSillaRigida: ReactNode = (
+  <>
+    <circle cx={8} cy={17} r={3} />
+    <path d="M8 17V8h5l3 9" strokeLinecap="round" strokeLinejoin="round" />
+    <line x1={13} y1={8} x2={13} y2={4} strokeLinecap="round" />
+    <circle cx={19} cy={19.5} r={1} fill="currentColor" stroke="none" />
+  </>
+);
+
+export const iconSillaPostural: ReactNode = (
+  <>
+    <circle cx={8} cy={17} r={3} />
+    <path d="M8 17V8h5l3 9" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13 8c1.5-1 3-1 3.5.5" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx={19} cy={19.5} r={1} fill="currentColor" stroke="none" />
+  </>
+);
+
+export const iconAndador: ReactNode = (
+  <>
+    <path d="M6 5h12" strokeLinecap="round" />
+    <path d="M6 5v11M18 5v11" strokeLinecap="round" />
+    <path d="M6 16l-1 5M18 16l1 5" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx={5} cy={21.5} r={1} fill="currentColor" stroke="none" />
+    <circle cx={19} cy={21.5} r={1} fill="currentColor" stroke="none" />
+  </>
+);
+
+export const iconTripode: ReactNode = (
+  <>
+    <line x1={12} y1={2} x2={12} y2={15} strokeLinecap="round" />
+    <path d="M6 22 12 15 18 22" strokeLinecap="round" strokeLinejoin="round" />
+    <line x1={12} y1={15} x2={12} y2={22} strokeLinecap="round" />
+  </>
+);

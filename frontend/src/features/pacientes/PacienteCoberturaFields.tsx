@@ -1,4 +1,5 @@
 import type { ObraSocial } from '../../shared/types/obraSocial';
+import { FieldGroupHeading } from '../../design-system/components';
 import { Field, Input, Select } from '../../design-system/form';
 import { IdentificadorAfiliadoField } from './IdentificadorAfiliadoField';
 import type { PacienteFormValues } from './PacienteForm';
@@ -24,7 +25,9 @@ export function PacienteCoberturaFields({ formId, values, obrasSociales, onChang
   const formatoAfiliado = obrasSociales.find((obraSocial) => obraSocial.id === values.obraSocialId)?.formatoAfiliado ?? null;
 
   return (
-    <>
+    <div>
+      <FieldGroupHeading>Cobertura y afiliación</FieldGroupHeading>
+      <div className="flex flex-col gap-md">
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
         <Field label="Obra social" htmlFor={`${formId}-obra-social`}>
           <Select
@@ -74,6 +77,7 @@ export function PacienteCoberturaFields({ formId, values, obrasSociales, onChang
         onChange={(numeroAfiliado) => onChange({ numeroAfiliado })}
         formato={formatoAfiliado}
       />
-    </>
+      </div>
+    </div>
   );
 }

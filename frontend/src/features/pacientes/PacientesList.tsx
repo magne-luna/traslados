@@ -80,7 +80,7 @@ export function PacientesList({
           message="No hay pacientes cargados todavía."
           action={
             <Button variant="secondary" requiereEscritura onClick={onCreateNew}>
-              Crear el primer paciente
+              + Crear el primer paciente
             </Button>
           }
         />
@@ -151,6 +151,7 @@ export function PacientesList({
                     mecanismo compartido alcanza también a los <button> nativos. La fila (Card,
                     más arriba) tiene su propio onClick por fuera de este envoltorio y sigue
                     navegando al detalle aunque los dos botones queden inertes. */}
+                <div className="mt-auto">
                 <CamposSoloLectura>
                 <div className="flex items-center justify-end gap-md pt-xs">
                   <button
@@ -176,6 +177,7 @@ export function PacientesList({
                   </Button>
                 </div>
                 </CamposSoloLectura>
+                </div>
               </Card>
             );
           })}

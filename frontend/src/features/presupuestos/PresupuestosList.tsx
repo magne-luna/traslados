@@ -74,7 +74,7 @@ export function PresupuestosList({
           message="No hay presupuestos cargados todavía."
           action={
             <Button variant="secondary" requiereEscritura onClick={onCreateNew}>
-              Crear el primer presupuesto
+              + Crear el primer presupuesto
             </Button>
           }
         />
@@ -132,6 +132,7 @@ export function PresupuestosList({
                     La fila (Card, más arriba) tiene su propio onClick por fuera de este
                     envoltorio y sigue navegando al detalle aunque los dos botones queden
                     inertes. */}
+                <div className="mt-auto">
                 <CamposSoloLectura>
                 <div className="flex items-center justify-end gap-md pt-xs">
                   <button
@@ -157,6 +158,7 @@ export function PresupuestosList({
                   </Button>
                 </div>
                 </CamposSoloLectura>
+                </div>
               </Card>
             );
           })}

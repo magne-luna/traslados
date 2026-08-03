@@ -49,7 +49,7 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
       <div className="flex flex-wrap items-center justify-between gap-md">
         <h1 className="m-0 font-heading text-[21px] font-bold text-ink">Conductores</h1>
         <Button variant="primary" requiereEscritura onClick={onCreateNew}>
-          Nuevo conductor
+          + Nuevo conductor
         </Button>
       </div>
 
@@ -71,7 +71,7 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
           message="No hay conductores cargados todavía."
           action={
             <Button variant="secondary" requiereEscritura onClick={onCreateNew}>
-              Crear el primer conductor
+              + Crear el primer conductor
             </Button>
           }
         />
@@ -93,10 +93,13 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
                     <span className="font-body text-[14px] text-muted">{conductor.nombre}</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-xs">
+                    {/* Prueba visual a pedido del usuario ("ponele los pills, quiero ver como
+                        queda") — vuelve al Chip, sin el emoji que tenía antes (regla del
+                        proyecto: nunca emojis como ícono). */}
                     {conductor.estado === 'fuera-de-servicio' ? (
-                      <Chip kind="danger">⛔ Fuera de servicio</Chip>
+                      <Chip kind="danger">Fuera de servicio</Chip>
                     ) : (
-                      <Chip kind="success">✅ Operando</Chip>
+                      <Chip kind="success">Operando</Chip>
                     )}
                   </div>
                 </div>
@@ -151,6 +154,7 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
                     ya verificado en ConductoresList/VehiculosList de gateo-pacientes). La fila
                     (Card, más arriba) tiene su propio onClick por fuera de este envoltorio y
                     sigue navegando al detalle aunque los dos botones queden inertes. */}
+                <div className="mt-auto">
                 <CamposSoloLectura>
                 <div className="flex items-center justify-end gap-md pt-xs">
                   <button
@@ -176,6 +180,7 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
                   </Button>
                 </div>
                 </CamposSoloLectura>
+                </div>
               </Card>
             );
           })}

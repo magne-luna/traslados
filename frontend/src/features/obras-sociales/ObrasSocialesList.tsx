@@ -56,7 +56,7 @@ export function ObrasSocialesList({ obrasSociales, loading, error, onSelect, onC
           message="No hay obras sociales cargadas todavía."
           action={
             <Button variant="secondary" requiereEscritura onClick={onCreateNew}>
-              Crear la primera obra social
+              + Crear la primera obra social
             </Button>
           }
         />
@@ -116,7 +116,7 @@ export function ObrasSocialesList({ obrasSociales, loading, error, onSelect, onC
                   </div>
                 )}
 
-                <div className="flex items-center justify-end gap-md pt-xs">
+                <div className="mt-auto flex items-center justify-end gap-md pt-xs">
                   <button
                     type="button"
                     onClick={(e) => {

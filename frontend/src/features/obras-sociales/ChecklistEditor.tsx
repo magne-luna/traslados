@@ -96,7 +96,7 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
             />
           </div>
           <Button variant="secondary" onClick={handleAdd}>
-            Agregar
+            + Agregar
           </Button>
         </div>
 

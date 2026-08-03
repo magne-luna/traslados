@@ -21,3 +21,12 @@ export const TIPO_HABILITACION_LABELS: Record<RegistroHabilitacion['tipo'], stri
   vtv: 'VTV',
   rto: 'RTO',
 };
+
+// Texto plano coloreado en vez de Chip/pill para los 3 estados de arriba (feedback de usuario,
+// VehiculosList/VehiculoDetail: "sacarle el formato pill a todo... dejá el color nomás") —
+// compartido entre VehiculosList y VehiculoDetail, igual que el resto de este archivo.
+export const ESTADO_TEXT_CLASS: Record<'success' | 'warning' | 'danger', string> = {
+  success: 'text-success',
+  warning: 'text-warning',
+  danger: 'text-danger',
+};

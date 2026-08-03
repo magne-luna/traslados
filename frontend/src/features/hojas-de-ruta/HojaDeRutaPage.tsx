@@ -172,7 +172,7 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
               'write'). Mismo comentario que permisos.ts, usePuedeEscribir.ts y las pantallas ya
               cableadas. */}
           <Button variant="secondary" requiereEscritura onClick={handleCrearHoja}>
-            Crear hoja de ruta para este día
+            + Crear hoja de ruta para este día
           </Button>
         </div>
       ) : vista === 'imprimir' ? (

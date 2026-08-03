@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AvisoModeloDatos, Button, Chip, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
-import { Alert } from '../../design-system/feedback';
+import { Alert, Pill } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import { generateId } from '../../shared/lib/id';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
@@ -17,7 +17,7 @@ import type {
 import { ACCESORIO_MOVILIDAD_LABELS } from './accesorioMovilidadOptions';
 import { GastosVehiculo, type NuevoGastoInput } from './GastosVehiculo';
 import { HistorialMantenimiento } from './HistorialMantenimiento';
-import { HABILITACION_COPY, SERVICE_COPY, TIPO_HABILITACION_LABELS } from './mantenimientoCopy';
+import { ESTADO_TEXT_CLASS, HABILITACION_COPY, SERVICE_COPY, TIPO_HABILITACION_LABELS } from './mantenimientoCopy';
 import type { NuevoMantenimientoInput } from './toMantenimientoRegistro';
 import { VehiculoDocumentos } from './VehiculoDocumentos';
 import { VehiculoForm, type VehiculoFormValues } from './VehiculoForm';
@@ -132,6 +132,8 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
               <span className="font-body text-[13px] text-muted">
                 {vehiculo.modelo} · {vehiculo.tipo}
               </span>
+              {/* Prueba visual a pedido del usuario ("ponele los pills, quiero ver como
+                  queda"), mismo criterio que VehiculosList. */}
               {vehiculo.estado === 'fuera-de-servicio' ? (
                 <Chip kind="danger">Fuera de servicio</Chip>
               ) : (
@@ -152,7 +154,11 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
               </div>
               <div className="flex flex-col gap-0.5">
                 <span className="font-body text-[11px] text-muted">Service preventivo</span>
-                {serviceCopy && <Chip kind={serviceCopy.kind}>{serviceCopy.texto}</Chip>}
+                {serviceCopy && (
+                  <span className={`font-body text-[13px] font-semibold ${ESTADO_TEXT_CLASS[serviceCopy.kind]}`}>
+                    {serviceCopy.texto}
+                  </span>
+                )}
               </div>
               <div className="flex flex-col gap-0.5">
                 <span className="font-body text-[11px] text-muted">Gastos registrados</span>
@@ -171,7 +177,7 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
                   return (
                     <span key={habilitacion.tipo} className="flex items-center gap-xs font-body text-[13px] text-muted">
                       {TIPO_HABILITACION_LABELS[habilitacion.tipo]}
-                      <Chip kind={copy.kind}>{copy.texto}</Chip>
+                      <span className={`font-semibold ${ESTADO_TEXT_CLASS[copy.kind]}`}>{copy.texto}</span>
                     </span>
                   );
                 })}
@@ -181,9 +187,7 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
             {vehiculo.accesoriosCompatibles.length > 0 && (
               <div className="flex flex-wrap gap-sm">
                 {vehiculo.accesoriosCompatibles.map((accesorio) => (
-                  <Chip key={accesorio} kind="info">
-                    {ACCESORIO_MOVILIDAD_LABELS[accesorio]}
-                  </Chip>
+                  <Pill key={accesorio}>{ACCESORIO_MOVILIDAD_LABELS[accesorio]}</Pill>
                 ))}
               </div>
             )}

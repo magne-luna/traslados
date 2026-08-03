@@ -207,8 +207,8 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
               onChange={(e) => setTelefonoAlternativo(e.target.value)}
             />
           </Field>
-          <div className="flex items-end">
-            <Button variant={editingId ? 'primary' : 'secondary'} onClick={handleSubmit}>
+          <div className="flex items-end justify-end">
+            <Button variant="primary" onClick={handleSubmit}>
               {editingId ? 'Guardar cambios' : '+ Agregar persona a cargo'}
             </Button>
           </div>

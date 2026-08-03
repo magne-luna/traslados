@@ -1,10 +1,14 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button, CamposSoloLectura } from '../../design-system/components';
+import { Button, CamposSoloLectura, ChecklistOption, FieldGroupHeading } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Textarea } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import type { AccesorioMovilidad, EstadoVehiculo } from '../../shared/types/vehiculo';
-import { ACCESORIO_MOVILIDAD_LABELS, ACCESORIO_MOVILIDAD_OPTIONS } from './accesorioMovilidadOptions';
+import {
+  ACCESORIO_MOVILIDAD_ICONS,
+  ACCESORIO_MOVILIDAD_LABELS,
+  ACCESORIO_MOVILIDAD_OPTIONS,
+} from './accesorioMovilidadOptions';
 import { validateVehiculoForm, type VehiculoFormErrors } from './validateVehiculoForm';
 
 export interface VehiculoFormValues {
@@ -86,6 +90,9 @@ export function VehiculoForm({
           formulario (datos generales + accesorios de movilidad). El envoltorio NO cubre la
           barra de acciones: Cancelar debe seguir operativo para una cuenta de solo lectura. */}
       <CamposSoloLectura>
+      <div className="flex flex-col gap-md">
+      <div>
+      <FieldGroupHeading>Datos generales</FieldGroupHeading>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
         <Field label="Patente" htmlFor={`${formId}-patente`} error={errors.patente}>
           <Input
@@ -150,24 +157,23 @@ export function VehiculoForm({
           Fuera de servicio
         </label>
       </div>
+      </div>
 
       <fieldset className="flex flex-col gap-xs border-none p-0">
-        <legend className="font-body text-[12px] font-semibold text-muted">Accesorios de movilidad compatibles</legend>
-        <div className="flex flex-wrap gap-md">
+        <legend className="mb-lg flex w-full items-baseline gap-sm">
+          <span className="font-heading text-[15px] font-bold text-ink">Accesorios de movilidad compatibles</span>
+          <span className="h-px flex-1 bg-border" />
+        </legend>
+        <div className="grid grid-cols-2 gap-sm sm:grid-cols-3 lg:grid-cols-5">
           {ACCESORIO_MOVILIDAD_OPTIONS.map((accesorio) => (
-            <label
+            <ChecklistOption
               key={accesorio}
-              htmlFor={`${formId}-accesorio-${accesorio}`}
-              className="flex items-center gap-xs font-body text-[13px] text-text"
-            >
-              <input
-                id={`${formId}-accesorio-${accesorio}`}
-                type="checkbox"
-                checked={values.accesoriosCompatibles.includes(accesorio)}
-                onChange={() => toggleAccesorio(accesorio)}
-              />
-              {ACCESORIO_MOVILIDAD_LABELS[accesorio]}
-            </label>
+              id={`${formId}-accesorio-${accesorio}`}
+              label={ACCESORIO_MOVILIDAD_LABELS[accesorio]}
+              icon={ACCESORIO_MOVILIDAD_ICONS[accesorio]}
+              selected={values.accesoriosCompatibles.includes(accesorio)}
+              onChange={() => toggleAccesorio(accesorio)}
+            />
           ))}
         </div>
       </fieldset>
@@ -180,6 +186,7 @@ export function VehiculoForm({
           onChange={(event) => setValues((prev) => ({ ...prev, notas: event.target.value }))}
         />
       </Field>
+      </div>
       </CamposSoloLectura>
 
       <div className="flex items-center justify-end gap-sm">

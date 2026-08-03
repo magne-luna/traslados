@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button, CamposSoloLectura } from '../../design-system/components';
+import { Button, CamposSoloLectura, FieldGroupHeading } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
@@ -45,18 +45,6 @@ interface ObraSocialFormProps {
   onCancel: () => void;
   submitting?: boolean;
   submitError?: string | null;
-}
-
-// Encabezado de subsección dentro del form (título + línea divisoria) — variante más liviana
-// de <Section> (design-system/components.tsx): esa lleva además un label mono superior que acá
-// no aplica, son agrupaciones de campos dentro de una sola card, no secciones de página.
-function FieldGroupHeading({ children }: { children: string }) {
-  return (
-    <div className="mb-lg flex items-baseline gap-sm">
-      <h3 className="m-0 font-heading text-[15px] font-bold text-ink">{children}</h3>
-      <div className="h-px flex-1 bg-border" />
-    </div>
-  );
 }
 
 // Formulario de alta/edición (tasks.md 4.2/4.3). Estado controlado plano — sin librería de

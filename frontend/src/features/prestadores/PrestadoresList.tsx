@@ -51,7 +51,7 @@ export function PrestadoresList({ prestadores, loading, error, onSelect, onCreat
           message="No hay prestadores cargados todavía."
           action={
             <Button variant="secondary" requiereEscritura onClick={onCreateNew}>
-              Crear el primer prestador
+              + Crear el primer prestador
             </Button>
           }
         />
@@ -79,7 +79,7 @@ export function PrestadoresList({ prestadores, loading, error, onSelect, onCreat
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-md pt-xs">
+              <div className="mt-auto flex items-center justify-end gap-md pt-xs">
                 <button
                   type="button"
                   onClick={(e) => {

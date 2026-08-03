@@ -72,21 +72,21 @@ export function ConductorForm({ initial, onSubmit, onCancel, submitting = false,
           seguir operativo para una cuenta de solo lectura. */}
       <CamposSoloLectura>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
-        <Field label="Apellido" htmlFor={`${formId}-apellido`} error={errors.apellido}>
-          <Input
-            id={`${formId}-apellido`}
-            density="comfortable"
-            value={values.apellido}
-            onChange={(event) => setValues((prev) => ({ ...prev, apellido: event.target.value }))}
-          />
-        </Field>
-
         <Field label="Nombre" htmlFor={`${formId}-nombre`} error={errors.nombre}>
           <Input
             id={`${formId}-nombre`}
             density="comfortable"
             value={values.nombre}
             onChange={(event) => setValues((prev) => ({ ...prev, nombre: event.target.value }))}
+          />
+        </Field>
+
+        <Field label="Apellido" htmlFor={`${formId}-apellido`} error={errors.apellido}>
+          <Input
+            id={`${formId}-apellido`}
+            density="comfortable"
+            value={values.apellido}
+            onChange={(event) => setValues((prev) => ({ ...prev, apellido: event.target.value }))}
           />
         </Field>
 

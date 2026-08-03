@@ -153,7 +153,10 @@ describe('ObraSocialDetail — modo edición', () => {
     );
 
     await user.type(screen.getByLabelText(/nuevo ítem/i), 'FIM');
-    await user.click(screen.getByRole('button', { name: /^agregar$/i }));
+    // El botón lleva prefijo "+ " (feedback de usuario: "todos los botones de agregar o crear
+    // tengan el +") — match exacto de "+ Agregar" en vez de "Agregar" a secas: esta pantalla
+    // también tiene "Agregar campo" (PlantillaFacturaEditor), un botón distinto.
+    await user.click(screen.getByRole('button', { name: /^\+ agregar$/i }));
 
     expect(actualizar).toHaveBeenCalledWith('osecac', {
       checklist: [osecac.checklist[0], expect.objectContaining({ nombre: 'FIM' })],

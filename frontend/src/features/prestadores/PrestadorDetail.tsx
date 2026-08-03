@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AvisoModeloDatos, Button, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
+import { Pill } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import { tieneVinculo } from '../../shared/lib/prestadores/prestadorMapping';
 import type { ObraSocial } from '../../shared/types/obraSocial';
@@ -38,6 +39,13 @@ export function PrestadorDetail({ prestador, obrasSociales = [], crear, actualiz
   // prestadorMapping.ts.
   const obrasSocialesVinculadasIds =
     prestador !== null && tieneVinculo(prestador) ? prestador.obrasSocialesIds : undefined;
+
+  // Vista de solo lectura (feedback de usuario: "quiero poder ver las obras sociales
+  // vinculadas" en el detalle, no solo al editar): resuelve los ids del vínculo contra la lista
+  // completa inyectada por el composition root (misma prop que ya usa PrestadorForm).
+  const obrasSocialesVinculadas = (obrasSocialesVinculadasIds ?? [])
+    .map((id) => obrasSociales.find((obraSocial) => obraSocial.id === id))
+    .filter((obraSocial): obraSocial is ObraSocial => obraSocial !== undefined);
 
   async function handleSubmit(values: PrestadorFormValues, obrasSocialesIds?: string[]) {
     setSubmitting(true);
@@ -94,6 +102,21 @@ export function PrestadorDetail({ prestador, obrasSociales = [], crear, actualiz
                 </div>
               )}
             </div>
+
+            {tieneVinculo(prestador) && (
+              <div className="flex flex-col gap-xs">
+                <span className="font-body text-[11px] text-muted">Obras sociales vinculadas</span>
+                {obrasSocialesVinculadas.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-xs">
+                    {obrasSocialesVinculadas.map((obraSocial) => (
+                      <Pill key={obraSocial.id}>{obraSocial.nombre}</Pill>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="font-body text-[13px] text-muted">Sin obras sociales vinculadas.</span>
+                )}
+              </div>
+            )}
 
             <div className="flex justify-end">
               <Button variant="secondary" requiereEscritura onClick={() => setEditing(true)}>
