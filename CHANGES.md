@@ -39,7 +39,7 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 | 2 | Obra Social (C-04) | 🔶 código+migraciones+tests completos (`integracion-obra-social`, 2026-07-31), **pendiente de aplicación de las migraciones y revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-04 más abajo. Hallazgo del apply: el schema real ya tenía casi todo lo que `design.md` planeaba (nombres/tipos distintos). D12 (RN-ID-02) se revirtió y luego se restauró el mismo día — la "confirmación" que la revertía nunca pasó, ver §C-04 |
 | 3 | Conductores + Vehículos (C-08/C-09) | 🔶 **reconciliado (2026-08-01), bloqueado en 1 gap** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). `openspec/changes/integracion-conductores-vehiculos/` (mock→Supabase de Vehículos+Conductores) se escribió en paralelo con `C-08-vehiculos-mantenimiento` de Enzo (ya mergeado a `main`, commit `f840a96`), sin que ninguno de los dos supiera del otro. **Vehículos**: reconciliado contra el backend real de Enzo (gasto, habilitaciones y kilometraje adoptan su implementación) — ver bullet ⚠️ en §C-08 más abajo, **bloqueado en un gap real** (falta fuente de datos para `mantenimientos`, necesita decisión de Enzo). **Conductores**: sin conflicto con lo que Enzo mergeó (confirmado, ninguna de sus 15 migraciones toca `conductores.conductores`/`conductores_vehiculos`); tanda de mapeo puro (`conductorMapping.ts`, `semanaIso.ts`) completa; el repository real (§7) queda bloqueado porque las migraciones de asignación semanal/estado (`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`) todavía no las escribió nadie |
 | 4 | Facturación (C-07) | 🔶 propose completo (`integracion-facturacion`, 2026-07-31), **bloqueado en el portón de governance §0 de `tasks.md` — 5 decisiones a cargo de Enzo/backend** antes de poder aplicar | Ver bullet ⏳ en §C-07 más abajo para el detalle de las 5 decisiones |
-| 5 | Presupuestos (C-06) | 🔴 bloqueado | 2 puntos a coordinar con backend, governance ALTO (ver §C-06) |
+| 5 | Presupuestos (C-06) | 🟢 propose completo y **portón de governance aprobado** (`integracion-presupuestos`, 2026-08-02) — listo para `/opsx:apply` | Los 2 puntos que lo bloqueaban están **resueltos** (`monto_autorizado` + trigger RN-PA-01, `vigencia_desde`) y `C-06` está archivado. Ver bullet ✅ en §C-06 más abajo |
 | 6 | Hojas de Ruta (C-10) | ⏳ pendiente | — |
 | 7 | Dashboard (C-11) | ⏳ pendiente | Va último — agrega datos de todos los repos reales de arriba |
 | 8 | Documentos (storage) | ⏳ pendiente | Buckets ya creados; falta reemplazar `mockDocumentoRepository` (uploads simulados) |
@@ -510,6 +510,51 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - ~~**Bloqueante**: no hay campo de vigencia retroactiva (RN-PA-02)~~ — resuelto: se sumó `vigencia_desde`.
   - Menor: el Presupuesto del docx es un monto único (no "estimación anual por prestación"), y trae `obraSocialId` explícito que el ERD de la KB no dibujaba — se siguió el docx en ambos casos, sin cartel dedicado.
 - **Progreso backend (real, C-06, 2026-07-28)**: ✅ implementado, pusheado y **archivado** (2026-08-01) como `C-06-presupuestos-autorizaciones` (`openspec/changes/archive/2026-08-01-C-06-presupuestos-autorizaciones/`). `presupuesto`/`autorizacion` ya existían de rebote desde C-02 (documentación adjunta correctamente modelada como archivo único, no patrón multi-doc de C-03, per docx). Esta migración cerró los 2 puntos bloqueantes de arriba: `monto_autorizado` + trigger `validar_autorizacion_monto` (RN-PA-01) y `vigencia_desde` (RN-PA-02). Sin delta specs (cambio puro de schema/migraciones, mismo caso que `C-02`) — nada que fusionar en `openspec/specs/`. 7/7 tasks completas.
+- **🔶 Propose completo del swap de backend** (`integracion-presupuestos`, 2026-08-02):
+  `proposal.md` + `design.md` (13 decisiones D1-D13) + `tasks.md` + 6 delta specs
+  (`presupuesto-repository-supabase` y `autorizacion-repository-supabase` nuevas;
+  `presupuesto-contract`/`presupuesto-crud`/`autorizacion-gestion`/`autorizacion-validacion-monto`
+  modificadas). Estado del backend **verificado en vivo el 2026-08-02** (solo lectura, CLI linkeado):
+  `monto_autorizado`/`vigencia_desde` aplicadas, trigger RN-PA-01 vivo, Edge Functions
+  `presupuestos`/`autorizaciones` `ACTIVE` (v2), policies gateadas por el módulo `presupuestos`,
+  `presupuesto`/`autorizacion` con **0 filas** y las 3 FK del dominio **sin índice**.
+  **Decisión de arquitectura del change (D2)**: a diferencia de los cuatro changes de integración
+  anteriores, este consume las **Edge Functions ya deployadas** vía `supabase.functions.invoke`
+  (precedente: `SupabaseCuentaRepository`) en vez de PostgREST + RLS. Consecuencia: **cero SQL de
+  lógica** — el único `.sql` del change son 3 índices sobre FK, los mismos que
+  `integracion-facturacion` D10 dejó fuera diciendo *"son de `C-06`"*.
+- **✅ Portón de governance aprobado por la usuaria (2026-08-02)** — `tasks.md` §0, gobernanza ALTO,
+  las 5 decisiones que bloqueaban el apply:
+  - **D2** — Edge Functions deployadas (`supabase.functions.invoke`), no PostgREST + RLS. Aparta a
+    este módulo del patrón de la serie.
+  - **D3** — aceptado: el portón de autorización es el `requirePermiso('presupuestos', …)` de la Edge
+    Function, RLS queda como segunda capa (adentro de la función se opera con `service_role`). Ya
+    estaba deployado por `C-06`, faltaba la aprobación del lado del frontend.
+  - **D5 (mayor riesgo funcional del change)** — el adjunto. `Presupuesto.archivo`/
+    `Autorizacion.archivo` (`{nombre, cargadoEn}`) no tienen contraparte: la base solo tiene
+    `archivo_url`, las columnas de metadatos las dropeó a propósito `20260730120000`, **no hay bucket
+    de Storage** para este dominio y el formulario **no sube nada**. **Decidido: opción A** — mapeo
+    no destructivo + `AvisoModeloDatos`, sin tocar el input. La subida real de Storage queda como
+    change propio futuro `presupuestos-documentacion-storage`.
+  - **D7b** — aprobados los 3 índices (`presupuesto.paciente_id`, `presupuesto.obra_social_id`,
+    `autorizacion.presupuesto_id`) **sin `CONCURRENTLY`**; se aparta de una regla dura de
+    `database-schema-design`, justificado en que las dos tablas tienen 0 filas — condición a
+    re-verificar inmediatamente antes de aplicar (1B.1).
+  - **D11** — confirmado: Presupuestos se swapea primero y `FacturacionRoute.tsx` queda en mocks
+    (fuera de alcance, es su D9), así que en el medio la app tiene **dos fuentes distintas para la
+    misma entidad**. A cambio, la trampa de RLS que ese change anotó queda **cerrada y verificable**:
+    confirmado contra `pg_policies` que las cuatro policies gatean por `presupuestos` y no por
+    `facturacion`, y con el transporte de D2 un perfil con `facturacion` sin `presupuestos` recibe un
+    **403 explícito** en vez de 0 filas en silencio.
+  - **Listo para `/opsx:apply integracion-presupuestos`.**
+- **⚠️ Hallazgo de arquitectura abierto (D12)**: el proyecto tiene **dos backends en paralelo sobre
+  las mismas tablas** —Edge Functions (`C-04`…`C-07`, `service_role` + `requirePermiso`) y
+  PostgREST + RLS + RPC (los changes de integración)— y **ningún change lo declaró como decisión**.
+  En particular, `integracion-facturacion` propone crear `crear_factura_completa`/
+  `actualizar_factura_completa` sin mencionar que las Edge Functions `facturas` y `cobros` ya están
+  deployadas (verificado: la cadena "Edge Function" no aparece en su `proposal.md` ni en su
+  `design.md`). `integracion-presupuestos` **declara el hallazgo y no lo resuelve** — unificar es un
+  change transversal. **Decisor**: equipo técnico.
 
 ### [C-10] `hojas-de-ruta-recorridos`
 - **Estado**: `[x]` completado (FE-5 frontend-only, 2026-07-25)
@@ -572,7 +617,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   (5) el enum de `estado` del docx ("a facturar, cobrada, pagada parcialmente, pendiente") no
   incluye `facturado`, necesario como disparador del cálculo de fecha estimada de cobro.
 - **Progreso frontend (mock, vía FE-6)**: ✅ implementado como `facturacion-ui`
-  (`openspec/changes/facturacion-ui/`, pendiente de archivar), 61/61 tasks incluida la
+  (**archivado**, `openspec/changes/archive/2026-07-27-facturacion-ui/`), 61/61 tasks incluida la
   verificación estructural de RN-FA-01 (cero acoplamiento con
   `hojaDeRuta.ts`/`HojaDeRutaRepository`). Contrato
   de tipos (`Factura`, `AsistenciaPrestacion`, `Cobro`, `EstadoFactura`), 9 funciones puras de
@@ -654,7 +699,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - Las cuatro se señalizan con `AvisoModeloDatos` agrupado en la pantalla de Dashboard y están detalladas en `openspec/changes/dashboard-ui/design.md` §Discrepancias y en `knowledge-base/04_modelo_de_datos.md` §Discrepancias.
 - **Dependencias**: `C-05`, `C-07`, `C-08`, `C-10`
 - **Governance**: BAJO
-- **Progreso frontend (mock, vía FE-7)**: ✅ implementado como `dashboard-ui` (`openspec/changes/dashboard-ui/`, pendiente de archivar), 59/60 tasks (9.5 verificación manual en navegador queda para el usuario, mismo patrón que FE-5/FE-6). Tipos de proyección (`PeriodoMeses`, `SerieFacturadoVsCobrado`, `ResumenAnual`, `FacturaEnMora`, `PacienteCudPorVencer`, `AlertaMantenimientoVehiculo`, `ResumenDelDia`) y 6 funciones puras test-first en `shared/lib/reportes/` (`periodosDelRango`, `facturadoVsCobrado`, `resumenAnual`, `facturasEnMora`, `cudPorVencer`, `alertasMantenimiento`, `resumenDelDia`), con `CobroRepository.list()` agregado de forma aditiva. Cero duplicación de reglas de negocio: invoca `estadoVencimientoFactura`/`estadoCud`/`estadoServicePreventivo`/`estadoHabilitacion` de sus módulos dueños en vez de reimplementarlas. `DashboardRoute` inyecta 6 repositorios mock de solo lectura (Factura, Cobro, Paciente, Vehículo, HojaDeRuta y Conductor — este último no anticipado en el design original, agregado para resolver nombre de conductor en el panel de recorridos) — verificado con test de espías que ningún `create`/`update`/`remove` se invoca nunca. Montado en `/` (`router.tsx`), reemplazando el placeholder. Suite en verde (640 baseline → 766 tests), `tsc -b` y `oxlint` limpios.
+- **Progreso frontend (mock, vía FE-7)**: ✅ implementado como `dashboard-ui` (**archivado**, `openspec/changes/archive/2026-07-26-dashboard-ui/`), 60/60 tasks (9.5 verificación manual en navegador confirmada). Tipos de proyección (`PeriodoMeses`, `SerieFacturadoVsCobrado`, `ResumenAnual`, `FacturaEnMora`, `PacienteCudPorVencer`, `AlertaMantenimientoVehiculo`, `ResumenDelDia`) y 6 funciones puras test-first en `shared/lib/reportes/` (`periodosDelRango`, `facturadoVsCobrado`, `resumenAnual`, `facturasEnMora`, `cudPorVencer`, `alertasMantenimiento`, `resumenDelDia`), con `CobroRepository.list()` agregado de forma aditiva. Cero duplicación de reglas de negocio: invoca `estadoVencimientoFactura`/`estadoCud`/`estadoServicePreventivo`/`estadoHabilitacion` de sus módulos dueños en vez de reimplementarlas. `DashboardRoute` inyecta 6 repositorios mock de solo lectura (Factura, Cobro, Paciente, Vehículo, HojaDeRuta y Conductor — este último no anticipado en el design original, agregado para resolver nombre de conductor en el panel de recorridos) — verificado con test de espías que ningún `create`/`update`/`remove` se invoca nunca. Montado en `/` (`router.tsx`), reemplazando el placeholder. Suite en verde (640 baseline → 766 tests), `tsc -b` y `oxlint` limpios.
 - **Leer antes**:
   - `knowledge-base/06_funcionalidades.md` §Épica 9 (US-800)
   - `knowledge-base/04_modelo_de_datos.md` (referencias cruzadas Factura/Vehiculo/Paciente/Recorrido)
