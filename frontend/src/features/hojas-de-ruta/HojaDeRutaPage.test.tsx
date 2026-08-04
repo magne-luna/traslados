@@ -73,19 +73,20 @@ function buildFakePacienteRepo(): PacienteRepository {
   return { list: vi.fn().mockResolvedValue([]), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
 }
 
-function renderPage(hojaRepo: HojaDeRutaRepository) {
+function renderPage(hojaRepo: HojaDeRutaRepository, desdeRepositoryReal = false) {
   return render(
     <HojaDeRutaRepositoryProvider repository={hojaRepo}>
       <HojaDeRutaPage
         pacienteRepository={buildFakePacienteRepo()}
         vehiculoRepository={buildFakeVehiculoRepo()}
         conductorRepository={buildFakeConductorRepo()}
+        desdeRepositoryReal={desdeRepositoryReal}
       />
     </HojaDeRutaRepositoryProvider>,
   );
 }
 
-function renderPageConPermiso(puedeEscribir: boolean, hojaRepo: HojaDeRutaRepository) {
+function renderPageConPermiso(puedeEscribir: boolean, hojaRepo: HojaDeRutaRepository, desdeRepositoryReal = false) {
   return render(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <HojaDeRutaRepositoryProvider repository={hojaRepo}>
@@ -93,6 +94,7 @@ function renderPageConPermiso(puedeEscribir: boolean, hojaRepo: HojaDeRutaReposi
           pacienteRepository={buildFakePacienteRepo()}
           vehiculoRepository={buildFakeVehiculoRepo()}
           conductorRepository={buildFakeConductorRepo()}
+          desdeRepositoryReal={desdeRepositoryReal}
         />
       </HojaDeRutaRepositoryProvider>
     </PuedeEscribirContext.Provider>,
@@ -112,7 +114,47 @@ describe('HojaDeRutaPage', () => {
     renderPage(buildFakeHojaRepo());
 
     expect(await screen.findByRole('heading', { name: /hoja de ruta del día/i })).toBeInTheDocument();
-    expect(screen.getByRole('note')).toHaveTextContent(/conductor/i);
+    const notas = screen.getAllByRole('note').map((nota) => nota.textContent ?? '');
+    expect(notas.some((texto) => /conductorId/.test(texto) && /Traslados-Modelo-Datos/.test(texto))).toBe(true);
+  });
+
+  // tasks.md 5.1, spec hoja-de-ruta-avisos-modelo-datos (Checkpoint 0 opción A): los selectores
+  // de vehículo/conductor siguen leyendo de los repositories mock hasta que
+  // `integracion-conductores-vehiculos` aterrice — el aviso complementa el cartel de la
+  // discrepancia `conductorId` sin repetir su texto.
+  it('explica que los selectores de vehículo y conductor siguen mostrando datos fixture (Checkpoint 0)', async () => {
+    renderPage(buildFakeHojaRepo());
+
+    expect(await screen.findByRole('heading', { name: /hoja de ruta del día/i })).toBeInTheDocument();
+    const notas = screen.getAllByRole('note').map((nota) => nota.textContent ?? '');
+    expect(
+      notas.some((texto) => /veh[ií]culo y conductor/i.test(texto) && /fixture|mock/i.test(texto)),
+    ).toBe(true);
+  });
+
+  // tasks.md 5.2, spec hoja-de-ruta-avisos-modelo-datos (Checkpoint 2 opción A): con la hoja que
+  // viene del repository real (coordenadas siempre `undefined`), el mapa queda vacío por diseño y
+  // se explica distinto del estado vacío genérico — la cadena HojaDeRutaPage → RecorridoCard →
+  // RecorridoMapa propaga `desdeRepositoryReal`.
+  it('explica por diseño el mapa vacío de un recorrido proveniente del repository real (Checkpoint 2)', async () => {
+    const hoja: HojaDeRuta = {
+      id: 'hoja-1',
+      fecha: HOY,
+      franjaInicio: '08:00',
+      franjaFin: '20:00',
+      recorridos: [
+        {
+          id: 'r-1',
+          vehiculoId: 'v-1',
+          conductorId: 'c-1',
+          manual: false,
+          paradas: [{ id: 'p-1', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'd1', direccionDestinoId: 'd2', orden: 0 }],
+        },
+      ],
+    };
+    renderPageConPermiso(true, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hoja]) }), true);
+
+    expect(await screen.findByText(/no se persisten todavía/i)).toBeInTheDocument();
   });
 
   it('muestra un estado vacío explícito cuando el día no tiene hoja de ruta cargada', async () => {

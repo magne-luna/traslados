@@ -83,6 +83,32 @@ describe('RecorridoMapa', () => {
     expect(screen.getByText(/no hay paradas con coordenadas/i)).toBeInTheDocument();
   });
 
+  // Checkpoint 2 (design.md, spec hoja-de-ruta-avisos-modelo-datos): el mapeo del repository real
+  // siempre resuelve `coordenadaOrigen` como `undefined`, así que el mapa de una hoja real queda
+  // vacío. Con `desdeRepositoryReal` eso se explica como decisión (geocoding fuera de scope), no
+  // como el estado vacío genérico — para que no se lea como un bug.
+  it('explica por diseño el mapa vacío cuando la hoja viene del repository real (Checkpoint 2)', () => {
+    render(<RecorridoMapa paradas={[parada('a', undefined)]} nombrePaciente={() => 'Nombre'} desdeRepositoryReal />);
+
+    expect(screen.getByText(/por diseño/i)).toBeInTheDocument();
+    expect(screen.getByText(/geocoding/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no hay paradas con coordenadas/i)).not.toBeInTheDocument();
+  });
+
+  it('mantiene el estado vacío genérico (sin aviso de diseño) para hojas que no vienen del repository real', () => {
+    render(<RecorridoMapa paradas={[parada('a', undefined)]} nombrePaciente={() => 'Nombre'} />);
+
+    expect(screen.getByText(/no hay paradas con coordenadas/i)).toBeInTheDocument();
+    expect(screen.queryByText(/geocoding/i)).not.toBeInTheDocument();
+  });
+
+  it('con coordenadas presentes, la flag del repository real no cambia el mapa (sigue mostrando markers)', () => {
+    render(<RecorridoMapa paradas={[parada('a', { lat: 1, lng: 2 })]} nombrePaciente={() => 'Nombre'} desdeRepositoryReal />);
+
+    expect(screen.getAllByTestId('advanced-marker')).toHaveLength(1);
+    expect(screen.queryByText(/geocoding/i)).not.toBeInTheDocument();
+  });
+
   it('muestra un mensaje explícito (no pantalla en blanco) si falta la API key', () => {
     vi.unstubAllEnvs();
     vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '');

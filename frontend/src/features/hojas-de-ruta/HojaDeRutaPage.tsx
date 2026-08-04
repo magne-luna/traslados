@@ -24,6 +24,11 @@ interface HojaDeRutaPageProps {
   pacienteRepository: PacienteRepository;
   vehiculoRepository: VehiculoRepository;
   conductorRepository: ConductorRepository;
+  /** La hoja que se muestra proviene del repository real (design.md Checkpoint 2, opción A): su
+   * mapeo nunca persiste coordenadas, así que el mapa de cada recorrido queda vacío por diseño.
+   * Lo fija el composition root (`HojaDeRutaRoute.tsx`), el único que sabe qué repository se
+   * inyecta. Ver `RecorridoMapa.desdeRepositoryReal`. */
+  desdeRepositoryReal?: boolean;
 }
 
 type Vista = 'armado' | 'global' | 'imprimir';
@@ -40,7 +45,7 @@ function hoyIso(): string {
 // conductor (un RecorridoCard por recorrido = por combinación vehículo+conductor), cartel
 // AvisoModeloDatos siempre visible (design.md Decisión 8) y navegación a la vista global (7.5) y
 // a la vista imprimible (8.1). < ~200 líneas — el resto vive en subcomponentes.
-export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conductorRepository }: HojaDeRutaPageProps) {
+export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conductorRepository, desdeRepositoryReal = false }: HojaDeRutaPageProps) {
   const formId = useId();
   const hojaRepository = useHojaDeRutaRepository();
   const { hojasDeRuta, loading, error, crear, actualizar } = useHojasDeRuta(hojaRepository);
@@ -106,6 +111,19 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
         "Historial de Recorridos" no tiene campo Conductor — <code>conductorId</code> es un campo
         agregado en este frontend, pendiente de confirmar con el dueño del docx (design.md
         Discrepancias 1 y 2).
+      </AvisoModeloDatos>
+
+      {/* Checkpoint 0 opción A (tasks.md 5.1, spec hoja-de-ruta-avisos-modelo-datos): el swap
+          parcial dejó Hoja de Ruta y Paciente reales, pero Vehículo/Conductor siguen en mock
+          hasta que `integracion-conductores-vehiculos` aterrice. Los selectores muestran flota
+          fixture transitoria — se explica acá para que no se lea como un bug. Complementa el
+          cartel de `conductorId` de arriba (Discrepancias 1/2) sin repetir su texto. */}
+      <AvisoModeloDatos>
+        Los selectores de vehículo y conductor siguen leyendo de los repositories de prueba (
+        <code>mockVehiculoRepository</code> y <code>mockConductorRepository</code>): la flota
+        mostrada es un fixture transitorio hasta que <code>integracion-conductores-vehiculos</code>{' '}
+        aterrice sus repositories reales (design.md Checkpoint 0, opción A). No es el catálogo
+        final de flota.
       </AvisoModeloDatos>
 
       <div className="flex flex-wrap items-end gap-md">
@@ -213,6 +231,7 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
                     conductores={conductores}
                     pacientes={pacientes}
                     onUpdateRecorrido={handleUpdateRecorrido}
+                    desdeRepositoryReal={desdeRepositoryReal}
                   />
                 ))}
               </div>

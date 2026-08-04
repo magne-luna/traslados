@@ -34,6 +34,9 @@ interface RecorridoCardProps {
   /** Posición del recorrido en la lista del día (feedback de usuario) — puramente de despliegue,
    * no identifica al recorrido (eso lo hace `recorrido.id`). */
   numero?: number;
+  /** Hoja proveniente del repository real (design.md Checkpoint 2): se propaga a RecorridoMapa
+   * para que el mapa vacío (coordenadas nunca persisten) se explique como diseño, no como bug. */
+  desdeRepositoryReal?: boolean;
 }
 
 // Tarjeta de un recorrido (tasks.md 5.4, 6.3, 7.1, 7.2, RN-HR-01/RF-702/RF-703): compone
@@ -54,6 +57,7 @@ export function RecorridoCard({
   pacientes,
   onUpdateRecorrido,
   numero = 1,
+  desdeRepositoryReal = false,
 }: RecorridoCardProps) {
   const formId = useId();
   const [editing, setEditing] = useState(false);
@@ -188,7 +192,11 @@ export function RecorridoCard({
           </AvisoModeloDatos>
         )}
 
-        <RecorridoMapa paradas={recorrido.paradas} nombrePaciente={nombrePaciente} />
+        <RecorridoMapa
+          paradas={recorrido.paradas}
+          nombrePaciente={nombrePaciente}
+          desdeRepositoryReal={desdeRepositoryReal}
+        />
 
         {editing && (
           <AsignacionPanel

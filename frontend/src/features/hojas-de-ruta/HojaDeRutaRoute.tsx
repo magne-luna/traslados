@@ -21,6 +21,7 @@ export function HojaDeRutaRoute() {
         pacienteRepository={supabasePacienteRepository}
         vehiculoRepository={mockVehiculoRepository}
         conductorRepository={mockConductorRepository}
+        desdeRepositoryReal
       />
     </HojaDeRutaRepositoryProvider>
   );

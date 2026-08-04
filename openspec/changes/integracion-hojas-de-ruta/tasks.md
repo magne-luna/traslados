@@ -146,14 +146,21 @@
 
 ## 5. `AvisoModeloDatos` — Checkpoints 0 y 2 visibles en pantalla
 
-- [ ] 5.1 (RED→GREEN) `HojaDeRutaPage.tsx`: `AvisoModeloDatos` explicando que los selectores de
+- [x] 5.1 (RED→GREEN) `HojaDeRutaPage.tsx`: `AvisoModeloDatos` explicando que los selectores de
       vehículo/conductor siguen mostrando datos fixture hasta que
       `integracion-conductores-vehiculos` aterrice (Checkpoint 0) — reemplaza o complementa el cartel
       general ya existente de la discrepancia `conductorId`, sin duplicar mensaje.
-- [ ] 5.2 (RED→GREEN) `RecorridoMapa.tsx` (o su contenedor en `RecorridoCard.tsx`): mensaje explícito
+      **WU4 (2026-08-04): se COMPLEMENTA el cartel existente con un segundo `AvisoModeloDatos`** (el
+      de `conductorId` queda intacto, sin texto repetido). Tests: RED→GREEN en
+      `HojaDeRutaPage.test.tsx` + ajuste del test de `getByRole('note')` → `getAllByRole`.
+- [x] 5.2 (RED→GREEN) `RecorridoMapa.tsx` (o su contenedor en `RecorridoCard.tsx`): mensaje explícito
       cuando la ausencia de coordenadas es por diseño (hoja de ruta real, Checkpoint 2), distinto del
       mensaje genérico actual "No hay paradas con coordenadas para mostrar en el mapa todavía" — para
       que no se lea como un bug.
+      **WU4 (2026-08-04): prop `desdeRepositoryReal` (default `false`, la fija el composition root en
+      `HojaDeRutaRoute.tsx`) propagada `HojaDeRutaPage → RecorridoCard → RecorridoMapa`.** Con la hoja
+      del repository real y sin coordenadas → `AvisoModeloDatos` "vacío por diseño (geocoding fuera de
+      scope)"; sin la flag se conserva el estado vacío genérico y el mapa funcional sobre fixtures.
 
 ## 6. Documentación y cierre
 
