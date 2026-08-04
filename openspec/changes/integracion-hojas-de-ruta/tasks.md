@@ -117,16 +117,32 @@
 
 ## 4. El swap — composition root
 
-- [ ] 4.1 Correr el safety net completo antes de tocar `HojaDeRutaRoute.tsx`.
-- [ ] 4.2 (RED→GREEN) `HojaDeRutaRoute.tsx`: inyectar `supabaseHojaDeRutaRepository` y
+- [x] 4.1 Correr el safety net completo antes de tocar `HojaDeRutaRoute.tsx`. **Anotación (2026-08-04,
+      en orden de Enzo): se corrió SOLO el safety net dirigido** (`cd frontend && npx vitest run
+      src/features/hojas-de-ruta src/features/dashboard`) — la suite completa queda para el 6.4. Línea
+      de base: 188 passing / 1 failing, y el único fallo era el propio `HojaDeRutaRoute.test.tsx` por
+      `localStorage.clear is not a function` (Node 25 expone un `localStorage` experimental sin API de
+      Storage que tapa al de jsdom) — archivo que la 4.3 reemplaza íntegro. Los demás tests dirigidos
+      que a veces caen por "Test timed out in 5000ms" son flakiness de esta máquina lenta (tests con
+      `userEvent`), no regresiones del swap.
+- [x] 4.2 (RED→GREEN) `HojaDeRutaRoute.tsx`: inyectar `supabaseHojaDeRutaRepository` y
       `supabasePacienteRepository` (reuso del singleton de `integracion-pacientes`, sin crear uno
       nuevo). `mockVehiculoRepository`/`mockConductorRepository` siguen inyectados — actualizar el
       comentario del archivo para reflejar el swap parcial y por qué (cita a `design.md` Checkpoint 0).
-- [ ] 4.3 Ajustar `HojaDeRutaRoute.test.tsx` al doble inyectado (tres reales o dos mock, según lo que
-      quedó tras 4.2).
+- [x] 4.3 Ajustar `HojaDeRutaRoute.test.tsx` al doble inyectado (tres reales o dos mock, según lo que
+      quedó tras 4.2). El smoke test mockea `../../shared/lib/supabaseClient` con un doble que cuenta
+      cada `select()` emitido (patrón `vi.hoisted` + `vi.mock`, mismo enfoque que
+      `PacientesRoute.test.tsx`): RED con el composition root viejo (cero llamadas) → GREEN con el
+      swap (≥1 llamada) + heading y estado vacío de un día sin hoja.
 - [ ] 4.4 Verificar en navegador (`npm run dev`, con sesión real) que `HojaDeRutaPage` arma, edita y
       persiste una hoja de ruta contra Postgres, con los selectores de vehículo/conductor mostrando la
       flota fixture (comportamiento esperado del Checkpoint 0 opción A).
+      **Manual, a cargo de Enzo** (no lo corre el agente): abrir `/hojas-de-ruta` con una cuenta con
+      `hojas_de_ruta: write` y `pacientes: read`, crear la hoja del día, agregar un recorrido con
+      paciente y direcciones reales y vehículo/conductor de la flota fixture, recargar y confirmar que
+      el recorrido persiste contra Postgres. Los selectores de vehículo/conductor deben seguir
+      mostrando la flota fixture (Checkpoint 0 opción A). El `AvisoModeloDatos` de la franja/discrepancia
+      `conductorId` es del §5, no de este WU.
 
 ## 5. `AvisoModeloDatos` — Checkpoints 0 y 2 visibles en pantalla
 
