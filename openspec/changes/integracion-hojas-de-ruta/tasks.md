@@ -164,12 +164,12 @@
 
 ## 6. Documentación y cierre
 
-- [ ] 6.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: bloque nuevo "Hoja de Ruta / Recorrido
+- [x] 6.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: bloque nuevo "Hoja de Ruta / Recorrido
       vs. esquema real de C-10" con el veredicto de los tres checkpoints.
-- [ ] 6.2 `CHANGES.md` §C-10: actualizar el bloque ⚠️ existente con qué queda resuelto (esquema,
+- [x] 6.2 `CHANGES.md` §C-10: actualizar el bloque ⚠️ existente con qué queda resuelto (esquema,
       `conductor_id`) y qué sigue abierto (Vehículo/Conductor todavía mock) + fila 6 del §Plan de
       integración.
-- [ ] 6.3 `ROADMAP-FRONTEND.md` §FE-8, si aplica (verificar si esta feature tiene entrada ahí, como el
+- [x] 6.3 `ROADMAP-FRONTEND.md` §FE-8, si aplica (verificar si esta feature tiene entrada ahí, como el
       resto de la serie).
 - [ ] 6.4 Correr la suite completa (`cd frontend && npx vitest run`) y confirmar cero regresiones
       contra el baseline de 0.4.

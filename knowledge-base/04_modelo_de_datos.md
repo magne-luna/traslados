@@ -564,6 +564,38 @@ así que queda anotado acá hasta que se construya esa feature.
   `20260731120001_obra_social_rpc.sql`) están redactadas y revisadas, pendientes de que la
   usuaria/Enzo las aplique.
 
+- **Hoja de Ruta / Recorrido vs. esquema real de `C-10`** (detalle completo en
+  `openspec/changes/integracion-hojas-de-ruta/design.md`, propose 2026-08-04, apply 2026-08-04):
+  comparación entre la entidad `HojaDeRuta`/`Recorrido` del frontend y el docx, que **no tiene
+  entidad "Hoja de Ruta"**: solo "Recorridos" (agenda habitual del paciente, sin vehículo/conductor)
+  e "Historial de Recorridos" (viaje realizado, ligado a Paciente + Vehículo, sin campo Conductor).
+  Los tres checkpoints de `design.md` se resolvieron con veredicto de la usuaria/Enzo registrado en
+  `openspec/changes/integracion-hojas-de-ruta/tasks.md` §0.1 (2026-08-04):
+  - **Checkpoint 0 — swap parcial, ahora**: `HojaDeRuta` y `Paciente` pasan a reales en
+    `HojaDeRutaRoute.tsx`; `Vehículo`/`Conductor` siguen mock hasta que aterrice
+    `integracion-conductores-vehiculos` (hoy bloqueado en la fuente real de mantenimientos, decisión
+    de Enzo sin fecha).
+  - **Checkpoint 1 — repropuesta de `historial_recorridos` como paradas + dos tablas nuevas de
+    agrupación con `conductor_id NOT NULL`**: `pacientes.hoja_de_ruta` (nueva) `1---N`
+    `pacientes.recorrido` (nueva, `conductor_id NOT NULL REFERENCES conductores.conductores(id)`)
+    `1---N` `pacientes.historial_recorridos` (expand aditivo: `+recorrido_id`, `+tramo`, `+orden`,
+    `+hora_estimada`). `historial_recorridos` ya tenía exactamente la forma de una parada
+    (`paciente_id`, `id_dir_inicial`, `id_dir_final`, `id_vehiculo`) y era placeholder puro — cero
+    consumidores que romper. `conductor_id` hereda la decisión ya tomada del lado frontend
+    (`hojas-de-ruta-ui`, RN-VE-01/02): sin el campo el sistema no puede decir qué chofer hizo cada
+    viaje. Sigue siendo formalmente una discrepancia contra el docx **resuelta con nota de decisión,
+    no cerrada por default** — la coordinación con el dueño del docx queda anotada en `tasks.md` 7.4.
+    Por regla dura aditiva no se dropea `historial_recorridos.id_vehiculo` (hoy redundante con
+    `recorrido.vehiculo_id`); la función de escritura los mantiene sincronizados. `vehiculo_id`/
+    `conductor_id` son `ON DELETE RESTRICT` (el historial no se arrastra al borrar), mismo criterio
+    que las FK de `direcciones`.
+  - **Checkpoint 2 — sin geocoding por ahora**: `ParadaRecorrido.coordenadaOrigen` nunca vino de
+    geocoding real (fixture del lado cliente desde `hojas-de-ruta-ui`, Decisión 6) y ni
+    `pacientes.direcciones` ni el esquema nuevo tienen columnas `lat`/`lng`. El mapeo real deja
+    `coordenadaOrigen` como `undefined` siempre; `RecorridoMapa.tsx` muestra su estado vacío ya
+    contemplado con un `AvisoModeloDatos` propio explicando que es por diseño — regresión de UX
+    aceptada y documentada, no descubierta en QA.
+
 ### Función de alta: `pacientes.crear_paciente_completo` (contrato de escritura del módulo Pacientes)
 
 Migración `supabase/migrations/20260730180000_crear_paciente_completo.sql`

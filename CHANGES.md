@@ -40,7 +40,7 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 | 3 | Conductores + Vehículos (C-08/C-09) | 🔶 **reconciliado (2026-08-01), bloqueado en 1 gap** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). `openspec/changes/integracion-conductores-vehiculos/` (mock→Supabase de Vehículos+Conductores) se escribió en paralelo con `C-08-vehiculos-mantenimiento` de Enzo (ya mergeado a `main`, commit `f840a96`), sin que ninguno de los dos supiera del otro. **Vehículos**: reconciliado contra el backend real de Enzo (gasto, habilitaciones y kilometraje adoptan su implementación) — ver bullet ⚠️ en §C-08 más abajo, **bloqueado en un gap real** (falta fuente de datos para `mantenimientos`, necesita decisión de Enzo). **Conductores**: sin conflicto con lo que Enzo mergeó (confirmado, ninguna de sus 15 migraciones toca `conductores.conductores`/`conductores_vehiculos`); tanda de mapeo puro (`conductorMapping.ts`, `semanaIso.ts`) completa; el repository real (§7) queda bloqueado porque las migraciones de asignación semanal/estado (`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`) todavía no las escribió nadie |
 | 4 | Facturación (C-07) | 🔶 propose completo (`integracion-facturacion`, 2026-07-31), **bloqueado en el portón de governance §0 de `tasks.md` — 5 decisiones a cargo de Enzo/backend** antes de poder aplicar | Ver bullet ⏳ en §C-07 más abajo para el detalle de las 5 decisiones |
 | 5 | Presupuestos (C-06) | 🟢 propose completo y **portón de governance aprobado** (`integracion-presupuestos`, 2026-08-02) — listo para `/opsx:apply` | Los 2 puntos que lo bloqueaban están **resueltos** (`monto_autorizado` + trigger RN-PA-01, `vigencia_desde`) y `C-06` está archivado. Ver bullet ✅ en §C-06 más abajo |
-| 6 | Hojas de Ruta (C-10) | ⏳ pendiente | — |
+| 6 | Hojas de Ruta (C-10) | 🔶 en progreso (apply `integracion-hojas-de-ruta`, 2026-08-04 — WU5a, documentación, completada) | Ver bullet ⚠️ en §C-10 más abajo |
 | 7 | Dashboard (C-11) | ⏳ pendiente | Va último — agrega datos de todos los repos reales de arriba |
 | 8 | Documentos (storage) | ⏳ pendiente | Buckets ya creados; falta reemplazar `mockDocumentoRepository` (uploads simulados) |
 
@@ -598,6 +598,17 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - `knowledge-base/07_flujos_principales.md` §Flujo 2
   - `knowledge-base/10_preguntas_abiertas.md` (prioridad Media: alcance del ordenamiento por cercanía RF-701)
 - **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** (detalle en `04_modelo_de_datos.md`): el docx no tiene entidad "Hoja de Ruta" — solo "Recorridos" (horario habitual del paciente, sin vehículo/conductor) e "Historial de Recorridos" (viaje realizado, ligado a Paciente + Vehículo, **sin campo Conductor**). Si el docx es correcto, no se podría auditar qué chofer hizo cada viaje puntual con el modelo tal como está documentado — resolver antes de migrar `hoja_de_ruta`/`recorrido` tal como los describe este change. **Decisión ya tomada en el lado frontend** (change `hojas-de-ruta-ui`, FE-5, 2026-07-25): se modela `conductorId` en `Recorrido` porque la regla de negocio lo exige (RN-VE-01/02); tanto la entidad `hoja_de_ruta` como el campo `conductor` en `recorrido` son agregados sobre el docx y **deben coordinarse con quien implemente el backend de `C-10`** (confirmar con el dueño del docx) **antes de cerrar el esquema de las tablas `hoja_de_ruta`/`recorrido`**.
+  - **Resuelto (2026-08-04, apply `integracion-hojas-de-ruta`, WU5a — detalle completo en
+    `04_modelo_de_datos.md` §Discrepancias, bloque "Hoja de Ruta / Recorrido vs. esquema real de
+    `C-10`"):** dónde vive el agregado queda cerrado con la **repropuesta de
+    `pacientes.historial_recorridos` como paradas** + dos tablas nuevas de agrupación
+    (`hoja_de_ruta`/`recorrido`), y `conductor_id NOT NULL` queda confirmado en el esquema
+    (`recorrido.conductor_id`), heredando la decisión ya tomada del lado frontend (RN-VE-01/02) — ya
+    no es condición para cerrar el esquema, queda registrada como discrepancia resuelta con nota de
+    decisión. **Sigue abierto**: `Vehículo`/`Conductor` todavía mock (swap parcial, CP0 —
+    `HojaDeRutaRoute.tsx` queda con tres imports reales y dos mock) hasta que aterrice
+    `integracion-conductores-vehiculos`, y la confirmación de fondo con el dueño del docx queda como
+    verificación manual en `openspec/changes/integracion-hojas-de-ruta/tasks.md` 7.4.
   - Menores, ya con cartel propio en la UI (agregado 2026-07-25, antes solo cubiertos por el cartel general): el orden de recogida y las coordenadas del mapa no existen en el docx (cartel en `RecorridoCard.tsx`); la franja horaria y las notas al pie del agregado `HojaDeRuta` tampoco existen en el docx (cartel en `HojaDeRutaPage.tsx`).
 
 ---
