@@ -87,19 +87,19 @@
 
 ## 2. `HojaDeRutaRepository` real — mapeo puro
 
-- [ ] 2.1 (RED) Tests de `hojaDeRutaMapping.ts`: `parseHojaDeRutaRow`, `parseRecorridoRow`,
+- [x] 2.1 (RED) Tests de `hojaDeRutaMapping.ts`: `parseHojaDeRutaRow`, `parseRecorridoRow`,
       `parseParadaRow` contra filas de forma conocida (según el veredicto del Checkpoint 1), con casos
       de fila malformada (campo `null` donde el tipo del dominio no lo admite) que **descartan la fila
       hija sin romper el agregado completo** — mismo criterio que el mapeo de Pacientes con
       colecciones hijas.
-- [ ] 2.2 (GREEN) Implementar las tres funciones de parseo.
-- [ ] 2.3 (RED→GREEN) `ensamblarHojaDeRuta(hojaRow, recorridoRows, paradaRows): HojaDeRuta` —
+- [x] 2.2 (GREEN) Implementar las tres funciones de parseo.
+- [x] 2.3 (RED→GREEN) `ensamblarHojaDeRuta(hojaRow, recorridoRows, paradaRows): HojaDeRuta` —
       reconstruye el agregado de tres niveles agrupando por `hoja_de_ruta_id` y `recorrido_id`.
-- [ ] 2.4 (RED→GREEN) `toCrearHojaDeRutaPayload` / `toActualizarHojaDeRutaPayload` — dominio → jsonb
+- [x] 2.4 (RED→GREEN) `toCrearHojaDeRutaPayload` / `toActualizarHojaDeRutaPayload` — dominio → jsonb
       para las dos RPC de `design.md` D3. Verificar explícitamente el caso `Partial` de
       `ActualizacionHojaDeRuta`: ausencia de `recorridos` en el payload significa "no tocar", no
       "vaciar" — mismo tipo de trampa que `integracion-conductores-vehiculos` D9 documentó y testeó.
-- [ ] 2.5 Triangular con al menos dos hojas de ruta de distinta forma (una con un solo recorrido y una
+- [x] 2.5 Triangular con al menos dos hojas de ruta de distinta forma (una con un solo recorrido y una
       parada, otra con dos recorridos y paradas ida+vuelta del mismo paciente en el mismo recorrido —
       caso ya cubierto por `pacienteDisponibleEnRecorrido.ts`, verificar que el mapeo no lo rompe).
 
