@@ -105,14 +105,14 @@
 
 ## 3. `HojaDeRutaRepository` real — repository e I/O
 
-- [ ] 3.1 (RED) Tests de `SupabaseHojaDeRutaRepository.ts` con un fake tipado del cliente de Supabase
+- [x] 3.1 (RED) Tests de `SupabaseHojaDeRutaRepository.ts` con un fake tipado del cliente de Supabase
       (mismo patrón que las cuatro implementaciones anteriores de la serie — nunca golpear la red real
       en un test).
-- [ ] 3.2 (GREEN) Implementar `list`/`getById`/`getByFecha`/`create`/`update` cumpliendo
+- [x] 3.2 (GREEN) Implementar `list`/`getById`/`getByFecha`/`create`/`update` cumpliendo
       `HojaDeRutaRepository` sin cambiar una firma.
-- [ ] 3.3 Traducir los cuatro códigos de error de `design.md` D4 (`45301`-`45304`) más los genéricos de
+- [x] 3.3 Traducir los cuatro códigos de error de `design.md` D4 (`45301`-`45304`) más los genéricos de
       PostgREST (`PGRST204`/`PGRST202`/`42501`) a mensajes en castellano, con test dedicado por código.
-- [ ] 3.4 Verificar que `getByFecha` sigue resolviendo `null` (no lanza) cuando no hay hoja para esa
+- [x] 3.4 Verificar que `getByFecha` sigue resolviendo `null` (no lanza) cuando no hay hoja para esa
       fecha — semántica ya fijada por la interfaz, no se cambia.
 
 ## 4. El swap — composition root
