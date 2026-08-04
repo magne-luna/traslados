@@ -305,6 +305,28 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
     todavía la confirmación con la clienta — si alguno de los 5 supuestos cambia, hay que revisar
     schema/UI de Prestador y coordinar con `integracion-facturacion` (bullet de arriba). No se
     aplicaron migraciones contra Supabase real (`db push` sigue a cargo de Enzo).
+- **⚠️ `factura-por-prestador`** (propose+apply 2026-08-04, aprobado por Enzo — Phase 0 de
+  `tasks.md` — cierra el gap de `tipoComprobante` sin precarga que dejó `prestadores-crud`, D3
+  arriba): frontend puro, sin migración ni Supabase. `Factura` gana `prestadorId?: string`
+  (referencia por id, nunca embebida). El form de "Nueva factura" lee
+  `ObraSocial.modalidadFacturacion`: en `'por-prestacion'` muestra `PrestadorSelector.tsx`
+  (nuevo, mismo patrón `usePrestadorRepository()` + `listarPorObraSocial()` que
+  `PrestadoresDeObraSocial.tsx`, sin duplicar lógica) después del campo "Prestación"; en
+  `'general'` no cambia nada visible. Al elegir un Prestador, `tipoComprobante` se fija desde
+  `Prestador.tipoComprobante` y el `<Select>` correspondiente en `FacturaFormEconomicos.tsx`
+  queda `disabled` (nueva prop `tipoComprobanteBloqueado`) mientras siga elegido; al limpiar la
+  selección vuelve a ser editable, conservando el último valor (no resetea a
+  `TIPO_COMPROBANTE_DEFAULT`). **Deliberadamente NO resuelve** el supuesto #5 de `prestadores-crud`
+  (bullet de arriba): la modalidad "general" sigue sin ningún Prestador asignado, ni implícito ni
+  a elegir — eso queda para una decisión de negocio futura con Andrea. Tampoco toca
+  `renderDescripcionFactura`/`construirDatosDescripcion` ni construye "factura general"
+  consolidando varias prestaciones (eso sigue siendo `desacople-prestacion-factura`, sin
+  retomar). `FacturacionRoute.tsx` monta `PrestadorRepositoryProvider` con
+  `supabasePrestadorRepository` (real — no existe `mockPrestadorRepository` en el repo, así que es
+  el único repository de Prestador disponible para inyectar; el resto de la feature sigue en
+  mocks). Tests: `PrestadorSelector.test.tsx` (nuevo) y casos agregados a `FacturaForm.test.tsx`
+  ("selección de Prestador"). `tsc -b`/suite completa verificados antes de dar el change por
+  terminado.
 
 ### [C-08] `vehiculos-mantenimiento`
 - **Estado**: `[x]` completado (frontend mock, 2026-07-31)

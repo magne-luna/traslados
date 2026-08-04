@@ -87,6 +87,15 @@ export interface Factura {
   /** ISO date: fin del período / fecha límite que cubre la factura (docx: `Fecha tope`). */
   fechaTope: string;
   tipoComprobante: TipoComprobante;
+  /**
+   * Referencia por id al `Prestador` elegido (change `factura-por-prestador`, design.md D1/D3),
+   * nunca embebido — mismo criterio que `pacienteId`/`domicilioId`. Ausente cuando
+   * `ObraSocial.modalidadFacturacion === 'general'` o cuando la obra social no tiene ningún
+   * `Prestador` vinculado. Cuando está presente, `tipoComprobante` se fija desde
+   * `Prestador.tipoComprobante` y queda de solo lectura en el form (D3) — no valida acá, es
+   * responsabilidad del form (`FacturaForm.tsx`).
+   */
+  prestadorId?: string;
 
   // --- Agregados sobre el docx (documentados con su discrepancia, design.md §Discrepancias) ---
 

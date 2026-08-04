@@ -103,6 +103,11 @@ export function FacturaForm({
 
   const paciente = pacientes.find((p) => p.id === values.pacienteId);
   const obraSocial = obrasSociales.find((o) => o.id === paciente?.obraSocialId);
+  // `tipoComprobante` fijo mientras haya un Prestador elegido (change `factura-por-prestador`,
+  // design.md D3): se calcula acá (no en FacturaFormEconomicos) porque depende de `prestadorId`,
+  // que vive en `values` junto con el resto del form. En modalidad "general" (sin prestador)
+  // `values.prestadorId` nunca se setea, así que esto queda `false` y RN-FA-07 sigue rigiendo.
+  const tipoComprobanteBloqueado = Boolean(values.prestadorId);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,8 +130,14 @@ export function FacturaForm({
     });
   }, [facturasExistentes, values.pacienteId, values.mesFacturado, values.anioFacturado, values.dias, values.cantidadKm, facturaIdEnEdicion, cupo]);
 
+  // Gateo por Prestador (change `factura-por-prestador`, design.md D5, corrección post-revisión
+  // 2026-08-04): en modalidad "por-prestacion" la plantilla NO se arma hasta elegir un Prestador —
+  // es el paso previo, no un dato más de la descripción. En "general" no cambia nada (sin
+  // prestador que esperar, se comporta como siempre).
+  const faltaElegirPrestador = obraSocial?.modalidadFacturacion === 'por-prestacion' && !values.prestadorId;
+
   const previaDescripcion =
-    esBorrador && obraSocial && paciente
+    esBorrador && obraSocial && paciente && !faltaElegirPrestador
       ? renderDescripcionFactura(obraSocial.plantillaFactura, construirDatosDescripcion(values, paciente))
       : null;
 
@@ -159,9 +170,9 @@ export function FacturaForm({
           tasks.md sección 5) — este envoltorio NO las cubre. */}
       <CamposSoloLectura>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
-        <FacturaFormDatosBasicos formId={formId} values={values} errors={errors} pacientes={pacientes} paciente={paciente} set={set} />
+        <FacturaFormDatosBasicos formId={formId} values={values} errors={errors} pacientes={pacientes} paciente={paciente} obraSocial={obraSocial} set={set} />
 
-        <FacturaFormEconomicos formId={formId} values={values} errors={errors} set={set} />
+        <FacturaFormEconomicos formId={formId} values={values} errors={errors} tipoComprobanteBloqueado={tipoComprobanteBloqueado} set={set} />
       </div>
       </CamposSoloLectura>
 

@@ -188,6 +188,11 @@ clienta todavía**, siguen abiertos y pueden requerir cambios de schema/UI más 
   necesita que el vínculo exista y sea navegable) — ese change debe leer
   `prestadores-crud/proposal.md` supuesto #5 antes de proponer cómo resolverlo. **Decisor**: cliente
   / equipo técnico.
+  - **Sigue abierta tras `factura-por-prestador` (2026-08-04)**: ese change conecta
+    `modalidadFacturacion` con la selección de Prestador en el alta de factura, pero solo para
+    `'por-prestacion'` — deliberadamente **no** la cierra para `'general'` (design.md D2 de
+    `factura-por-prestador`, confirmado por Enzo). Una ObraSocial en modalidad "general" con
+    varios Prestadores vinculados sigue sin ninguno asignado en la factura, a propósito.
 
 ## Insumos pendientes del cliente
 

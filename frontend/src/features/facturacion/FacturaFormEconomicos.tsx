@@ -9,6 +9,10 @@ interface FacturaFormEconomicosProps {
   formId: string;
   values: FacturaFormValues;
   errors: FacturaFormErrors;
+  /** `true` mientras haya un `Prestador` elegido (change `factura-por-prestador`, design.md D3):
+   * el `<Select>` de tipo de comprobante pasa a solo lectura, con el valor tomado del prestador.
+   * En modalidad "general" (sin prestador) siempre es `false` — RN-FA-07 no cambia. */
+  tipoComprobanteBloqueado: boolean;
   set: <K extends keyof FacturaFormValues>(key: K, value: FacturaFormValues[K]) => void;
 }
 
@@ -21,7 +25,7 @@ const TIPOS_COMPROBANTE: TipoComprobante[] = ['A', 'B', 'C'];
 //
 // Migrado a Field/Input/Select (tasks.md 16.1, design.md Decisión 3) — cero cambio de
 // comportamiento: cálculos y validaciones intactos.
-export function FacturaFormEconomicos({ formId, values, errors, set }: FacturaFormEconomicosProps) {
+export function FacturaFormEconomicos({ formId, values, errors, tipoComprobanteBloqueado, set }: FacturaFormEconomicosProps) {
   return (
     <>
       <div className="md:col-span-2">
@@ -47,7 +51,12 @@ export function FacturaFormEconomicos({ formId, values, errors, set }: FacturaFo
         />
       </Field>
       <Field label="Tipo de comprobante" htmlFor={`${formId}-tipo`}>
-        <Select id={`${formId}-tipo`} value={values.tipoComprobante} onChange={(e) => set('tipoComprobante', e.target.value as TipoComprobante)}>
+        <Select
+          id={`${formId}-tipo`}
+          value={values.tipoComprobante}
+          disabled={tipoComprobanteBloqueado}
+          onChange={(e) => set('tipoComprobante', e.target.value as TipoComprobante)}
+        >
           {TIPOS_COMPROBANTE.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}
         </Select>
       </Field>
