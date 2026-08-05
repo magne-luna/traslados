@@ -14,6 +14,10 @@ import { DiasFacturablesSelector } from './DiasFacturablesSelector';
 import { FacturaFormDatosBasicos } from './FacturaFormDatosBasicos';
 import { FacturaFormEconomicos } from './FacturaFormEconomicos';
 import { PrestadorSelector } from './PrestadorSelector';
+import { usePrestadorRepository } from '../prestadores/PrestadorRepositoryContext';
+import { ResumenPasoWizard } from './ResumenPasoWizard';
+import { SeccionPlegable } from './SeccionPlegable';
+import type { Prestador } from '../../shared/types/prestador';
 import { construirDatosDescripcion } from '../../shared/lib/facturacion/construirDatosDescripcion';
 import { TIPO_COMPROBANTE_DEFAULT } from '../../shared/lib/facturacion/constantes';
 import { cupoConsumido } from '../../shared/lib/facturacion/cupoConsumido';
@@ -136,6 +140,24 @@ export function FacturaForm({
   const esEdicion = Boolean(initial?.pacienteId);
   const [paso, setPaso] = useState<0 | 1 | 2>(esEdicion ? 2 : 0);
 
+  // Secciones colapsables del Paso 3 / modo edición (integración del prototipo "Plegable +
+  // calendario", 2026-08-05, feedback de la usuaria sobre el formulario ya completo): arrancan
+  // abiertas para no cambiar lo que se ve al montar — colapsar es una acción del operador, nunca
+  // el estado inicial, así que ningún test ni comportamiento existente necesita interactuar para
+  // ver un campo por primera vez.
+  const [seccionesAbiertas, setSeccionesAbiertas] = useState({ datos: true, dias: true, asistencias: true });
+  function toggleSeccion(key: keyof typeof seccionesAbiertas) {
+    setSeccionesAbiertas((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  // Prestador completo elegido en el Paso 2 (integración "Con contexto", 2026-08-05): además de
+  // `values.prestadorId` (lo único que persiste la factura), `ResumenPasoWizard` necesita
+  // `razonSocial`/`cuit` para el panel de contexto — `PrestadorSelector.onChange` ya entrega el
+  // objeto completo (ver PrestadorSelector.tsx), así que solo hace falta guardar una referencia,
+  // sin ir a buscarlo de nuevo al repository.
+  const [prestadorSeleccionado, setPrestadorSeleccionado] = useState<Prestador | undefined>(undefined);
+  const prestadorRepository = usePrestadorRepository();
+
   const paciente = pacientes.find((p) => p.id === values.pacienteId);
   const obraSocial = obrasSociales.find((o) => o.id === paciente?.obraSocialId);
   // `tipoComprobante` fijo mientras haya un Prestador elegido (change `factura-por-prestador`,
@@ -143,6 +165,26 @@ export function FacturaForm({
   // que vive en `values` junto con el resto del form. En modalidad "general" (sin prestador)
   // `values.prestadorId` nunca se setea, así que esto queda `false` y RN-FA-07 sigue rigiendo.
   const tipoComprobanteBloqueado = Boolean(values.prestadorId);
+
+  // Resuelve el Prestador completo cuando la factura ya trae `prestadorId` cargado desde
+  // `initial` (edición de una factura existente): `PrestadorSelector.onChange` solo dispara con
+  // una interacción del usuario (design.md D3 de `factura-por-prestador`), así que sin este
+  // efecto el panel de contexto (`ResumenPasoWizard`) no podría mostrar razón social/CUIT de un
+  // prestador que ya estaba elegido antes de abrir el formulario — el mismo `listarPorObraSocial`
+  // que ya usa `PrestadorSelector`, sin acoplarse a su estado interno.
+  useEffect(() => {
+    if (!obraSocial || obraSocial.modalidadFacturacion !== 'por-prestacion' || !values.prestadorId) return;
+    if (prestadorSeleccionado?.id === values.prestadorId) return;
+    let cancelado = false;
+    prestadorRepository.listarPorObraSocial(obraSocial.id).then((lista) => {
+      if (cancelado) return;
+      const encontrado = lista.find((p) => p.id === values.prestadorId);
+      if (encontrado) setPrestadorSeleccionado(encontrado);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, [obraSocial, values.prestadorId, prestadorRepository, prestadorSeleccionado]);
 
   useEffect(() => {
     let cancelled = false;
@@ -237,6 +279,7 @@ export function FacturaForm({
             onChange={(prestador) => {
               set('prestadorId', prestador?.id);
               if (prestador) set('tipoComprobante', prestador.tipoComprobante);
+              setPrestadorSeleccionado(prestador);
             }}
           />
         </CamposSoloLectura>
@@ -251,43 +294,75 @@ export function FacturaForm({
   // FacturaFormEconomicos) — ninguno de los dos recibe una prop nueva por este change. Las
   // acciones no-CRUD de abajo (DiasFacturablesSelector, AsistenciasEditor) se gatean por separado
   // en sus propios componentes (design.md D2, tasks.md sección 5) — este envoltorio NO las cubre.
+  // Paso 3 (y edición) en la misma línea de concepto que los Pasos 1-2 (integración
+  // 2026-08-05, feedback de la usuaria: "quiero mantener el wizard como está, integremos el
+  // paso 3 con esa misma línea de concepto"): dos columnas, campos a la izquierda (siguen
+  // organizados en `SeccionPlegable` — acá SÍ hay varios grupos de campos que declutterear,
+  // a diferencia de los Pasos 1-2 que eran un único campo) y `ResumenPasoWizard` a la derecha,
+  // ahora con `datosFactura` para mostrar días/total — el mismo panel que ya acompañaba
+  // paciente/obra social/prestador, sin duplicar otro componente de resumen. `AlertaCupo` y la
+  // vista previa se mudan a esa columna (antes vivían sueltas en el flujo de la izquierda).
   const pasoRestoContent: ReactNode = (
-    <>
-      <CamposSoloLectura>
-        <div className="grid grid-cols-1 gap-md md:grid-cols-2">
-          <FacturaFormDatosBasicos formId={formId} values={values} errors={errors} paciente={paciente} set={set} />
+    <div className="grid grid-cols-1 gap-xl lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="flex flex-col gap-md">
+        <SeccionPlegable
+          titulo="Datos de la factura"
+          resumen={`Comprobante ${values.tipoComprobante} · $${values.monto.toLocaleString('es-AR')}`}
+          abierta={seccionesAbiertas.datos}
+          onToggle={() => toggleSeccion('datos')}
+        >
+          <CamposSoloLectura>
+            <div className="grid grid-cols-1 gap-md md:grid-cols-2">
+              <FacturaFormDatosBasicos formId={formId} values={values} errors={errors} paciente={paciente} set={set} />
 
-          <FacturaFormEconomicos formId={formId} values={values} errors={errors} tipoComprobanteBloqueado={tipoComprobanteBloqueado} set={set} />
-        </div>
-      </CamposSoloLectura>
+              <FacturaFormEconomicos formId={formId} values={values} errors={errors} tipoComprobanteBloqueado={tipoComprobanteBloqueado} set={set} />
+            </div>
+          </CamposSoloLectura>
+        </SeccionPlegable>
 
-      {values.pacienteId && (
-        <div className="flex flex-col gap-xs">
-          <span className={labelClasses}>Días facturables sugeridos</span>
-          <DiasFacturablesSelector
-            mes={values.mesFacturado}
-            anio={values.anioFacturado}
-            feriados={feriados}
-            facturaSabados={values.asistencias.some((a) => a.facturaSabados)}
-            onChange={(dias) => set('dias', dias.length)}
-          />
-        </div>
-      )}
+        <SeccionPlegable
+          titulo="Días facturables sugeridos"
+          resumen={`${values.dias} días seleccionados`}
+          abierta={seccionesAbiertas.dias}
+          onToggle={() => toggleSeccion('dias')}
+        >
+          {values.pacienteId && (
+            <DiasFacturablesSelector
+              mes={values.mesFacturado}
+              anio={values.anioFacturado}
+              feriados={feriados}
+              facturaSabados={values.asistencias.some((a) => a.facturaSabados)}
+              onChange={(dias) => set('dias', dias.length)}
+            />
+          )}
+        </SeccionPlegable>
 
-      <AlertaCupo resultado={resultadoCupo} />
-
-      <div className="flex flex-col gap-xs">
-        <span className={labelClasses}>Asistencias / prestaciones declaradas</span>
-        <AsistenciasEditor asistencias={values.asistencias} onChange={(asistencias: AsistenciaPrestacion[]) => set('asistencias', asistencias)} />
+        <SeccionPlegable
+          titulo="Asistencias / prestaciones declaradas"
+          resumen={`${values.asistencias.length} cargadas`}
+          abierta={seccionesAbiertas.asistencias}
+          onToggle={() => toggleSeccion('asistencias')}
+        >
+          <AsistenciasEditor asistencias={values.asistencias} onChange={(asistencias: AsistenciaPrestacion[]) => set('asistencias', asistencias)} />
+        </SeccionPlegable>
       </div>
 
-      {previaDescripcion !== null && (
-        <div className="flex flex-col gap-xs rounded-sm border border-border bg-surface-soft p-md">
-          <span className={labelClasses}>Vista previa de la descripción</span>
-          <pre className="m-0 whitespace-pre-wrap font-body text-[12px] text-text">{previaDescripcion}</pre>
-        </div>
-      )}
-    </>
+      <div className="flex flex-col gap-md lg:sticky lg:top-xl lg:self-start">
+        <ResumenPasoWizard
+          paciente={paciente}
+          obraSocial={obraSocial}
+          prestador={prestadorSeleccionado}
+          datosFactura={{ dias: values.dias, total: values.monto }}
+        />
+        <AlertaCupo resultado={resultadoCupo} />
+        {previaDescripcion !== null && (
+          <div className="flex flex-col gap-xs rounded-sm border border-border bg-surface-soft p-md">
+            <span className={labelClasses}>Vista previa de la descripción</span>
+            <pre className="m-0 whitespace-pre-wrap font-body text-[12px] text-text">{previaDescripcion}</pre>
+          </div>
+        )}
+      </div>
+    </div>
   );
 
   // Cancelar/Guardar: mismo botón de siempre, solo se movió a un fragmento separado de
@@ -316,23 +391,36 @@ export function FacturaForm({
         <>
           <Stepper steps={PASOS_WIZARD} currentStep={paso} />
 
+          {/* Pasos 1 y 2 (integración "Con contexto", 2026-08-05): a diferencia del Paso 3 y de
+              edición (donde la card ya está llena de campos), acá el paso trae un único bloque
+              angosto — sin este layout de dos columnas, ese bloque se estira a todo el ancho de
+              la card y queda vacío. La columna derecha (`ResumenPasoWizard`) llena ese espacio
+              con lo que ya se sabe de la factura en vez de dejarlo en blanco. Nunca se usa en
+              edición: ahí `pasoPacienteContent`/`pasoObraSocialContent` siguen renderizando
+              planos, como siempre. */}
           {paso === 0 && (
-            <>
-              {pasoPacienteContent}
-              <div className="flex items-center justify-end">
-                <Button variant="primary" disabled={!values.pacienteId} onClick={() => setPaso(1)}>Siguiente</Button>
+            <div className="grid grid-cols-1 gap-xl lg:grid-cols-[minmax(0,320px)_1fr]">
+              <div className="flex flex-col gap-md">
+                {pasoPacienteContent}
+                <div className="flex items-center justify-end">
+                  <Button variant="primary" disabled={!values.pacienteId} onClick={() => setPaso(1)}>Siguiente</Button>
+                </div>
               </div>
-            </>
+              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} prestador={prestadorSeleccionado} />
+            </div>
           )}
 
           {paso === 1 && (
-            <>
-              {pasoObraSocialContent}
-              <div className="flex items-center justify-between gap-sm">
-                <Button variant="secondary" onClick={() => setPaso(0)}>Atrás</Button>
-                <Button variant="primary" disabled={faltaElegirPrestador} onClick={() => setPaso(2)}>Siguiente</Button>
+            <div className="grid grid-cols-1 gap-xl lg:grid-cols-[minmax(0,320px)_1fr]">
+              <div className="flex flex-col gap-md">
+                {pasoObraSocialContent}
+                <div className="flex items-center justify-between gap-sm">
+                  <Button variant="secondary" onClick={() => setPaso(0)}>Atrás</Button>
+                  <Button variant="primary" disabled={faltaElegirPrestador} onClick={() => setPaso(2)}>Siguiente</Button>
+                </div>
               </div>
-            </>
+              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} prestador={prestadorSeleccionado} />
+            </div>
           )}
 
           {paso === 2 && (

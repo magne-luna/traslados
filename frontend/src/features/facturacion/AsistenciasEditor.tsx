@@ -17,8 +17,15 @@ const DEFAULT_FORM = { fecha: '', prestacion: '', dependencia: '', retorno: '', 
 // (design.md Decisión 2). Mismo patrón de alta simple que GastosVehiculo.
 //
 // Migrado a Input/Label sueltos (tasks.md 16.2, design.md Decisión 3): campos de fila con su
-// densidad actual ('comfortable', la default) — NO se usa la molécula Field porque el layout es
-// una fila (`flex flex-wrap items-end gap-md`), no el stack vertical que Field asume.
+// densidad actual ('comfortable', la default) — NO se usa la molécula Field porque el checkbox
+// "Factura sábados" y el botón "Agregar" van en su propia fila aparte, algo que Field no modela.
+//
+// Grilla 2 columnas en vez de `flex flex-wrap` (feedback de usuario 2026-08-05: "esto no me
+// termina de convencer" — con la columna angosta del panel de contexto, "Retorno" quedaba solo
+// en una segunda fila y "Agregar" se veía apretado contra el borde). Mismo patrón `grid
+// grid-cols-1 gap-md md:grid-cols-2` que ya usan FacturaFormDatosBasicos/FacturaFormEconomicos:
+// 2 campos por fila, previsible sea cual sea el ancho disponible, en vez de depender de cuánto
+// entre por content-width.
 export function AsistenciasEditor({ asistencias, onChange }: AsistenciasEditorProps) {
   const [form, setForm] = useState(DEFAULT_FORM);
   const formId = useId();
@@ -75,11 +82,10 @@ export function AsistenciasEditor({ asistencias, onChange }: AsistenciasEditorPr
       <form onSubmit={handleSubmit}>
         {/* gateo-facturacion (design.md D2, tasks.md 5.4): editar asistencias es una escritura
             no-CRUD gateada al mismo nivel `write` — ninguna requiere `admin` (decisión 5). Sin
-            `Cancelar` en este alta: el envoltorio cubre campos y submit por igual. El `<div>`
-            interno reproduce el `flex flex-wrap items-end gap-md` que el `<form>` aplicaba
-            (el `<fieldset>` no hereda ese layout de su padre). */}
+            `Cancelar` en este alta: el envoltorio cubre campos y submit por igual. */}
         <CamposSoloLectura>
-        <div className="flex flex-wrap items-end gap-md">
+        <div className="flex flex-col gap-md">
+        <div className="grid grid-cols-1 gap-md md:grid-cols-2">
         <div className="flex flex-col gap-xs">
           <Label htmlFor={`${formId}-fecha`}>Fecha</Label>
           <Input
@@ -119,19 +125,22 @@ export function AsistenciasEditor({ asistencias, onChange }: AsistenciasEditorPr
             onChange={(event) => setForm((prev) => ({ ...prev, retorno: event.target.value }))}
           />
         </div>
+        </div>
 
-        <label className="flex items-center gap-xs font-body text-[12px] text-muted">
-          <input
-            type="checkbox"
-            checked={form.facturaSabados}
-            onChange={(event) => setForm((prev) => ({ ...prev, facturaSabados: event.target.checked }))}
-          />
-          Factura sábados
-        </label>
+        <div className="flex flex-wrap items-center justify-between gap-md">
+          <label className="flex items-center gap-xs font-body text-[12px] text-muted">
+            <input
+              type="checkbox"
+              checked={form.facturaSabados}
+              onChange={(event) => setForm((prev) => ({ ...prev, facturaSabados: event.target.checked }))}
+            />
+            Factura sábados
+          </label>
 
-        <Button type="submit" variant="secondary">
-          Agregar
-        </Button>
+          <Button type="submit" variant="primary">
+            Agregar
+          </Button>
+        </div>
         </div>
         </CamposSoloLectura>
       </form>
