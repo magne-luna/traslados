@@ -76,7 +76,7 @@ export function SidebarNav({ rol, permisos, collapsed, onNavigate }: SidebarNavP
                     end={route.path === '/'}
                     aria-label={collapsed ? route.label : undefined}
                     className={({ isActive }) =>
-                      `nav-item flex items-center gap-sm rounded-sm px-md py-sm font-body text-[13px] font-semibold whitespace-nowrap no-underline ${
+                      `nav-item flex items-center gap-sm rounded-sm px-md py-sm font-body text-[13px] whitespace-nowrap no-underline hover:bg-surface-soft/50 ${
                         collapsed ? 'justify-center' : 'justify-start'
                       } ${
                         isActive
