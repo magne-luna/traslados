@@ -25,6 +25,10 @@ const TIPOS_COMPROBANTE: TipoComprobante[] = ['A', 'B', 'C'];
 //
 // Migrado a Field/Input/Select (tasks.md 16.1, design.md Decisión 3) — cero cambio de
 // comportamiento: cálculos y validaciones intactos.
+//
+// Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`, design.md): este componente
+// no cambió — sigue recibiendo las mismas props de siempre — pero ahora se monta dentro del Paso
+// 3 ("el resto") de `FacturaForm.tsx`, nunca en los pasos 1/2.
 export function FacturaFormEconomicos({ formId, values, errors, tipoComprobanteBloqueado, set }: FacturaFormEconomicosProps) {
   return (
     <>

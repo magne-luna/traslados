@@ -8,7 +8,7 @@ import type { Prestador } from '../../shared/types/prestador';
 import type { PrestadorRepository } from '../../shared/lib/prestadores/PrestadorRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PrestadorRepositoryProvider } from '../prestadores/PrestadorRepositoryContext';
-import { FacturaForm } from './FacturaForm';
+import { FacturaForm, type FacturaFormValues } from './FacturaForm';
 
 const martina: Paciente = {
   id: 'paciente-martina',
@@ -59,9 +59,9 @@ const prestadorTraslados: Prestador = {
 };
 
 // Fake mínimo tipado (sin `any`/`as`), mismo criterio que `ObraSocialDetail.test.tsx`:
-// `FacturaFormDatosBasicos` monta `PrestadorSelector` cuando la obra social resuelta está en
-// "por-prestacion", que exige un `PrestadorRepositoryProvider` en el árbol
-// (`usePrestadorRepository()` lanza si falta).
+// `FacturaForm` monta `PrestadorSelector` (Paso 2 del wizard, o directo en modo edición) cuando
+// la obra social resuelta está en "por-prestacion", que exige un `PrestadorRepositoryProvider` en
+// el árbol (`usePrestadorRepository()` lanza si falta).
 function fakePrestadorRepository(prestadores: Prestador[] = [prestadorTraslados]): PrestadorRepository {
   return {
     list: () => Promise.resolve(prestadores),
@@ -69,6 +69,32 @@ function fakePrestadorRepository(prestadores: Prestador[] = [prestadorTraslados]
     create: () => Promise.reject(new Error('no implementado en este test')),
     update: () => Promise.reject(new Error('no implementado en este test')),
     listarPorObraSocial: () => Promise.resolve(prestadores),
+  };
+}
+
+// Valores de una factura ya cargada (change `facturacion-wizard-paciente-prestador`): dispara el
+// modo edición de `FacturaForm` (`esEdicion = Boolean(initial?.pacienteId)`), que saltea el
+// wizard y muestra los tres pasos juntos — el punto de entrada natural para los tests que
+// necesitan ver campos de más de un paso al mismo tiempo (paciente + prestador + económicos),
+// algo que en modo alta ya no es posible por diseño (un paso visible a la vez).
+function valoresIniciales(overrides: Partial<FacturaFormValues> = {}): FacturaFormValues {
+  return {
+    pacienteId: 'paciente-martina',
+    descripcion: '',
+    dias: 0,
+    valorKm: 0,
+    monto: 0,
+    fechaInicial: '2026-01-01',
+    fechaTope: '2026-01-01',
+    tipoComprobante: 'A',
+    cantidadKm: 0,
+    prestacion: '',
+    mesFacturado: 1,
+    anioFacturado: 2026,
+    dependenciaYRetorno: '',
+    domicilioId: '',
+    asistencias: [],
+    ...overrides,
   };
 }
 
@@ -117,9 +143,14 @@ function renderFormConPermiso(puedeEscribir: boolean, overrides: Partial<React.C
 }
 
 describe('FacturaForm', () => {
+  // Modo edición (`initial` con `pacienteId`): saltea el wizard, así que el campo Paciente sigue
+  // visible junto con el resto — el único lugar donde este escenario ("guardar sin paciente")
+  // puede ocurrir después del wizard, ya que en modo alta nunca se llega a "Guardar" sin haber
+  // elegido paciente en el Paso 1 (gatea "Siguiente").
   it('no invoca onSubmit si falta el paciente (validateFacturaForm bloquea)', async () => {
-    const { onSubmit } = renderForm();
+    const { onSubmit } = renderForm({ initial: valoresIniciales() });
 
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), '');
     await userEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(onSubmit).not.toHaveBeenCalled();
@@ -129,13 +160,20 @@ describe('FacturaForm', () => {
   // `tipoComprobante` ya no se precarga desde la obra social del paciente (design.md D3/D4 de
   // prestadores-crud, sin confirmar con Andrea): arranca en el default provisorio
   // (TIPO_COMPROBANTE_DEFAULT = 'A') sin importar qué paciente se elija, y sigue editable a mano.
+  // Usa la obra social "general" (sin Prestador que elegir) para poder llegar al Paso 3 sin que
+  // seleccionar un prestador fije `tipoComprobante` de por sí (eso lo cubre otro describe más
+  // abajo) — el campo vive en el Paso 3 del wizard, no está en el DOM antes de llegar ahí.
   it('arranca en el default provisorio de tipo de comprobante, sigue editable a mano', async () => {
-    renderForm();
+    renderForm({ pacientes: [martina, pacienteGeneral], obrasSociales: [osecac, obraSocialGeneral] });
+
+    expect(screen.queryByLabelText(/tipo de comprobante/i)).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-general');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    // Paso 2, modalidad "general": sin selector de Prestador, "Siguiente" ya habilitado.
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     const tipoComprobante = screen.getByLabelText(/tipo de comprobante/i) as HTMLSelectElement;
-    expect(tipoComprobante.value).toBe('A');
-
-    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
     expect(tipoComprobante.value).toBe('A');
 
     await userEvent.selectOptions(tipoComprobante, 'B');
@@ -144,7 +182,12 @@ describe('FacturaForm', () => {
 
   it('el selector de domicilio se puebla con las direcciones del paciente seleccionado', async () => {
     renderForm();
-    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
+    await userEvent.selectOptions(selectorPrestador, 'prestador-1');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     expect(screen.getByRole('option', { name: /rivadavia 4500/i })).toBeInTheDocument();
   });
@@ -152,7 +195,13 @@ describe('FacturaForm', () => {
   it('envía el formulario con los valores cargados cuando pasa la validación', async () => {
     const { onSubmit } = renderForm();
 
-    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
+    await userEvent.selectOptions(selectorPrestador, 'prestador-1');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
     await userEvent.type(screen.getByLabelText(/valor del km/i), '300');
     await userEvent.type(screen.getByLabelText(/cantidad de km/i), '10');
     await userEvent.clear(screen.getByLabelText(/cantidad de días/i));
@@ -180,11 +229,14 @@ describe('FacturaForm', () => {
       ],
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
     // Esta obra social está en modalidad "por-prestacion" (design.md D5, change
     // `factura-por-prestador`): la vista previa no arma hasta elegir un Prestador.
     const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
     await userEvent.selectOptions(selectorPrestador, 'prestador-1');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
     if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
@@ -195,11 +247,17 @@ describe('FacturaForm', () => {
 });
 
 // Selección de Prestador (change `factura-por-prestador`, tasks.md 3.3, design.md D1/D3/D4).
+//
+// Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`): el selector de Prestador
+// vive en el Paso 2 y `tipoComprobante` en el Paso 3 — nunca simultáneamente visibles en modo
+// alta. Los dos tests que necesitan verlos juntos (fijar/limpiar el prestador y observar el
+// efecto inmediato sobre `tipoComprobante`) se mueven a modo edición (`initial`), que muestra
+// todo el formulario de una — mismo comportamiento que el formulario plano de antes de este
+// change, exactamente el escenario que esos dos tests ejercitan.
 describe('FacturaForm — selección de Prestador', () => {
-  it('elegir un prestador fija tipoComprobante desde el prestador y bloquea el <Select>', async () => {
-    renderForm();
+  it('elegir un prestador fija tipoComprobante desde el prestador y bloquea el <Select> (modo edición)', async () => {
+    renderForm({ initial: valoresIniciales() });
 
-    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
     const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
     const tipoComprobante = screen.getByLabelText(/tipo de comprobante/i) as HTMLSelectElement;
     expect(tipoComprobante).toBeEnabled();
@@ -211,10 +269,9 @@ describe('FacturaForm — selección de Prestador', () => {
     expect(tipoComprobante).toBeDisabled();
   });
 
-  it('limpiar el prestador elegido vuelve a habilitar tipoComprobante sin resetear su valor', async () => {
-    renderForm();
+  it('limpiar el prestador elegido vuelve a habilitar tipoComprobante sin resetear su valor (modo edición)', async () => {
+    renderForm({ initial: valoresIniciales() });
 
-    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
     const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
     await userEvent.selectOptions(selectorPrestador, 'prestador-1');
 
@@ -230,9 +287,12 @@ describe('FacturaForm — selección de Prestador', () => {
   it('en modalidad "general" no muestra el selector de prestador y tipoComprobante sigue 100% editable', async () => {
     renderForm({ pacientes: [martina, pacienteGeneral], obrasSociales: [osecac, obraSocialGeneral] });
 
-    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-general');
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-general');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     expect(screen.queryByLabelText(/^prestador$/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
     const tipoComprobante = screen.getByLabelText(/tipo de comprobante/i) as HTMLSelectElement;
     expect(tipoComprobante).toBeEnabled();
 
@@ -240,12 +300,10 @@ describe('FacturaForm — selección de Prestador', () => {
     expect(tipoComprobante.value).toBe('C');
   });
 
-  it('en modalidad "por-prestacion" no arma la vista previa de la descripción hasta elegir un prestador', async () => {
-    renderForm();
+  it('en modalidad "por-prestacion" no arma la vista previa de la descripción hasta elegir un prestador (modo edición)', async () => {
+    renderForm({ initial: valoresIniciales() });
 
-    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
     const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
-
     expect(screen.queryByText(/vista previa de la descripción/i)).not.toBeInTheDocument();
 
     await userEvent.selectOptions(selectorPrestador, 'prestador-1');
@@ -253,26 +311,111 @@ describe('FacturaForm — selección de Prestador', () => {
     expect(await screen.findByText(/vista previa de la descripción/i)).toBeInTheDocument();
   });
 
-  it('en modalidad "general" la vista previa de la descripción arma apenas se elige el paciente', async () => {
+  it('en modalidad "general" la vista previa de la descripción arma apenas se completan los Pasos 1 y 2 (sin prestador que elegir)', async () => {
     renderForm({ pacientes: [martina, pacienteGeneral], obrasSociales: [osecac, obraSocialGeneral] });
 
-    await userEvent.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-general');
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-general');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     expect(await screen.findByText(/vista previa de la descripción/i)).toBeInTheDocument();
   });
 });
 
-// Gateo de escritura (gateo-facturacion, tasks.md 4.3/4.4, design.md D3). Una sola inserción del
-// envoltorio en FacturaForm cubre los dos bloques de campos (FacturaFormDatosBasicos +
-// FacturaFormEconomicos), que no reciben ninguna prop nueva. Guardar declara `requiereEscritura`;
-// Cancelar queda fuera del envoltorio y sigue operativo.
-describe('FacturaForm — gateo de escritura', () => {
-  it('sin permiso de escritura: ningún campo de los dos bloques acepta entrada y Guardar no se puede activar', async () => {
-    const user = userEvent.setup();
-    const { onSubmit } = renderFormConPermiso(false);
+// Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`, design.md): gateo de
+// navegación entre pasos, conservación de valores con "Atrás" y el bypass de modo edición.
+describe('FacturaForm — wizard de alta', () => {
+  it('Paso 1→2: "Siguiente" está deshabilitado sin paciente elegido y se habilita al elegirlo', async () => {
+    renderForm();
 
-    // FacturaFormDatosBasicos
+    const siguiente = screen.getByRole('button', { name: /siguiente/i });
+    expect(siguiente).toBeDisabled();
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    expect(siguiente).toBeEnabled();
+  });
+
+  it('Paso 2→3: "Siguiente" requiere un Prestador elegido cuando la modalidad es "por-prestacion"', async () => {
+    renderForm();
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const siguiente = screen.getByRole('button', { name: /siguiente/i });
+    expect(siguiente).toBeDisabled();
+
+    const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
+    await userEvent.selectOptions(selectorPrestador, 'prestador-1');
+    expect(siguiente).toBeEnabled();
+  });
+
+  it('Paso 2→3: "Siguiente" está habilitado de entrada en modalidad "general"', async () => {
+    renderForm({ pacientes: [martina, pacienteGeneral], obrasSociales: [osecac, obraSocialGeneral] });
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-general');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    expect(screen.getByRole('button', { name: /siguiente/i })).toBeEnabled();
+  });
+
+  it('"Atrás" conserva los valores ya cargados al volver a un paso anterior', async () => {
+    renderForm();
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
+    await userEvent.selectOptions(selectorPrestador, 'prestador-1');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
+    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
+    await userEvent.type(campoPrestacion, 'Kinesiología');
+
+    // Paso 3 → Paso 2: el prestador elegido sigue seleccionado.
+    await userEvent.click(screen.getByRole('button', { name: /atrás/i }));
+    expect(await screen.findByLabelText(/^prestador$/i)).toHaveValue('prestador-1');
+
+    // Paso 2 → Paso 1: el paciente elegido sigue seleccionado.
+    await userEvent.click(screen.getByRole('button', { name: /atrás/i }));
+    expect(screen.getByLabelText(/^paciente$/i)).toHaveValue('paciente-martina');
+
+    // Vuelve a avanzar hasta el Paso 3: la prestación tipeada antes de "Atrás" sigue ahí.
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    const [campoPrestacionFinal] = screen.getAllByLabelText(/^prestación$/i);
+    expect(campoPrestacionFinal).toHaveValue('Kinesiología');
+  });
+
+  it('en modo edición (initial con pacienteId) arranca directo en el Paso 3, con todo visible y sin navegación de pasos', () => {
+    renderForm({ initial: valoresIniciales() });
+
+    expect(screen.getByLabelText(/^paciente$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^obra social$/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/valor del km/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /guardar/i })).toBeInTheDocument();
+
+    expect(screen.queryByRole('list', { name: /progreso del formulario/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^siguiente$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^atrás$/i })).not.toBeInTheDocument();
+  });
+});
+
+// Gateo de escritura (gateo-facturacion, tasks.md 4.3/4.4, design.md D3), reorganizado para el
+// wizard (change `facturacion-wizard-paciente-prestador`): cada paso gatea su propio contenido
+// (antes era una sola inserción porque los dos bloques de campos vivían siempre montados juntos).
+// Guardar declara `requiereEscritura`; Cancelar queda fuera del envoltorio y sigue operativo.
+describe('FacturaForm — gateo de escritura', () => {
+  // Modo edición: todo el formulario visible de una, el único lugar donde se puede verificar en
+  // un solo render que el gateo cubre los tres pasos (paciente, prestador, resto+económicos)
+  // simultáneamente — en modo alta nunca están los tres a la vista al mismo tiempo.
+  it('sin permiso de escritura (modo edición): ningún campo acepta entrada y Guardar no se puede activar', async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = renderFormConPermiso(false, { initial: valoresIniciales() });
+
+    // Paso 1 — Paciente
     expect(screen.getByLabelText(/^paciente$/i)).toBeDisabled();
+    // Paso 2 — Obra social / Prestador (osecac es "por-prestacion")
+    expect(await screen.findByLabelText(/^prestador$/i)).toBeDisabled();
+    // Paso 3 — FacturaFormDatosBasicos
     expect(screen.getByLabelText(/^mes$/i)).toBeDisabled();
     expect(screen.getByLabelText(/^año$/i)).toBeDisabled();
     // "Prestación" también existe como campo de alta dentro de AsistenciasEditor (gateo propio,
@@ -280,7 +423,7 @@ describe('FacturaForm — gateo de escritura', () => {
     expect(screen.getAllByLabelText(/^prestación$/i)[0]).toBeDisabled();
     expect(screen.getByLabelText(/^domicilio$/i)).toBeDisabled();
     expect(screen.getByLabelText(/dependencia y retorno/i)).toBeDisabled();
-    // FacturaFormEconomicos
+    // Paso 3 — FacturaFormEconomicos
     expect(screen.getByLabelText(/valor del km/i)).toBeDisabled();
     expect(screen.getByLabelText(/cantidad de km/i)).toBeDisabled();
     expect(screen.getByLabelText(/cantidad de días/i)).toBeDisabled();
@@ -293,13 +436,20 @@ describe('FacturaForm — gateo de escritura', () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('con permiso de escritura: los dos bloques aceptan entrada y se guarda (triangulación)', async () => {
+  it('con permiso de escritura: los tres pasos aceptan entrada y se guarda (triangulación)', async () => {
     const { onSubmit } = renderFormConPermiso(true);
 
     expect(screen.getByLabelText(/^paciente$/i)).toBeEnabled();
-    expect(screen.getByLabelText(/valor del km/i)).toBeEnabled();
 
     await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
+    expect(selectorPrestador).toBeEnabled();
+    await userEvent.selectOptions(selectorPrestador, 'prestador-1');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    expect(screen.getByLabelText(/valor del km/i)).toBeEnabled();
     await userEvent.type(screen.getByLabelText(/valor del km/i), '300');
     await userEvent.type(screen.getByLabelText(/cantidad de km/i), '10');
     await userEvent.clear(screen.getByLabelText(/cantidad de días/i));
@@ -309,18 +459,23 @@ describe('FacturaForm — gateo de escritura', () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
   });
 
-  it('el envoltorio no cambió las firmas de FacturaFormDatosBasicos ni FacturaFormEconomicos: los dos archivos no reciben props nuevas', () => {
-    // Verificado por lectura del diff (tasks.md 4.3) — comportamiento observable equivalente:
-    // los campos de los dos bloques quedan inertes con una única fuente de verdad (el contexto).
+  // Consecuencia esperada de combinar el wizard con el gateo de escritura en el flujo de alta:
+  // con el Paciente deshabilitado, `values.pacienteId` nunca puede setearse, así que "Siguiente"
+  // queda deshabilitado (gateo de wizard, no del permiso) y el resto del formulario (Pasos 2 y 3,
+  // incluido Guardar) nunca llega a montarse. Distinto del caso de edición de arriba, donde todo
+  // el form ya está poblado y visible de entrada.
+  it('sin permiso de escritura, en modo alta: el Paso 1 queda bloqueado y nunca se llega al resto del formulario', () => {
     renderFormConPermiso(false);
 
     expect(screen.getByLabelText(/^paciente$/i)).toBeDisabled();
-    expect(screen.getByLabelText(/valor del km/i)).toBeDisabled();
+    expect(screen.getByRole('button', { name: /siguiente/i })).toBeDisabled();
+    expect(screen.queryByLabelText(/valor del km/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /guardar/i })).not.toBeInTheDocument();
   });
 
-  it('sin permiso de escritura: Cancelar sigue activable y dispara onCancel', async () => {
+  it('sin permiso de escritura (modo edición): Cancelar sigue activable y dispara onCancel', async () => {
     const user = userEvent.setup();
-    const { onCancel } = renderFormConPermiso(false);
+    const { onCancel } = renderFormConPermiso(false, { initial: valoresIniciales() });
 
     const cancelar = screen.getByRole('button', { name: /cancelar/i });
     expect(cancelar).toBeEnabled();

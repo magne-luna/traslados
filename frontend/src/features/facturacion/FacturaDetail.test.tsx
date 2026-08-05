@@ -4,11 +4,14 @@ import userEvent from '@testing-library/user-event';
 import type { Cobro, Factura } from '../../shared/types/factura';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
+import type { Prestador } from '../../shared/types/prestador';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
+import type { PrestadorRepository } from '../../shared/lib/prestadores/PrestadorRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
+import { PrestadorRepositoryProvider } from '../prestadores/PrestadorRepositoryContext';
 import { FacturaDetail } from './FacturaDetail';
 
 const martina: Paciente = {
@@ -38,6 +41,29 @@ const osecac: ObraSocial = {
   checklist: [{ id: 'item-1', nombre: 'Comprobante ARCA', requerido: true }],
   plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
 };
+
+const prestadorTraslados: Prestador = {
+  id: 'prestador-1',
+  razonSocial: 'Traslados Andrea Pastor',
+  cuit: '30-71234567-8',
+  plazoCobroDias: 90,
+  tipoComprobante: 'B',
+};
+
+// El wizard de `FacturaForm` (change `facturacion-wizard-paciente-prestador`) monta
+// `PrestadorSelector` en su Paso 2 cuando la obra social del paciente elegido está en
+// "por-prestacion" — como `osecac` (fixture de arriba) lo está, cualquier test que llegue a
+// mostrar "Nueva factura" (`factura: null`) y avance más allá del Paso 1 necesita este provider
+// en el árbol (`usePrestadorRepository()` lanza si falta).
+function fakePrestadorRepository(prestadores: Prestador[] = [prestadorTraslados]): PrestadorRepository {
+  return {
+    list: () => Promise.resolve(prestadores),
+    getById: () => Promise.resolve(null),
+    create: () => Promise.reject(new Error('no implementado en este test')),
+    update: () => Promise.reject(new Error('no implementado en este test')),
+    listarPorObraSocial: () => Promise.resolve(prestadores),
+  };
+}
 
 function facturaAFacturar(overrides: Partial<Factura> = {}): Factura {
   return {
@@ -101,34 +127,7 @@ function renderDetail(overrides: Partial<React.ComponentProps<typeof FacturaDeta
   const onBack = vi.fn();
 
   render(
-    <FacturaDetail
-      factura={facturaAFacturar()}
-      crear={crear}
-      actualizar={actualizar}
-      facturasExistentes={[facturaAFacturar()]}
-      pacientes={[martina]}
-      obrasSociales={[osecac]}
-      feriados={[]}
-      presupuestoRepository={buildPresupuestoRepository()}
-      autorizacionRepository={buildAutorizacionRepository()}
-      cobroRepository={buildCobroRepository()}
-      documentoRepository={buildDocumentoRepository()}
-      onCreated={onCreated}
-      onBack={onBack}
-      {...overrides}
-    />,
-  );
-  return { crear, actualizar, onCreated, onBack };
-}
-
-function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React.ComponentProps<typeof FacturaDetail>> = {}) {
-  const crear = vi.fn().mockResolvedValue(facturaAFacturar());
-  const actualizar = vi.fn().mockResolvedValue(facturaAFacturar({ estado: 'facturado' }));
-  const onCreated = vi.fn();
-  const onBack = vi.fn();
-
-  render(
-    <PuedeEscribirContext.Provider value={puedeEscribir}>
+    <PrestadorRepositoryProvider repository={fakePrestadorRepository()}>
       <FacturaDetail
         factura={facturaAFacturar()}
         crear={crear}
@@ -145,7 +144,38 @@ function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React
         onBack={onBack}
         {...overrides}
       />
-    </PuedeEscribirContext.Provider>,
+    </PrestadorRepositoryProvider>,
+  );
+  return { crear, actualizar, onCreated, onBack };
+}
+
+function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React.ComponentProps<typeof FacturaDetail>> = {}) {
+  const crear = vi.fn().mockResolvedValue(facturaAFacturar());
+  const actualizar = vi.fn().mockResolvedValue(facturaAFacturar({ estado: 'facturado' }));
+  const onCreated = vi.fn();
+  const onBack = vi.fn();
+
+  render(
+    <PrestadorRepositoryProvider repository={fakePrestadorRepository()}>
+      <PuedeEscribirContext.Provider value={puedeEscribir}>
+        <FacturaDetail
+          factura={facturaAFacturar()}
+          crear={crear}
+          actualizar={actualizar}
+          facturasExistentes={[facturaAFacturar()]}
+          pacientes={[martina]}
+          obrasSociales={[osecac]}
+          feriados={[]}
+          presupuestoRepository={buildPresupuestoRepository()}
+          autorizacionRepository={buildAutorizacionRepository()}
+          cobroRepository={buildCobroRepository()}
+          documentoRepository={buildDocumentoRepository()}
+          onCreated={onCreated}
+          onBack={onBack}
+          {...overrides}
+        />
+      </PuedeEscribirContext.Provider>
+    </PrestadorRepositoryProvider>,
   );
   return { crear, actualizar, onCreated, onBack };
 }
@@ -263,10 +293,21 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
     expect(screen.getByRole('button', { name: /aplicar/i })).toBeEnabled();
   });
 
+  // Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`): "Nueva factura" arranca
+  // en el Paso 1 (solo Paciente) — AsistenciasEditor vive en el Paso 3, hay que elegir paciente y
+  // (esta obra social es "por-prestacion") un prestador antes de llegar a verlo.
   it('con write (sin admin): editar asistencias está activable (en modo edición del form)', async () => {
     renderDetailConPermiso(true, { factura: null });
-    // "Prestación" existe dos veces: FacturaFormDatosBasicos (gateo tasks.md 4.3) y el alta de
-    // AsistenciasEditor (gateo propio, tasks.md 5.4) — se toma la segunda, la de asistencias.
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
+    await userEvent.selectOptions(selectorPrestador, 'prestador-1');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    // "Prestación" existe dos veces en el Paso 3: FacturaFormDatosBasicos (gateo tasks.md 4.3) y
+    // el alta de AsistenciasEditor (gateo propio, tasks.md 5.4) — se toma la segunda, la de
+    // asistencias.
     const camposPrestacion = screen.getAllByLabelText(/^prestación$/i, { selector: 'input' });
     expect(camposPrestacion[1]).toBeEnabled();
   });
@@ -282,8 +323,14 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
     expect(await screen.findByRole('button', { name: /registrar cobro/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /aplicar/i })).toBeDisabled();
 
+    // Wizard + gateo (change `facturacion-wizard-paciente-prestador`): con el Paciente del Paso 1
+    // deshabilitado, `pacienteId` nunca puede setearse, así que "Siguiente" nunca se habilita y el
+    // Paso 3 (donde vive AsistenciasEditor) nunca se monta — un bloqueo más fuerte que "campo
+    // deshabilitado": la acción de dinero #4 (editar asistencias) queda directamente inalcanzable
+    // para una cuenta de solo lectura que está dando de alta una factura nueva.
     renderDetailConPermiso(false, { factura: null });
-    const camposPrestacion = screen.getAllByLabelText(/^prestación$/i, { selector: 'input' });
-    for (const campo of camposPrestacion) expect(campo).toBeDisabled();
+    expect(screen.getByLabelText(/^paciente$/i)).toBeDisabled();
+    expect(screen.getByRole('button', { name: /siguiente/i })).toBeDisabled();
+    expect(screen.queryAllByLabelText(/^prestación$/i, { selector: 'input' })).toHaveLength(0);
   });
 });
