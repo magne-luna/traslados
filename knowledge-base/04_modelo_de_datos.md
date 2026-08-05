@@ -290,6 +290,16 @@ así que queda anotado acá hasta que se construya esa feature.
   2026-07-24: `PersonaACargo.telefono` y `PersonaACargo.telefonoAlternativo` (ambos opcionales)
   sumados; el cartel se sacó de `PacienteDetail` (esa entidad ya no tiene discrepancia pendiente
   contra el docx).
+  **⚠️ Discrepancia nueva, sin resolver contra el docx (2026-08-05)**: `PersonaACargo.parentesco`
+  (unión cerrada `'padre' | 'madre' | 'tutor_legal' | 'otro'`, obligatorio en el frontend) se agregó
+  a **pedido directo de la usuaria**, no viene del docx — que no modela ningún campo de parentesco
+  para esta entidad. Columna `pacientes.personas_a_cargo.parentesco` (`TEXT`, NULLable, migración
+  `20260805130000_personas_a_cargo_parentesco.sql`) queda NULLable en la base por el mismo criterio
+  que `dni` (discrepancia #10 arriba): filas ya existentes no tienen el dato y no hay valor por
+  defecto razonable para backfillear. Cartel `AvisoModeloDatos` agregado de nuevo en
+  `PacienteDetail.tsx` (sección "Personas a cargo") señalando esto. Pendiente: confirmar con quien
+  mantiene el docx si el campo debe sumarse ahí también, o si queda como una extensión propia de
+  esta implementación.
 - **Direcciones / Recorridos**: cartel en UI (`PacienteDetail`, sección Direcciones). El docx separa
   "Direcciones" (catálogo: calle + tipo de lugar) de "Recorridos" (entidad aparte: dirección
   inicial/final + día de la semana + hora). Acá están fusionados en un solo tipo `Direccion` con

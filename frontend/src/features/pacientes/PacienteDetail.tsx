@@ -192,6 +192,12 @@ export function PacienteDetail({
           </Section>
 
           <Section label="Datos sensibles" title="Personas a cargo">
+            {/* Discrepancia nueva (2026-08-05, pedido directo de la usuaria, fuera del docx): ver
+                knowledge-base/04_modelo_de_datos.md §Discrepancias, entrada "Personas a Cargo". */}
+            <AvisoModeloDatos>
+              El campo <strong>Parentesco</strong> no existe en el docx — se agregó a pedido directo
+              de la usuaria (padre/madre/tutor legal/otro).
+            </AvisoModeloDatos>
             <PersonasACargoEditor personasACargo={paciente.personasACargo} onChange={handlePersonasACargoChange} />
           </Section>
 

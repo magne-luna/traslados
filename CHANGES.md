@@ -450,6 +450,19 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
     `SECURITY INVOKER` verificado, suite completa en 1385/1385 tests (0 regresiones), `tsc`/`oxlint`
     limpios, cobertura ≥85% en `shared/lib/pacientes/`.
   - Una vez confirmado todo lo anterior: `sdd-archive integracion-pacientes`.
+- **`personas-a-cargo-parentesco` (2026-08-05)**: agregado directo (sin change OPSX propio, pedido
+  puntual de la usuaria) — `PersonaACargo.parentesco` (unión cerrada `padre|madre|tutor_legal|otro`,
+  `<select>` obligatorio, `PersonasACargoEditor.tsx`). Columna `pacientes.personas_a_cargo.parentesco`
+  agregada NULLable (migración `20260805130000_personas_a_cargo_parentesco.sql`), RPC
+  `crear_paciente_completo` actualizada para persistirla, mapeo (`pacienteMapping.ts`) y `update()`
+  (upsert genérico ya existente) cubiertos. **✅ Aplicado y verificado (2026-08-05)**: `supabase db
+  push --include-all` (junto con el índice pendiente de `integracion-presupuestos`,
+  `20260802100000_presupuesto_autorizacion_indices.sql`), `supabase migration list` confirma
+  local/remoto sincronizados, y `supabase db advisors --linked --type security` antes/después dio
+  exactamente los mismos 8 hallazgos preexistentes (ninguno nuevo sobre `personas_a_cargo` ni
+  `crear_paciente_completo`, que sigue `SECURITY INVOKER`). **⚠️ Discrepancia con el docx** (no
+  modela este campo): ver `knowledge-base/04_modelo_de_datos.md` §Discrepancias, entrada "Personas a
+  Cargo", y cartel `AvisoModeloDatos` en `PacienteDetail.tsx`.
 - **Scope**:
   - Migración: tabla `paciente` (apellido(s), nombre(s), fecha de nacimiento, DNI, CUIL del titular, diagnóstico/condición, accesorio de movilidad, teléfono alternativo del responsable), FK a `obra_social`.
   - Campo identificador de afiliado **adaptable por obra social** (documento, alfanumérico, o CUIL + sufijo /01, /02...) — implementar como campo flexible, no columna fija única (RN-ID-02).
