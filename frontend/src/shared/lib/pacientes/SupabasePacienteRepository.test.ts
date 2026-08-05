@@ -733,8 +733,8 @@ describe('supabasePacienteRepository.update — diff de colecciones (3.9)', () =
     const upserts = calls.filter((c) => c.table === 'direcciones' && c.op === 'upsert');
     expect(upserts).toHaveLength(1);
     expect(upserts[0]?.payload).toEqual([
-      { id: 'd-1', calle: 'San Martín 999', numero: null, tipo_lugar: 'domicilio', paciente_id: 'p-1' },
-      { id: 'd-2', calle: 'Belgrano', numero: null, tipo_lugar: 'escuela', paciente_id: 'p-1' },
+      { id: 'd-1', calle: 'San Martín 999', numero: null, tipo_lugar: 'domicilio', localidad: '', paciente_id: 'p-1' },
+      { id: 'd-2', calle: 'Belgrano', numero: null, tipo_lugar: 'escuela', localidad: '', paciente_id: 'p-1' },
     ]);
   });
 
@@ -757,8 +757,8 @@ describe('supabasePacienteRepository.update — diff de colecciones (3.9)', () =
     const upserts = calls.filter((c) => c.table === 'direcciones' && c.op === 'upsert');
     expect(upserts).toHaveLength(1);
     expect(upserts[0]?.payload).toEqual([
-      { id: 'd-1', calle: 'San Martín', numero: null, tipo_lugar: 'domicilio', paciente_id: 'p-1' },
-      { id: 'd-3', calle: 'Nueva 456', numero: null, tipo_lugar: 'terapia', paciente_id: 'p-1' },
+      { id: 'd-1', calle: 'San Martín', numero: null, tipo_lugar: 'domicilio', localidad: '', paciente_id: 'p-1' },
+      { id: 'd-3', calle: 'Nueva 456', numero: null, tipo_lugar: 'terapia', localidad: '', paciente_id: 'p-1' },
     ]);
 
     const borrados = calls.filter((c) => c.table === 'direcciones' && c.op === 'delete');
