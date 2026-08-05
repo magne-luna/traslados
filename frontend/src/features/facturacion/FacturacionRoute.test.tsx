@@ -1,6 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { FacturacionRoute } from './FacturacionRoute';
+
+// `FacturacionRoute` inyecta `supabasePacienteRepository`/`supabaseObraSocialRepository`/
+// `supabasePrestadorRepository` (reales, 2026-08-05: swap parcial pedido por Enzo — Factura/Cobro
+// siguen en mock) — mismo criterio que `PacientesRoute.test.tsx`: mockear `shared/lib/
+// supabaseClient` para no depender de red ni de `SUPABASE_URL`/`SUPABASE_ANON_KEY` en el entorno
+// de test. El `select()` mockeado resuelve `{ data: [], error: null }` para cualquier tabla.
+vi.mock('../../shared/lib/supabaseClient', () => ({
+  supabase: {
+    schema: () => ({ from: () => ({ select: () => Promise.resolve({ data: [], error: null }) }) }),
+    functions: { invoke: vi.fn() },
+  },
+}));
+
+const { FacturacionRoute } = await import('./FacturacionRoute');
 
 describe('FacturacionRoute', () => {
   it('monta la feature completa con los mocks reales y muestra el listado tras cargar', async () => {
