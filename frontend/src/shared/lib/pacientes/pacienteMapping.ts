@@ -10,6 +10,7 @@ import type {
   Direccion,
   NuevoPaciente,
   Paciente,
+  Parentesco,
   PersonaACargo,
   TipoDireccion,
 } from '../../types/paciente';
@@ -21,6 +22,14 @@ function parseTipoDireccion(value: unknown): TipoDireccion {
   return typeof value === 'string' && TIPOS_DIRECCION_VALIDOS.has(value as TipoDireccion)
     ? (value as TipoDireccion)
     : 'otro';
+}
+
+const PARENTESCOS_VALIDOS = new Set<Parentesco>(['padre', 'madre', 'tutor_legal', 'otro']);
+
+/** `NULL`/valor desconocido -> `'otro'`, mismo criterio de robustez que `parseTipoDireccion` —
+ * nunca lanza ante una fila con un `parentesco` que no está en la unión cerrada. */
+function parseParentesco(value: unknown): Parentesco {
+  return typeof value === 'string' && PARENTESCOS_VALIDOS.has(value as Parentesco) ? (value as Parentesco) : 'otro';
 }
 
 /** Type guard mínimo sobre `unknown` para filas que llegan de PostgREST. */
@@ -203,6 +212,7 @@ export function parsePersonaACargoRow(row: unknown): PersonaACargo | null {
     apellido,
     // Discrepancia #10 (D9): NULL -> '' sin lanzar.
     dni: readNullableString(row, 'dni') ?? '',
+    parentesco: parseParentesco(row.parentesco),
     telefono: readOptionalString(row, 'telefono'),
     telefonoAlternativo: readOptionalString(row, 'telefono_alternativo'),
   };
@@ -210,12 +220,14 @@ export function parsePersonaACargoRow(row: unknown): PersonaACargo | null {
 
 /** Fila para escribir en `pacientes.personas_a_cargo`. Inverso de la discrepancia #10: una cadena
  * vacía en el dominio se escribe como `NULL` (la columna es NULLable; no tiene sentido persistir
- * `''` cuando la base ya modela "sin dato" como `NULL`). */
+ * `''` cuando la base ya modela "sin dato" como `NULL`). `parentesco` es obligatorio en el dominio
+ * (unión cerrada, siempre tiene un valor válido) — nunca viaja `null`, a diferencia de `dni`. */
 export interface PersonaACargoRowInput {
   id?: string;
   nombre: string;
   apellido: string;
   dni: string | null;
+  parentesco: Parentesco;
   telefono: string | null;
   telefono_alternativo: string | null;
 }
@@ -230,6 +242,7 @@ export function toPersonaACargoRows(personas: PersonaACargo[]): PersonaACargoRow
     nombre: persona.nombre,
     apellido: persona.apellido,
     dni: vacioANull(persona.dni),
+    parentesco: persona.parentesco,
     telefono: vacioANull(persona.telefono),
     telefono_alternativo: vacioANull(persona.telefonoAlternativo),
   }));

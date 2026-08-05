@@ -29,7 +29,7 @@ const SELECT_PACIENTE_COMPLETO = `
   domicilio, obra_social_id, amparo_judicial,
   cud ( numero_cud, emision, vencimiento ),
   clinicos ( diagnostico, condicion ),
-  personas_a_cargo ( id, nombre, apellido, dni, telefono, telefono_alternativo ),
+  personas_a_cargo ( id, nombre, apellido, dni, parentesco, telefono, telefono_alternativo ),
   direcciones ( id, calle, numero, tipo_lugar, localidad ),
   accesorios_pacientes ( accesorios ( tipo ) )
 `;

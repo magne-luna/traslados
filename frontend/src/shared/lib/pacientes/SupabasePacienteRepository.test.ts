@@ -787,7 +787,7 @@ describe('supabasePacienteRepository.update — diff de colecciones (3.9)', () =
     configurar('pacientes', 'paciente', 'select', () => ok([filaExistente]));
 
     await supabasePacienteRepository.update('p-1', {
-      personasACargo: [{ id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30999888' }],
+      personasACargo: [{ id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30999888', parentesco: 'madre' }],
     });
 
     const upserts = calls.filter((c) => c.table === 'personas_a_cargo' && c.op === 'upsert');

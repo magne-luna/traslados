@@ -36,7 +36,7 @@ export function buildPacientesFixture(): Paciente[] {
     ],
     // Teléfono/teléfono alternativo viven en Personas a Cargo (docx), no en Paciente.
     personasACargo: [
-      { id: 'pac-martina-1', nombre: 'Laura', apellido: 'Gómez', dni: '30111222', telefono: '11-4444-5555' },
+      { id: 'pac-martina-1', nombre: 'Laura', apellido: 'Gómez', dni: '30111222', parentesco: 'madre', telefono: '11-4444-5555' },
     ],
     amparoJudicial: false,
   };
@@ -64,6 +64,7 @@ export function buildPacientesFixture(): Paciente[] {
         nombre: 'Roberto',
         apellido: 'Pereyra',
         dni: '25333444',
+        parentesco: 'padre',
         telefono: '221-555-6666',
         telefonoAlternativo: '221-555-7777',
       },

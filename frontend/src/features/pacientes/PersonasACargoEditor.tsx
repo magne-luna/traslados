@@ -1,9 +1,10 @@
 import { useId, useState } from 'react';
 import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { iconTacho } from '../../design-system/icons';
-import { Field, Input } from '../../design-system/form';
+import { Field, Input, Select } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
-import type { PersonaACargo } from '../../shared/types/paciente';
+import type { Parentesco, PersonaACargo } from '../../shared/types/paciente';
+import { PARENTESCO_DEFAULT, PARENTESCO_LABELS, PARENTESCO_OPTIONS } from './parentescoOptions';
 
 interface PersonasACargoEditorProps {
   personasACargo: PersonaACargo[];
@@ -31,6 +32,7 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [dni, setDni] = useState('');
+  const [parentesco, setParentesco] = useState<Parentesco>(PARENTESCO_DEFAULT);
   const [telefono, setTelefono] = useState('');
   const [telefonoAlternativo, setTelefonoAlternativo] = useState('');
   const formId = useId();
@@ -40,6 +42,7 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
     setNombre('');
     setApellido('');
     setDni('');
+    setParentesco(PARENTESCO_DEFAULT);
     setTelefono('');
     setTelefonoAlternativo('');
   }
@@ -49,6 +52,7 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
     setNombre(persona.nombre);
     setApellido(persona.apellido);
     setDni(persona.dni);
+    setParentesco(persona.parentesco);
     setTelefono(persona.telefono ?? '');
     setTelefonoAlternativo(persona.telefonoAlternativo ?? '');
   }
@@ -59,6 +63,7 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
       nombre,
       apellido,
       dni,
+      parentesco,
       telefono: telefono.trim() === '' ? undefined : telefono,
       telefonoAlternativo: telefonoAlternativo.trim() === '' ? undefined : telefonoAlternativo,
     };
@@ -106,6 +111,9 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
                   </span>
                   <div className="flex flex-wrap items-center gap-xs">
                     <span className="rounded-pill bg-surface px-md py-xs font-mono text-[11px] text-muted">DNI: {persona.dni}</span>
+                    <span className="rounded-pill bg-surface px-md py-xs font-mono text-[11px] text-muted">
+                      {PARENTESCO_LABELS[persona.parentesco]}
+                    </span>
                     {persona.telefono && (
                       <span className="rounded-pill bg-surface px-md py-xs font-mono text-[11px] text-muted">
                         Tel: {persona.telefono}
@@ -188,6 +196,21 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
               onChange={(e) => setDni(e.target.value)}
             />
           </Field>
+          <Field label="Parentesco" htmlFor={`${formId}-parentesco`}>
+            <Select
+              id={`${formId}-parentesco`}
+              density="comfortable"
+              placeholderTone="faint"
+              value={parentesco}
+              onChange={(e) => setParentesco(e.target.value as Parentesco)}
+            >
+              {PARENTESCO_OPTIONS.map((opcion) => (
+                <option key={opcion} value={opcion}>
+                  {PARENTESCO_LABELS[opcion]}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label="Teléfono" htmlFor={`${formId}-telefono`}>
             <Input
               id={`${formId}-telefono`}
@@ -206,7 +229,7 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
               onChange={(e) => setTelefonoAlternativo(e.target.value)}
             />
           </Field>
-          <div className="flex items-end justify-end">
+          <div className="flex items-end justify-end md:col-start-3">
             <Button variant="primary" onClick={handleSubmit}>
               {editingId ? 'Guardar cambios' : '+ Agregar persona a cargo'}
             </Button>

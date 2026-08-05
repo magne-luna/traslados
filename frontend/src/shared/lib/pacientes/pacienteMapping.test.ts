@@ -47,7 +47,7 @@ function buildNuevoPacienteCompleto(): NuevoPaciente {
     numeroAfiliado: { valor: 'AF-999' },
     cud: { numero: 'C-1', fechaEmision: '2023-01-01', fechaVencimiento: '2027-01-01' },
     direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'San Martín 123', localidad: 'CABA', dias: 'Lun', horario: '08:00' }],
-    personasACargo: [{ id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', telefono: '111' }],
+    personasACargo: [{ id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', parentesco: 'madre', telefono: '111' }],
     amparoJudicial: true,
     amparoJudicialAclaracion: 'Juzgado N°3',
   };
@@ -237,6 +237,7 @@ describe('parsePersonaACargoRow', () => {
       nombre: 'Marta',
       apellido: 'López',
       dni: '30111222',
+      parentesco: 'madre',
       telefono: '1122334455',
       telefono_alternativo: '1155667788',
     };
@@ -246,6 +247,7 @@ describe('parsePersonaACargoRow', () => {
       nombre: 'Marta',
       apellido: 'López',
       dni: '30111222',
+      parentesco: 'madre',
       telefono: '1122334455',
       telefonoAlternativo: '1155667788',
     });
@@ -261,6 +263,16 @@ describe('parsePersonaACargoRow', () => {
     expect(persona?.telefonoAlternativo).toBeUndefined();
   });
 
+  it('parentesco ausente o desconocido cae a "otro" sin lanzar (triangulación)', () => {
+    expect(parsePersonaACargoRow({ id: 'pc-3', nombre: 'Ana', apellido: 'Ruiz' })?.parentesco).toBe('otro');
+    expect(
+      parsePersonaACargoRow({ id: 'pc-4', nombre: 'Ana', apellido: 'Ruiz', parentesco: 'abuela' })?.parentesco,
+    ).toBe('otro');
+    expect(
+      parsePersonaACargoRow({ id: 'pc-5', nombre: 'Ana', apellido: 'Ruiz', parentesco: 'tutor_legal' })?.parentesco,
+    ).toBe('tutor_legal');
+  });
+
   it('robustez: fila malformada (sin nombre) devuelve null', () => {
     expect(parsePersonaACargoRow({ id: 'pc-3', apellido: 'X', dni: '1' })).toBeNull();
     expect(parsePersonaACargoRow(null)).toBeNull();
@@ -270,21 +282,21 @@ describe('parsePersonaACargoRow', () => {
 describe('toPersonaACargoRows', () => {
   it('escribe dni vacío como null (inverso de la nullabilidad invertida)', () => {
     const personas: PersonaACargo[] = [
-      { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '' },
+      { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '', parentesco: 'madre' },
     ];
 
     expect(toPersonaACargoRows(personas)).toEqual([
-      { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: null, telefono: null, telefono_alternativo: null },
+      { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: null, parentesco: 'madre', telefono: null, telefono_alternativo: null },
     ]);
   });
 
   it('conserva dni y telefonos cuando vienen cargados', () => {
     const personas: PersonaACargo[] = [
-      { id: 'pc-2', nombre: 'Ana', apellido: 'Ruiz', dni: '111', telefono: '222', telefonoAlternativo: '333' },
+      { id: 'pc-2', nombre: 'Ana', apellido: 'Ruiz', dni: '111', parentesco: 'tutor_legal', telefono: '222', telefonoAlternativo: '333' },
     ];
 
     expect(toPersonaACargoRows(personas)).toEqual([
-      { id: 'pc-2', nombre: 'Ana', apellido: 'Ruiz', dni: '111', telefono: '222', telefono_alternativo: '333' },
+      { id: 'pc-2', nombre: 'Ana', apellido: 'Ruiz', dni: '111', parentesco: 'tutor_legal', telefono: '222', telefono_alternativo: '333' },
     ]);
   });
 });
@@ -332,7 +344,7 @@ function buildRowCompleto() {
     clinicos: { diagnostico: 'TEA', condicion: 'Estable' },
     cud: [{ numero_cud: 'C-1', emision: '2023-01-01', vencimiento: '2027-01-01', vigente: true }],
     personas_a_cargo: [
-      { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', telefono: null, telefono_alternativo: null },
+      { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', parentesco: 'tutor_legal', telefono: null, telefono_alternativo: null },
     ],
     direcciones: [{ id: 'd-1', calle: 'San Martín', numero: '123', tipo_lugar: 'domicilio', localidad: 'CABA' }],
     accesorios_pacientes: [{ accesorios: { tipo: 'andador' } }],
@@ -360,7 +372,7 @@ describe('ensamblarPaciente', () => {
       cud: { numero: 'C-1', fechaEmision: '2023-01-01', fechaVencimiento: '2027-01-01' },
       direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'San Martín 123', localidad: 'CABA' }],
       personasACargo: [
-        { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', telefono: undefined, telefonoAlternativo: undefined },
+        { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', parentesco: 'tutor_legal', telefono: undefined, telefonoAlternativo: undefined },
       ],
       amparoJudicial: false,
       amparoJudicialAclaracion: undefined,
@@ -468,7 +480,7 @@ describe('toCrearPacientePayload', () => {
       cud: { numero_cud: 'C-1', emision: '2023-01-01', vencimiento: '2027-01-01' },
       direcciones: [{ id: 'd-1', calle: 'San Martín 123', numero: null, tipo_lugar: 'domicilio', localidad: 'CABA' }],
       personas_a_cargo: [
-        { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', telefono: '111', telefono_alternativo: null },
+        { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', parentesco: 'madre', telefono: '111', telefono_alternativo: null },
       ],
       accesorios: ['andador', 'tripode'],
       num_afiliado: 'AF-999',

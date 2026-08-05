@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { PersonaACargo } from '../../shared/types/paciente';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
@@ -9,7 +9,7 @@ function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
 
-const laura: PersonaACargo = { id: 'pac-1', nombre: 'Laura', apellido: 'Gómez', dni: '30111222' };
+const laura: PersonaACargo = { id: 'pac-1', nombre: 'Laura', apellido: 'Gómez', dni: '30111222', parentesco: 'madre' };
 
 describe('PersonasACargoEditor', () => {
   it('sin personas a cargo, muestra un estado vacío explícito', () => {
@@ -35,19 +35,35 @@ describe('PersonasACargoEditor', () => {
     await user.type(screen.getByLabelText(/^nombre$/i), 'Roberto');
     await user.type(screen.getByLabelText(/^apellido$/i), 'Pereyra');
     await user.type(screen.getByLabelText(/^dni$/i), '25333444');
+    await user.selectOptions(screen.getByLabelText(/^parentesco$/i), 'tutor_legal');
     await user.click(screen.getByRole('button', { name: /agregar/i }));
 
     expect(onChange).toHaveBeenCalledTimes(1);
     const nuevaLista = onChange.mock.calls[0]?.[0] as PersonaACargo[];
     expect(nuevaLista).toHaveLength(1);
-    expect(nuevaLista[0]).toMatchObject({ nombre: 'Roberto', apellido: 'Pereyra', dni: '25333444' });
+    expect(nuevaLista[0]).toMatchObject({ nombre: 'Roberto', apellido: 'Pereyra', dni: '25333444', parentesco: 'tutor_legal' });
     expect(nuevaLista[0]?.id).toBeTruthy();
+  });
+
+  it('el parentesco viene preseleccionado en "Padre" por defecto al agregar sin tocar el select (obligatorio, nunca queda vacío)', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(<PersonasACargoEditor personasACargo={[]} onChange={onChange} />);
+
+    await user.type(screen.getByLabelText(/^nombre$/i), 'Roberto');
+    await user.type(screen.getByLabelText(/^apellido$/i), 'Pereyra');
+    await user.type(screen.getByLabelText(/^dni$/i), '25333444');
+    await user.click(screen.getByRole('button', { name: /agregar/i }));
+
+    const nuevaLista = onChange.mock.calls[0]?.[0] as PersonaACargo[];
+    expect(nuevaLista[0]?.parentesco).toBe('padre');
   });
 
   it('quitar una persona a cargo llama a onChange sin esa entrada (triangulación)', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    const roberto: PersonaACargo = { id: 'pac-2', nombre: 'Roberto', apellido: 'Pereyra', dni: '25333444' };
+    const roberto: PersonaACargo = { id: 'pac-2', nombre: 'Roberto', apellido: 'Pereyra', dni: '25333444', parentesco: 'padre' };
 
     render(<PersonasACargoEditor personasACargo={[laura, roberto]} onChange={onChange} />);
 
@@ -106,10 +122,40 @@ describe('PersonasACargoEditor', () => {
   });
 
   it('muestra el teléfono en la fila de la persona a cargo cuando está presente', () => {
-    const roberto: PersonaACargo = { id: 'pac-2', nombre: 'Roberto', apellido: 'Pereyra', dni: '25333444', telefono: '221-555-6666' };
+    const roberto: PersonaACargo = {
+      id: 'pac-2',
+      nombre: 'Roberto',
+      apellido: 'Pereyra',
+      dni: '25333444',
+      parentesco: 'padre',
+      telefono: '221-555-6666',
+    };
     render(<PersonasACargoEditor personasACargo={[roberto]} onChange={vi.fn()} />);
 
     expect(screen.getByText(/221-555-6666/)).toBeInTheDocument();
+  });
+
+  it('muestra la etiqueta legible del parentesco en la fila de la persona a cargo', () => {
+    const { container } = render(<PersonasACargoEditor personasACargo={[laura]} onChange={vi.fn()} />);
+
+    const fila = container.querySelector('li[data-persona-id="pac-1"]');
+    expect(fila).not.toBeNull();
+    expect(within(fila as HTMLElement).getByText('Madre')).toBeInTheDocument();
+  });
+
+  it('editar una persona a cargo precarga su parentesco en el select (triangulación con el default)', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const tutor: PersonaACargo = { id: 'pac-3', nombre: 'Carlos', apellido: 'Díaz', dni: '20999888', parentesco: 'tutor_legal' };
+
+    render(<PersonasACargoEditor personasACargo={[tutor]} onChange={onChange} />);
+    await user.click(screen.getByRole('button', { name: /editar carlos díaz/i }));
+
+    expect(screen.getByLabelText(/^parentesco$/i)).toHaveValue('tutor_legal');
+
+    await user.click(screen.getByRole('button', { name: /guardar cambios/i }));
+
+    expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ id: 'pac-3', parentesco: 'tutor_legal' })]);
   });
 });
 
@@ -131,6 +177,7 @@ describe('PersonasACargoEditor — gateo de escritura', () => {
     expect(screen.getByLabelText(/^nombre$/i)).toBeDisabled();
     expect(screen.getByLabelText(/^apellido$/i)).toBeDisabled();
     expect(screen.getByLabelText(/^dni$/i)).toBeDisabled();
+    expect(screen.getByLabelText(/^parentesco$/i)).toBeDisabled();
 
     await user.type(screen.getByLabelText(/^nombre$/i), 'Intento bloqueado');
     expect(screen.getByLabelText(/^nombre$/i)).toHaveValue('');

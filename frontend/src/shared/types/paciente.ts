@@ -49,12 +49,19 @@ export interface Direccion {
   horario?: string;
 }
 
+/** Parentesco de una persona a cargo respecto del paciente. Unión cerrada, no `string` libre —
+ * mismo criterio que `TipoDireccion`. Campo pedido directamente por la usuaria (no viene del docx,
+ * ver discrepancia en `knowledge-base/04_modelo_de_datos.md` §Discrepancias). */
+export type Parentesco = 'padre' | 'madre' | 'tutor_legal' | 'otro';
+
 /** Persona a cargo del paciente (lista dinámica, sin límite fijo). */
 export interface PersonaACargo {
   id: string;
   nombre: string;
   apellido: string;
   dni: string;
+  /** Obligatorio (a diferencia de teléfono/teléfono alternativo). */
+  parentesco: Parentesco;
   /** Teléfono (docx: vive en Personas a Cargo, no en Paciente). */
   telefono?: string;
   /** Teléfono alternativo (docx: vive en Personas a Cargo, no en Paciente). */
