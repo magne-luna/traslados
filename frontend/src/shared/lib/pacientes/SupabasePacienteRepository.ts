@@ -30,7 +30,7 @@ const SELECT_PACIENTE_COMPLETO = `
   cud ( numero_cud, emision, vencimiento ),
   clinicos ( diagnostico, condicion ),
   personas_a_cargo ( id, nombre, apellido, dni, telefono, telefono_alternativo ),
-  direcciones ( id, calle, numero, tipo_lugar ),
+  direcciones ( id, calle, numero, tipo_lugar, localidad ),
   accesorios_pacientes ( accesorios ( tipo ) )
 `;
 

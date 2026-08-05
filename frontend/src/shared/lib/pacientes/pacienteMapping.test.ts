@@ -173,21 +173,21 @@ describe('parseCudRow', () => {
 });
 
 describe('parseDireccionRow', () => {
-  // Discrepancias #3, #4, #5 (D9): calle+numero se combinan al leer; localidad/dias/horario no
-  // tienen columna y quedan vacíos.
-  it('combina calle + numero al leer, sin columna para localidad/dias/horario', () => {
-    const row = { id: 'd-1', calle: 'San Martín', numero: '123', tipo_lugar: 'domicilio' };
+  // Discrepancias #4, #5 (D9): calle+numero se combinan al leer; dias/horario no tienen columna y
+  // quedan vacíos. `localidad` sí tiene columna propia (discrepancia #3 cerrada) y se lee directo.
+  it('combina calle + numero al leer; localidad se lee directo de la columna', () => {
+    const row = { id: 'd-1', calle: 'San Martín', numero: '123', tipo_lugar: 'domicilio', localidad: 'CABA' };
 
     expect(parseDireccionRow(row)).toEqual({
       id: 'd-1',
       tipo: 'domicilio',
       calle: 'San Martín 123',
-      localidad: '',
+      localidad: 'CABA',
     });
   });
 
-  it('sin numero, calle queda tal cual; tipo_lugar desconocido o null cae a "otro"', () => {
-    const row = { id: 'd-2', calle: 'Belgrano 45', numero: null, tipo_lugar: null };
+  it('sin numero, calle queda tal cual; tipo_lugar desconocido o null cae a "otro"; localidad null cae a cadena vacía', () => {
+    const row = { id: 'd-2', calle: 'Belgrano 45', numero: null, tipo_lugar: null, localidad: null };
 
     expect(parseDireccionRow(row)).toEqual({
       id: 'd-2',
@@ -206,26 +206,26 @@ describe('parseDireccionRow', () => {
 describe('toDireccionRows', () => {
   // Discrepancia #5 (D9): al escribir, `numero` va SIEMPRE null — no se parsea la altura desde
   // `calle`.
-  it('escribe numero: null siempre, sin parsear la altura de calle', () => {
+  it('escribe numero: null siempre, sin parsear la altura de calle; localidad viaja tal cual', () => {
     const direcciones: Direccion[] = [
       { id: 'd-1', tipo: 'domicilio', calle: 'San Martín 123', localidad: 'CABA' },
     ];
 
     expect(toDireccionRows(direcciones)).toEqual([
-      { id: 'd-1', calle: 'San Martín 123', numero: null, tipo_lugar: 'domicilio' },
+      { id: 'd-1', calle: 'San Martín 123', numero: null, tipo_lugar: 'domicilio', localidad: 'CABA' },
     ]);
   });
 
   it('varias direcciones se mapean en orden, cada una con numero: null', () => {
     const direcciones: Direccion[] = [
-      { id: 'd-1', tipo: 'domicilio', calle: 'Calle 1', localidad: '' },
-      { id: 'd-2', tipo: 'escuela', calle: 'Calle 2', localidad: '' },
+      { id: 'd-1', tipo: 'domicilio', calle: 'Calle 1', localidad: 'CABA' },
+      { id: 'd-2', tipo: 'escuela', calle: 'Calle 2', localidad: 'Vicente López' },
     ];
 
     const rows = toDireccionRows(direcciones);
 
     expect(rows).toHaveLength(2);
-    expect(rows[1]).toEqual({ id: 'd-2', calle: 'Calle 2', numero: null, tipo_lugar: 'escuela' });
+    expect(rows[1]).toEqual({ id: 'd-2', calle: 'Calle 2', numero: null, tipo_lugar: 'escuela', localidad: 'Vicente López' });
   });
 });
 
@@ -334,7 +334,7 @@ function buildRowCompleto() {
     personas_a_cargo: [
       { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', telefono: null, telefono_alternativo: null },
     ],
-    direcciones: [{ id: 'd-1', calle: 'San Martín', numero: '123', tipo_lugar: 'domicilio' }],
+    direcciones: [{ id: 'd-1', calle: 'San Martín', numero: '123', tipo_lugar: 'domicilio', localidad: 'CABA' }],
     accesorios_pacientes: [{ accesorios: { tipo: 'andador' } }],
   };
 }
@@ -358,7 +358,7 @@ describe('ensamblarPaciente', () => {
       obraSocialId: 'os-1',
       numeroAfiliado: { valor: 'AF-123' },
       cud: { numero: 'C-1', fechaEmision: '2023-01-01', fechaVencimiento: '2027-01-01' },
-      direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'San Martín 123', localidad: '' }],
+      direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'San Martín 123', localidad: 'CABA' }],
       personasACargo: [
         { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', telefono: undefined, telefonoAlternativo: undefined },
       ],
@@ -466,7 +466,7 @@ describe('toCrearPacientePayload', () => {
       amparo_judicial: true,
       clinicos: { diagnostico: 'TEA', condicion: 'Estable' },
       cud: { numero_cud: 'C-1', emision: '2023-01-01', vencimiento: '2027-01-01' },
-      direcciones: [{ id: 'd-1', calle: 'San Martín 123', numero: null, tipo_lugar: 'domicilio' }],
+      direcciones: [{ id: 'd-1', calle: 'San Martín 123', numero: null, tipo_lugar: 'domicilio', localidad: 'CABA' }],
       personas_a_cargo: [
         { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', telefono: '111', telefono_alternativo: null },
       ],
@@ -486,18 +486,18 @@ describe('toCrearPacientePayload', () => {
     expect(payload.obra_social_id).toBeNull();
   });
 
-  // Discrepancias #3, #4, #6 (D9): datos que el usuario ve en pantalla pero la base no guarda.
+  // Discrepancias #4, #6 (D9): datos que el usuario ve en pantalla pero la base no guarda.
   it('discrepancia #6: NO envía domicilio', () => {
     const payload = toCrearPacientePayload(buildNuevoPacienteCompleto());
 
     expect(payload).not.toHaveProperty('domicilio');
   });
 
-  it('discrepancias #3/#4: NO envía localidad/dias/horario de las direcciones', () => {
+  it('discrepancia #4: NO envía dias/horario de las direcciones; localidad sí viaja (discrepancia #3 cerrada)', () => {
     const payload = toCrearPacientePayload(buildNuevoPacienteCompleto());
 
     for (const direccion of payload.direcciones) {
-      expect(direccion).not.toHaveProperty('localidad');
+      expect(direccion).toHaveProperty('localidad');
       expect(direccion).not.toHaveProperty('dias');
       expect(direccion).not.toHaveProperty('horario');
     }

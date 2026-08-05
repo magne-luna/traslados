@@ -3,7 +3,6 @@ import { AvisoModeloDatos, Button, CamposSoloLectura, InlineIcon } from '../../d
 import { iconTacho } from '../../design-system/icons';
 import { Field, Input, Select } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
-import { generateId } from '../../shared/lib/id';
 import type { Direccion, TipoDireccion } from '../../shared/types/paciente';
 import { TIPO_DIRECCION_ICON, TIPO_DIRECCION_LABELS, TIPO_DIRECCION_OPTIONS } from './direccionOptions';
 
@@ -32,7 +31,7 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
 
   function handleAdd() {
     if (!nueva.calle.trim() || !nueva.localidad.trim()) return;
-    onChange([...direcciones, { id: generateId('dir'), ...nueva }]);
+    onChange([...direcciones, { id: crypto.randomUUID(), ...nueva }]);
     setNueva(NUEVA_DIRECCION_DEFAULT);
   }
 
@@ -42,17 +41,19 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
 
   return (
     <>
-      {/* tasks.md 5.3 (integracion-pacientes), design.md D9 #3/#4/#6: localidad/días/horario no
-          tienen columna propia (los días/horarios habituales viven en pacientes.recorridos,
-          módulo Hojas de Ruta) y paciente.domicilio es una columna legacy suelta que duplica esta
-          lista — se lee para no perderla, pero este editor nunca la escribe. Fuera de Card: es un
-          aviso de modelo de datos, no un dato de una dirección puntual. */}
+      {/* tasks.md 5.3 (integracion-pacientes), design.md D9 #4/#6: días/horario no tienen columna
+          propia (los días/horarios habituales viven en pacientes.recorridos, módulo Hojas de
+          Ruta) y paciente.domicilio es una columna legacy suelta que duplica esta lista — se lee
+          para no perderla, pero este editor nunca la escribe. `localidad` sí se persiste (columna
+          NOT NULL desde 20260729120000_schema_pacientes_gaps.sql, discrepancia #3 cerrada) — ya
+          no forma parte de este aviso. Fuera de Card: es un aviso de modelo de datos, no un dato
+          de una dirección puntual. */}
       <AvisoModeloDatos>
-        La base no guarda <strong>localidad</strong>, <strong>días</strong> ni{' '}
-        <strong>horario</strong> de cada dirección: los días y horarios habituales viven en{' '}
-        `pacientes.recorridos`, dentro del módulo <strong>Hojas de Ruta</strong>, no acá. Además,{' '}
-        `paciente.domicilio` es una columna suelta y legacy que duplica esta lista de direcciones —
-        se lee para no perderla, pero no se actualiza desde este editor.
+        La base no guarda <strong>días</strong> ni <strong>horario</strong> de cada dirección: los
+        días y horarios habituales viven en `pacientes.recorridos`, dentro del módulo{' '}
+        <strong>Hojas de Ruta</strong>, no acá. Además, `paciente.domicilio` es una columna suelta
+        y legacy que duplica esta lista de direcciones — se lee para no perderla, pero no se
+        actualiza desde este editor.
       </AvisoModeloDatos>
 
     <Card radius="md" gap="lg">

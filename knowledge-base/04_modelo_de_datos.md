@@ -420,7 +420,10 @@ así que queda anotado acá hasta que se construya esa feature.
   2. **`numeroAfiliado.valor`** vive en `obra_social.coberturas_paciente.num_afiliado`, otro schema,
      gateado por el módulo `obra_social` — si la cuenta no tiene `obra_social: read`, el valor se
      lee degradado (vacío, con cartel), nunca se inventa ni se bloquea la ficha.
-  3. **`Direccion.localidad`** no tiene columna — no se persiste, se pierde al recargar.
+  3. ~~**`Direccion.localidad`** no tiene columna — no se persiste, se pierde al recargar.~~
+     **Resuelto** (`20260729120000_schema_pacientes_gaps.sql` agregó `direcciones.localidad TEXT
+     NOT NULL`; frontend actualizado el 2026-08-04 en `pacienteMapping.ts`/
+     `SupabasePacienteRepository.ts` para leerla y escribirla).
   4. **`Direccion.dias` / `.horario`** no tienen columna en `direcciones`; el docx los modela en
      `pacientes.recorridos` (`dia_semana`/`hora`), una tabla gateada por el módulo `hojas_de_ruta`,
      no por `pacientes` — no se persisten desde esta ficha.
@@ -444,10 +447,9 @@ así que queda anotado acá hasta que se construya esa feature.
       mapean, los desconocidos se descartan en silencio (con cartel); escribir un accesorio
       inexistente en el maestro aborta el alta con un error accionable en vez de guardar basura.
 
-  **Columnas que el backend debería agregar** para cerrar los puntos 1, 3 y 8 (ver también
-  `CHANGES.md` §`C-05`): `coberturas_paciente.formato_afiliado` (o derivarlo de
-  `obra_social.identificadorOrigen`, sin decidir acá), `direcciones.localidad`,
-  `amparo_judicial_aclaracion` (en `paciente` o en `clinicos`, a definir).
+  **Columnas que el backend debería agregar** para cerrar el punto 8 (ver también `CHANGES.md`
+  §`C-05`): `amparo_judicial_aclaracion` (en `paciente` o en `clinicos`, a definir). Los puntos 1 y
+  3 ya están resueltos — ver el detalle de cada uno arriba.
 
   **Además**, la función `pacientes.crear_paciente_completo` (alta atómica, ver más abajo en esta
   misma sección) documenta el contrato de escritura real; el punto 9 y el punto 11 tienen

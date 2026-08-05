@@ -142,11 +142,13 @@ export function parseCudRow(rows: unknown): Cud | null {
   );
 }
 
-/** `pacientes.direcciones` → `Direccion` del dominio. Discrepancias #3/#4/#5 (D9): `calle` +
- * `numero` se combinan en un único campo al leer (no se inventa un desglose); `localidad`, `dias`
- * y `horario` no tienen columna y quedan vacíos/`undefined`. Devuelve `null` ante una fila
- * malformada (sin `calle`) en vez de lanzar — la robustez de la colección la maneja quien la
- * invoque (`ensamblarPaciente`, tarea 2.10). */
+/** `pacientes.direcciones` → `Direccion` del dominio. Discrepancias #4/#5 (D9): `calle` +
+ * `numero` se combinan en un único campo al leer (no se inventa un desglose); `dias` y `horario`
+ * no tienen columna y quedan `undefined` (viven en `pacientes.recorridos`). `localidad` sí tiene
+ * columna propia (`NOT NULL` desde `20260729120000_schema_pacientes_gaps.sql`, cerrando la
+ * discrepancia #3) — se lee directo. Devuelve `null` ante una fila malformada (sin `calle`) en vez
+ * de lanzar — la robustez de la colección la maneja quien la invoque (`ensamblarPaciente`, tarea
+ * 2.10). */
 export function parseDireccionRow(row: unknown): Direccion | null {
   if (!isRecord(row)) return null;
   const calleBase = readNullableString(row, 'calle');
@@ -160,18 +162,19 @@ export function parseDireccionRow(row: unknown): Direccion | null {
     id,
     tipo: parseTipoDireccion(row.tipo_lugar),
     calle,
-    // Discrepancias #3/#4 (D9): sin columna en la base.
-    localidad: '',
+    localidad: readNullableString(row, 'localidad') ?? '',
   };
 }
 
 /** Fila para escribir en `pacientes.direcciones`. `numero` siempre `null` (discrepancia #5, D9):
- * no se inventa un parseo de la altura desde `calle`. */
+ * no se inventa un parseo de la altura desde `calle`. `localidad` es `NOT NULL` en la base — hay
+ * que mandarla siempre. */
 export interface DireccionRowInput {
   id?: string;
   calle: string;
   numero: null;
   tipo_lugar: TipoDireccion;
+  localidad: string;
 }
 
 export function toDireccionRows(direcciones: Direccion[]): DireccionRowInput[] {
@@ -180,6 +183,7 @@ export function toDireccionRows(direcciones: Direccion[]): DireccionRowInput[] {
     calle: direccion.calle,
     numero: null,
     tipo_lugar: direccion.tipo,
+    localidad: direccion.localidad,
   }));
 }
 
@@ -314,12 +318,13 @@ export function ensamblarPaciente(row: unknown, coberturaRow: unknown): Paciente
 }
 
 /** Argumento `p_paciente jsonb` de `pacientes.crear_paciente_completo` (D4). Espeja exactamente
- * las claves que lee `20260730180000_crear_paciente_completo.sql` (sus `->>`/`->`) — nunca agrega
- * una clave que la migración no consuma. Discrepancias #1 (`formato`, vive en la obra social —
- * RF-106), #3/#4 (`localidad`/`dias`/`horario` de direcciones) y #6 (`domicilio`) NO viajan (D9):
- * son datos que el usuario ve en pantalla pero el esquema real no persiste acá. La mayoría de los
- * campos de texto se pasan tal cual (incluso `''`) porque la migración ya hace `NULLIF(..., '')`
- * de su lado — duplicar esa decisión acá sería un segundo criterio para la misma regla. */
+ * las claves que lee `20260804120000_crear_paciente_completo_localidad_direccion.sql` (sus
+ * `->>`/`->`) — nunca agrega una clave que la migración no consuma. Discrepancias #1 (`formato`,
+ * vive en la obra social — RF-106), #4 (`dias`/`horario` de direcciones) y #6 (`domicilio`) NO
+ * viajan (D9): son datos que el usuario ve en pantalla pero el esquema real no persiste acá.
+ * `localidad` sí viaja (discrepancia #3 cerrada). La mayoría de los campos de texto se pasan tal
+ * cual (incluso `''`) porque la migración ya hace `NULLIF(..., '')` de su lado — duplicar esa
+ * decisión acá sería un segundo criterio para la misma regla. */
 export interface CrearPacientePayload {
   nombre_a: string;
   nombre_b: string | null;
@@ -357,8 +362,8 @@ export function toCrearPacientePayload(nuevo: NuevoPaciente): CrearPacientePaylo
           vencimiento: nuevo.cud.fechaVencimiento,
         }
       : null,
-    // Discrepancias #3/#4/#6 (D9): toDireccionRows ya excluye localidad/dias/horario/domicilio —
-    // no hay clave que omitir acá, nunca existió.
+    // Discrepancias #4/#6 (D9): toDireccionRows ya excluye dias/horario/domicilio — no hay clave
+    // que omitir acá, nunca existió. `localidad` sí viaja (discrepancia #3 cerrada).
     direcciones: toDireccionRows(nuevo.direcciones),
     personas_a_cargo: toPersonaACargoRows(nuevo.personasACargo),
     accesorios: nuevo.accesorioMovilidad,

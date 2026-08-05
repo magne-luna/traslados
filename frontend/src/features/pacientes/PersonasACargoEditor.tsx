@@ -3,7 +3,6 @@ import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/compo
 import { iconTacho } from '../../design-system/icons';
 import { Field, Input } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
-import { generateId } from '../../shared/lib/id';
 import type { PersonaACargo } from '../../shared/types/paciente';
 
 interface PersonasACargoEditorProps {
@@ -67,7 +66,7 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
     if (editingId) {
       onChange(personasACargo.map((persona) => (persona.id === editingId ? { id: editingId, ...datos } : persona)));
     } else {
-      onChange([...personasACargo, { id: generateId('persona'), ...datos }]);
+      onChange([...personasACargo, { id: crypto.randomUUID(), ...datos }]);
     }
     limpiarForm();
   }

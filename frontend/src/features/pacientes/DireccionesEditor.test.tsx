@@ -100,15 +100,15 @@ describe('DireccionesEditor', () => {
   });
 });
 
-// tasks.md 5.3 (integracion-pacientes), design.md D9 #3/#4/#6: localidad/días/horario no tienen
-// columna propia (los días/horarios habituales viven en pacientes.recorridos, módulo Hojas de
-// Ruta) y paciente.domicilio es una columna legacy suelta que duplica esta lista.
+// tasks.md 5.3 (integracion-pacientes), design.md D9 #4/#6: días/horario no tienen columna propia
+// (los días/horarios habituales viven en pacientes.recorridos, módulo Hojas de Ruta) y
+// paciente.domicilio es una columna legacy suelta que duplica esta lista. `localidad` ya no forma
+// parte de este aviso (discrepancia #3 cerrada, 2026-08-04).
 describe('DireccionesEditor — cartel de modelo de datos', () => {
-  it('avisa que la base no guarda localidad, días ni horario, y que domicilio es una columna legacy duplicada', () => {
+  it('avisa que la base no guarda días ni horario, y que domicilio es una columna legacy duplicada', () => {
     render(<DireccionesEditor direcciones={[]} onChange={vi.fn()} />);
 
     const cartel = screen.getByRole('note');
-    expect(cartel).toHaveTextContent(/localidad/i);
     expect(cartel).toHaveTextContent(/días/i);
     expect(cartel).toHaveTextContent(/horario/i);
     expect(cartel).toHaveTextContent(/recorridos/i);
