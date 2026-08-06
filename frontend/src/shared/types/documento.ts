@@ -23,4 +23,9 @@ export interface DocumentoAdjunto {
    * que Autorizacion.vigenciaDesde en presupuesto.ts). Si no se completa, "vigente" se deriva de
    * subidoEn (pacientes-documentos-multiples, design.md Checkpoint (b)). */
   vigenciaDesde?: string;
+  /** Tipo MIME del archivo cargado (`file.type`, ej. `image/jpeg`, `application/pdf`). Decide si el
+   * documento es previsualizable y con qué elemento (imagen / PDF / no previsualizable) —
+   * `documentos-previsualizacion`, design.md D1. Opcional a propósito: los documentos cargados antes
+   * de ese change no lo tienen. */
+  tipoMime?: string;
 }
