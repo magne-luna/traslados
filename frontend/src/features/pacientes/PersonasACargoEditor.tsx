@@ -1,6 +1,5 @@
 import { useId, useState } from 'react';
-import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
-import { iconTacho } from '../../design-system/icons';
+import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Field, Input, Select } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
 import type { Parentesco, PersonaACargo } from '../../shared/types/paciente';
@@ -13,6 +12,17 @@ interface PersonasACargoEditorProps {
 
 function iniciales(persona: Pick<PersonaACargo, 'nombre' | 'apellido'>): string {
   return `${persona.nombre.charAt(0)}${persona.apellido.charAt(0)}`.toUpperCase();
+}
+
+// Línea de texto plano bajo el nombre — mismo formato que la calle/localidad de
+// DireccionesEditor.tsx (decisión del usuario, 2026-08-06: reemplaza los chips en píldoras que
+// tenía antes, para que las dos listas de la ficha del paciente se vean consistentes). El
+// parentesco se muestra junto al nombre (ej. "Juan Pérez - Padre"), no acá.
+function descripcionPersona(persona: PersonaACargo): string {
+  const partes = [`DNI: ${persona.dni}`];
+  if (persona.telefono) partes.push(`Tel: ${persona.telefono}`);
+  if (persona.telefonoAlternativo) partes.push(`Alt: ${persona.telefonoAlternativo}`);
+  return partes.join(', ');
 }
 
 // Editor de personas a cargo (tasks.md 7.1): alta/edición/baja, sin reorder (design.md Risks —
@@ -106,25 +116,10 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
                   {iniciales(persona)}
                 </span>
                 <div className="flex flex-col gap-xs">
-                  <span className="font-body text-[13px] font-semibold text-ink">
-                    {persona.nombre} {persona.apellido}
+                  <span className="font-body text-[14px] font-semibold text-ink">
+                    {persona.nombre} {persona.apellido} - {PARENTESCO_LABELS[persona.parentesco]}
                   </span>
-                  <div className="flex flex-wrap items-center gap-xs">
-                    <span className="rounded-pill bg-surface px-md py-xs font-mono text-[11px] text-muted">DNI: {persona.dni}</span>
-                    <span className="rounded-pill bg-surface px-md py-xs font-mono text-[11px] text-muted">
-                      {PARENTESCO_LABELS[persona.parentesco]}
-                    </span>
-                    {persona.telefono && (
-                      <span className="rounded-pill bg-surface px-md py-xs font-mono text-[11px] text-muted">
-                        Tel: {persona.telefono}
-                      </span>
-                    )}
-                    {persona.telefonoAlternativo && (
-                      <span className="rounded-pill bg-surface px-md py-xs font-mono text-[11px] text-muted">
-                        Alt: {persona.telefonoAlternativo}
-                      </span>
-                    )}
-                  </div>
+                  <span className="font-body text-[13px] text-muted">{descripcionPersona(persona)}</span>
                 </div>
               </div>
               <div className="flex items-center gap-md">
@@ -140,9 +135,8 @@ export function PersonasACargoEditor({ personasACargo, onChange }: PersonasACarg
                   type="button"
                   onClick={() => handleRemove(persona.id)}
                   aria-label={`Quitar ${persona.nombre} ${persona.apellido}`}
-                  className="flex cursor-pointer items-center gap-xs border-none bg-transparent p-0 font-body text-xs font-semibold text-danger"
+                  className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-danger"
                 >
-                  <InlineIcon>{iconTacho}</InlineIcon>
                   Quitar
                 </button>
               </div>

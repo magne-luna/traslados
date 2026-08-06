@@ -140,7 +140,7 @@ describe('PersonasACargoEditor', () => {
 
     const fila = container.querySelector('li[data-persona-id="pac-1"]');
     expect(fila).not.toBeNull();
-    expect(within(fila as HTMLElement).getByText('Madre')).toBeInTheDocument();
+    expect(within(fila as HTMLElement).getByText(/madre/i)).toBeInTheDocument();
   });
 
   it('editar una persona a cargo precarga su parentesco en el select (triangulación con el default)', async () => {

@@ -1,6 +1,5 @@
 import { useId, useState } from 'react';
 import { AvisoModeloDatos, Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
-import { iconTacho } from '../../design-system/icons';
 import { Field, Input, Select } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
 import type { Direccion, TipoDireccion } from '../../shared/types/paciente';
@@ -128,9 +127,9 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
                   type="button"
                   onClick={() => handleRemove(direccion.id)}
                   aria-label={`Quitar ${TIPO_DIRECCION_LABELS[direccion.tipo]} (${direccion.calle})`}
-                  className="cursor-pointer border-none bg-transparent p-0 text-danger"
+                  className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-danger"
                 >
-                  <InlineIcon>{iconTacho}</InlineIcon>
+                  Quitar
                 </button>
               </div>
             </li>
