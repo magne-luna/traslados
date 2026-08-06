@@ -20,7 +20,7 @@ import type { AccesorioMovilidad } from '../../types/vehiculo';
 // forma que consume `ParadaRecorrido.coordenadaOrigen` (change hojas-de-ruta-geocoding, RF-701).
 import type { Coordenada } from '../../types/hojaDeRuta';
 
-const TIPOS_DIRECCION_VALIDOS = new Set<TipoDireccion>(['domicilio', 'escuela', 'terapia', 'cet', 'otro']);
+const TIPOS_DIRECCION_VALIDOS = new Set<TipoDireccion>(['domicilio', 'escuela', 'escuela-especial', 'terapia', 'cet', 'otro']);
 
 function parseTipoDireccion(value: unknown): TipoDireccion {
   return typeof value === 'string' && TIPOS_DIRECCION_VALIDOS.has(value as TipoDireccion)
