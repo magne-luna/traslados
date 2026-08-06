@@ -71,25 +71,61 @@ describe('AutorizacionForm', () => {
     );
   });
 
-  it('muestra el AvisoModeloDatos de montoAutorizado (Discrepancia 2, pendiente de confirmar con backend)', () => {
+  // tasks.md 5.2, design.md D5/D13#1: mismo cartel que PresupuestoForm — el archivo elegido
+  // todavía no se guarda en el servidor. Migrado del bloque hand-rolled preexistente (que
+  // consolidaba 3 discrepancias en un <div role="note"> propio) a AvisoModeloDatos, por la regla
+  // dura de la sección 5 ("nunca markup de alerta propio").
+  it('muestra un cartel agrupado avisando que el archivo elegido todavía no se guarda en el servidor (D5)', () => {
     render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
-    const avisos = screen.getAllByRole('note');
-    expect(avisos.some((a) => /monto autorizado no existe en el docx/i.test(a.textContent ?? ''))).toBe(true);
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find((n) => /todavía no se guarda en el servidor/i.test(n.textContent ?? ''));
+    if (!cartel) throw new Error('No se encontró el cartel del archivo adjunto (tasks.md 5.2)');
+    expect(cartel).toHaveTextContent(/un solo archivo/i);
   });
 
-  it('muestra el AvisoModeloDatos de vigenciaDesde (Discrepancia 3, pendiente de confirmar con backend)', () => {
+  // tasks.md 5.3, design.md D13#6: el cartel preexistente decía "pendiente de confirmar con
+  // backend" para montoAutorizado/vigenciaDesde — ya no es cierto, son columnas reales desde
+  // `C-06`. Se actualiza el texto (se retira "pendiente de confirmar") pero se conserva la parte
+  // vigente: el docx no modela estos campos.
+  it('muestra un cartel actualizado de montoAutorizado/vigenciaDesde que ya NO dice "pendiente de confirmar" (D13#6)', () => {
     render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
-    const avisos = screen.getAllByRole('note');
-    expect(avisos.some((a) => /fecha de vigencia no existe en el docx/i.test(a.textContent ?? ''))).toBe(true);
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find((n) => /monto autorizado/i.test(n.textContent ?? '') && /vigencia/i.test(n.textContent ?? ''));
+    if (!cartel) throw new Error('No se encontró el cartel de montoAutorizado/vigenciaDesde (tasks.md 5.3)');
+    expect(cartel).toHaveTextContent(/no existen en el docx/i);
+    expect(cartel).toHaveTextContent(/columnas reales/i);
+    expect(cartel).toHaveTextContent(/c-06/i);
+    expect(cartel).not.toHaveTextContent(/pendiente de confirmar/i);
   });
 
-  it('muestra el AvisoModeloDatos de archivo único (mismo criterio que el presupuesto)', () => {
+  // tasks.md 5.5: conteo explícito para confirmar que la migración del bloque hand-rolled a
+  // AvisoModeloDatos no duplicó ni perdió ningún cartel — quedan exactamente 2 (archivo;
+  // montoAutorizado+vigenciaDesde agrupados), no 3 como en el bloque viejo campo-por-campo.
+  it('muestra exactamente 2 carteles de discrepancia (archivo, y montoAutorizado+vigenciaDesde agrupados)', () => {
     render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
-    const avisos = screen.getAllByRole('note');
-    expect(avisos.some((a) => /un solo archivo/i.test(a.textContent ?? ''))).toBe(true);
+    expect(screen.getAllByRole('note')).toHaveLength(2);
+  });
+
+  // Triangulación: los 2 carteles se mantienen sin duplicarse también en modo edición, con
+  // montoAutorizado/vigenciaDesde ya precargados desde una autorización existente.
+  it('mantiene exactamente 2 carteles en modo edición con montoAutorizado/vigenciaDesde precargados', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        initial={{ estado: 'autorizada', montoAutorizado: 90_000, vigenciaDesde: '2026-01-01' }}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const notas = screen.getAllByRole('note');
+    expect(notas).toHaveLength(2);
+    const cartelCampos = notas.find((n) => /vigencia/i.test(n.textContent ?? ''));
+    if (!cartelCampos) throw new Error('No se encontró el cartel de montoAutorizado/vigenciaDesde');
+    expect(cartelCampos).not.toHaveTextContent(/pendiente de confirmar/i);
   });
 
   it('el input de archivo es de un único archivo, no un checklist', () => {

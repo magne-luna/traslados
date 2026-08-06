@@ -2,8 +2,9 @@ import { createContext, useContext, type ReactNode } from 'react';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 
 // Punto de inyección del repository (design.md Decisión 10): las pantallas de la feature reciben
-// el PresupuestoRepository vía este context, nunca importan el mock directamente. El único lugar
-// que conoce mockPresupuestoRepository es el composition root de la feature (PresupuestosRoute).
+// el PresupuestoRepository vía este context, nunca importan una implementación concreta
+// directamente. El único lugar que conoce supabasePresupuestoRepository (tasks.md 4.1) es el
+// composition root de la feature (PresupuestosRoute).
 const PresupuestoRepositoryContext = createContext<PresupuestoRepository | null>(null);
 
 export function PresupuestoRepositoryProvider({

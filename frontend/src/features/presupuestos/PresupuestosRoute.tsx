@@ -1,20 +1,30 @@
-import { mockAutorizacionRepository } from '../../shared/lib/mocks/mockAutorizacionRepository';
-import { mockObraSocialRepository } from '../../shared/lib/mocks/mockObraSocialRepository';
-import { mockPacienteRepository } from '../../shared/lib/mocks/mockPacienteRepository';
-import { mockPresupuestoRepository } from '../../shared/lib/mocks/mockPresupuestoRepository';
+import { supabaseObraSocialRepository } from '../../shared/lib/obrasSociales/SupabaseObraSocialRepository';
+import { supabasePacienteRepository } from '../../shared/lib/pacientes/SupabasePacienteRepository';
+import { supabaseAutorizacionRepository } from '../../shared/lib/presupuestos/SupabaseAutorizacionRepository';
+import { supabasePresupuestoRepository } from '../../shared/lib/presupuestos/SupabasePresupuestoRepository';
 import { AutorizacionRepositoryProvider } from './AutorizacionRepositoryContext';
 import { PresupuestoRepositoryProvider } from './PresupuestoRepositoryContext';
 import { PresupuestosPage } from './PresupuestosPage';
 
-// Único punto de composición que conoce mockPresupuestoRepository, mockAutorizacionRepository,
-// mockPacienteRepository y mockObraSocialRepository (design.md Decisión 10, tasks.md 8.1): cuando
-// existan Supabase*Repository (FE-8), este es el único archivo que cambia — el resto de la
-// feature solo conoce las interfaces de los repositories.
+// Único punto de composición que conoce supabasePresupuestoRepository,
+// supabaseAutorizacionRepository, supabasePacienteRepository y supabaseObraSocialRepository
+// (design.md Decisión 8/10, tasks.md 4.1 — "el corte real"): Presupuestos y Autorizaciones ya
+// tienen backend real (Edge Functions `presupuestos`/`autorizaciones`, C-06/`integracion-
+// presupuestos`), a diferencia de Pacientes/Obras Sociales, que ya tenían backend real desde antes
+// (D8: reutilizados de PacientesRoute.tsx/ObraSocialesRoute.tsx, no recreados acá — sin ellos toda
+// alta falla con 23503 porque presupuesto/autorizacion referencian paciente/obra_social reales) —
+// el resto de la feature solo conoce las interfaces de los repositories, así que este es el único
+// archivo que cambió (mismo criterio que PacientesRoute.tsx/ObraSocialesRoute.tsx).
+//
+// ⚠️ 1B.4 (verificación del gateo de permisos de las Edge Functions con 3 cuentas reales) fue
+// postergada por decisión explícita de la usuaria (2026-08-05) — se corre después de este swap, no
+// antes. Si algo falla en producción con 403, puede ser un bug real o un permiso sin verificar; no
+// asumir que el gateo ya está confirmado contra cuentas reales (ver tasks.md §4).
 export function PresupuestosRoute() {
   return (
-    <PresupuestoRepositoryProvider repository={mockPresupuestoRepository}>
-      <AutorizacionRepositoryProvider repository={mockAutorizacionRepository}>
-        <PresupuestosPage pacienteRepository={mockPacienteRepository} obraSocialRepository={mockObraSocialRepository} />
+    <PresupuestoRepositoryProvider repository={supabasePresupuestoRepository}>
+      <AutorizacionRepositoryProvider repository={supabaseAutorizacionRepository}>
+        <PresupuestosPage pacienteRepository={supabasePacienteRepository} obraSocialRepository={supabaseObraSocialRepository} />
       </AutorizacionRepositoryProvider>
     </PresupuestoRepositoryProvider>
   );

@@ -1,9 +1,9 @@
 import { useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
+import { AvisoModeloDatos, Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Select, Input } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
-import { iconAlerta, iconSubirArchivo } from '../../design-system/icons';
+import { iconSubirArchivo } from '../../design-system/icons';
 import type { ArchivoAdjunto, EstadoAutorizacion } from '../../shared/types/presupuesto';
 import { validarAutorizacion } from '../../shared/lib/presupuestos/validarAutorizacion';
 
@@ -88,28 +88,28 @@ export function AutorizacionForm({
     <CardForm onSubmit={handleSubmit}>
       {submitError && <Alert tone="danger">{submitError}</Alert>}
 
-      {/* Discrepancias 2, 3 y 1 (design.md) agrupadas en un solo cartel — antes un AvisoModeloDatos
-          por campo, ahora consolidadas arriba del form para no repetir el mismo cartel 3 veces. */}
-      <div role="note" className="rounded-sm border border-warning bg-warning-soft px-lg py-md">
-        <div className="mb-sm flex items-center gap-xs font-body text-[13px] font-bold text-warning">
-          <InlineIcon size={18}>{iconAlerta}</InlineIcon>
-          Alertas de Modelo de Datos (Backend)
-        </div>
-        <ul className="m-0 flex flex-col gap-xs pl-lg font-body text-[12px] text-warning">
-          <li>
-            <span className="font-semibold">Monto autorizado:</span> Monto autorizado no existe en el docx; se
-            agrega para validar RN-PA-01 — pendiente de confirmar con backend.
-          </li>
-          <li>
-            <span className="font-semibold">Fecha de vigencia:</span> Fecha de vigencia no existe en el docx (solo
-            hay Fecha de respuesta); se agrega para RN-PA-02 — pendiente de confirmar con backend.
-          </li>
-          <li>
-            <span className="font-semibold">Archivo:</span> El modelo real (docx) tiene un solo archivo por
-            autorización, no un checklist multi-documento.
-          </li>
-        </ul>
-      </div>
+      {/* tasks.md 5.2/5.3, design.md D5/D13#1/D13#6. Migrado desde un bloque hand-rolled
+          (<div role="note">…</div> con lista propia) a dos AvisoModeloDatos agrupados por tema —
+          la regla dura de la sección 5 de tasks.md prohíbe markup de alerta propio. Se mantienen
+          agrupados (no un cartel por campo): uno para el archivo adjunto (D5, igual criterio que
+          PresupuestoForm) y uno para montoAutorizado/vigenciaDesde (misma fila de discrepancia,
+          D13#6). */}
+      <AvisoModeloDatos>
+        El archivo que subís acá <strong>todavía no se guarda en el servidor</strong>: por ahora
+        queda solo en tu navegador, así que si volvés más tarde a esta autorización no lo vas a
+        encontrar. Subir el archivo de verdad va a llegar en un cambio aparte. Además, el modelo
+        real (docx) tiene un solo archivo por autorización, no un checklist multi-documento.
+      </AvisoModeloDatos>
+
+      {/* tasks.md 5.3, design.md D13#6: montoAutorizado/vigenciaDesde ya NO son "pendientes de
+          confirmar con backend" — son columnas reales desde C-06. Lo que sigue vigente es que el
+          docx no las modela (se agregaron para validar RN-PA-01/RN-PA-02). */}
+      <AvisoModeloDatos>
+        <strong>Monto autorizado</strong> y <strong>Fecha de vigencia</strong> no existen en el
+        docx original (que solo modela Fecha de respuesta): se agregaron para poder validar
+        RN-PA-01 y RN-PA-02. Ya son columnas reales en la base desde <code>C-06</code>, así que
+        quedaron confirmadas con backend — el frontend no las está inventando.
+      </AvisoModeloDatos>
 
       {/* gateo-facturacion (design.md D3, tasks.md 3.2): un solo envoltorio cubre todo el bloque
           de campos. NO cubre la barra de acciones — Cancelar debe seguir operativo. */}

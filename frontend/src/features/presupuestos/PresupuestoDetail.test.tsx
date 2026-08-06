@@ -248,6 +248,57 @@ describe('PresupuestoDetail — modo edición', () => {
   });
 });
 
+// tasks.md 5.4, design.md D11: esta pantalla ya lee datos reales del servidor mientras
+// Facturación (validación de cupo, RN-FA-02/RN-PA-03) sigue leyendo datos de prueba — hay que
+// decirlo para que nadie concluya de una pantalla lo que pasa en la otra.
+describe('PresupuestoDetail — cartel de fuente mixta con Facturación (D11)', () => {
+  it('muestra un cartel avisando que Facturación todavía valida cupo contra datos de prueba', () => {
+    render(
+      <PresupuestoDetail
+        presupuesto={null}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        pacientes={[martina]}
+        obrasSociales={[osecac]}
+        autorizacionRepository={buildFakeAutorizacionRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find((n) => /facturación/i.test(n.textContent ?? ''));
+    if (!cartel) throw new Error('No se encontró el cartel de fuente mixta con Facturación (tasks.md 5.4)');
+    expect(cartel).toHaveTextContent(/datos de prueba/i);
+    expect(cartel).toHaveTextContent(/cupo/i);
+  });
+
+  // Triangulación: el cartel también aparece (una sola vez) en modo edición, con presupuesto y
+  // autorización ya cargados — no depende de que la pantalla esté vacía.
+  it('sigue mostrando exactamente un cartel de Facturación en modo edición con autorización cargada', async () => {
+    render(
+      <PresupuestoDetail
+        presupuesto={presupuestoMartina}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        pacientes={[martina]}
+        obrasSociales={[osecac]}
+        autorizacionRepository={buildFakeAutorizacionRepository({
+          getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionMartina),
+        })}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText(/autorizada/i)).toBeInTheDocument();
+
+    const notas = screen.getAllByRole('note');
+    const cartelesFacturacion = notas.filter((n) => /facturación/i.test(n.textContent ?? ''));
+    expect(cartelesFacturacion).toHaveLength(1);
+  });
+});
+
 // Gateo de escritura (gateo-facturacion, tasks.md 3.1, design.md D1). La entrada a la edición de
 // autorización ("Editar autorización") queda visible pero no activable sin permiso de escritura.
 describe('PresupuestoDetail — gateo de escritura de la entrada a autorización', () => {

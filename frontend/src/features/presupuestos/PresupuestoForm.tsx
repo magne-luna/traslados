@@ -147,8 +147,16 @@ export function PresupuestoForm({
                 {values.archivo.nombre} (cargado {values.archivo.cargadoEn})
               </span>
             )}
+            {/* tasks.md 5.1, design.md D5/D13#1 — el cartel más importante del change: el
+                archivo elegido todavía no se sube ni se guarda contra la base real (una sola
+                columna `archivo_url`, y sin código de subida). Un único cartel agrupa esta
+                advertencia con la de "archivo único" preexistente — mismo campo, mismo grupo
+                temático. */}
             <AvisoModeloDatos>
-              El modelo real (docx) tiene un solo archivo por presupuesto, no un checklist
+              El archivo que subís acá <strong>todavía no se guarda en el servidor</strong>: por
+              ahora queda solo en tu navegador, así que si volvés más tarde a este presupuesto no
+              lo vas a encontrar. Subir el archivo de verdad va a llegar en un cambio aparte.
+              Además, el modelo real (docx) tiene un solo archivo por presupuesto, no un checklist
               multi-documento.
             </AvisoModeloDatos>
           </Field>

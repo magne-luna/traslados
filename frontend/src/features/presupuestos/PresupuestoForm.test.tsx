@@ -87,6 +87,44 @@ describe('PresupuestoForm', () => {
     expect(screen.getByRole('note')).toHaveTextContent(/un solo archivo/i);
   });
 
+  // tasks.md 5.1, design.md D5/D13#1: el cartel más importante del change — el archivo elegido
+  // todavía no se sube ni se persiste contra la base real (solo queda en el navegador). Un único
+  // cartel agrupa esta advertencia con la ya existente de "archivo único" (mismo campo, mismo
+  // grupo temático — no uno por campo).
+  it('muestra un único cartel agrupado avisando que el archivo elegido todavía no se guarda en el servidor (D5)', () => {
+    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    const notas = screen.getAllByRole('note');
+    expect(notas).toHaveLength(1);
+    const cartel = notas[0];
+    expect(cartel).toHaveTextContent(/todavía no se guarda en el servidor/i);
+    expect(cartel).toHaveTextContent(/un solo archivo/i);
+  });
+
+  // Triangulación: el cartel se mantiene único incluso en modo edición, con un archivo ya
+  // "cargado" en los valores iniciales (round-trip de lectura, D5) — no se duplica ni desaparece.
+  it('el cartel del archivo se mantiene único también en modo edición con un archivo ya precargado', () => {
+    render(
+      <PresupuestoForm
+        pacientes={[martina]}
+        obrasSociales={[osecac]}
+        initial={{
+          pacienteId: 'paciente-martina',
+          obraSocialId: 'osecac',
+          monto: 150_000,
+          fechaEmision: '2026-06-01',
+          archivo: { nombre: 'presupuesto-facundo.pdf', cargadoEn: '2026-06-01' },
+        }}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const notas = screen.getAllByRole('note');
+    expect(notas).toHaveLength(1);
+    expect(notas[0]).toHaveTextContent(/todavía no se guarda en el servidor/i);
+  });
+
   it('el input de archivo es de un único archivo, no un checklist', () => {
     render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 

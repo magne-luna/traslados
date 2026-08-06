@@ -39,7 +39,7 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 | 2 | Obra Social (C-04) | 🔶 código+migraciones+tests completos (`integracion-obra-social`, 2026-07-31), **pendiente de aplicación de las migraciones y revisión manual a cargo de Enzo/backend** antes de archivar | Ver bullet ⏳ en §C-04 más abajo. Hallazgo del apply: el schema real ya tenía casi todo lo que `design.md` planeaba (nombres/tipos distintos). D12 (RN-ID-02) se revirtió y luego se restauró el mismo día — la "confirmación" que la revertía nunca pasó, ver §C-04 |
 | 3 | Conductores + Vehículos (C-08/C-09) | 🔶 **reconciliado (2026-08-01), bloqueado en 1 gap** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). `openspec/changes/integracion-conductores-vehiculos/` (mock→Supabase de Vehículos+Conductores) se escribió en paralelo con `C-08-vehiculos-mantenimiento` de Enzo (ya mergeado a `main`, commit `f840a96`), sin que ninguno de los dos supiera del otro. **Vehículos**: reconciliado contra el backend real de Enzo (gasto, habilitaciones y kilometraje adoptan su implementación) — ver bullet ⚠️ en §C-08 más abajo, **bloqueado en un gap real** (falta fuente de datos para `mantenimientos`, necesita decisión de Enzo). **Conductores**: sin conflicto con lo que Enzo mergeó (confirmado, ninguna de sus 15 migraciones toca `conductores.conductores`/`conductores_vehiculos`); tanda de mapeo puro (`conductorMapping.ts`, `semanaIso.ts`) completa; el repository real (§7) queda bloqueado porque las migraciones de asignación semanal/estado (`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`) todavía no las escribió nadie |
 | 4 | Facturación (C-07) | 🔶 propose completo (`integracion-facturacion`, 2026-07-31), **bloqueado en el portón de governance §0 de `tasks.md` — 5 decisiones a cargo de Enzo/backend** antes de poder aplicar | Ver bullet ⏳ en §C-07 más abajo para el detalle de las 5 decisiones |
-| 5 | Presupuestos (C-06) | 🟢 propose completo y **portón de governance aprobado** (`integracion-presupuestos`, 2026-08-02) — listo para `/opsx:apply` | Los 2 puntos que lo bloqueaban están **resueltos** (`monto_autorizado` + trigger RN-PA-01, `vigencia_desde`) y `C-06` está archivado. Ver bullet ✅ en §C-06 más abajo |
+| 5 | Presupuestos (C-06) | ✅ **completo y archivado (2026-08-06)** (`integracion-presupuestos`, ahora en `openspec/changes/archive/2026-08-06-integracion-presupuestos/`) — las 8 secciones de `tasks.md` completas, `PresupuestosRoute.tsx` lee/escribe contra las Edge Functions reales | Verificación con 3 cuentas reales corrida por `curl` directo (no por navegador, decisión de la usuaria) y RN-GL-02 parcialmente cumplida (`usuario_id` null en auditoría, gap aceptado) — dos desviaciones deliberadas y documentadas, ver bullet ✅ en §C-06 más abajo |
 | 6 | Hojas de Ruta (C-10) | 🔶 en progreso (apply `integracion-hojas-de-ruta`, 2026-08-04 — WU5a, documentación, completada) | Ver bullet ⚠️ en §C-10 más abajo |
 | 7 | Dashboard (C-11) | ⏳ pendiente | Va último — agrega datos de todos los repos reales de arriba |
 | 8 | Documentos (storage) | ⏳ pendiente | Buckets ya creados; falta reemplazar `mockDocumentoRepository` (uploads simulados) |
@@ -524,7 +524,11 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 ## FASE 3 — Reglas de negocio de facturación y operación diaria (paralelizable en 2 ramas)
 
 ### [C-06] `presupuestos-autorizaciones`
-- **Estado**: `[~]` backend implementado y pusheado (2026-07-29), incl. Edge Functions `presupuestos`/`autorizaciones` (2026-07-30); pendiente verificación manual y que frontend reemplace el mock
+- **Estado**: `[x]` completo — backend implementado, pusheado y archivado (2026-08-01, ver bullet
+  "Progreso backend" abajo) y frontend swapeado a Supabase real, verificado y archivado
+  (`integracion-presupuestos`, 2026-08-06, ver bullet ✅ más abajo). Dos desviaciones deliberadas
+  respecto del plan original (verificación por `curl` en vez de navegador, RN-GL-02 parcial) quedan
+  documentadas y aceptadas, no son blockers.
 - **Scope**:
   - Migración: tabla `presupuesto` (estimación anual por paciente/prestación) y tabla `autorizacion` (respuesta de la obra social — igual o menor al presupuesto, **nunca mayor**; cupo de días/km por mes; estado: pendiente/autorizada/judicializada/rechazada; vigencia con soporte de carga retroactiva).
   - Validación dura: rechazar o alertar si `autorizacion > presupuesto` (RN-PA-01).
@@ -582,6 +586,44 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
     `facturacion`, y con el transporte de D2 un perfil con `facturacion` sin `presupuestos` recibe un
     **403 explícito** en vez de 0 filas en silencio.
   - **Listo para `/opsx:apply integracion-presupuestos`.**
+- **✅ Completo y archivado** (`integracion-presupuestos`, cerrado 2026-08-06): las 8 secciones de
+  `tasks.md` (0 — governance, 1 — precondiciones, 1B — migración de 3 índices e índices aplicados por
+  la usuaria/Enzo, 2 — mapeos puros, 3 — repositories + traducción de errores, 4 — **el swap real**
+  (`PresupuestosRoute.tsx` reemplazó los cuatro mocks por
+  `supabasePresupuestoRepository`/`supabaseAutorizacionRepository`/`supabasePacienteRepository`/
+  `supabaseObraSocialRepository`), 5 — carteles `AvisoModeloDatos`, 6 — documentación, 7 —
+  verificación) están **completas**. Suite completa sin regresiones, `tsc -b`/`oxlint` limpios,
+  cobertura ≥85% en `shared/lib/presupuestos/`. **`FacturacionRoute.tsx` no se tocó** (D11, confirmado
+  por grep). **La pantalla lee/escribe datos reales** — arranca con los 2 presupuestos de prueba
+  dejados a propósito (ver más abajo), no con 0 filas como preveía D9 originalmente, pero no es una
+  regresión. Archivado en `openspec/changes/archive/2026-08-06-integracion-presupuestos/`; los 6
+  delta specs quedaron fusionados en `openspec/specs/{presupuesto,autorizacion}-*/spec.md`.
+  - **⚠️ Dos desviaciones deliberadas respecto del plan original — decisión explícita de la usuaria,
+    no ocultas**:
+    1. **`tasks.md` 7.5** ("verificación manual en el navegador" con 3 cuentas reales) **no se hizo
+       clickeando la pantalla**: se verificó el mismo contrato (alta/edición/lectura por rol,
+       `403` explícito para `facturacion` sin `presupuestos`, mensaje de RN-PA-01 traducido) por
+       `curl` directo contra las Edge Functions con tokens de sesión reales de las 3 cuentas —
+       detalle completo en `tasks.md` 1B.4. La usuaria juzgó esto suficiente (2026-08-06) y decidió
+       no hacer la pasada adicional por el navegador. **Lo que esto NO prueba**: comportamiento que
+       vive solo en el componente React (que el ítem de menú desaparezca para la cuenta sin permiso,
+       que el botón de guardar de una cuenta `read` no dé una falsa sensación de éxito).
+    2. **RN-GL-02 (rastro de alta/edición) parcialmente cumplida**: `auditoria.logs` registra el
+       *qué* (INSERT/UPDATE con `datos_nuevos` correctos) pero `usuario_id` llega `null` en las
+       escrituras de este módulo — el trigger de auditoría usa `auth.uid()`, que no resuelve nada
+       cuando la escritura llega vía la Edge Function operando con `service_role` (D3). Es un gap
+       **conocido, aceptado y documentado, no un blocker** — ver
+       `knowledge-base/04_modelo_de_datos.md` §Discrepancias #14 y `10_preguntas_abiertas.md`,
+       decisor nombrado **Enzo/backend**.
+  - **⚠️ Datos de prueba reales dejados a propósito en producción** (decisión de la usuaria,
+    2026-08-06, no revertida): los presupuestos `dd72b2a8-0002-4ea9-b60a-7d4d763e68af` (monto 16000)
+    y `8dd7904b-7e2a-4ac2-9795-db6080a21342` (monto 20000), con sus autorizaciones asociadas, son
+    filas reales creadas durante 1B.4 y siguen en la base real — no son de un ambiente de prueba
+    aparte.
+  - **⚠️ Permiso modificado en producción durante la prueba, no revertido**: a
+    `facturacion@pastor.com` se le retiró `presupuestos: write` durante la verificación de 1B.4(c)
+    (para probar el caso "cuenta de facturación sin acceso a presupuestos") y la usuaria decidió
+    dejarlo así — esa cuenta hoy **no tiene** `presupuestos: write` en producción.
 - **⚠️ Hallazgo de arquitectura abierto (D12)**: el proyecto tiene **dos backends en paralelo sobre
   las mismas tablas** —Edge Functions (`C-04`…`C-07`, `service_role` + `requirePermiso`) y
   PostgREST + RLS + RPC (los changes de integración)— y **ningún change lo declaró como decisión**.
@@ -721,6 +763,23 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
     — un perfil con `facturacion: read/write` sin `presupuestos: read` ve **0 autorizaciones en
     silencio**, dejando RN-FA-02 desactivada de hecho. Queda anotado como bloqueante a resolver en
     `integracion-presupuestos`.
+    - **⚠️ Nota de coordinación (`integracion-presupuestos`, 2026-08-05 — no toca
+      `integracion-facturacion/`, que sigue con su propio portón de governance CRÍTICO sin abrir)**:
+      esta D9 **cambia de forma** una vez que `integracion-presupuestos` termine de cablearse. (1)
+      Las autorizaciones **dejan de ser fixture** del lado de Presupuestos — ya son reales desde el
+      2026-08-05 (`PresupuestosRoute.tsx`), así que la "fuente mixta" pasa a ser "Facturación en
+      mock, Presupuestos real" en vez de "las dos en mock". (2) **La trampa de RLS que este bullet
+      anota queda verificada y cerrada**: confirmado contra `pg_policies` que las cuatro policies de
+      `facturacion.presupuesto`/`autorizacion` gatean por el módulo `presupuestos`, no `facturacion`
+      (detalle en `knowledge-base/04_modelo_de_datos.md` §Presupuesto/Autorizacion), y con las Edge
+      Functions un perfil con `facturacion` sin `presupuestos` recibe un **403 explícito** en vez de
+      0 filas en silencio. (3) El remedio de esta D9 pasa a ser, literalmente, **cambiar dos líneas**
+      de `FacturacionRoute.tsx` (inyectar
+      `supabasePresupuestoRepository`/`supabaseAutorizacionRepository`, ya escritos y exportados por
+      `integracion-presupuestos`) en vez de elegir entre las opciones A/B/C originales de esta D9.
+      **Ojo**: `1B.4` de `integracion-presupuestos` (verificación con cuentas reales del gateo de
+      permisos) todavía no se corrió — el punto (2) está verificado por lectura de `pg_policies`, no
+      por comportamiento observado en producción con una cuenta real.
   - **D10** — crear los 6 índices que faltan sobre las FK de `facturacion` sin `CONCURRENTLY`
     (se aparta de una regla dura de `database-schema-design`), justificado en que las 6 tablas
     tienen 0 filas hoy — condición a re-verificar inmediatamente antes de aplicar la migración.

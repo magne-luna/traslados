@@ -608,6 +608,179 @@ así que queda anotado acá hasta que se construya esa feature.
     contemplado con un `AvisoModeloDatos` propio explicando que es por diseño — regresión de UX
     aceptada y documentada, no descubierta en QA.
 
+- **Presupuestos / Autorizaciones vs. esquema real de `C-06`** (detalle completo en
+  `openspec/changes/integracion-presupuestos/design.md` §D13, propose 2026-08-02, apply en curso
+  2026-08-05 — el swap ya está en vivo, la verificación manual con cuentas reales todavía está
+  pendiente, ver nota de estado al final de este bloque): comparación entre `Presupuesto`/
+  `Autorizacion` del frontend y `facturacion.presupuesto`/`facturacion.autorizacion`
+  (`20260724100005_schema_facturacion.sql` + `20260729130000_schema_autorizacion_monto_vigencia.sql`
+  + `20260730120000_revert_presupuesto_archivo_meta.sql` +
+  `20260730140000_split_modulos_permisos.sql`), más el contrato real de las Edge Functions
+  `presupuestos`/`autorizaciones` (ver sección dedicada más abajo). Trece discrepancias de la tabla
+  D13 de `design.md` — nueve **resueltas**, cuatro **abiertas**:
+  1. **`Presupuesto.archivo: ArchivoAdjunto { nombre, cargadoEn }` — ABIERTA (parcialmente
+     resuelta)**: la base tiene una sola columna, `archivo_url TEXT`; las columnas de metadatos
+     (`archivo_nombre`, `archivo_cargado_en`) las dropeó a propósito `20260730120000`. Peor aún,
+     **hoy nada sube el archivo**: no hay bucket de Storage para este dominio y el formulario nunca
+     lo manda al servidor. Se resuelve parcialmente con mapeo no destructivo (lectura: `archivo_url`
+     → `{ nombre: último segmento decodeURIComponent, cargadoEn: fechaEmision }`; escritura: un
+     archivo recién elegido en el input **nunca** produce `archivoUrl`, solo viaja si vino de una
+     lectura previa) más `AvisoModeloDatos` en `PresupuestoForm.tsx` diciendo que el archivo no se
+     guarda. La subida real a Storage queda como change propio futuro
+     (`presupuestos-documentacion-storage`).
+  2. **`Autorizacion.archivo: ArchivoAdjunto` — ABIERTA (parcialmente resuelta)**: mismo caso que #1,
+     sobre `autorizacion.archivo_url`. Mismo mapeo no destructivo, mismo `AvisoModeloDatos` en
+     `AutorizacionForm.tsx`.
+  3. **`Presupuesto.monto: number` vs. `numeric NULL` — RESUELTA**: fila con `monto` nulo o no
+     numérico se descarta del listado (no se inventa `0`, que se leería como "presupuesto de cero
+     pesos").
+  4. **`Presupuesto.fechaEmision: string` vs. `date NULL` — RESUELTA**: mismo criterio, fila sin
+     fecha se descarta.
+  5. **`Autorizacion.estado` (requerido) vs. `NULL DEFAULT 'pendiente'` — RESUELTA**: nulo o fuera de
+     la unión `EstadoAutorizacion` se mapea a `'pendiente'` (es el default real de la columna, no una
+     invención del frontend).
+  6. **`montoAutorizado?`/`vigenciaDesde?` documentados como "campos que el frontend agrega sobre el
+     docx, pendientes de confirmar con backend" — RESUELTA**: son columnas reales desde `C-06`
+     (`monto_autorizado`, `vigencia_desde`). El comentario del tipo se actualizó y el cartel
+     `⚠️ Pendiente de confirmar con el cliente/backend` de `AutorizacionForm.tsx` (`presupuestos-ui`,
+     ver `ROADMAP-FRONTEND.md` FE-4) se retiró; se conservó, reformulada, la parte que sigue siendo
+     cierta ("estos campos no existen en el docx original").
+  7. **RN-PA-01 solo en UI (`validarAutorizacion`) — RESUELTA**: el trigger
+     `facturacion.validar_autorizacion_monto` ahora la aplica de verdad en el servidor; el rechazo
+     (`RAISE EXCEPTION 'RN-PA-01: monto_autorizado (%) no puede superar el presupuesto (%)'`) se
+     traduce a `La autorización no puede superar el monto del presupuesto.` en
+     `edgeFunctionErrors.ts`. La función pura de UI queda como espejo, no como única defensa.
+  8. **Policies gateadas por el módulo `presupuestos`, no `facturacion` — RESUELTA (documentación)**:
+     ver sección dedicada más abajo (§Presupuesto/Autorizacion) para el detalle completo, incluida la
+     consecuencia práctica para perfiles con `facturacion` sin `presupuestos`.
+  9. **3 FK sin índice — RESUELTA**: `presupuesto.paciente_id`, `presupuesto.obra_social_id` y
+     `autorizacion.presupuesto_id` no tenían índice (`pg_indexes`, 2026-08-02: el schema `facturacion`
+     solo tenía sus 7 primary keys). Se agregaron los 3 vía
+     `20260802100000_presupuesto_autorizacion_indices.sql` (`CREATE INDEX IF NOT EXISTS`, sin
+     `CONCURRENTLY` — las dos tablas tenían 0 filas), **aplicada por la usuaria/Enzo el 2026-08-05** y
+     verificada existente contra el proyecto real.
+  10. **Repositories vía RLS directo (los cuatro changes de integración previos) vs. Edge Functions
+      deployadas — ABIERTA, declarada y no resuelta**: este change consume
+      `supabase.functions.invoke('presupuestos'|'autorizaciones', …)` en vez de PostgREST + RLS
+      directo, porque el contrato de esas dos funciones ya coincide con el dominio y evita remapear
+      snake_case en las dos direcciones. Consecuencia: el proyecto queda con **dos patrones de
+      integración conviviendo** sobre las mismas tablas, sin que ningún change lo haya declarado
+      antes. No se unifica acá — es un change transversal. Pregunta abierta con decisor nombrado en
+      `10_preguntas_abiertas.md`.
+  11. **`FacturacionRoute.tsx` sigue en mocks — ABIERTA, coordinación con `integracion-facturacion`**:
+      después de este change la app tiene **dos fuentes distintas para la misma entidad**
+      (autorización): Presupuestos ya lee/escribe real, Facturación sigue validando cupo contra el
+      fixture de `localStorage`. Se decidió (D11) swapear Presupuestos primero, dejando
+      `FacturacionRoute.tsx` sin tocar — es alcance de `integracion-facturacion`, meterlo acá
+      arrastraría un change de governance CRÍTICO adentro de uno ALTO. Lo que sí queda cerrado: la
+      trampa de RLS que `integracion-facturacion` D9 dejó anotada (ver #8 arriba).
+  12. **Interfaces sin `delete()` vs. Edge Functions con `DELETE` — ABIERTA**: las dos funciones
+      soportan borrado; `PresupuestoRepository`/`AutorizacionRepository` no lo exponen y ninguna
+      pantalla lo ofrece. Agregar borrado es funcionalidad nueva, no swap de backend — no se hace
+      acá. Pregunta abierta con decisor nombrado en `10_preguntas_abiertas.md`.
+  13. **`Presupuesto` = monto único vs. la lectura anterior de la KB ("estimación anual por
+      prestación") — NO SE REABRE**: ya se resolvió a favor del docx en `presupuestos-ui`
+      (2026-07-24); este change no vuelve sobre esa decisión.
+  14. **RN-GL-02 (rastro de alta/edición) solo parcialmente cumplida para este módulo — ABIERTA,
+      hallazgo de la verificación con cuentas reales**: confirmado por `tasks.md` 1B.4(i)/7.6
+      (2026-08-06) que `auditoria.logs` sí registra el `INSERT`/`UPDATE` de un presupuesto (el *qué*),
+      pero `usuario_id` llega `null` en ambas filas (el *quién*, ausente). Causa raíz, leída en
+      `20260724100001_schema_modulos_auditoria.sql`: el trigger de auditoría usa `auth.uid()`, que no
+      resuelve nada cuando la escritura llega vía la Edge Function operando con `service_role` (D3) —
+      no hay sesión de usuario a nivel Postgres en ese camino, a diferencia de las escrituras vía
+      PostgREST + RLS directo de los otros cuatro changes de integración. Es un costo de D3 que
+      `design.md` no había anotado explícitamente. Pregunta abierta con decisor nombrado en
+      `10_preguntas_abiertas.md`.
+
+  **Nota de estado (2026-08-06, actualizada al cierre del change)**: las resoluciones #3-#9 están
+  escritas y verificadas por lectura contra el proyecto real (schema, trigger, policies, índices), y
+  el swap de `PresupuestosRoute.tsx` a los repositories reales está en producción (`tasks.md` §4).
+  La verificación manual de las dos Edge Functions con tres cuentas reales (`tasks.md` 1B.4) **ya se
+  corrió** (2026-08-06, vía `curl` directo con tokens de sesión reales, no clickeada en el navegador —
+  ver `tasks.md` 7.5) y confirmó en particular el punto (c): un perfil con `facturacion` sin
+  `presupuestos` recibe **403 explícito** y no `200 []` al listar — la resolución de #8 ya está
+  verificada por comportamiento observado en producción, no solo por lectura de `pg_policies`. El
+  único residual que dejó esa verificación es el nuevo ítem **#14** de arriba (`usuario_id null` en
+  auditoría).
+
+### Presupuesto / Autorizacion — policies gateadas por `presupuestos`, no `facturacion`
+
+**Confirmado leyendo `pg_policies` directamente** (`integracion-presupuestos`, 2026-08-02 y
+re-verificado 2026-08-05): las cuatro policies de `facturacion.presupuesto` y
+`facturacion.autorizacion` (`Read/Write presupuesto`, `Read/Write autorizacion`) tienen
+`qual = modulos.tiene_permiso('presupuestos'::text, 'read'|'write'::modulos.nivel_acceso)` —
+gateadas por el módulo **`presupuestos`**, no `facturacion` como afirma el comentario de cabecera de
+`20260724100005_schema_facturacion.sql` ("el módulo de permisos es `facturacion`"). **La base manda,
+el comentario de la migración está desactualizado/equivocado** — es la misma trampa que
+`integracion-facturacion` D9 dejó anotada como "bloqueante a resolver en `integracion-presupuestos`".
+
+**Ese mismo comentario desactualizado se repite, textual, en la cabecera de los dos `index.ts` de las
+Edge Functions** (`supabase/functions/presupuestos/index.ts` y
+`supabase/functions/autorizaciones/index.ts`: *"El modulo de permisos es 'facturacion' -- Presupuesto
+y Autorizacion comparten modulo con Facturas/Cobros/Gastos de Vehiculos"*) — pero el código real de
+esos mismos archivos, dos líneas más abajo, usa `const MODULO = 'presupuestos'` con un segundo
+comentario correcto justo encima (*"Modulo 'presupuestos' (no 'facturacion'): split via
+`20260730140000_split_modulos_permisos.sql`"*). Es decir: **el propio archivo se contradice a sí
+mismo** entre su docstring de cabecera (viejo) y su constante ejecutada (correcta) — no es solo la
+migración `.sql` la que quedó desactualizada. Ninguna de las dos correcciones estaba en `design.md`,
+que solo mencionaba la migración. Vale la pena que backend limpie el comentario de cabecera de los
+dos `index.ts` en algún momento, aunque no cambia ningún comportamiento (el código ejecutado ya es
+correcto).
+
+**Consecuencia práctica para perfiles con `facturacion: read/write` y sin `presupuestos: read`
+(D11 punto 3 de `integracion-presupuestos`)**: con el transporte de Edge Functions que usa este
+change, ese perfil recibe un **403 explícito** (`no tenes permiso de 'read' sobre el modulo
+'presupuestos'`) al invocar `GET /presupuestos` o `GET /autorizaciones` — **no** `200 []` con lista
+vacía. Es estrictamente mejor que el modo de falla silencioso que tendría PostgREST + RLS directo (0
+filas sin ningún error), y es la confirmación de que la trampa que `integracion-facturacion` D9 anotó
+queda cerrada del lado de Presupuestos. **Confirmado empíricamente con una cuenta real**
+(`tasks.md` 1B.4(c), 2026-08-06: se le retiró `presupuestos: write` a `facturacion@pastor.com` y
+`GET /presupuestos` devolvió `403`, no `200 []`) — lo de arriba ya no es solo lectura de `pg_policies`
+y del código de la Edge Function, es un request real observado.
+
+### Edge Functions: `presupuestos` / `autorizaciones` (contrato del módulo Presupuestos)
+
+Deployadas y `ACTIVE` (versión 2 al 2026-08-05), leídas directamente de
+`supabase/functions/presupuestos/index.ts` y `supabase/functions/autorizaciones/index.ts` para este
+bloque (no asumidas de `design.md`). Mismo molde que el resto de las Edge Functions del proyecto
+(`supabase/functions/_shared/auth.ts`): el portón de autorización es
+`requirePermiso(req, 'presupuestos', req.method === 'GET' ? 'read' : 'write')` — sin `Authorization`
+da `401`, JWT inválido da `401`, `tiene_permiso()` en falso da `403`; si pasa, la función sigue
+adentro operando con un cliente `admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)`
+(`service_role`, bypasea RLS — la autorización ya se verificó a nivel de módulo, RLS queda como
+segunda capa de defensa, no como el único gate). La `SERVICE_ROLE_KEY` vive solo en el entorno de la
+función, nunca llega al frontend.
+
+| Método | Ruta | Respuesta |
+|---|---|---|
+| `GET` | `/presupuestos` | `200` array, ordenado por `fecha_emision` desc |
+| `GET` | `/presupuestos/:id` | `200` \| `404 { error: 'presupuesto no encontrado' }` |
+| `POST` | `/presupuestos` | `201` \| `400` si falta `pacienteId`/`obraSocialId`/`monto`/`fechaEmision` |
+| `PATCH` | `/presupuestos/:id` | `200` \| `404 { error: 'presupuesto no encontrado' }` |
+| `DELETE` | `/presupuestos/:id` | `204` (sin body) |
+| `GET` | `/autorizaciones` | `200` array, **sin `order()`** — orden físico de Postgres, no garantizado |
+| `GET` | `/autorizaciones/:id` | `200` \| `404 { error: 'autorizacion no encontrada' }` |
+| `GET` | `/autorizaciones?presupuestoId=<uuid>` | `200` \| `404 { error: 'este presupuesto todavia no tiene autorizacion asociada' }` (relación 1—1, si `:id` también viene en el path tiene prioridad sobre `presupuestoId`) |
+| `POST` | `/autorizaciones` | `201` \| `400` si falta `presupuestoId` |
+| `PATCH` | `/autorizaciones/:id` | `200` \| `404 { error: 'autorizacion no encontrada' }` |
+| `DELETE` | `/autorizaciones/:id` | `204` (sin body) |
+
+`toApi()` de `presupuestos` devuelve, ya en camelCase: `id`, `pacienteId`, `obraSocialId`, `monto`
+(`Number(row.monto)`, nunca el `numeric` crudo de Postgres), `fechaEmision`, `archivoUrl?` (`??
+undefined`, nunca `null`). `toApi()` de `autorizaciones`: `id`, `presupuestoId`, `estado`,
+`fechaRespuesta?`, `montoAutorizado?` (`Number(...)` solo si no es `null`, si no `undefined`),
+`vigenciaDesde?`, `cupoMensualDias?`, `cupoMensualKm?`, `archivoUrl?` — los seis campos opcionales
+usan `?? undefined`, ninguno llega como `null` al frontend. Cualquier error de Postgres (incluido el
+`RAISE EXCEPTION` de RN-PA-01) se devuelve tal cual como `400 { error: error.message }` — **texto
+crudo del motor**, la traducción a castellano la hace el frontend (`edgeFunctionErrors.ts`), la Edge
+Function no la traduce.
+
+**Hallazgo de esta verificación (leyendo el código real, no `design.md`)**: el `MODULO` real de las
+dos funciones (`const MODULO = 'presupuestos'`) sí coincide con lo que `design.md` asumía, pero el
+docstring de cabecera de los dos archivos dice lo contrario (ver bloque de arriba
+§Presupuesto/Autorizacion) y `design.md` no lo menciona — solo hablaba del comentario de la migración
+`.sql`.
+
 ### Función de alta: `pacientes.crear_paciente_completo` (contrato de escritura del módulo Pacientes)
 
 Migración `supabase/migrations/20260730180000_crear_paciente_completo.sql`

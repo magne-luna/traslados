@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Button, Chip, InlineIcon, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
+import {
+  AvisoModeloDatos,
+  Button,
+  Chip,
+  InlineIcon,
+  Section,
+  VolverAlListadoButton,
+  VolverAlListadoLink,
+} from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import { iconCalendario, iconLapiz, iconMoneda } from '../../design-system/icons';
@@ -147,6 +155,18 @@ export function PresupuestoDetail({
   return (
     <div className="flex flex-col gap-xl py-xxl px-xl">
       <VolverAlListadoLink onClick={onBack} />
+
+      {/* tasks.md 5.4, design.md D11/D13#11: después de `integracion-presupuestos` esta pantalla
+          lee presupuestos y autorizaciones reales, pero `FacturacionRoute.tsx` (validación de
+          cupo, RN-FA-02/RN-PA-03) sigue en mocks — dos fuentes distintas para la misma entidad en
+          la misma app. Este cartel solo cuenta el lado de Presupuestos; `integracion-facturacion`
+          actualiza el suyo para que las dos historias queden alineadas (D11 punto 2). */}
+      <AvisoModeloDatos>
+        Esta pantalla ya lee presupuestos y autorizaciones reales del servidor. El módulo de{' '}
+        <strong>Facturación</strong> (la validación de cupo autorizado, reglas RN-FA-02/RN-PA-03)
+        todavía valida contra datos de prueba, no contra estos datos reales — así que el cupo que
+        ves acá puede no coincidir todavía con lo que Facturación usa para autorizar un viaje.
+      </AvisoModeloDatos>
 
       <Section label="Presupuesto" title={presupuesto ? nombrePaciente(paciente) : 'Nuevo presupuesto'}>
         {presupuesto && !editing ? (

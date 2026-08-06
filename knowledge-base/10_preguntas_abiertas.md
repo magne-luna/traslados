@@ -194,6 +194,56 @@ clienta todavía**, siguen abiertos y pueden requerir cambios de schema/UI más 
     `factura-por-prestador`, confirmado por Enzo). Una ObraSocial en modalidad "general" con
     varios Prestadores vinculados sigue sin ninguno asignado en la factura, a propósito.
 
+## Preguntas nuevas — `integracion-presupuestos` (2026-08-05)
+
+Surgidas de `design.md` §Open Questions (`openspec/changes/integracion-presupuestos/`). Ninguna se
+cierra en este change — se registran acá y quedan para confirmar.
+
+- **¿El proyecto unifica hacia Edge Functions o hacia PostgREST + RLS?** Hoy conviven los dos caminos
+  sobre las mismas tablas y ningún change lo había declarado como decisión antes de `design.md` D12.
+  `integracion-facturacion` propone RPC nuevas (`crear_factura_completa`/`actualizar_factura_completa`)
+  sin mencionar que las Edge Functions `facturas`/`cobros` ya existen y están deployadas. Cada change
+  que pase sin decidirlo suma una superficie más que mantener. **Decisor**: equipo técnico (Enzo + la
+  usuaria). No se resuelve en `integracion-presupuestos`.
+- **¿Se implementa la subida de archivos de presupuesto/autorización a Storage?** Hoy el input existe
+  en `PresupuestoForm.tsx`/`AutorizacionForm.tsx` y no guarda nada — el archivo elegido nunca sale del
+  navegador (D5). Requiere bucket nuevo (ninguno de los 4 buckets existentes es para este dominio) +
+  policies de Storage + UI de subida. **Decisor**: usuaria / cliente. Propuesto como change propio
+  `presupuestos-documentacion-storage`.
+- **¿Se siembran datos de prueba en la base real?** `facturacion.presupuesto` y
+  `facturacion.autorizacion` tienen 0 filas (verificado 2026-08-05) y la pantalla arranca vacía tras
+  el swap (D9) — es el comportamiento correcto, no una regresión, pero deja la pantalla sin nada para
+  mostrar hasta la primera carga real. Sembrar los fixtures de `presupuestos-ui` escribiría filas de
+  prueba referenciando el paciente y las obras sociales reales de la base. **Decisor**: usuaria /
+  cliente. `integracion-presupuestos` **no** lo hace.
+- **¿Los repositories deben exponer `delete()`?** Las dos Edge Functions (`presupuestos`,
+  `autorizaciones`) soportan `DELETE /presupuestos/:id` y `DELETE /autorizaciones/:id`;
+  `PresupuestoRepository`/`AutorizacionRepository` no lo exponen y ninguna pantalla lo ofrece. ¿Se
+  puede borrar un presupuesto cargado por error, o solo editarlo? Ninguna fuente (docx, KB, US-200) lo
+  dice. **Decisor**: cliente.
+- **¿El listado de autorizaciones necesita orden?** `GET /presupuestos` ordena por `fecha_emision`
+  desc; `GET /autorizaciones` **no ordena** (confirmado leyendo `supabase/functions/autorizaciones
+  /index.ts`), así que devuelve las filas en el orden físico de Postgres. Hoy no importa (la pantalla
+  solo las usa para resolver el chip de estado por presupuesto), pero es exactamente el modo de falla
+  que RN-FA-08 obligó a resolver en Obras Sociales. Si alguna vez se lista autorizaciones
+  directamente, hay que agregar `.order(...)` en la Edge Function. **Decisor**: backend.
+- **¿Quién es el dueño del contrato de las Edge Functions?** `integracion-presupuestos` consume
+  `presupuestos`/`autorizaciones` tal como están deployadas (versión 2). Si backend cambia un nombre
+  de campo de `toApi()`, el frontend se rompe **en runtime**, sin que ningún test ni el type-check lo
+  detecten — no hay tipos compartidos entre `supabase/functions/` y `frontend/`. ¿Se genera un tipo
+  compartido, se versiona el contrato, o se acepta el riesgo? **Decisor**: equipo técnico.
+- **RN-GL-02 (rastro de alta/edición) — `usuario_id` llega `null` en `auditoria.logs` para las
+  escrituras de este módulo. ¿Vale la pena arreglarlo?** Confirmado con cuentas reales el 2026-08-06
+  (`tasks.md` 1B.4(i)/7.6): el trigger de auditoría (`20260724100001_schema_modulos_auditoria.sql`)
+  usa `auth.uid()`, que no resuelve nada porque las escrituras de `presupuestos`/`autorizaciones`
+  llegan vía la Edge Function operando con `service_role` (D3) — no hay sesión de usuario a nivel
+  Postgres en ese camino, a diferencia de los otros cuatro changes de integración (PostgREST + RLS
+  directo, donde `auth.uid()` sí resuelve). El *qué* cambió queda registrado; el *quién* lo hizo, no.
+  Un arreglo posible (no decidido, no implementado acá) sería loguear `usuario_id` explícitamente
+  desde la propia Edge Function, que sí conoce al invocador vía `requirePermiso`, en lugar de
+  depender de `auth.uid()` en el trigger. **No se propone como solución decidida** — solo se deja
+  registrado el hueco y la opción que existe. **Decisor**: Enzo / backend.
+
 ## Insumos pendientes del cliente
 
 - Logo (árbol de discapacidad) y colores de marca; fondo de pantalla de referencia.
