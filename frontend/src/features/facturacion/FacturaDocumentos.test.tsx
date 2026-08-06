@@ -20,6 +20,7 @@ function buildFakeRepository(documentos: DocumentoAdjunto[] = []): DocumentoRepo
     listByEntity: vi.fn((_entidad: EntidadDocumental, _entidadId: string) => Promise.resolve(documentos)),
     upload: vi.fn(),
     remove: vi.fn(),
+    resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
   };
 }
 

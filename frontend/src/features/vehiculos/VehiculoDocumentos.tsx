@@ -17,7 +17,7 @@ interface VehiculoDocumentosProps {
 // `readOnly` que DocumentChecklist ya expone. La consulta de `items`/`documentos` no pasa por
 // acá, así que sigue disponible con solo `read`.
 export function VehiculoDocumentos({ vehiculoId, repository }: VehiculoDocumentosProps) {
-  const { items, documentos, upload, remove } = useDocumentChecklist(
+  const { items, documentos, upload, remove, resolverPrevisualizacion, revocarPrevisualizacion } = useDocumentChecklist(
     'vehiculo',
     vehiculoId,
     VEHICULO_DOCUMENTOS_ITEMS,
@@ -26,6 +26,14 @@ export function VehiculoDocumentos({ vehiculoId, repository }: VehiculoDocumento
   const puedeEscribir = usePuedeEscribir();
 
   return (
-    <DocumentChecklist items={items} documentos={documentos} onUpload={upload} onRemove={remove} readOnly={!puedeEscribir} />
+    <DocumentChecklist
+      items={items}
+      documentos={documentos}
+      onUpload={upload}
+      onRemove={remove}
+      readOnly={!puedeEscribir}
+      onResolverPrevisualizacion={resolverPrevisualizacion}
+      onRevocarPrevisualizacion={revocarPrevisualizacion}
+    />
   );
 }

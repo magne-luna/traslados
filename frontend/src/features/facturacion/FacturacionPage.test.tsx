@@ -87,7 +87,12 @@ function buildProps() {
     create: vi.fn(),
     update: vi.fn(),
   };
-  const documentoRepository: DocumentoRepository = { listByEntity: vi.fn().mockResolvedValue([]), upload: vi.fn(), remove: vi.fn() };
+  const documentoRepository: DocumentoRepository = {
+    listByEntity: vi.fn().mockResolvedValue([]),
+    upload: vi.fn(),
+    remove: vi.fn(),
+    resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+  };
 
   return { pacienteRepository, obraSocialRepository, presupuestoRepository, autorizacionRepository, documentoRepository };
 }

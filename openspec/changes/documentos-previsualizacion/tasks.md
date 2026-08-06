@@ -604,23 +604,137 @@ wrapper necesita tocarse para que esta sección compile, pase sus tests y no rom
 
 ## 6. Ajuste de los tests existentes (seis puntos de montaje)
 
-- [ ] 6.1 Verificar que siguen en verde, sin cambio de comportamiento esperado:
+- [x] 6.1 Verificar que siguen en verde, sin cambio de comportamiento esperado:
       `shared/components/DocumentChecklist.test.tsx`,
       `shared/lib/documentos/useDocumentChecklist.test.tsx`,
       `features/pacientes/PacienteDocumentos.test.tsx`,
       `features/conductores/ConductorDocumentos.test.tsx`,
       `features/facturacion/FacturaDocumentos.test.tsx`.
-- [ ] 6.2 Verificar los montajes sin test propio: `features/vehiculos/VehiculoDocumentos.tsx`,
+      **Hecho (2026-08-06)**: `cd frontend && npx vitest run` sobre los 5 archivos, antes de tocar
+      nada → **5 archivos, 49 tests, todos passing**. Después de 6.4 (agregar
+      `resolverPrevisualizacion` a los fakes de `PacienteDocumentos.test.tsx`/
+      `ConductorDocumentos.test.tsx`/`FacturaDocumentos.test.tsx`, los tres únicos de esta lista que
+      estaban en el radio de ruptura de 1.3/2.4/4.3) → re-corrido idéntico: **5 archivos, 49 tests,
+      todos passing**, sin cambio de conteo ni de comportamiento — confirma que agregar el campo al
+      fake solo destrabó compilación, no alteró ningún test.
+- [x] 6.2 Verificar los montajes sin test propio: `features/vehiculos/VehiculoDocumentos.tsx`,
       `features/pacientes/PacienteDocumentosChecklist.tsx`,
       `features/obras-sociales/ChecklistEditor.tsx` (preview `readOnly`) y la demo del catálogo
       `design-system/DesignSystem.tsx:200`.
-- [ ] 6.3 **No contar `features/presupuestos/PresupuestoForm.tsx`**: aparece en el `grep` de
+      **Hecho (2026-08-06)**: cableadas las dos props opcionales que dejó §5
+      (`onResolverPrevisualizacion={resolverPrevisualizacion}`,
+      `onRevocarPrevisualizacion={revocarPrevisualizacion}`, ambas ya expuestas por
+      `useDocumentChecklist` desde 4.1/4.3) en:
+      - `features/vehiculos/VehiculoDocumentos.tsx` — "Ver" pasa a renderizarse de verdad para
+        Vehículos. Safety net previo: `VehiculoDocumentos.test.tsx` (parte también de 6.4) 4/4
+        passing antes de tocar la producción; re-corrido después: 4/4 passing, sin cambio (el test
+        no afirma nada sobre "Ver", ni presencia ni ausencia, así que agregar el botón real no
+        rompe ninguna aserción existente). Sin test propio de "Ver" para este mount point — no
+        había ninguno que escribir según el alcance de esta tarea (documentado explícitamente, no
+        simulado).
+      - `features/pacientes/PacienteDocumentosChecklist.tsx` — "Ver" pasa a renderizarse de verdad
+        para Pacientes. Este archivo no tiene test propio (confirmado: no existe
+        `PacienteDocumentosChecklist.test.tsx`); es renderizado indirectamente por
+        `PacienteDocumentos.tsx`, cuyo test (`PacienteDocumentos.test.tsx`, ver 6.1) tampoco afirma
+        nada sobre "Ver" — re-corrido después del cambio: 9/9 passing (parte de los 49 de 6.1), sin
+        cambio.
+      - `features/obras-sociales/ChecklistEditor.tsx` (preview `readOnly`): **NO cableado, a
+        propósito** — confirmado con `grep -n "DocumentChecklist" ChecklistEditor.tsx`: sigue
+        montando `<DocumentChecklist items={items} documentos={[]} onUpload={noop} onRemove={noop}
+        readOnly />` sin ninguna de las dos props nuevas. `documentos=[]` de todos modos no tendría
+        ningún documento sobre el que mostrar "Ver". `ChecklistEditor.test.tsx` re-corrido después
+        de todos los cambios de esta sección: **2 failed | 12 passed (14)**, idéntico byte a byte
+        al safety net de cierre de §5 — mismo bug preexistente de regex `/^agregar$/i` contra
+        "+ Agregar", no relacionado con este change, sin regresión.
+      - `design-system/DesignSystem.tsx:188-206` (`DocumentosDemo`): **decisión — SÍ cablear**, a
+        diferencia de lo sugerido por default en la consigna. Motivo, documentado también como
+        comentario en el propio archivo: a diferencia de una demo puramente estática, este
+        `DocumentosDemo` ya instancia un `useDocumentChecklist` **real** contra
+        `mockDocumentoRepository` (no un stub ni props fijas) — el mismo mecanismo exacto que usan
+        los cuatro wrappers de dominio — precisamente para demostrar el componente "funcionando"
+        (subir/quitar con estado real, según el comentario preexistente de la línea 178-180). Dejar
+        "Ver" sin cablear ahí habría sido inconsistente con ese propósito explícito del catálogo, y
+        con el precedente ya sentado en 3.3 (el demo de `Overlay`/`OverlayCatalog`, agregado
+        específicamente para "demostrar el componente funcionando, no solo su forma estática").
+        Riesgo evaluado como bajo: es un catálogo de diseño con datos mock (`'p1'`), sin datos
+        clínicos reales — dominio LOW de gobernanza (catálogos/demos), no CRÍTICO. `DesignSystem.tsx`
+        no tiene test propio (confirmado, mismo estado que dejó anotado 3.3) — verificación por
+        `tsc -b --noEmit` + `oxlint`, sin ciclo RED→GREEN de test automatizado para esta tarea
+        puntual (mismo criterio ya usado en 3.3).
+      **⚠️ GAP CERRADO (pasada adicional, 2026-08-06)**: la pasada original de 6.2 (arriba) dejó
+      **flagueado, sin resolver**, que `features/conductores/ConductorDocumentos.tsx` y
+      `features/facturacion/FacturaDocumentos.tsx` habían quedado **sin cablear** — el brief de esa
+      pasada listó explícitamente solo Vehículos y Pacientes, en tensión directa con `tasks.md` 8.5
+      (que da por sentado que los 4 dominios "heredan la previsualización por ser el mismo componente
+      compartido"). **Veredicto del usuario (2026-08-06): cablear los 4 dominios**, consistente con lo
+      que asume 8.5 — no se corrige el texto de 8.5, se cierra el gap real. Cableado en esta pasada
+      adicional, mismo patrón exacto que `VehiculoDocumentos.tsx`/`PacienteDocumentosChecklist.tsx`
+      (`onResolverPrevisualizacion={resolverPrevisualizacion}`,
+      `onRevocarPrevisualizacion={revocarPrevisualizacion}`, ambas ya expuestas por
+      `useDocumentChecklist` desde 4.1/4.3, sin cambios en el hook ni en `DocumentChecklist.tsx`):
+      - `features/conductores/ConductorDocumentos.tsx` — "Ver" pasa a renderizarse de verdad para
+        Conductores.
+      - `features/facturacion/FacturaDocumentos.tsx` — "Ver" pasa a renderizarse de verdad para
+        Facturación.
+      Safety net previo (`ConductorDocumentos.test.tsx` + `FacturaDocumentos.test.tsx`, los dos únicos
+      archivos con test propio entre estos dos dominios), dos corridas antes de tocar producción:
+      **2 archivos, 10/10 passing** ambas corridas, idéntico. Después del cableado, dos corridas
+      adicionales: **2 archivos, 10/10 passing**, mismo conteo — ninguno de los dos tests afirma nada
+      sobre "Ver" todavía, así que cablear el botón real no rompe ninguna aserción existente (mismo
+      comportamiento documentado para Vehículos/Pacientes arriba: "sin cambio de comportamiento, solo
+      destraba/habilita la funcionalidad real"). `cd frontend && npx tsc -b --noEmit`: sigue en **0
+      errores**, sin cambios respecto del cierre de 6.4 (las dos props ya existían como opcionales
+      desde §5; este cableado no toca ninguna firma). `npx oxlint` sobre los dos archivos tocados:
+      exit 0, sin hallazgos. Corrida completa `cd frontend && npx vitest run` (todo el repo), dos
+      veces: ambas **21 archivos fallando, 208 pasando (229)** · **126 tests fallando, 1888 pasando
+      (2014)** — exactamente los mismos números que el cierre de §6 antes de esta pasada, sin ningún
+      test nuevo agregado ni removido, sin regresión. **Estado del gap: RESUELTO, no solo flagueado.**
+      NO se hizo commit — el usuario revisa el diff manualmente.
+- [x] 6.3 **No contar `features/presupuestos/PresupuestoForm.tsx`**: aparece en el `grep` de
       `DocumentChecklist` pero **solo en un comentario** que dice lo contrario (*"archivo único
       (Decisión 3, Discrepancia 1 — NO DocumentChecklist)"*). Presupuestos no usa el checklist y no
       entra en el alcance.
-- [ ] 6.4 `cd frontend && npx tsc -b --noEmit` en verde (nunca `tsc --noEmit` a secas — el `tsconfig`
+      **Confirmado (2026-08-06)**: `grep -n "DocumentChecklist" src/features/presupuestos/PresupuestoForm.tsx`
+      devuelve una sola línea, `44:// archivo único (Decisión 3, Discrepancia 1 — NO
+      DocumentChecklist). Estado controlado plano,` — es el comentario, no un import ni un uso real.
+      Archivo **no tocado** en esta sección.
+- [x] 6.4 `cd frontend && npx tsc -b --noEmit` en verde (nunca `tsc --noEmit` a secas — el `tsconfig`
       raíz es de project references y sin `-b` compila cero archivos).
-- [ ] 6.5 `cd frontend && npx oxlint` sin regresiones.
+      **Hecho (2026-08-06)**: lista roja de partida, extraída con
+      `npx tsc -b --noEmit | sed -E 's/\(.*//' | sort -u` — exactamente los 14 archivos que había
+      dejado anotados 4.3 (sin variación): `ConductorDetail.test.tsx`, `ConductorDocumentos.test.tsx`,
+      `ConductoresPage.test.tsx`, `FacturaDetail.test.tsx`, `FacturaDocumentos.test.tsx`,
+      `FacturacionPage.test.tsx`, `PresupuestosFacturacionCoherencia.test.tsx`,
+      `HojaDeRutaPage.coherencia.test.tsx`, `PacienteDetail.test.tsx`, `PacienteDocumentos.test.tsx`,
+      `PacientesPage.test.tsx`, `VehiculoDetail.test.tsx`, `VehiculoDocumentos.test.tsx`,
+      `VehiculosPage.test.tsx`. A cada uno de los 14 se le agregó
+      `resolverPrevisualizacion: vi.fn().mockResolvedValue(null)` a su objeto/función fake tipado
+      contra `DocumentoRepository`, siguiendo en cada archivo el mismo patrón exacto que ya usaba
+      para `listByEntity`/`upload`/`remove` (algunos como objeto literal de una sola línea, otros
+      como función con `overrides` spreadeado al final — se respetó la forma existente de cada uno,
+      sin reescribir estructura). **No es un ciclo RED→GREEN de negocio**: el "RED" acá es el error
+      de `tsc` (`TS2740`/`TS2322`, falta la propiedad `resolverPrevisualizacion`), el "GREEN" es que
+      compile — no se simuló ningún RED de test de comportamiento porque no corresponde (nota
+      explícita del brief de esta tarea, respetada). `cd frontend && npx tsc -b --noEmit` después de
+      los 14 cambios: **sin salida, exit limpio, 0 archivos rojos** — objetivo real de la tarea
+      cumplido. Conteo de tests antes/después de estos 14 archivos, mismo comando
+      `npx vitest run <los 14 paths>`: **antes 14 archivos/121 tests passing** → **después 14
+      archivos/121 tests passing**, conteo idéntico, cero cambio de comportamiento (confirma que el
+      único efecto fue destrabar compilación, tal como anticipaba el brief).
+- [x] 6.5 `cd frontend && npx oxlint` sin regresiones.
+      **Hecho (2026-08-06)**: `npx oxlint` sobre todo el repo → exit 0, mismos warnings preexistentes
+      de siempre (`react(only-export-components)` en archivos de contexto no tocados,
+      `no-unsafe-optional-chaining` en dos tests de Supabase no tocados) — ninguno nuevo. Además,
+      `npx oxlint` corrido explícitamente solo sobre los 17 archivos tocados en esta sección (14
+      test doubles de 6.4 + `VehiculoDocumentos.tsx` + `PacienteDocumentosChecklist.tsx` +
+      `DesignSystem.tsx` de 6.2): **exit 0, sin ningún hallazgo** (ni error ni warning).
+      **Verificación de cierre de §6 (2026-08-06)**: `cd frontend && npx vitest run` (suite completa)
+      corrida dos veces: ambas corridas idénticas, **21 archivos fallando, 208 pasando (229)** ·
+      **126 tests fallando, 1888 pasando (2014)** — exactamente los mismos números que dejó el
+      cierre de §5 (mismos 21 archivos de contención de `localStorage`, ninguno relacionado con
+      `documentos/`), sin ningún test nuevo agregado ni removido en esta sección (coherente: 6.4 no
+      agrega tests, solo campos a fakes existentes; 6.2 no agrega tests nuevos, cablea props en
+      producción sin tests propios para esos 3 mount points). **No se avanzó a §7.**
 
 ## 7. Documentación y cierre del tracking huérfano
 

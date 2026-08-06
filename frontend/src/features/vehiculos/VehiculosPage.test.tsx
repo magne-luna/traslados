@@ -38,6 +38,7 @@ function buildFakeDocumentoRepository(): DocumentoRepository {
     listByEntity: vi.fn().mockResolvedValue([]),
     upload: vi.fn(),
     remove: vi.fn(),
+    resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
   };
 }
 

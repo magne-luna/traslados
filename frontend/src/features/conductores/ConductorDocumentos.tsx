@@ -18,8 +18,13 @@ interface ConductorDocumentosProps {
 // `readOnly` que DocumentChecklist ya expone — se reutiliza tal cual, sin tocar el componente
 // compartido. La consulta de `items`/`documentos` no pasa por acá, así que sigue disponible con
 // solo `read`: el gateo del cliente nunca debe ser más restrictivo que la RLS del servidor.
+//
+// previsualización (documentos-previsualizacion tasks.md 6.2, gap cerrado): mismo cableado que
+// VehiculoDocumentos/PacienteDocumentosChecklist — `resolverPrevisualizacion`/
+// `revocarPrevisualizacion` de `useDocumentChecklist` pasan a `DocumentChecklist` para que "Ver"
+// se renderice de verdad también acá.
 export function ConductorDocumentos({ conductorId, repository }: ConductorDocumentosProps) {
-  const { items, documentos, upload, remove } = useDocumentChecklist(
+  const { items, documentos, upload, remove, resolverPrevisualizacion, revocarPrevisualizacion } = useDocumentChecklist(
     'conductor',
     conductorId,
     CONDUCTOR_DOCUMENTOS_ITEMS,
@@ -32,7 +37,15 @@ export function ConductorDocumentos({ conductorId, repository }: ConductorDocume
       <Chip kind="warning">
         ⚠️ Pendiente de confirmar con el cliente: documentos a precargar (licencia/DNI/apto médico)
       </Chip>
-      <DocumentChecklist items={items} documentos={documentos} onUpload={upload} onRemove={remove} readOnly={!puedeEscribir} />
+      <DocumentChecklist
+        items={items}
+        documentos={documentos}
+        onUpload={upload}
+        onRemove={remove}
+        readOnly={!puedeEscribir}
+        onResolverPrevisualizacion={resolverPrevisualizacion}
+        onRevocarPrevisualizacion={revocarPrevisualizacion}
+      />
     </div>
   );
 }

@@ -36,7 +36,12 @@ function buildFakeRepository(): ConductorRepository {
 }
 
 function buildFakeDocumentoRepository(): DocumentoRepository {
-  return { listByEntity: vi.fn().mockResolvedValue([]), upload: vi.fn(), remove: vi.fn() };
+  return {
+    listByEntity: vi.fn().mockResolvedValue([]),
+    upload: vi.fn(),
+    remove: vi.fn(),
+    resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+  };
 }
 
 function buildFakeVehiculoRepository(): VehiculoRepository {

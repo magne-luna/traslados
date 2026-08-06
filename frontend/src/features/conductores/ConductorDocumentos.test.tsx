@@ -10,6 +10,7 @@ function buildFakeRepository(overrides: Partial<DocumentoRepository> = {}): Docu
     listByEntity: vi.fn().mockResolvedValue([]),
     upload: vi.fn(),
     remove: vi.fn(),
+    resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
 }

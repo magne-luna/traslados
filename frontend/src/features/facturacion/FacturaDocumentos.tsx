@@ -23,8 +23,18 @@ interface FacturaDocumentosProps {
 // compartido. La consulta de `items`/`documentos` no pasa por acá, así que sigue disponible con
 // solo `read`: el gateo del cliente nunca debe ser más restrictivo que la RLS del servidor, que
 // ya autoriza esa lectura.
+//
+// previsualización (documentos-previsualizacion tasks.md 6.2, gap cerrado): mismo cableado que
+// VehiculoDocumentos/PacienteDocumentosChecklist — `resolverPrevisualizacion`/
+// `revocarPrevisualizacion` de `useDocumentChecklist` pasan a `DocumentChecklist` para que "Ver"
+// se renderice de verdad también acá.
 export function FacturaDocumentos({ facturaId, items, repository }: FacturaDocumentosProps) {
-  const { documentos, upload, remove } = useDocumentChecklist('factura', facturaId, items, repository);
+  const { documentos, upload, remove, resolverPrevisualizacion, revocarPrevisualizacion } = useDocumentChecklist(
+    'factura',
+    facturaId,
+    items,
+    repository,
+  );
   const puedeEscribir = usePuedeEscribir();
 
   return (
@@ -33,7 +43,15 @@ export function FacturaDocumentos({ facturaId, items, repository }: FacturaDocum
         El docx no modela ninguna tabla de documentos por Factura (Discrepancia 2). El backend
         `C-07` debe crear <code>documento_factura</code>.
       </AvisoModeloDatos>
-      <DocumentChecklist items={items} documentos={documentos} onUpload={upload} onRemove={remove} readOnly={!puedeEscribir} />
+      <DocumentChecklist
+        items={items}
+        documentos={documentos}
+        onUpload={upload}
+        onRemove={remove}
+        readOnly={!puedeEscribir}
+        onResolverPrevisualizacion={resolverPrevisualizacion}
+        onRevocarPrevisualizacion={revocarPrevisualizacion}
+      />
     </div>
   );
 }

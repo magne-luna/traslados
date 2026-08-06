@@ -21,10 +21,23 @@ interface PacienteDocumentosChecklistProps {
 // `items`/`documentos` no pasa por acá, así que sigue disponible con solo `read`: el gateo del
 // cliente nunca debe ser más restrictivo que la RLS del servidor, que ya autoriza esa lectura.
 export function PacienteDocumentosChecklist({ pacienteId, items, repository }: PacienteDocumentosChecklistProps) {
-  const { documentos, upload, remove } = useDocumentChecklist('paciente', pacienteId, items, repository);
+  const { documentos, upload, remove, resolverPrevisualizacion, revocarPrevisualizacion } = useDocumentChecklist(
+    'paciente',
+    pacienteId,
+    items,
+    repository,
+  );
   const puedeEscribir = usePuedeEscribir();
 
   return (
-    <DocumentChecklist items={items} documentos={documentos} onUpload={upload} onRemove={remove} readOnly={!puedeEscribir} />
+    <DocumentChecklist
+      items={items}
+      documentos={documentos}
+      onUpload={upload}
+      onRemove={remove}
+      readOnly={!puedeEscribir}
+      onResolverPrevisualizacion={resolverPrevisualizacion}
+      onRevocarPrevisualizacion={revocarPrevisualizacion}
+    />
   );
 }

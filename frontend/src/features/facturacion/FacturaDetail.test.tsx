@@ -117,7 +117,12 @@ function buildCobroRepository(cobros: Cobro[] = []): CobroRepository {
 }
 
 function buildDocumentoRepository(): DocumentoRepository {
-  return { listByEntity: vi.fn().mockResolvedValue([]), upload: vi.fn(), remove: vi.fn() };
+  return {
+    listByEntity: vi.fn().mockResolvedValue([]),
+    upload: vi.fn(),
+    remove: vi.fn(),
+    resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+  };
 }
 
 function renderDetail(overrides: Partial<React.ComponentProps<typeof FacturaDetail>> = {}) {

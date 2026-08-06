@@ -95,7 +95,12 @@ function buildFakeObraSocialRepo(): ObraSocialRepository {
   return { list: vi.fn().mockResolvedValue([]), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
 }
 function buildFakeDocumentoRepo(): DocumentoRepository {
-  return { listByEntity: vi.fn().mockResolvedValue([]), upload: vi.fn(), remove: vi.fn() };
+  return {
+    listByEntity: vi.fn().mockResolvedValue([]),
+    upload: vi.fn(),
+    remove: vi.fn(),
+    resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+  };
 }
 
 const EMPLEADO: Usuario = { id: 'u-empleado', nombre: 'Juan', apellido: 'Pérez', email: 'juan@x.com', rol: 'empleado' };

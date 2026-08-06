@@ -186,7 +186,12 @@ const demoChecklist: ChecklistItem[] = [
 ];
 
 function DocumentosDemo() {
-  const { documentos, loading, upload, remove } = useDocumentChecklist(
+  // documentos-previsualizacion (tasks.md 6.2): este demo ya instancia un useDocumentChecklist
+  // real (con mockDocumentoRepository, no un stub estático) para mostrar subir/quitar "con estado
+  // real" — se cablean también resolverPrevisualizacion/revocarPrevisualizacion para que "Ver"
+  // funcione acá igual que en un dominio real, consistente con el propósito del catálogo vivo de
+  // demostrar el componente funcionando (mismo criterio que el demo de Overlay agregado en 3.3).
+  const { documentos, loading, upload, remove, resolverPrevisualizacion, revocarPrevisualizacion } = useDocumentChecklist(
     'paciente',
     'p1',
     demoChecklist,
@@ -197,7 +202,16 @@ function DocumentosDemo() {
     return <p className="font-body text-[13px] text-muted">Cargando checklist…</p>;
   }
 
-  return <DocumentChecklist items={demoChecklist} documentos={documentos} onUpload={upload} onRemove={remove} />;
+  return (
+    <DocumentChecklist
+      items={demoChecklist}
+      documentos={documentos}
+      onUpload={upload}
+      onRemove={remove}
+      onResolverPrevisualizacion={resolverPrevisualizacion}
+      onRevocarPrevisualizacion={revocarPrevisualizacion}
+    />
+  );
 }
 
 export default function DesignSystem() {
