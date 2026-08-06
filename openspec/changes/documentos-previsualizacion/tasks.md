@@ -195,18 +195,69 @@
 > Condicionado al veredicto del Checkpoint (a). Si sale Opción B, esta sección entera no se hace y el
 > change se detiene acá.
 
-- [ ] 2.1 (RED→GREEN) `mockDocumentoRepository.upload()`: dejar de descartar el `File`. Guardar el
+- [x] 2.1 (RED→GREEN) `mockDocumentoRepository.upload()`: dejar de descartar el `File`. Guardar el
       binario (o su `ObjectURL`) en el store interno junto al `DocumentoAdjunto`, y poblar `tipoMime`
       desde `file.type`. **La forma pública de `DocumentoAdjunto` que devuelve `upload()` no cambia
       más allá del campo nuevo** — la URL no viaja en el modelo (D1).
-- [ ] 2.2 (RED→GREEN→TRIANGULATE) Implementar `resolverPrevisualizacion()`: devuelve el `ObjectURL`
+      **Hecho (2026-08-06)**: safety net previo (`mockDocumentoRepository.test.ts`, único archivo
+      modificado por esta tarea) registrado en verde — 7/7 passing antes de tocar nada. Nuevo Map
+      interno `contenidoPorDocumentoId` (documentoId → ObjectURL), separado del `store` público —
+      la URL nunca viaja en `DocumentoAdjunto` (D1). RED confirmado: 3 tests nuevos fallando
+      (`tipoMime` undefined, `createObjectURL` no llamado). `upload()` ahora hace
+      `contenidoPorDocumentoId.set(nuevo.id, URL.createObjectURL(file))` y puebla
+      `tipoMime: file.type || undefined`. GREEN confirmado. Triangulado: `tipoMime` poblado, forma
+      pública del objeto sin campos de URL (`Object.keys` exacto), `URL.createObjectURL` llamado
+      con el mismo `File` recibido (spy).
+- [x] 2.2 (RED→GREEN→TRIANGULATE) Implementar `resolverPrevisualizacion()`: devuelve el `ObjectURL`
       del documento pedido, o `null` si ese `id` no tiene contenido asociado. Triangular al menos:
       documento con contenido, documento sin contenido (cargado "antes"), `id` inexistente.
-- [ ] 2.3 (RED→GREEN) `remove()`: al quitar un documento, **revocar su `ObjectURL`**
+      **Hecho (2026-08-06)**: RED confirmado (`resolverPrevisualizacion is not a function` sobre el
+      mock — el stub de 1.2 no cuenta, es un objeto distinto). Implementado: valida pertenencia del
+      `documentoId` contra `listByEntity` de esa `entidad`/`entidadId` (no solo el store de
+      contenido, para no filtrar existencia de documentos de otra entidad) y, si pertenece, devuelve
+      `contenidoPorDocumentoId.get(documentoId) ?? null`. GREEN confirmado. Triangulado en 3 casos
+      reales (no fake-it): (1) documento con contenido → URL real vía `createObjectURL`; (2)
+      documento sin contenido "cargado antes" → construido con un test seam nuevo,
+      `seedDocumentoSinContenidoParaTest(entidad, entidadId, documento)` (export adicional del
+      módulo, **no** parte de la interfaz `DocumentoRepository` ni usado fuera de tests — necesario
+      porque, desde 2.1, la API pública `upload()` siempre guarda contenido, así que no hay forma de
+      producir por la API pública un documento "viejo" sin contenido; se deja documentado en el
+      propio archivo de producción, comentario arriba de la función) → `null`; (3) `id` inexistente
+      → `null`. Nota: (2) y (3) devuelven `null` por el mismo camino de código (no pertenece a la
+      lista o no tiene contenido) — es el comportamiento correcto según el contrato D2 ("`null` = no
+      hay nada que previsualizar, caso normal"), no una limitación del test.
+- [x] 2.3 (RED→GREEN) `remove()`: al quitar un documento, **revocar su `ObjectURL`**
       (`URL.revokeObjectURL`) para no filtrar memoria. Test que verifique que se llama.
-- [ ] 2.4 Confirmar que **no** hace falta `SCHEMA_VERSION` (D6 de `design.md`): el store sigue siendo
+      **Hecho (2026-08-06)**: RED confirmado (`revokeObjectURL` 0 llamadas esperando 1). `remove()`
+      ahora, tras filtrar el documento del `store`, busca su URL en `contenidoPorDocumentoId`, llama
+      `URL.revokeObjectURL(url)` y borra la entrada del Map. GREEN confirmado. Triangulado: (1) spy
+      sobre `URL.revokeObjectURL` llamado exactamente 1 vez al remover un documento con contenido;
+      (2) tras `remove()`, `resolverPrevisualizacion()` para ese mismo id vuelve a resolver `null`
+      (consistencia end-to-end, no solo el spy).
+- [x] 2.4 Confirmar que **no** hace falta `SCHEMA_VERSION` (D6 de `design.md`): el store sigue siendo
       un `Map` en memoria de sesión, sin `localStorage`, así que no hay dato viejo que migrar. Dejarlo
       escrito como comentario en el archivo, no solo en el design.
+      **Hecho (2026-08-06)**: comentario agregado en `mockDocumentoRepository.ts`, arriba de la
+      declaración de `contenidoPorDocumentoId` — explica que sigue siendo memoria de sesión pura (un
+      segundo `Map`, ningún `localStorage`), que no hace falta `SCHEMA_VERSION` porque no hay dato
+      persistido con forma vieja que migrar, y que el `File`/`Blob` detrás del `ObjectURL` tampoco
+      sería serializable si algún día se agregara persistencia (decisión aparte, fuera de este
+      change). No es solo la nota de `design.md` — vive en el propio archivo de producción.
+      **Verificación de cierre de §2 (2026-08-06)**: `cd frontend && npx tsc -b --noEmit` sigue en
+      rojo pero bajó de 16 a **15 archivos** — comparado exactamente contra la lista de 1.3:
+      `mockDocumentoRepository.ts` **ya no aparece** (el mock ahora implementa
+      `resolverPrevisualizacion()` con la firma completa). Quedan los 15 test doubles/fakes
+      señalados en 1.3, sin cambios en la lista: `ConductorDetail.test.tsx`,
+      `ConductorDocumentos.test.tsx`, `ConductoresPage.test.tsx`, `FacturaDetail.test.tsx`,
+      `FacturaDocumentos.test.tsx`, `FacturacionPage.test.tsx`,
+      `PresupuestosFacturacionCoherencia.test.tsx`, `HojaDeRutaPage.coherencia.test.tsx`,
+      `PacienteDetail.test.tsx`, `PacienteDocumentos.test.tsx`, `PacientesPage.test.tsx`,
+      `VehiculoDetail.test.tsx`, `VehiculoDocumentos.test.tsx`, `VehiculosPage.test.tsx`,
+      `useDocumentChecklist.test.tsx` — se ajustan en §6, fuera de alcance de esta pasada.
+      `cd frontend && npx vitest run src/shared/lib/documentos/mockDocumentoRepository.test.ts`:
+      15/15 passed (7 preexistentes de `pacientes-documentos-multiples` + 8 nuevos de §2).
+      `npx oxlint` sobre `mockDocumentoRepository.ts` y su test: limpio, exit 0, sin hallazgos.
+      **No se avanzó a §3.**
 
 ## 3. Componente de ventana en el design system (Checkpoint (d))
 
