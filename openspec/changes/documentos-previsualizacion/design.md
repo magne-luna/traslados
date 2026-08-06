@@ -308,6 +308,13 @@ que contra URL firmada. **No es opcional** — se escribe acá para que no se de
 Esto no es bloqueante para el propose (es una decisión de implementación acotada), pero conviene que
 Enzo lo mire junto con el resto.
 
+> **⚠️ Corrección (2026-08-06, hallada en verificación manual, `tasks.md` 8.2)**: `sandbox=""` (sin
+> `allow-same-origin`) impedía cargar `blob:` — el iframe queda con origen opaco y los navegadores
+> bloquean esa carga, independiente de que el contenido sea confiable o no. Implementado con
+> `sandbox="allow-same-origin"` en su lugar. Sigue siendo seguro: el escape de sandbox conocido
+> requiere `allow-scripts` **y** `allow-same-origin` juntos — con solo `allow-same-origin`, sin
+> `allow-scripts`, nada dentro del iframe puede ejecutar código, tenga o no identidad de origen.
+
 ---
 
 ## Decisions

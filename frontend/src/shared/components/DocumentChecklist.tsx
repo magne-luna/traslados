@@ -75,11 +75,18 @@ function ordenarParaMostrar(docs: DocumentoAdjunto[], vigente: DocumentoAdjunto 
 }
 
 // documentos-previsualizacion (tasks.md 5.4, design.md Checkpoint (e)): decide qué elemento
-// renderizar según `tipoMime` y el desenlace de `resolverPrevisualizacion`. `<iframe>` va
-// SIEMPRE sandboxeado sin `allow-scripts` ni `allow-same-origin` — un PDF/SVG subido por un
-// usuario puede ejecutar script en el origen de la app si el iframe no está sandboxeado, y eso
-// aplica igual en mock (`ObjectURL` es same-origin) que contra una URL firmada real el día de
-// mañana. No es opcional.
+// renderizar según `tipoMime` y el desenlace de `resolverPrevisualizacion`. `<iframe>` va SIEMPRE
+// sandboxeado, sin `allow-scripts` — un PDF/SVG subido por un usuario nunca puede ejecutar script
+// en el origen de la app, en mock o contra una URL firmada real el día de mañana. No es opcional.
+//
+// **Corrección (2026-08-06, hallada en §8.2 de tasks.md, verificación manual)**: `sandbox=""`
+// (sin `allow-same-origin`) deja al iframe con origen opaco, y los navegadores bloquean cargar
+// `blob:` ahí — el `ObjectURL` del mock nunca resolvía, mostraba el ícono roto de "no se pudo
+// cargar" del navegador. Se agrega `allow-same-origin` para permitir esa carga. Sigue siendo
+// seguro: el escape de sandbox conocido necesita `allow-scripts` + `allow-same-origin` juntos —
+// con `allow-same-origin` solo, sin `allow-scripts`, nada puede ejecutar código aunque el iframe
+// tenga identidad de origen. Contra una URL firmada real (https, no blob) esta restricción no
+// aplicaría de todos modos, pero se deja igual por consistencia entre mock y real.
 function ContenidoPreview({ estado, documento }: { estado: EstadoPrevisualizacion; documento: DocumentoAdjunto }) {
   if (estado.status === 'cargando') {
     return <p className="font-body text-sm text-muted">Cargando previsualización…</p>;
@@ -110,7 +117,7 @@ function ContenidoPreview({ estado, documento }: { estado: EstadoPrevisualizacio
       <iframe
         src={estado.url}
         title={documento.nombreArchivo}
-        sandbox=""
+        sandbox="allow-same-origin"
         className="h-[70vh] w-full rounded-sm border border-border"
       />
     );

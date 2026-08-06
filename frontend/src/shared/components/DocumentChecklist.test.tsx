@@ -286,7 +286,7 @@ describe('DocumentChecklist — contenido de la previsualización según tipoMim
     expect(img).toHaveAttribute('src', 'blob:foto-url');
   });
 
-  it('PDF (tipoMime application/pdf) se renderiza como <iframe> sandboxeado sin allow-scripts ni allow-same-origin', async () => {
+  it('PDF (tipoMime application/pdf) se renderiza como <iframe> sandboxeado con allow-same-origin (necesario para cargar blob:) pero sin allow-scripts', async () => {
     const doc: DocumentoAdjunto = {
       id: 'doc-1',
       itemId: 'item-presupuesto',
@@ -310,9 +310,8 @@ describe('DocumentChecklist — contenido de la previsualización según tipoMim
     const iframe = await screen.findByTitle('presupuesto.pdf');
     expect(iframe.tagName).toBe('IFRAME');
     expect(iframe).toHaveAttribute('src', 'blob:pdf-url');
-    expect(iframe).toHaveAttribute('sandbox', '');
+    expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin');
     expect(iframe.getAttribute('sandbox')).not.toContain('allow-scripts');
-    expect(iframe.getAttribute('sandbox')).not.toContain('allow-same-origin');
   });
 
   it('tipo no soportado (ej. application/zip) muestra un estado explícito de "no previsualizable", sin <img> ni <iframe>', async () => {

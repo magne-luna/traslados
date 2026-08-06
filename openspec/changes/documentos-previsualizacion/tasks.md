@@ -532,6 +532,10 @@ wrapper necesita tocarse para que esta sección compile, pase sus tests y no rom
       haya `<img>`, pero el test de "no soportado" sí verifica explícitamente `queryByRole('img')` y
       `document.querySelector('iframe')` ambos ausentes, para no dejar pasar una implementación que
       renderice los tres a la vez).
+      **⚠️ Corrección posterior (2026-08-06, ver 8.2)**: `sandbox=""` resultó no cargar `blob:` en
+      ningún navegador (origen opaco). Se pasó a `sandbox="allow-same-origin"` — sigue sin
+      `allow-scripts`, el detalle completo de por qué sigue siendo seguro está en 8.2 y en el
+      comentario de `DocumentChecklist.tsx`.
 - [x] 5.5 (RED→GREEN→TRIANGULATE) Estados de carga / error / no-previsualizable visibles (D5), con
       mensaje comprensible y **sin propagar el mensaje crudo del error** a la UI (mismo requisito duro
       que toda la serie de integración de este proyecto). Triangular los tres.
@@ -850,6 +854,17 @@ alcance de esta pasada. **No se hizo commit** — el usuario revisa el diff y co
       control de errores de carga).
 - [ ] 8.2 Subir un PDF y previsualizarlo. Verificar en al menos dos navegadores — el visor de PDF en
       `<iframe>` es nativo y **su comportamiento varía**; en algunos móviles descarga en vez de mostrar.
+      **Bug encontrado y arreglado durante esta verificación (2026-08-06)**: con `sandbox=""` (5.4
+      original), el PDF nunca cargaba — ícono roto del navegador, no un estado de error propio. Causa:
+      un iframe sin `allow-same-origin` queda con origen opaco, y los navegadores bloquean cargar
+      `blob:` ahí (el `ObjectURL` del mock). Fix aplicado en `DocumentChecklist.tsx`:
+      `sandbox="allow-same-origin"` (sigue **sin** `allow-scripts` — el escape de sandbox conocido
+      necesita ambas flags juntas, con solo `allow-same-origin` nada puede ejecutar código). RED→GREEN
+      confirmado sobre el test existente de 5.4 (`DocumentChecklist.test.tsx`, 22/22), `tsc -b --noEmit`
+      y `oxlint` limpios. Actualiza también el comentario de seguridad en el propio componente y el
+      texto de 5.4/design.md D... más abajo, que describían `sandbox=""` como el valor final — ya no lo
+      es. **Falta re-verificar en al menos dos navegadores** (lo que pedía 8.2 originalmente) antes de
+      tildar este punto.
 - [ ] 8.3 Con un ítem que tenga 2+ documentos (el caso de `pacientes-documentos-multiples`: presupuesto
       vigente + renovación), previsualizar cada uno y confirmar que se abre **el correcto**.
 - [ ] 8.4 Cerrar con `Escape`, con el backdrop y con el botón de cierre. Confirmar que el checklist
