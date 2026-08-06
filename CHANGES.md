@@ -721,6 +721,13 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   cliente los defaults de `10_preguntas_abiertas.md` (identificador DNI/afiliado, plazos 90/45/60
   y su precedencia, integración ARCA, período estructurado). Verificación manual en navegador
   confirmada por el usuario 2026-07-25.
+- **✅ Wizard de alta de factura archivado** (`facturacion-wizard-paciente-prestador`, 2026-08-05):
+  convierte el alta de factura en un flujo por etapas (Paciente → Obra social/Prestador → resto),
+  sin tocar lógica de negocio, datos persistidos ni comportamiento de edición (la edición de una
+  factura existente sigue mostrando todo el formulario junto, sin wizard). 138/138 tests de
+  facturación en verde, `tsc -b --noEmit` limpio, verificación manual en navegador confirmada por
+  la usuaria y uso real confirmado por Enzo. Archivado en
+  `openspec/changes/archive/2026-08-05-facturacion-wizard-paciente-prestador/`.
 - **Progreso backend (real, C-07, 2026-07-30)**: ✅ implementado, pendiente deploy. Cerró los 3
   puntos de la discrepancia de arriba (`asistencia_prestacion`, `cantidad_km`,
   `fecha_estimada_cobro`) más 6 campos adicionales que el discrepancy log no tenía listados pero

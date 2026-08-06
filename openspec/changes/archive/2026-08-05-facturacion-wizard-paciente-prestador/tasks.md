@@ -60,6 +60,6 @@
 
 ## Phase 5: Documentación
 
-- [ ] 5.1 `CHANGES.md` — nota de este change bajo `C-07`/`facturacion-asistencias-cobros`
-- [ ] 5.2 Archivar este change (`openspec/changes/` → `openspec/changes/archive/`) una vez
-      confirmado por Enzo en uso real
+- [x] 5.1 `CHANGES.md` — nota de este change bajo `C-07`/`facturacion-asistencias-cobros`
+- [x] 5.2 Archivar este change (`openspec/changes/` → `openspec/changes/archive/`) una vez
+      confirmado por Enzo en uso real — confirmado, 2026-08-05
