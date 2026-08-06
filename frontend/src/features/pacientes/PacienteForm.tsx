@@ -66,9 +66,14 @@ export function PacienteForm({
   const [errors, setErrors] = useState<PacienteFormErrors>({});
   const formId = useId();
 
+  // Mismo criterio de derivación que PacienteCoberturaFields.tsx (RF-106, RN-ID-02): el formato
+  // no vive en el paciente, se resuelve acá también porque validatePacienteForm es una función
+  // pura que no tiene acceso a `obrasSociales`.
+  const formatoAfiliado = obrasSociales.find((obraSocial) => obraSocial.id === values.obraSocialId)?.formatoAfiliado ?? null;
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const validationErrors = validatePacienteForm(values);
+    const validationErrors = validatePacienteForm({ ...values, formato: formatoAfiliado });
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
     onSubmit(values);
@@ -97,6 +102,7 @@ export function PacienteForm({
       <PacienteCoberturaFields
         formId={formId}
         values={values}
+        errors={errors}
         obrasSociales={obrasSociales}
         onChange={(patch) => setValues((prev) => ({ ...prev, ...patch }))}
       />

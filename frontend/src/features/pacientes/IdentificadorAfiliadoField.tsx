@@ -10,6 +10,9 @@ interface IdentificadorAfiliadoFieldProps {
   /** Derivado de la obra social elegida (RF-106, RN-ID-02) — `null` si todavía no hay obra
    * social seleccionada. Solo lectura acá: nunca se elige por paciente. */
   formato: FormatoAfiliado | null;
+  /** Error de formato del valor (RF-106/RN-ID-02, ver validarIdentificadorAfiliado.ts) — bloquea
+   * el guardado, mismo patrón `error?: string` que el resto del formulario de paciente. */
+  error?: string;
 }
 
 const labelClasses = 'font-body text-[12px] font-semibold text-muted';
@@ -17,7 +20,7 @@ const labelClasses = 'font-body text-[12px] font-semibold text-muted';
 // Sub-formulario del identificador de afiliado (RF-106, RN-ID-02/IN-01): el formato es de solo
 // lectura, derivado de la obra social elegida en PacienteCoberturaFields — acá solo se edita el
 // valor libre.
-export function IdentificadorAfiliadoField({ value, onChange, formato }: IdentificadorAfiliadoFieldProps) {
+export function IdentificadorAfiliadoField({ value, onChange, formato, error }: IdentificadorAfiliadoFieldProps) {
   const formId = useId();
 
   return (
@@ -35,7 +38,7 @@ export function IdentificadorAfiliadoField({ value, onChange, formato }: Identif
           />
         </Field>
 
-        <Field label="Valor" htmlFor={`${formId}-valor`}>
+        <Field label="Valor" htmlFor={`${formId}-valor`} error={error}>
           <Input
             id={`${formId}-valor`}
             density="comfortable"

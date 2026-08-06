@@ -161,6 +161,41 @@ describe('PacienteForm', () => {
     expect(screen.getByRole('option', { name: 'OSECAC' })).toBeInTheDocument();
   });
 
+  // RF-106/RN-ID-02: mismo criterio de bloqueo que apellido/nombre/DNI (validatePacienteForm.ts),
+  // ahora enganchado a través del formato derivado de la obra social elegida.
+  it('bloquea el guardado si el identificador de afiliado no matchea el formato de la obra social elegida', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<PacienteForm obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
+    await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
+    await user.type(screen.getByLabelText(/^dni$/i), '45123456');
+    await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac'); // formatoAfiliado: 'numero-documento'
+    await user.type(screen.getByLabelText(/^valor$/i), 'OS-AB12345'); // no matchea /^\d{7,8}$/
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText(/el identificador de afiliado debe tener 7 u 8 dígitos/i)).toBeInTheDocument();
+  });
+
+  it('con un identificador de afiliado que sí matchea el formato de la obra social elegida, guarda sin error', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<PacienteForm obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
+    await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
+    await user.type(screen.getByLabelText(/^dni$/i), '45123456');
+    await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac');
+    await user.type(screen.getByLabelText(/^valor$/i), '45123456');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
   it('marcar amparo judicial revela el campo de aclaración', async () => {
     const user = userEvent.setup();
 

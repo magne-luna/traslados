@@ -531,4 +531,12 @@ describe('código fuente de SupabaseObraSocialRepository.ts (4.8)', () => {
   it('importa el singleton supabase de shared/lib/supabaseClient.ts', () => {
     expect(supabaseObraSocialRepositorySource).toContain("from '../supabaseClient'");
   });
+
+  // Regresión (2026-08-06): `formato_afiliado` se persistía bien (RPC de alta/edición) pero
+  // nunca se releía — el SELECT de list()/getById() no lo pedía, así que el form siempre caía
+  // al default al reabrir. `ObraSocial.formatoAfiliado` es obligatorio (nunca opcional), así que
+  // cualquier columna nueva del mismo tipo tiene el mismo riesgo si se omite acá.
+  it('el SELECT de list()/getById() incluye formato_afiliado', () => {
+    expect(supabaseObraSocialRepositorySource).toMatch(/formato_afiliado/);
+  });
 });

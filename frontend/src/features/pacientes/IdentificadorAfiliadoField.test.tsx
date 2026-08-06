@@ -50,4 +50,29 @@ describe('IdentificadorAfiliadoField', () => {
 
     expect(onChange).toHaveBeenCalledWith({ valor: 'X' });
   });
+
+  // RF-106/RN-ID-02: error inline de formato, mismo patrón que el resto del formulario de
+  // paciente (error?: string pasado a Field, ver PacienteDatosPersonalesFields.tsx).
+  it('muestra el mensaje de error recibido por prop debajo del campo Valor', () => {
+    const value: IdentificadorAfiliado = { valor: 'OS-AB12345' };
+
+    render(
+      <IdentificadorAfiliadoField
+        value={value}
+        onChange={vi.fn()}
+        formato="numero-documento"
+        error="El identificador de afiliado debe tener 7 u 8 dígitos."
+      />,
+    );
+
+    expect(screen.getByText('El identificador de afiliado debe tener 7 u 8 dígitos.')).toBeInTheDocument();
+  });
+
+  it('sin error, no muestra ningún mensaje debajo del campo Valor', () => {
+    const value: IdentificadorAfiliado = { valor: '45123456' };
+
+    render(<IdentificadorAfiliadoField value={value} onChange={vi.fn()} formato="numero-documento" />);
+
+    expect(screen.queryByText(/identificador de afiliado debe tener/i)).not.toBeInTheDocument();
+  });
 });

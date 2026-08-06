@@ -47,6 +47,7 @@ interface RecordedCall {
   eq: Array<[string, unknown]>;
   order?: { column: string; ascending: boolean };
   payload?: unknown;
+  onConflict?: string;
 }
 
 type Handler = (call: RecordedCall) => FakeResult;
@@ -155,8 +156,8 @@ function crearFakeSupabase() {
             delete() {
               return new FakeWriteBuilder({ op: 'delete', schema: schemaName, table, eq: [] });
             },
-            upsert(payload: unknown) {
-              return new FakeWriteBuilder({ op: 'upsert', schema: schemaName, table, eq: [], payload });
+            upsert(payload: unknown, options?: { onConflict?: string }) {
+              return new FakeWriteBuilder({ op: 'upsert', schema: schemaName, table, eq: [], payload, onConflict: options?.onConflict });
             },
             insert(payload: unknown) {
               return new FakeWriteBuilder({ op: 'insert', schema: schemaName, table, eq: [], payload });
@@ -503,6 +504,34 @@ describe('mapeo de errores D7 (3.5)', () => {
     await expect(supabasePacienteRepository.update('p-1', { apellido: 'Otro' })).rejects.toThrow(
       'Ya existe un paciente con el DNI «».',
     );
+  });
+
+  // Regresión (2026-08-06): el upsert de `clinicos` no pasaba `onConflict: 'paciente_id'` — como
+  // `clinicos_pkey` es `id` (no `paciente_id`), sin eso el upsert intentaba un INSERT en cada
+  // edición posterior a la primera, chocaba contra `clinicos_paciente_id_key` (UNIQUE) con 23505,
+  // y ese código se mapeaba (incorrectamente, para esta tabla) a "Ya existe un paciente con el DNI
+  // «»" — un bug real reportado en producción, nada que ver con el DNI.
+  it('el upsert de clinicos usa onConflict: paciente_id (evita el 23505 espurio)', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente()]));
+    configurar('pacientes', 'clinicos', 'upsert', () => ok(null));
+
+    await supabasePacienteRepository.update('p-1', { diagnostico: 'nuevo diagnóstico' });
+
+    const upsertClinicos = calls.find((c) => c.table === 'clinicos' && c.op === 'upsert');
+    expect(upsertClinicos?.onConflict).toBe('paciente_id');
+  });
+
+  // Regresión (2026-08-06): mismo patrón que clinicos — `accesorios_pacientes_pkey` es `id`, el
+  // UNIQUE real es el par (paciente_id, accesorio_id).
+  it('el upsert de accesorios_pacientes usa onConflict: paciente_id,accesorio_id', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente({ accesorios_pacientes: [] })]));
+    configurar('pacientes', 'accesorios', 'select', () => ok([{ id: 'acc-1', tipo: 'silla-plegable' }]));
+    configurar('pacientes', 'accesorios_pacientes', 'upsert', () => ok(null));
+
+    await supabasePacienteRepository.update('p-1', { accesorioMovilidad: ['silla-plegable'] });
+
+    const upsertAccesorio = calls.find((c) => c.table === 'accesorios_pacientes' && c.op === 'upsert');
+    expect(upsertAccesorio?.onConflict).toBe('paciente_id,accesorio_id');
   });
 
   it('23503 fuera del contexto de eliminar-dirección da el mensaje de obra social inexistente', async () => {
