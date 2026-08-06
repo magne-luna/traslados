@@ -106,7 +106,7 @@ describe('PacienteDocumentos', () => {
   });
 
   it('consulta los documentos del paciente por entidad "paciente" y su id', async () => {
-    const doc: DocumentoAdjunto = { itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01' };
+    const doc: DocumentoAdjunto = { id: 'doc-1', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01' };
     const documentoRepository = buildDocumentoRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
 
     render(
@@ -121,6 +121,41 @@ describe('PacienteDocumentos', () => {
     expect(await screen.findByText(/rhc\.pdf/i)).toBeInTheDocument();
     expect(documentoRepository.listByEntity).toHaveBeenCalledWith('paciente', 'paciente-1');
   });
+
+  // pacientes-documentos-multiples (tasks.md 5.1): escenario central del change — feedback real
+  // de la clienta (Andrea Pastor). Dos documentos del mismo tipo (ej. presupuesto agosto-julio
+  // actual + su renovación) conviven visibles, ninguno se sobrescribe.
+  it('dos documentos del mismo tipo conviven visibles sin sobrescribirse (escenario central de pacientes-documentos-multiples)', async () => {
+    const actual: DocumentoAdjunto = {
+      id: 'doc-actual',
+      itemId: 'item-1',
+      nombreArchivo: 'rhc-2025.pdf',
+      subidoEn: '2025-08-01',
+      vigenciaDesde: '2025-08-01',
+    };
+    const renovacion: DocumentoAdjunto = {
+      id: 'doc-renovacion',
+      itemId: 'item-1',
+      nombreArchivo: 'rhc-2026.pdf',
+      subidoEn: '2026-07-30',
+      vigenciaDesde: '2099-08-01',
+    };
+    const documentoRepository = buildDocumentoRepository({
+      listByEntity: vi.fn().mockResolvedValue([actual, renovacion]),
+    });
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+      />,
+    );
+
+    expect(await screen.findByText(/rhc-2025\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByText(/rhc-2026\.pdf/i)).toBeInTheDocument();
+  });
 });
 
 // Gateo de escritura (gateo-pacientes, design.md D3, tasks.md 5.1/5.2). Solo la carga y baja de
@@ -130,7 +165,7 @@ describe('PacienteDocumentos', () => {
 // más restrictivo que eso (design.md riesgos).
 describe('PacienteDocumentos — gateo de escritura', () => {
   it('sin permiso de escritura: "Subir" y "Quitar" quedan deshabilitados, pero el documento ya cargado sigue siendo consultable', async () => {
-    const doc: DocumentoAdjunto = { itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01' };
+    const doc: DocumentoAdjunto = { id: 'doc-1', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01' };
     const documentoRepository = buildDocumentoRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
 
     renderConPermiso(
@@ -145,7 +180,7 @@ describe('PacienteDocumentos — gateo de escritura', () => {
 
     // Consultar sigue disponible con solo `read` (D3): el archivo cargado sigue visible.
     expect(await screen.findByText(/rhc\.pdf/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reemplazar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /agregar otro/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /quitar rhc/i })).toBeDisabled();
     // El ítem sin cargar todavía ("Consentimiento informado") también sigue legible.
     expect(screen.getByText('Consentimiento informado')).toBeInTheDocument();
@@ -153,7 +188,7 @@ describe('PacienteDocumentos — gateo de escritura', () => {
   });
 
   it('con permiso de escritura: "Subir", "Reemplazar" y "Quitar" están activables (triangulación), y el checklist se renderiza completo', async () => {
-    const doc: DocumentoAdjunto = { itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01' };
+    const doc: DocumentoAdjunto = { id: 'doc-1', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01' };
     const documentoRepository = buildDocumentoRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
 
     renderConPermiso(
@@ -167,7 +202,7 @@ describe('PacienteDocumentos — gateo de escritura', () => {
     );
 
     expect(await screen.findByText(/rhc\.pdf/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reemplazar/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /agregar otro/i })).toBeEnabled();
     expect(screen.getByRole('button', { name: /quitar rhc/i })).toBeEnabled();
     expect(screen.getByText('Consentimiento informado')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /subir/i })).toBeEnabled();

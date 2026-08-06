@@ -13,7 +13,6 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -106,9 +105,10 @@ Deno.serve(async (req) => {
     });
   }
 
-  const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-  const { data: usuario, error: usuarioError } = await adminClient
+  // Ambas lecturas siguientes son RLS-publicas (usuarios.usuarios: "Users can read all profiles",
+  // qual = true; modulos.modulos: "Everyone can read modulos", qual = true) -- no hace falta
+  // service-role para ninguna de las dos, alcanza con callerClient.
+  const { data: usuario, error: usuarioError } = await callerClient
     .schema('usuarios')
     .from('usuarios')
     .select('id')
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
     return jsonResponse(404, { error: 'no existe una cuenta con ese usuario_id' });
   }
 
-  const { data: modulos, error: modulosError } = await adminClient
+  const { data: modulos, error: modulosError } = await callerClient
     .schema('modulos')
     .from('modulos')
     .select('id, tipo_modulo')
@@ -141,7 +141,11 @@ Deno.serve(async (req) => {
     return jsonResponse(400, { error: `modulo(s) inexistente(s): ${desconocidos.join(', ')}` });
   }
 
-  const { error: deleteError } = await adminClient
+  // Se escribe con callerClient (scoped al JWT del admin que llama), no con adminClient: la RLS
+  // de modulos.permisos ("Admins manage permisos") exige que auth.uid() resuelva al admin real --
+  // ya lo verificamos arriba (callerProfile.rol === 'admin') -- para que auditoria.log_action()
+  // registre ese usuario en vez de NULL.
+  const { error: deleteError } = await callerClient
     .schema('modulos')
     .from('permisos')
     .delete()
@@ -161,7 +165,7 @@ Deno.serve(async (req) => {
     nivel_acceso: p.nivel_acceso,
   }));
 
-  const { error: insertError } = await adminClient.schema('modulos').from('permisos').insert(nuevasFilas);
+  const { error: insertError } = await callerClient.schema('modulos').from('permisos').insert(nuevasFilas);
 
   if (insertError) {
     return jsonResponse(400, { error: `no se pudieron guardar los permisos nuevos: ${insertError.message}` });

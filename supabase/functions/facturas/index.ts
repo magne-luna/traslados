@@ -160,9 +160,11 @@ function toDb(input: FacturaInput): Record<string, unknown> {
   return row;
 }
 
-/** Reemplazo completo (delete + insert): nunca merge parcial contra las asistencias existentes. */
-async function replaceAsistencias(admin: SupabaseClient, facturaId: string, asistencias: AsistenciaInput[]): Promise<string | null> {
-  const { error: deleteError } = await admin.schema('facturacion').from('asistencia_prestacion').delete().eq('factura_id', facturaId);
+/** Reemplazo completo (delete + insert): nunca merge parcial contra las asistencias existentes.
+ * Recibe userClient -- facturacion.asistencia_prestacion esta cubierta por el mismo modulo
+ * 'facturacion' que ya verifico requirePermiso() para este request. */
+async function replaceAsistencias(userClient: SupabaseClient, facturaId: string, asistencias: AsistenciaInput[]): Promise<string | null> {
+  const { error: deleteError } = await userClient.schema('facturacion').from('asistencia_prestacion').delete().eq('factura_id', facturaId);
   if (deleteError) return deleteError.message;
   if (asistencias.length === 0) return null;
 
@@ -174,7 +176,7 @@ async function replaceAsistencias(admin: SupabaseClient, facturaId: string, asis
     retorno: a.retorno,
     factura_sabados: a.facturaSabados ?? false,
   }));
-  const { error: insertError } = await admin.schema('facturacion').from('asistencia_prestacion').insert(rows);
+  const { error: insertError } = await userClient.schema('facturacion').from('asistencia_prestacion').insert(rows);
   return insertError ? insertError.message : null;
 }
 
@@ -189,16 +191,16 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('facturacion').from('facturas').select(SELECT_COLUMNS).eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('facturacion').from('facturas').select(SELECT_COLUMNS).eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'factura no encontrada' });
       return jsonResponse(200, toApi(data as FacturaRow));
     }
-    let query = admin.schema('facturacion').from('facturas').select(SELECT_COLUMNS);
+    let query = userClient.schema('facturacion').from('facturas').select(SELECT_COLUMNS);
     if (pacienteId) query = query.eq('paciente_id', pacienteId);
     const { data, error } = await query.order('fecha_init', { ascending: false });
     if (error) return jsonResponse(400, { error: error.message });
@@ -215,16 +217,16 @@ Deno.serve(async (req) => {
     if (!body.pacienteId) {
       return jsonResponse(400, { error: 'falta el campo requerido: pacienteId' });
     }
-    const { data, error } = await admin.schema('facturacion').from('facturas').insert(toDb(body)).select('*').single();
+    const { data, error } = await userClient.schema('facturacion').from('facturas').insert(toDb(body)).select('*').single();
     if (error) return jsonResponse(400, { error: error.message });
     const factura = data as FacturaRow;
 
     if (body.asistencias !== undefined) {
-      const asistenciaError = await replaceAsistencias(admin, factura.id, body.asistencias);
+      const asistenciaError = await replaceAsistencias(userClient, factura.id, body.asistencias);
       if (asistenciaError) return jsonResponse(400, { error: asistenciaError });
     }
 
-    const { data: withAsistencias, error: refetchError } = await admin
+    const { data: withAsistencias, error: refetchError } = await userClient
       .schema('facturacion')
       .from('facturas')
       .select(SELECT_COLUMNS)
@@ -242,16 +244,16 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    const { data, error } = await admin.schema('facturacion').from('facturas').update(toDb(body)).eq('id', id).select('*').maybeSingle();
+    const { data, error } = await userClient.schema('facturacion').from('facturas').update(toDb(body)).eq('id', id).select('*').maybeSingle();
     if (error) return jsonResponse(400, { error: error.message });
     if (!data) return jsonResponse(404, { error: 'factura no encontrada' });
 
     if (body.asistencias !== undefined) {
-      const asistenciaError = await replaceAsistencias(admin, id, body.asistencias);
+      const asistenciaError = await replaceAsistencias(userClient, id, body.asistencias);
       if (asistenciaError) return jsonResponse(400, { error: asistenciaError });
     }
 
-    const { data: withAsistencias, error: refetchError } = await admin
+    const { data: withAsistencias, error: refetchError } = await userClient
       .schema('facturacion')
       .from('facturas')
       .select(SELECT_COLUMNS)
@@ -263,7 +265,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id de la factura en la URL' });
-    const { error } = await admin.schema('facturacion').from('facturas').delete().eq('id', id);
+    const { error } = await userClient.schema('facturacion').from('facturas').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

@@ -2,14 +2,14 @@
 
 ## Purpose
 
-Define the requirements for managing multiple addresses per patient, including the independent modeling of outbound and return trips (ida/vuelta) with separate data entry, type/category support (home, school, therapies, CISET, etc.), and days/hours of transport. Ensures traceability of addresses across the patient's record without auto-completion or implicit assumptions about symmetry.
+Define the requirements for managing multiple addresses per patient, including the independent modeling of outbound and return trips (ida/vuelta) with separate data entry, type/category support (home, school, therapies, CET, etc.), and days/hours of transport. Ensures traceability of addresses across the patient's record without auto-completion or implicit assumptions about symmetry.
 
 ---
 
 ## Requirements
 
 ### Requirement: Direcciones múltiples por paciente
-El sistema SHALL permitir registrar múltiples direcciones por paciente (domicilio, escuela, terapias, CISET), cada una con su tipo/etiqueta y, opcionalmente, días y horarios de traslado (RF-113). Al renderizar la lista de direcciones, el sistema MUST usar un identificador estable por dirección como key (nunca el índice del array).
+El sistema SHALL permitir registrar múltiples direcciones por paciente (domicilio, escuela, terapias, CET), cada una con su tipo/etiqueta y, opcionalmente, días y horarios de traslado (RF-113). Al renderizar la lista de direcciones, el sistema MUST usar un identificador estable por dirección como key (nunca el índice del array).
 
 #### Scenario: Alta de varias direcciones de distinto tipo
 - **WHEN** el usuario agrega un domicilio y una escuela al mismo paciente

@@ -86,16 +86,16 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('pacientes').from('paciente').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('pacientes').from('paciente').select('*').eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'paciente no encontrado' });
       return jsonResponse(200, toApi(data as PacienteRow));
     }
-    const { data, error } = await admin.schema('pacientes').from('paciente').select('*').order('apellido_a');
+    const { data, error } = await userClient.schema('pacientes').from('paciente').select('*').order('apellido_a');
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(200, (data as PacienteRow[]).map(toApi));
   }
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     if (!body.nombre || !body.apellido || !body.dni) {
       return jsonResponse(400, { error: 'faltan campos requeridos: nombre, apellido, dni' });
     }
-    const { data, error } = await admin.schema('pacientes').from('paciente').insert(toDb(body)).select('*').single();
+    const { data, error } = await userClient.schema('pacientes').from('paciente').insert(toDb(body)).select('*').single();
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(201, toApi(data as PacienteRow));
   }
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('pacientes')
       .from('paciente')
       .update(toDb(body))
@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id del paciente en la URL' });
-    const { error } = await admin.schema('pacientes').from('paciente').delete().eq('id', id);
+    const { error } = await userClient.schema('pacientes').from('paciente').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

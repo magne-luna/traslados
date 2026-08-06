@@ -15,8 +15,12 @@ import type {
   TipoDireccion,
 } from '../../types/paciente';
 import type { AccesorioMovilidad } from '../../types/vehiculo';
+// `Coordenada` vive en hojaDeRuta.ts (no en paciente.ts) — no hay ciclo: paciente.ts nunca importa
+// de hojaDeRuta.ts, es al revés. Se reusa acá en vez de duplicar `{ lat, lng }` porque es la misma
+// forma que consume `ParadaRecorrido.coordenadaOrigen` (change hojas-de-ruta-geocoding, RF-701).
+import type { Coordenada } from '../../types/hojaDeRuta';
 
-const TIPOS_DIRECCION_VALIDOS = new Set<TipoDireccion>(['domicilio', 'escuela', 'terapia', 'ciset', 'otro']);
+const TIPOS_DIRECCION_VALIDOS = new Set<TipoDireccion>(['domicilio', 'escuela', 'terapia', 'cet', 'otro']);
 
 function parseTipoDireccion(value: unknown): TipoDireccion {
   return typeof value === 'string' && TIPOS_DIRECCION_VALIDOS.has(value as TipoDireccion)
@@ -179,7 +183,14 @@ export function parseDireccionRow(row: unknown): Direccion | null {
 /** Fila para escribir en `pacientes.direcciones`. `numero` siempre `null` (discrepancia #5, D9):
  * no se inventa un parseo de la altura desde `calle`. `localidad` es `NOT NULL` en la base — hay
  * que mandarla siempre. `descripcion` es opcional en el dominio y NULLable en la base (misma
- * discrepancia que `Parentesco`) — `undefined`/string vacío se manda como `null`. */
+ * discrepancia que `Parentesco`) — `undefined`/string vacío se manda como `null`.
+ *
+ * `lat`/`lng` (change hojas-de-ruta-geocoding, RF-701, columnas nuevas aditivas de
+ * `20260805140000_direcciones_geocoding.sql`) son OPCIONALES a propósito, no solo nullable: la
+ * clave debe poder faltar del todo en el objeto, no solo valer `null`. En un `upsert` de Supabase,
+ * una clave presente con `null` SÍ pisa la columna existente; una clave AUSENTE no la toca. Eso es
+ * lo que permite no re-geocodificar una dirección sin cambios (`direccionesACambiar`) sin perder
+ * sus coordenadas ya guardadas — ver `SupabasePacienteRepository.geocodificarDirecciones`. */
 export interface DireccionRowInput {
   id?: string;
   calle: string;
@@ -187,17 +198,63 @@ export interface DireccionRowInput {
   tipo_lugar: TipoDireccion;
   localidad: string;
   descripcion: string | null;
+  lat?: number | null;
+  lng?: number | null;
 }
 
-export function toDireccionRows(direcciones: Direccion[]): DireccionRowInput[] {
-  return direcciones.map((direccion) => ({
-    id: direccion.id,
-    calle: direccion.calle,
-    numero: null,
-    tipo_lugar: direccion.tipo,
-    localidad: direccion.localidad,
-    descripcion: direccion.descripcion?.trim() ? direccion.descripcion.trim() : null,
-  }));
+/**
+ * `coordenadas` (change hojas-de-ruta-geocoding): mapa `direccion.id -> Coordenada | null`,
+ * resuelto de antemano por quien llama (I/O async, no puede vivir en esta función pura). Solo
+ * contiene una entrada para las direcciones que se intentaron geocodificar EN ESTE guardado —
+ * nuevas o con `calle`/`localidad` cambiada (`direccionesACambiar`). Semántica:
+ *   - id presente en `coordenadas`, valor `Coordenada` -> `lat`/`lng` viajan con el valor geocodificado.
+ *   - id presente en `coordenadas`, valor `null` (geocoding falló o no se intentó por key ausente)
+ *     -> `lat`/`lng` viajan como `null` explícito (limpia coordenadas viejas de una dirección que
+ *     cambió y ya no se pudo volver a ubicar).
+ *   - id AUSENTE de `coordenadas` (dirección sin cambios, no se re-geocodificó) -> `lat`/`lng` NO
+ *     se incluyen en la fila — el upsert no toca esas columnas, preserva lo que ya había.
+ * Sin segundo argumento (`= new Map()`), el comportamiento es idéntico al de antes de este change:
+ * ninguna fila incluye `lat`/`lng`.
+ */
+export function toDireccionRows(
+  direcciones: Direccion[],
+  coordenadas: ReadonlyMap<string, Coordenada | null> = new Map(),
+): DireccionRowInput[] {
+  return direcciones.map((direccion) => {
+    const fila: DireccionRowInput = {
+      id: direccion.id,
+      calle: direccion.calle,
+      numero: null,
+      tipo_lugar: direccion.tipo,
+      localidad: direccion.localidad,
+      descripcion: direccion.descripcion?.trim() ? direccion.descripcion.trim() : null,
+    };
+
+    if (coordenadas.has(direccion.id)) {
+      const coordenada = coordenadas.get(direccion.id) ?? null;
+      fila.lat = coordenada ? coordenada.lat : null;
+      fila.lng = coordenada ? coordenada.lng : null;
+    }
+
+    return fila;
+  });
+}
+
+/**
+ * Determina qué direcciones hay que (re)geocodificar en este guardado (change
+ * hojas-de-ruta-geocoding, RF-701): las que son nuevas (`id` no está entre las `existentes`) y las
+ * que cambiaron `calle` o `localidad` respecto de lo que ya había — nunca las que llegan
+ * idénticas, para no gastar cuota de la Geocoding API ni pisar una coordenada válida con el mismo
+ * resultado. Pura: no decide CÓMO geocodificar, solo QUÉ direcciones lo necesitan.
+ */
+export function direccionesACambiar(existentes: Direccion[], entrantes: Direccion[]): Direccion[] {
+  const existentesPorId = new Map(existentes.map((direccion) => [direccion.id, direccion]));
+
+  return entrantes.filter((entrante) => {
+    const previa = existentesPorId.get(entrante.id);
+    if (previa === undefined) return true; // dirección nueva
+    return previa.calle !== entrante.calle || previa.localidad !== entrante.localidad;
+  });
 }
 
 /** `pacientes.personas_a_cargo` → `PersonaACargo` del dominio. Discrepancia #10 (D9): `dni` es
@@ -360,7 +417,18 @@ export interface CrearPacientePayload {
   num_afiliado: string;
 }
 
-export function toCrearPacientePayload(nuevo: NuevoPaciente): CrearPacientePayload {
+/**
+ * `coordenadas` (change hojas-de-ruta-geocoding): igual semántica que en `toDireccionRows`. En el
+ * alta TODAS las direcciones son nuevas (no hay `existentes` contra qué diffar), así que quien
+ * llama (`SupabasePacienteRepository.crearPaciente`) geocodifica siempre las `nuevo.direcciones`
+ * completas y arma un mapa con una entrada por cada una (éxito -> `Coordenada`, falla -> `null`) —
+ * nunca queda una dirección nueva sin intentar. Default `= new Map()` para no romper compatibilidad
+ * si algo llama a esta función sin coordenadas (equivalente a "ninguna geocodificó").
+ */
+export function toCrearPacientePayload(
+  nuevo: NuevoPaciente,
+  coordenadas: ReadonlyMap<string, Coordenada | null> = new Map(),
+): CrearPacientePayload {
   return {
     nombre_a: nuevo.nombre,
     nombre_b: nuevo.segundoNombre ?? null,
@@ -380,8 +448,9 @@ export function toCrearPacientePayload(nuevo: NuevoPaciente): CrearPacientePaylo
         }
       : null,
     // Discrepancias #4/#6 (D9): toDireccionRows ya excluye dias/horario/domicilio — no hay clave
-    // que omitir acá, nunca existió. `localidad` sí viaja (discrepancia #3 cerrada).
-    direcciones: toDireccionRows(nuevo.direcciones),
+    // que omitir acá, nunca existió. `localidad` sí viaja (discrepancia #3 cerrada). `lat`/`lng`
+    // viajan desde `coordenadas` (change hojas-de-ruta-geocoding).
+    direcciones: toDireccionRows(nuevo.direcciones, coordenadas),
     personas_a_cargo: toPersonaACargoRows(nuevo.personasACargo),
     accesorios: nuevo.accesorioMovilidad,
     // Discrepancia #1 (D9): solo viaja `valor`; `numeroAfiliado.formato` no tiene columna propia

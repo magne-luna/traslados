@@ -82,17 +82,17 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('facturacion').from('autorizacion').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('facturacion').from('autorizacion').select('*').eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'autorizacion no encontrada' });
       return jsonResponse(200, toApi(data as AutorizacionRow));
     }
     if (presupuestoId) {
-      const { data, error } = await admin
+      const { data, error } = await userClient
         .schema('facturacion')
         .from('autorizacion')
         .select('*')
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
       if (!data) return jsonResponse(404, { error: 'este presupuesto todavia no tiene autorizacion asociada' });
       return jsonResponse(200, toApi(data as AutorizacionRow));
     }
-    const { data, error } = await admin.schema('facturacion').from('autorizacion').select('*');
+    const { data, error } = await userClient.schema('facturacion').from('autorizacion').select('*');
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(200, (data as AutorizacionRow[]).map(toApi));
   }
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
     if (!body.presupuestoId) {
       return jsonResponse(400, { error: 'falta el campo requerido: presupuestoId' });
     }
-    const { data, error } = await admin.schema('facturacion').from('autorizacion').insert(toDb(body)).select('*').single();
+    const { data, error } = await userClient.schema('facturacion').from('autorizacion').insert(toDb(body)).select('*').single();
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(201, toApi(data as AutorizacionRow));
   }
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('facturacion')
       .from('autorizacion')
       .update(toDb(body))
@@ -144,7 +144,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id de la autorizacion en la URL' });
-    const { error } = await admin.schema('facturacion').from('autorizacion').delete().eq('id', id);
+    const { error } = await userClient.schema('facturacion').from('autorizacion').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

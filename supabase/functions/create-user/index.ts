@@ -118,7 +118,9 @@ Deno.serve(async (req) => {
   }
 
   if (body.permisos && body.permisos.length > 0) {
-    const { data: modulos, error: modulosError } = await adminClient
+    // Lectura de catalogo publica (RLS "Everyone can read modulos", qual = true) -- no hace falta
+    // service-role para esto, alcanza con callerClient.
+    const { data: modulos, error: modulosError } = await callerClient
       .schema('modulos')
       .from('modulos')
       .select('id, tipo_modulo')
@@ -141,7 +143,11 @@ Deno.serve(async (req) => {
       }));
 
     if (permisosRows.length > 0) {
-      const { error: permisosError } = await adminClient.schema('modulos').from('permisos').insert(permisosRows);
+      // Se escribe con callerClient (scoped al JWT del admin que llama), no con adminClient: la
+      // RLS de modulos.permisos ("Admins manage permisos") exige que auth.uid() resuelva al
+      // admin real -- ya lo verificamos arriba (callerProfile.rol === 'admin') -- para que
+      // auditoria.log_action() registre ese usuario en vez de NULL.
+      const { error: permisosError } = await callerClient.schema('modulos').from('permisos').insert(permisosRows);
       if (permisosError) {
         return jsonResponse(400, { error: `cuenta creada pero fallo la asignacion de permisos: ${permisosError.message}` });
       }

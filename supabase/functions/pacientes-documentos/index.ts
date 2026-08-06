@@ -42,17 +42,17 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('pacientes').from('documentos').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('pacientes').from('documentos').select('*').eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'documento no encontrado' });
       return jsonResponse(200, toApi(data as DocumentoRow));
     }
     if (!pacienteId) return jsonResponse(400, { error: 'falta ?pacienteId= para listar' });
-    const { data, error } = await admin.schema('pacientes').from('documentos').select('*').eq('paciente_id', pacienteId);
+    const { data, error } = await userClient.schema('pacientes').from('documentos').select('*').eq('paciente_id', pacienteId);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(200, (data as DocumentoRow[]).map(toApi));
   }
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     if (!body.pacienteId || !body.tipoDocumentoId || !body.archivoUrl) {
       return jsonResponse(400, { error: 'faltan campos requeridos: pacienteId, tipoDocumentoId, archivoUrl' });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('pacientes')
       .from('documentos')
       .insert({ paciente_id: body.pacienteId, id_tipo_documento: body.tipoDocumentoId, archivo_url: body.archivoUrl })
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id del documento en la URL' });
-    const { error } = await admin.schema('pacientes').from('documentos').delete().eq('id', id);
+    const { error } = await userClient.schema('pacientes').from('documentos').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

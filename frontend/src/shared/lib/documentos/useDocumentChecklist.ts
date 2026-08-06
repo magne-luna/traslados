@@ -26,18 +26,22 @@ export function useDocumentChecklist(
     };
   }, [entidad, entidadId, repository]);
 
+  // pacientes-documentos-multiples (tasks.md 3.1): acumula en vez de reemplazar — ya no filtra
+  // por itemId antes de agregar el documento nuevo al estado local.
   const upload = useCallback(
     async (itemId: string, file: File) => {
       const doc = await repository.upload(entidad, entidadId, itemId, file);
-      setDocumentos((prev) => [...prev.filter((d) => d.itemId !== itemId), doc]);
+      setDocumentos((prev) => [...prev, doc]);
     },
     [entidad, entidadId, repository],
   );
 
+  // pacientes-documentos-multiples (tasks.md 3.2, design.md D1): filtra por `id` del documento,
+  // no por `itemId` — con colección, quitar "el" documento de un ítem deja de tener sentido.
   const remove = useCallback(
-    async (itemId: string) => {
-      await repository.remove(entidad, entidadId, itemId);
-      setDocumentos((prev) => prev.filter((d) => d.itemId !== itemId));
+    async (documentoId: string) => {
+      await repository.remove(entidad, entidadId, documentoId);
+      setDocumentos((prev) => prev.filter((d) => d.id !== documentoId));
     },
     [entidad, entidadId, repository],
   );

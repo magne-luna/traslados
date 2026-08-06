@@ -8,7 +8,7 @@
 **Pasos**:
 1. Operadora crea la ficha del paciente (datos personales, clínicos, CUD, accesorio de movilidad).
 2. Operadora asocia al paciente su obra social; el sistema adapta el campo de identificador de afiliado según la obra social elegida.
-3. Operadora carga las direcciones habituales (domicilio, escuela, terapias, CISET), definiendo ida y vuelta de forma independiente.
+3. Operadora carga las direcciones habituales (domicilio, escuela, terapias, CET), definiendo ida y vuelta de forma independiente.
 4. Operadora registra personas a cargo y teléfono alternativo.
 5. Operadora adjunta la documentación exigida por el checklist de esa obra social (DNI, CUD, CODEM, RHC, etc.).
 6. Facturación carga el presupuesto anual para ese paciente/prestación y, al recibirla, la autorización de la obra social.

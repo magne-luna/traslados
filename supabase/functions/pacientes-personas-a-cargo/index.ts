@@ -58,17 +58,17 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('pacientes').from('personas_a_cargo').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('pacientes').from('personas_a_cargo').select('*').eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'persona a cargo no encontrada' });
       return jsonResponse(200, toApi(data as PersonaACargoRow));
     }
     if (!pacienteId) return jsonResponse(400, { error: 'falta ?pacienteId= para listar' });
-    const { data, error } = await admin.schema('pacientes').from('personas_a_cargo').select('*').eq('paciente_id', pacienteId);
+    const { data, error } = await userClient.schema('pacientes').from('personas_a_cargo').select('*').eq('paciente_id', pacienteId);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(200, (data as PersonaACargoRow[]).map(toApi));
   }
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     if (!body.pacienteId || !body.nombre || !body.apellido) {
       return jsonResponse(400, { error: 'faltan campos requeridos: pacienteId, nombre, apellido' });
     }
-    const { data, error } = await admin.schema('pacientes').from('personas_a_cargo').insert(toDb(body)).select('*').single();
+    const { data, error } = await userClient.schema('pacientes').from('personas_a_cargo').insert(toDb(body)).select('*').single();
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(201, toApi(data as PersonaACargoRow));
   }
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('pacientes')
       .from('personas_a_cargo')
       .update(toDb(body))
@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id en la URL' });
-    const { error } = await admin.schema('pacientes').from('personas_a_cargo').delete().eq('id', id);
+    const { error } = await userClient.schema('pacientes').from('personas_a_cargo').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

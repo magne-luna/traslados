@@ -119,11 +119,14 @@ async function resolveAccesorioIds(admin: SupabaseClient, tipos: AccesorioMovili
   return { ids: found.map((f) => f.id) };
 }
 
-async function toApi(admin: SupabaseClient, row: VehiculoRow) {
+// `userClient` cubre la lectura de conductores.accesorios_vehiculo (modulo 'vehiculos', ya
+// verificado por requirePermiso). `admin` queda solo para el catalogo compartido
+// pacientes.accesorios -- modulo 'pacientes', nunca verificado en esta request.
+async function toApi(admin: SupabaseClient, userClient: SupabaseClient, row: VehiculoRow) {
   const preventivos = (row.mantenimiento ?? []).filter((m) => m.categoria === 'preventivo').sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
   const ultimoService = preventivos[0];
 
-  const { data: accesoriosRows, error: accesoriosError } = await admin
+  const { data: accesoriosRows, error: accesoriosError } = await userClient
     .schema('conductores')
     .from('accesorios_vehiculo')
     .select('accesorio_id')
@@ -162,8 +165,11 @@ function toDb(input: VehiculoInput): Record<string, unknown> {
   return row;
 }
 
-async function replaceHabilitaciones(admin: SupabaseClient, vehiculoId: string, habilitaciones: HabilitacionInput[]): Promise<string | null> {
-  const { error: deleteError } = await admin.schema('conductores').from('habilitaciones_vehiculo').delete().eq('vehiculo_id', vehiculoId);
+// Ambas reciben userClient -- conductores.habilitaciones_vehiculo y conductores.mantenimiento
+// estan cubiertas por el mismo modulo 'vehiculos' que ya verifico requirePermiso() para este
+// request.
+async function replaceHabilitaciones(userClient: SupabaseClient, vehiculoId: string, habilitaciones: HabilitacionInput[]): Promise<string | null> {
+  const { error: deleteError } = await userClient.schema('conductores').from('habilitaciones_vehiculo').delete().eq('vehiculo_id', vehiculoId);
   if (deleteError) return deleteError.message;
   if (habilitaciones.length === 0) return null;
   const rows = habilitaciones.map((h) => ({
@@ -172,12 +178,12 @@ async function replaceHabilitaciones(admin: SupabaseClient, vehiculoId: string, 
     fecha_emision: h.fechaEmision,
     fecha_vencimiento: h.fechaVencimiento,
   }));
-  const { error: insertError } = await admin.schema('conductores').from('habilitaciones_vehiculo').insert(rows);
+  const { error: insertError } = await userClient.schema('conductores').from('habilitaciones_vehiculo').insert(rows);
   return insertError ? insertError.message : null;
 }
 
-async function replaceGastos(admin: SupabaseClient, vehiculoId: string, gastos: GastoInput[]): Promise<string | null> {
-  const { error: deleteError } = await admin
+async function replaceGastos(userClient: SupabaseClient, vehiculoId: string, gastos: GastoInput[]): Promise<string | null> {
+  const { error: deleteError } = await userClient
     .schema('conductores')
     .from('mantenimiento')
     .delete()
@@ -193,23 +199,32 @@ async function replaceGastos(admin: SupabaseClient, vehiculoId: string, gastos: 
     descripcion: g.descripcion,
     categoria_gasto: g.categoria,
   }));
-  const { error: insertError } = await admin.schema('conductores').from('mantenimiento').insert(rows);
+  const { error: insertError } = await userClient.schema('conductores').from('mantenimiento').insert(rows);
   return insertError ? insertError.message : null;
 }
 
-async function replaceAccesorios(admin: SupabaseClient, vehiculoId: string, tipos: AccesorioMovilidad[]): Promise<string | null> {
+// `admin` se usa solo para resolver el catalogo compartido pacientes.accesorios -- ese modulo
+// ('pacientes') nunca se verifico en esta request (requirePermiso solo chequeo 'vehiculos'), asi
+// que esa lectura no puede pasar a userClient. El delete/insert de conductores.accesorios_vehiculo
+// si esta cubierto por el modulo 'vehiculos' ya verificado, por eso recibe un cliente aparte.
+async function replaceAccesorios(
+  admin: SupabaseClient,
+  userClient: SupabaseClient,
+  vehiculoId: string,
+  tipos: AccesorioMovilidad[],
+): Promise<string | null> {
   const resolved = await resolveAccesorioIds(admin, tipos);
   if ('error' in resolved) return resolved.error;
-  const { error: deleteError } = await admin.schema('conductores').from('accesorios_vehiculo').delete().eq('vehiculo_id', vehiculoId);
+  const { error: deleteError } = await userClient.schema('conductores').from('accesorios_vehiculo').delete().eq('vehiculo_id', vehiculoId);
   if (deleteError) return deleteError.message;
   if (resolved.ids.length === 0) return null;
   const rows = resolved.ids.map((accesorioId) => ({ vehiculo_id: vehiculoId, accesorio_id: accesorioId }));
-  const { error: insertError } = await admin.schema('conductores').from('accesorios_vehiculo').insert(rows);
+  const { error: insertError } = await userClient.schema('conductores').from('accesorios_vehiculo').insert(rows);
   return insertError ? insertError.message : null;
 }
 
-async function refetch(admin: SupabaseClient, id: string) {
-  return admin.schema('conductores').from('vehiculo').select(SELECT_COLUMNS).eq('id', id).single();
+async function refetch(userClient: SupabaseClient, id: string) {
+  return userClient.schema('conductores').from('vehiculo').select(SELECT_COLUMNS).eq('id', id).single();
 }
 
 Deno.serve(async (req) => {
@@ -222,18 +237,18 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { admin, userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('conductores').from('vehiculo').select(SELECT_COLUMNS).eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('conductores').from('vehiculo').select(SELECT_COLUMNS).eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'vehiculo no encontrado' });
-      return jsonResponse(200, await toApi(admin, data as VehiculoRow));
+      return jsonResponse(200, await toApi(admin, userClient, data as VehiculoRow));
     }
-    const { data, error } = await admin.schema('conductores').from('vehiculo').select(SELECT_COLUMNS).order('patente');
+    const { data, error } = await userClient.schema('conductores').from('vehiculo').select(SELECT_COLUMNS).order('patente');
     if (error) return jsonResponse(400, { error: error.message });
-    const result = await Promise.all((data as VehiculoRow[]).map((row) => toApi(admin, row)));
+    const result = await Promise.all((data as VehiculoRow[]).map((row) => toApi(admin, userClient, row)));
     return jsonResponse(200, result);
   }
 
@@ -247,26 +262,26 @@ Deno.serve(async (req) => {
     if (!body.patente) {
       return jsonResponse(400, { error: 'falta el campo requerido: patente' });
     }
-    const { data, error } = await admin.schema('conductores').from('vehiculo').insert(toDb(body)).select('*').single();
+    const { data, error } = await userClient.schema('conductores').from('vehiculo').insert(toDb(body)).select('*').single();
     if (error) return jsonResponse(400, { error: error.message });
     const vehiculo = data as VehiculoRow;
 
     if (body.habilitaciones !== undefined) {
-      const err = await replaceHabilitaciones(admin, vehiculo.id, body.habilitaciones);
+      const err = await replaceHabilitaciones(userClient, vehiculo.id, body.habilitaciones);
       if (err) return jsonResponse(400, { error: err });
     }
     if (body.gastos !== undefined) {
-      const err = await replaceGastos(admin, vehiculo.id, body.gastos);
+      const err = await replaceGastos(userClient, vehiculo.id, body.gastos);
       if (err) return jsonResponse(400, { error: err });
     }
     if (body.accesoriosCompatibles !== undefined) {
-      const err = await replaceAccesorios(admin, vehiculo.id, body.accesoriosCompatibles);
+      const err = await replaceAccesorios(admin, userClient, vehiculo.id, body.accesoriosCompatibles);
       if (err) return jsonResponse(400, { error: err });
     }
 
-    const { data: fresh, error: refetchError } = await refetch(admin, vehiculo.id);
+    const { data: fresh, error: refetchError } = await refetch(userClient, vehiculo.id);
     if (refetchError) return jsonResponse(400, { error: refetchError.message });
-    return jsonResponse(201, await toApi(admin, fresh as VehiculoRow));
+    return jsonResponse(201, await toApi(admin, userClient, fresh as VehiculoRow));
   }
 
   if (req.method === 'PATCH') {
@@ -277,31 +292,31 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    const { data, error } = await admin.schema('conductores').from('vehiculo').update(toDb(body)).eq('id', id).select('*').maybeSingle();
+    const { data, error } = await userClient.schema('conductores').from('vehiculo').update(toDb(body)).eq('id', id).select('*').maybeSingle();
     if (error) return jsonResponse(400, { error: error.message });
     if (!data) return jsonResponse(404, { error: 'vehiculo no encontrado' });
 
     if (body.habilitaciones !== undefined) {
-      const err = await replaceHabilitaciones(admin, id, body.habilitaciones);
+      const err = await replaceHabilitaciones(userClient, id, body.habilitaciones);
       if (err) return jsonResponse(400, { error: err });
     }
     if (body.gastos !== undefined) {
-      const err = await replaceGastos(admin, id, body.gastos);
+      const err = await replaceGastos(userClient, id, body.gastos);
       if (err) return jsonResponse(400, { error: err });
     }
     if (body.accesoriosCompatibles !== undefined) {
-      const err = await replaceAccesorios(admin, id, body.accesoriosCompatibles);
+      const err = await replaceAccesorios(admin, userClient, id, body.accesoriosCompatibles);
       if (err) return jsonResponse(400, { error: err });
     }
 
-    const { data: fresh, error: refetchError } = await refetch(admin, id);
+    const { data: fresh, error: refetchError } = await refetch(userClient, id);
     if (refetchError) return jsonResponse(400, { error: refetchError.message });
-    return jsonResponse(200, await toApi(admin, fresh as VehiculoRow));
+    return jsonResponse(200, await toApi(admin, userClient, fresh as VehiculoRow));
   }
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id del vehiculo en la URL' });
-    const { error } = await admin.schema('conductores').from('vehiculo').delete().eq('id', id);
+    const { error } = await userClient.schema('conductores').from('vehiculo').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

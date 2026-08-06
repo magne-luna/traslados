@@ -29,6 +29,12 @@ export interface AuthorizedContext {
   /** Cliente service-role -- bypasea RLS. La autorizacion ya se verifico via tiene_permiso(); RLS
    * queda como segunda capa de defensa sobre las tablas, no como el unico gate. */
   admin: SupabaseClient;
+  /** Cliente scoped al JWT/sesion del caller (mismo cliente usado internamente para verificar
+   * el permiso). Las escrituras hechas con este cliente pasan por RLS como ese usuario, por lo
+   * que auth.uid() resuelve correctamente en triggers/auditoria. Usar en vez de `admin` para las
+   * escrituras finales cuando la RLS de la tabla ya cubre exactamente lo mismo que verifico
+   * requirePermiso(). */
+  userClient: SupabaseClient;
 }
 
 /**
@@ -76,6 +82,7 @@ export async function requirePermiso(
   return {
     userId: user.id,
     admin: createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY),
+    userClient: callerClient,
   };
 }
 

@@ -59,17 +59,17 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('obra_social').from('plantilla_campo').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('obra_social').from('plantilla_campo').select('*').eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'campo de plantilla no encontrado' });
       return jsonResponse(200, toApi(data as PlantillaCampoRow));
     }
     if (!obraSocialId) return jsonResponse(400, { error: 'falta ?obraSocialId=' });
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('obra_social')
       .from('plantilla_campo')
       .select('*')
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     if (!body.obraSocialId || !body.etiqueta || !body.origen) {
       return jsonResponse(400, { error: 'faltan campos requeridos: obraSocialId, etiqueta, origen' });
     }
-    const { data, error } = await admin.schema('obra_social').from('plantilla_campo').insert(toDb(body)).select('*').single();
+    const { data, error } = await userClient.schema('obra_social').from('plantilla_campo').insert(toDb(body)).select('*').single();
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(201, toApi(data as PlantillaCampoRow));
   }
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('obra_social')
       .from('plantilla_campo')
       .update(toDb(body))
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id del campo en la URL' });
-    const { error } = await admin.schema('obra_social').from('plantilla_campo').delete().eq('id', id);
+    const { error } = await userClient.schema('obra_social').from('plantilla_campo').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

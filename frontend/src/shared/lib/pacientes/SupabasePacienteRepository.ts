@@ -1,14 +1,17 @@
 import { supabase } from '../supabaseClient';
 import type { AccesorioMovilidad } from '../../types/vehiculo';
-import type { ActualizacionPaciente, NuevoPaciente, Paciente } from '../../types/paciente';
+import type { ActualizacionPaciente, Direccion, NuevoPaciente, Paciente } from '../../types/paciente';
+import type { Coordenada } from '../../types/hojaDeRuta';
 import type { PacienteRepository } from './PacienteRepository';
 import {
+  direccionesACambiar,
   ensamblarPaciente,
   parsePacienteRow,
   toCrearPacientePayload,
   toDireccionRows,
   toPersonaACargoRows,
 } from './pacienteMapping';
+import { geocodificarDireccion } from '../googleMapsClient';
 import { DEFAULT_FORMATO_AFILIADO } from '../../../features/pacientes/formatoAfiliadoOptions';
 
 // Implementación real de PacienteRepository (design.md del change integracion-pacientes,
@@ -220,13 +223,37 @@ function mapearErrorPaciente(error: FakeErrorLike, contexto: ContextoError): Err
 }
 
 // ---------------------------------------------------------------------------------------------
+// Geocoding de direcciones (change hojas-de-ruta-geocoding, RF-701)
+// ---------------------------------------------------------------------------------------------
+
+/** Geocodifica en paralelo un lote de direcciones y arma el mapa `id -> Coordenada | null` que
+ *  consume `toDireccionRows`/`toCrearPacientePayload`. Se llama SOLO con las direcciones que hace
+ *  falta (re)geocodificar en este guardado — todas en `create()` (todas son nuevas), o el
+ *  subconjunto de `direccionesACambiar()` en `update()`. `geocodificarDireccion` nunca lanza (ver
+ *  `googleMapsClient.ts`): una falla puntual por dirección se traduce a `null` en su entrada del
+ *  mapa, nunca aborta el resto del lote ni el guardado del paciente. */
+async function geocodificarDirecciones(direcciones: Direccion[]): Promise<Map<string, Coordenada | null>> {
+  const entradas = await Promise.all(
+    direcciones.map(async (direccion): Promise<[string, Coordenada | null]> => {
+      const coordenada = await geocodificarDireccion(direccion);
+      return [direccion.id, coordenada ?? null];
+    }),
+  );
+  return new Map(entradas);
+}
+
+// ---------------------------------------------------------------------------------------------
 // Alta atómica (D4)
 // ---------------------------------------------------------------------------------------------
 
 async function crearPaciente(data: NuevoPaciente): Promise<Paciente> {
+  // Todas las direcciones del alta son nuevas — se geocodifican todas (RF-701). Un fallo puntual
+  // de geocoding nunca bloquea el alta del paciente (contrato de degradación de `googleMapsClient`).
+  const coordenadas = await geocodificarDirecciones(data.direcciones);
+
   const { data: nuevoId, error } = await supabase
     .schema('pacientes')
-    .rpc('crear_paciente_completo', { p_paciente: toCrearPacientePayload(data) });
+    .rpc('crear_paciente_completo', { p_paciente: toCrearPacientePayload(data, coordenadas) });
 
   if (error) {
     const numeroAfiliadoCargado = data.numeroAfiliado.valor !== '' && data.obraSocialId !== null;
@@ -399,11 +426,18 @@ async function actualizarPaciente(id: string, data: ActualizacionPaciente): Prom
   }
 
   if (data.direcciones !== undefined) {
+    // RF-701: solo se (re)geocodifican las direcciones nuevas o con calle/localidad cambiada
+    // (`direccionesACambiar`) — nunca todo el lote en cada edición. Las que no cambiaron quedan
+    // fuera del mapa `coordenadas`, así que `toDireccionRows` omite `lat`/`lng` para ellas y el
+    // upsert preserva la coordenada ya guardada en vez de pisarla con `null`.
+    const aRegeocodificar = direccionesACambiar(existente.direcciones, data.direcciones);
+    const coordenadas = await geocodificarDirecciones(aRegeocodificar);
+
     await aplicarDiffColeccion({
       tabla: 'direcciones',
       idsExistentes: existente.direcciones.map((d) => d.id),
       idsEntrantes: data.direcciones.map((d) => d.id),
-      filasAEscribir: toDireccionRows(data.direcciones),
+      filasAEscribir: toDireccionRows(data.direcciones, coordenadas),
       pacienteId: id,
     });
   }

@@ -15,14 +15,16 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  aplicarCoordenadasOrigen,
   ensamblarHojaDeRuta,
+  parseCoordenadasPorDireccion,
   parseHojaDeRutaRow,
   parseParadaRow,
   parseRecorridoRow,
   toActualizarHojaDeRutaPayload,
   toCrearHojaDeRutaPayload,
 } from './hojaDeRutaMapping';
-import type { HojaDeRuta, NuevaHojaDeRuta } from '../../types/hojaDeRuta';
+import type { Coordenada, HojaDeRuta, NuevaHojaDeRuta } from '../../types/hojaDeRuta';
 import { pacienteDisponibleEnRecorrido } from './pacienteDisponibleEnRecorrido';
 
 // -------------------------------------------------------------------------------------------
@@ -502,5 +504,117 @@ describe('toActualizarHojaDeRutaPayload', () => {
 
   it('payload vacío se traduce a objeto vacío, sin claves inventadas', () => {
     expect(toActualizarHojaDeRutaPayload({})).toEqual({});
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// Enriquecimiento de coordenadas (change hojas-de-ruta-geocoding, RF-701) — resuelve Checkpoint 2
+// de integracion-hojas-de-ruta/design.md. `parseCoordenadasPorDireccion` traduce las filas crudas
+// de `pacientes.direcciones (id, lat, lng)`; `aplicarCoordenadasOrigen` las aplica sobre un
+// `HojaDeRuta` ya ensamblado. Ambas puras, sin red — el I/O batch vive en
+// SupabaseHojaDeRutaRepository.ts.
+// -------------------------------------------------------------------------------------------
+
+describe('parseCoordenadasPorDireccion', () => {
+  it('mapea filas válidas a un mapa id -> Coordenada', () => {
+    const mapa = parseCoordenadasPorDireccion([
+      { id: 'dir-a', lat: -34.6, lng: -58.4 },
+      { id: 'dir-b', lat: -34.5, lng: -58.5 },
+    ]);
+
+    expect(mapa.get('dir-a')).toEqual({ lat: -34.6, lng: -58.4 });
+    expect(mapa.get('dir-b')).toEqual({ lat: -34.5, lng: -58.5 });
+    expect(mapa.size).toBe(2);
+  });
+
+  it('excluye filas con lat/lng NULL (dirección todavía sin geocodificar) sin lanzar', () => {
+    const mapa = parseCoordenadasPorDireccion([{ id: 'dir-a', lat: null, lng: null }]);
+
+    expect(mapa.size).toBe(0);
+  });
+
+  it('excluye filas sin id string, sin romper el resto del batch', () => {
+    const mapa = parseCoordenadasPorDireccion([
+      { id: null, lat: 1, lng: 2 },
+      { id: 'dir-b', lat: 3, lng: 4 },
+    ]);
+
+    expect(mapa.size).toBe(1);
+    expect(mapa.get('dir-b')).toEqual({ lat: 3, lng: 4 });
+  });
+
+  it('forma completamente inesperada (no array) -> mapa vacío, nunca lanza', () => {
+    expect(parseCoordenadasPorDireccion(null).size).toBe(0);
+    expect(parseCoordenadasPorDireccion(undefined).size).toBe(0);
+    expect(parseCoordenadasPorDireccion('no-soy-array').size).toBe(0);
+  });
+
+  it('fila malformada (no objeto) dentro del array se ignora sin romper el resto', () => {
+    const mapa = parseCoordenadasPorDireccion([42, { id: 'dir-b', lat: 1, lng: 2 }]);
+
+    expect(mapa.size).toBe(1);
+  });
+
+  it('lat/lng no numéricos (forma inesperada) se excluyen', () => {
+    const mapa = parseCoordenadasPorDireccion([{ id: 'dir-a', lat: '1', lng: '2' }]);
+
+    expect(mapa.size).toBe(0);
+  });
+});
+
+describe('aplicarCoordenadasOrigen', () => {
+  function filaHojaLocal(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return { id: 'hdr-1', fecha: '2026-08-04', franja_inicio: '08:00:00', franja_fin: '20:00:00', notas: null, ...overrides };
+  }
+
+  function hojaConParada(direccionOrigenId: string): HojaDeRuta {
+    return ensamblarHojaDeRuta(
+      filaHojaLocal(),
+      [filaRecorrido()],
+      [filaParada({ id_dir_inicial: direccionOrigenId })],
+    );
+  }
+
+  it('resuelve coordenadaOrigen de cada parada contra su direccionOrigenId', () => {
+    const hoja = hojaConParada('dir-a');
+    const coordenadas = new Map<string, Coordenada>([['dir-a', { lat: 1, lng: 2 }]]);
+
+    const resultado = aplicarCoordenadasOrigen(hoja, coordenadas);
+
+    expect(resultado.recorridos[0]?.paradas[0]?.coordenadaOrigen).toEqual({ lat: 1, lng: 2 });
+  });
+
+  it('una parada cuya dirección no está en el mapa conserva coordenadaOrigen undefined', () => {
+    const hoja = hojaConParada('dir-sin-geocodificar');
+    const coordenadas = new Map<string, Coordenada>([['otra-direccion', { lat: 1, lng: 2 }]]);
+
+    const resultado = aplicarCoordenadasOrigen(hoja, coordenadas);
+
+    expect(resultado.recorridos[0]?.paradas[0]?.coordenadaOrigen).toBeUndefined();
+  });
+
+  it('mapa vacío devuelve la MISMA referencia de hoja (atajo, no recorre nada)', () => {
+    const hoja = hojaConParada('dir-a');
+
+    const resultado = aplicarCoordenadasOrigen(hoja, new Map());
+
+    expect(resultado).toBe(hoja);
+  });
+
+  it('no muta la hoja original (inmutable)', () => {
+    const hoja = hojaConParada('dir-a');
+    const coordenadas = new Map<string, Coordenada>([['dir-a', { lat: 1, lng: 2 }]]);
+
+    aplicarCoordenadasOrigen(hoja, coordenadas);
+
+    expect(hoja.recorridos[0]?.paradas[0]?.coordenadaOrigen).toBeUndefined();
+  });
+
+  it('hoja sin recorridos no rompe (robustez)', () => {
+    const hoja: HojaDeRuta = { id: 'hdr-1', fecha: '2026-08-04', franjaInicio: '08:00', franjaFin: '20:00', recorridos: [] };
+    const coordenadas = new Map<string, Coordenada>([['dir-a', { lat: 1, lng: 2 }]]);
+
+    expect(() => aplicarCoordenadasOrigen(hoja, coordenadas)).not.toThrow();
+    expect(aplicarCoordenadasOrigen(hoja, coordenadas).recorridos).toEqual([]);
   });
 });

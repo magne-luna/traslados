@@ -46,8 +46,10 @@ function toApi(row: RequisitoRow) {
   };
 }
 
-async function resolveTipoDocumentoId(admin: SupabaseClient, nombre: string): Promise<{ id: string } | { error: string }> {
-  const { data: existing, error: findError } = await admin
+// Recibe userClient -- obra_social.tipos_documento esta cubierta por el mismo modulo
+// 'obra_social' que ya verifico requirePermiso() para este request.
+async function resolveTipoDocumentoId(userClient: SupabaseClient, nombre: string): Promise<{ id: string } | { error: string }> {
+  const { data: existing, error: findError } = await userClient
     .schema('obra_social')
     .from('tipos_documento')
     .select('id')
@@ -56,7 +58,7 @@ async function resolveTipoDocumentoId(admin: SupabaseClient, nombre: string): Pr
   if (findError) return { error: findError.message };
   if (existing) return { id: existing.id as string };
 
-  const { data: created, error: createError } = await admin
+  const { data: created, error: createError } = await userClient
     .schema('obra_social')
     .from('tipos_documento')
     .insert({ tipo: nombre })
@@ -77,17 +79,17 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('obra_social').from('requisitos_os').select(SELECT_COLUMNS).eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('obra_social').from('requisitos_os').select(SELECT_COLUMNS).eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'requisito no encontrado' });
       return jsonResponse(200, toApi(data as unknown as RequisitoRow));
     }
     if (!obraSocialId) return jsonResponse(400, { error: 'falta ?obraSocialId=' });
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('obra_social')
       .from('requisitos_os')
       .select(SELECT_COLUMNS)
@@ -107,10 +109,10 @@ Deno.serve(async (req) => {
     if (!body.obraSocialId || !body.nombre) {
       return jsonResponse(400, { error: 'faltan campos requeridos: obraSocialId, nombre' });
     }
-    const tipoDocumento = await resolveTipoDocumentoId(admin, body.nombre);
+    const tipoDocumento = await resolveTipoDocumentoId(userClient, body.nombre);
     if ('error' in tipoDocumento) return jsonResponse(400, { error: tipoDocumento.error });
 
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('obra_social')
       .from('requisitos_os')
       .insert({
@@ -137,12 +139,12 @@ Deno.serve(async (req) => {
     if (body.orden !== undefined) row.orden = body.orden;
     if (body.requerido !== undefined) row.requerido = body.requerido;
     if (body.nombre !== undefined) {
-      const tipoDocumento = await resolveTipoDocumentoId(admin, body.nombre);
+      const tipoDocumento = await resolveTipoDocumentoId(userClient, body.nombre);
       if ('error' in tipoDocumento) return jsonResponse(400, { error: tipoDocumento.error });
       row.tipo_documento_id = tipoDocumento.id;
     }
 
-    const { data, error } = await admin.schema('obra_social').from('requisitos_os').update(row).eq('id', id).select(SELECT_COLUMNS).maybeSingle();
+    const { data, error } = await userClient.schema('obra_social').from('requisitos_os').update(row).eq('id', id).select(SELECT_COLUMNS).maybeSingle();
     if (error) return jsonResponse(400, { error: error.message });
     if (!data) return jsonResponse(404, { error: 'requisito no encontrado' });
     return jsonResponse(200, toApi(data as unknown as RequisitoRow));
@@ -150,7 +152,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id del requisito en la URL' });
-    const { error } = await admin.schema('obra_social').from('requisitos_os').delete().eq('id', id);
+    const { error } = await userClient.schema('obra_social').from('requisitos_os').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

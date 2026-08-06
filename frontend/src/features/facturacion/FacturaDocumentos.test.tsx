@@ -53,14 +53,14 @@ describe('FacturaDocumentos', () => {
 // `read` porque la RLS del servidor ya autoriza esa lectura.
 describe('FacturaDocumentos — gateo de escritura', () => {
   it('sin permiso de escritura: "Subir" y "Quitar" quedan deshabilitados, pero el documento ya cargado sigue siendo consultable', async () => {
-    const doc: DocumentoAdjunto = { itemId: 'item-arca', nombreArchivo: 'arca.pdf', subidoEn: '2026-07-01' };
+    const doc: DocumentoAdjunto = { id: 'doc-arca', itemId: 'item-arca', nombreArchivo: 'arca.pdf', subidoEn: '2026-07-01' };
     const repository = buildFakeRepository([doc]);
 
     renderConPermiso(false, <FacturaDocumentos facturaId="factura-1" items={items} repository={repository} />);
 
     // Consultar sigue disponible con solo `read` (D4): el archivo cargado sigue visible.
     expect(await screen.findByText(/arca\.pdf/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reemplazar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /agregar otro/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /quitar comprobante arca/i })).toBeDisabled();
     // Los ítems sin cargar todavía también siguen legibles.
     expect(screen.getByText('Asistencia')).toBeInTheDocument();
@@ -68,13 +68,13 @@ describe('FacturaDocumentos — gateo de escritura', () => {
   });
 
   it('con permiso de escritura: "Subir", "Reemplazar" y "Quitar" están activables (triangulación), y el checklist se renderiza completo', async () => {
-    const doc: DocumentoAdjunto = { itemId: 'item-arca', nombreArchivo: 'arca.pdf', subidoEn: '2026-07-01' };
+    const doc: DocumentoAdjunto = { id: 'doc-arca', itemId: 'item-arca', nombreArchivo: 'arca.pdf', subidoEn: '2026-07-01' };
     const repository = buildFakeRepository([doc]);
 
     renderConPermiso(true, <FacturaDocumentos facturaId="factura-1" items={items} repository={repository} />);
 
     expect(await screen.findByText(/arca\.pdf/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reemplazar/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /agregar otro/i })).toBeEnabled();
     expect(screen.getByRole('button', { name: /quitar comprobante arca/i })).toBeEnabled();
     expect(screen.getAllByRole('button', { name: /^subir$/i })[0]).toBeEnabled();
   });
