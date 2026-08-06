@@ -1,0 +1,55 @@
+TODO — Reunión con Andrea (Traslado Personalizado), Google Meet 2026-08-04
+Fuente: grabación Fathom (resumen transcripto acá, no el video en sí)
+
+## Pacientes
+
+- [ ] DNI y Número de afiliado son campos distintos: DNI debe ser solo DNI (numérico).
+      "Número de afiliado" tiene que ser flexible para alfanumérico + sufijos
+      (ej. mellizos con /001) — el error actual de "paciente ya existente" viene de
+      mezclar ambos en el mismo campo.
+- [x] Múltiples ubicaciones de Escuela: agregar "Escuela Especial" además de
+      "Escuela" — YA IMPLEMENTADO 2026-08-06 (tipo_direccion).
+- [ ] Múltiples ubicaciones de Terapia: 3 a 5 por paciente. Confirmar si
+      Direccion (ya es colección) alcanza tal cual, o si falta algo puntual.
+- [ ] Filtros de lista de pacientes: por obra social, amparo (sí/no), morosos.
+- [ ] Exportación de pacientes: PDF o Excel. Campos: nombre, obra social, DNI,
+      vencimiento del CUD, edad, estado de amparo.
+- [ ] Reubicar documentos de pacientes/presupuestos (revisar con Andrea dónde
+      los quiere ver — no queda claro el detalle en el resumen, preguntar).
+
+## Facturación
+
+- [ ] Integración con ARBA (⚠️ NO es AFIP — corrige la deducción de la Ronda 2,
+      que había interpretado "la FIP" como AFIP; es ARBA, organismo bonaerense).
+      Requiere configuración única y compleja del lado de Andrea para conectar
+      la cuenta. Si falla la integración, la app debe generar un resumen
+      facturable para copiar/pegar manual en ARBA (fallback, no bloqueante).
+      **Acordado: se retrasa hasta que el resto del sistema esté funcional.**
+- [ ] Adjuntar 3 documentos por factura para descarga/envío a obras sociales:
+      1. Factura (PDF oficial de ARBA)
+      2. Hoja de asistencia (una por prestación)
+      3. Autorización (AD) — el documento de autorización de la obra social
+      CODEM queda aparte: específico de OSECAC, lo descarga el usuario de ANSES
+      y lo sube manual (no se automatiza).
+- [ ] Campos de descripción de factura: obra social, ubicación, dependencia.
+
+## Conductores / Vehículos
+
+- [ ] Campo de horario de trabajo por conductor (turnos divididos) — permite
+      asignar un mismo vehículo a dos conductores en turnos distintos.
+- [ ] Recordatorio de Oblea de GNC en mantenimiento de vehículos — el campo
+      "Otro" ya existente alcanza, no hace falta un campo dedicado.
+
+## Prestadores
+
+- [ ] ⚠️ DECISIÓN DE ANDREA: la sección de Prestadores **no es necesaria**.
+      Traslado Personalizado es el único prestador; la tercerización con
+      Uber/remis es mínima y no estructurada. Confirmar con Enzo qué hacer con
+      todo lo ya construido (prestadores-crud, factura-por-prestador) antes de
+      tocar nada — no asumir que hay que borrarlo.
+
+## Pendiente del lado de Andrea / Traslado Personalizado
+
+- [ ] Enviar una factura de ejemplo real para confirmar la estructura de la
+      descripción.
+- [ ] Revisar y confirmar la lista final de filtros de pacientes.
