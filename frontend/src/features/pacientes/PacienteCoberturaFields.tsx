@@ -3,6 +3,7 @@ import { FieldGroupHeading } from '../../design-system/components';
 import { Field, Input, Select } from '../../design-system/form';
 import { IdentificadorAfiliadoField } from './IdentificadorAfiliadoField';
 import type { PacienteFormValues } from './PacienteForm';
+import type { PacienteFormErrors } from './validatePacienteForm';
 
 type Cobertura = Pick<
   PacienteFormValues,
@@ -12,6 +13,7 @@ type Cobertura = Pick<
 interface PacienteCoberturaFieldsProps {
   formId: string;
   values: Cobertura;
+  errors: PacienteFormErrors;
   obrasSociales: ObraSocial[];
   onChange: (patch: Partial<Cobertura>) => void;
 }
@@ -19,7 +21,7 @@ interface PacienteCoberturaFieldsProps {
 // Obra social + identificador de afiliado + contacto + amparo judicial del formulario de
 // paciente (tasks.md 6.2), extraído de PacienteForm para mantenerlo bajo ~200 líneas
 // (react-best-practices).
-export function PacienteCoberturaFields({ formId, values, obrasSociales, onChange }: PacienteCoberturaFieldsProps) {
+export function PacienteCoberturaFields({ formId, values, errors, obrasSociales, onChange }: PacienteCoberturaFieldsProps) {
   // Formato derivado de la obra social elegida (RF-106, RN-ID-02) — ya no se guarda en el
   // paciente, ver shared/types/obraSocial.ts.
   const formatoAfiliado = obrasSociales.find((obraSocial) => obraSocial.id === values.obraSocialId)?.formatoAfiliado ?? null;
@@ -76,6 +78,7 @@ export function PacienteCoberturaFields({ formId, values, obrasSociales, onChang
         value={values.numeroAfiliado}
         onChange={(numeroAfiliado) => onChange({ numeroAfiliado })}
         formato={formatoAfiliado}
+        error={errors.numeroAfiliado}
       />
       </div>
     </div>
