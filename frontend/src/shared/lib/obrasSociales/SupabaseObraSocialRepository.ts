@@ -17,6 +17,7 @@ import { ensamblarObraSocial, toActualizarObraSocialPayload, toCrearObraSocialPa
 const SELECT_OBRA_SOCIAL_COMPLETA = `
   id, razon_social, cuit, codigo, direccion, telefono, condicion_iva, tipo_comprobante,
   plazo_cobro_dias, modalidad_facturacion, admite_pagos_parciales, identificador_origen,
+  formato_afiliado,
   requisitos_os ( id, orden, requerido, tipos_documento ( id, tipo ) ),
   plantilla_campo ( id, etiqueta, origen, orden )
 `;
