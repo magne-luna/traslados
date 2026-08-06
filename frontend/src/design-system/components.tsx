@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type MouseEvent, type ReactElement, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { SemanticStatus } from './tokens';
 import { chipColors } from './semanticColors';
@@ -384,6 +384,148 @@ export function Tooltip({ label, disabled, children }: { label: string; disabled
           document.body,
         )}
     </span>
+  );
+}
+
+// Selector de elementos tabulables usado por la trampa de foco de Overlay (abajo). Copia
+// deliberadamente acotada del set estándar de "elementos interactivos nativos" — no cubre
+// `contenteditable` ni roles ARIA custom porque, siendo Overlay un contenedor de **solo
+// lectura**, no hay ningún caso real en este proyecto que los necesite; si aparece uno, se amplía
+// acá, en un solo lugar.
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+// Overlay — ventana centrada con backdrop (Checkpoint (d) de design.md, veredicto D-i): contenedor
+// GENÉRICO y reutilizable para aislar del resto de la pantalla cualquier contenido que lo
+// necesite (el primer y único consumidor hoy es la previsualización de documentos de
+// `documentos-previsualizacion`, pero este componente no sabe nada de documentos — ver abajo).
+// `createPortal` a `document.body`: mismo motivo y mismo precedente que `Tooltip` más arriba
+// (escapa del stacking context / `overflow-hidden` de cualquier ancestro, para no quedar
+// recortado ni mal posicionado sea cual sea la pantalla que lo monte).
+//
+// **Resolución escrita de la tensión con `knowledge-base/08_arquitectura_propuesta.md` líneas 28
+// y 35** ("el detalle revela el formulario inline, en la misma pantalla — nunca como modal";
+// "para sub-secciones embebidas: nunca inputs editables inline por default"): esa regla existe
+// para prohibir usar un overlay/modal como vehículo de **formularios de edición** — el motivo
+// documentado ahí es que los datos ya cargados "parecían campos editables" cuando no
+// correspondía tocarlos ahí. Una superficie **de solo lectura, efímera y sin inputs** no es lo
+// que esa regla prohíbe (design.md, Checkpoint (d)). Pero como este componente vive en el design
+// system y cualquiera lo puede reusar, queda dicho acá explícitamente: **`Overlay` NO es un
+// vehículo para formularios de edición.** No montar un `<form>`, ni `onSubmit`, ni inputs que
+// escriban datos como `children` — si algún día hace falta eso, es una pantalla o un panel inline
+// nuevo (siguiendo la convención de la KB), no este componente.
+//
+// Accesibilidad (WAI-ARIA Dialog Pattern): `role="dialog"` + `aria-modal="true"` +
+// `aria-labelledby` apuntando al `<h2>` del título (id generado con `useId`, el caller no
+// necesita saber nada de ids). Cierra con `Escape` y con click en el backdrop (click *dentro* del
+// contenido no propaga cierre). Al abrir, mueve el foco al contenedor del diálogo; al cerrar,
+// lo devuelve al elemento que tenía el foco antes de abrir (típicamente el botón que lo abrió).
+// Mientras está abierto, una trampa de foco (`Tab`/`Shift+Tab` interceptados a nivel `document`)
+// impide que la tabulación llegue al contenido de fondo — el resto de la pantalla queda
+// inalcanzable por teclado hasta cerrar, como exige el patrón de diálogo modal de ARIA.
+export function Overlay({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+}): ReactElement | null {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const elementoQueAbrioRef = useRef<HTMLElement | null>(null);
+
+  // Foco: guardar el elemento activo al momento de abrir (para devolvérselo al cerrar) y mover el
+  // foco al diálogo. El cleanup del efecto (se dispara al cerrar/desmontar) es lo que devuelve el
+  // foco — así funciona sea cual sea el camino de cierre (Escape, backdrop, o que el caller
+  // cambie `open` por su cuenta).
+  useEffect(() => {
+    if (!open) return;
+    elementoQueAbrioRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => {
+      elementoQueAbrioRef.current?.focus();
+    };
+  }, [open]);
+
+  // Escape + trampa de foco, ambos a nivel `document` (no en el nodo del diálogo): Escape debe
+  // funcionar tenga el foco lo que tenga el foco dentro del diálogo, y la trampa de Tab necesita
+  // interceptar el evento antes de que el navegador mueva el foco por su cuenta.
+  useEffect(() => {
+    if (!open) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const contenedor = dialogRef.current;
+      if (!contenedor) return;
+      const focusables = contenedor.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+      const primero = focusables[0];
+      const ultimo = focusables[focusables.length - 1];
+      if (!primero || !ultimo) {
+        // Nada tabulable dentro del diálogo (solo texto): el foco no puede salir de acá.
+        event.preventDefault();
+        return;
+      }
+      if (event.shiftKey && document.activeElement === primero) {
+        event.preventDefault();
+        ultimo.focus();
+      } else if (!event.shiftKey && document.activeElement === ultimo) {
+        event.preventDefault();
+        primero.focus();
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-lg"
+      onMouseDown={(event: MouseEvent<HTMLDivElement>) => {
+        // Solo cierra si el click fue directo sobre el backdrop, no si burbujeó desde adentro
+        // del contenido (event.target === event.currentTarget es el chequeo estándar para esto).
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="flex max-h-[85vh] w-full max-w-[640px] flex-col gap-md rounded-md border border-border bg-surface p-lg shadow-card outline-none"
+      >
+        <div className="flex items-center justify-between gap-sm">
+          <h2 id={titleId} className="m-0 font-heading text-[18px] font-bold text-ink">
+            {title}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="cursor-pointer rounded-sm border-none bg-transparent p-xs text-muted hover:text-ink"
+          >
+            <InlineIcon size={18}>
+              <line x1={18} y1={6} x2={6} y2={18} strokeLinecap="round" />
+              <line x1={6} y1={6} x2={18} y2={18} strokeLinecap="round" />
+            </InlineIcon>
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>,
+    document.body,
   );
 }
 

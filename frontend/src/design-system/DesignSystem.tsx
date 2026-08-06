@@ -1,6 +1,6 @@
 import { useId, useState, type ReactNode } from 'react';
 import type { SemanticStatus } from './tokens';
-import { Section, Swatch, Button, Chip, NavIcon, chipColors, CamposSoloLectura, AvisoSoloLectura } from './components';
+import { Section, Swatch, Button, Chip, NavIcon, chipColors, CamposSoloLectura, AvisoSoloLectura, Overlay } from './components';
 import { Field, Input, Select, Textarea } from './form';
 import { Alert, Pill, EmptyState } from './feedback';
 import { Card, Panel } from './layout';
@@ -391,7 +391,41 @@ export default function DesignSystem() {
       <Section label="17" title="Gateo de escritura (CamposSoloLectura / Button opt-in / AvisoSoloLectura)">
         <GateoEscrituraCatalog />
       </Section>
+
+      <Section label="18" title="Overlay (ventana centrada con backdrop — solo lectura)">
+        <p className="mt-[-8px] mb-md max-w-140 font-body text-xs text-muted">
+          Contenedor genérico y reutilizable (Checkpoint (d), <code>documentos-previsualizacion</code>) para
+          cualquier contenido de solo lectura que necesite aislarse del resto de la pantalla — hoy lo
+          consume la previsualización de documentos, pero el componente no sabe nada de eso. Cierra con{' '}
+          <kbd className="rounded-sm border border-border-strong bg-surface-soft px-xs py-0.5 font-mono text-[11px]">
+            Esc
+          </kbd>
+          , con click en el fondo, o con el botón de cierre. <b>No</b> es un vehículo para formularios de
+          edición (ver comentario en <code>components.tsx</code>).
+        </p>
+        <OverlayCatalog />
+      </Section>
     </div>
+  );
+}
+
+// Demo mínima de Overlay (tasks.md 3.3): un botón de disparo + el propio Overlay con contenido de
+// ejemplo de solo lectura — mismo criterio que DocumentosDemo más arriba (demostrar el componente
+// funcionando de verdad, no solo su forma estática).
+function OverlayCatalog() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        Abrir ejemplo
+      </Button>
+      <Overlay open={open} onClose={() => setOpen(false)} title="Presupuesto Firmado.pdf">
+        <p className="m-0 font-body text-[13px] text-muted">
+          Acá se monta contenido de solo lectura (ej. la previsualización de un documento adjunto).
+          Este panel es un ejemplo del catálogo, no un documento real.
+        </p>
+      </Overlay>
+    </>
   );
 }
 

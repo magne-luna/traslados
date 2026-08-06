@@ -264,7 +264,7 @@
 > Paralelizable con §1-§2: no depende del contrato de documentos. Esa independencia es justamente la
 > razón de que el componente sea genérico y viva en el design system.
 
-- [ ] 3.1 (RED→GREEN→TRIANGULATE) Crear el componente en
+- [x] 3.1 (RED→GREEN→TRIANGULATE) Crear el componente en
       `frontend/src/design-system/components.tsx` con el nombre y la forma que fije el veredicto de
       (d). Requisitos mínimos, independientes del veredicto:
       - `createPortal` de `react-dom` — **precedente ya existente y justificado por escrito** en el
@@ -277,13 +277,78 @@
       - Comentario en el propio componente declarando que es para **contenido de solo lectura** y que
         **no** es un vehículo para formularios de edición (`knowledge-base/08_arquitectura_propuesta.md`
         líneas 28 y 35).
-- [ ] 3.2 Triangular accesibilidad y teclado: abrir/cerrar con `Escape`, cerrar con backdrop, foco
+      **Hecho (2026-08-06)**: componente `Overlay` (nombre elegido de los candidatos que dejó
+      `design.md` — genérico en inglés, mismo criterio que `Button`/`Chip`/`Section`/`Table`, no
+      `VentanaPrevisualizacion` porque el veredicto de 0.1 pidió explícitamente "genérico y
+      reutilizable"). Safety net previo sobre `components.test.tsx` (único archivo existente
+      tocado): 3/3 passing antes de escribir nada. RED confirmado: 7 tests nuevos en
+      `frontend/src/design-system/components.test.tsx` (`describe('Overlay', …)`) fallando con
+      `Element type is invalid… got: undefined` (import de un named export que no existía
+      todavía) — señal real de runtime, no solo de tipos, mismo criterio que §2. Implementado:
+      `useId()` genera el id del título internamente (el caller no maneja ids, a diferencia de
+      `Panel` que sí lo expone — decisión deliberada para minimizar la superficie de API de un
+      componente pensado para reuso amplio); `useRef` + dos `useEffect` para foco/Escape/trampa de
+      Tab (documento-level `keydown`, no el nodo del diálogo, para que Escape funcione tenga el
+      foco lo que tenga adentro); `createPortal(…, document.body)`. GREEN confirmado: 10/10 passing
+      (3 preexistentes + 7 nuevos), corrido dos veces para descartar flakiness de foco/timing —
+      estable en ambas corridas. Cero `style={{}}`: backdrop y contenedor usan solo clases
+      Tailwind con tokens del `@theme` (`bg-ink/50`, `border-border`, `bg-surface`, `text-ink`,
+      `rounded-md`, `gap-md`, `shadow-card`); el botón de cierre usa `InlineIcon` con un path SVG
+      de X inline (no emoji, mismo criterio que el resto del archivo — se evaluó agregar el ícono a
+      `icons.tsx` pero se descartó por no tener otro consumidor todavía, se deja el path inline
+      dentro de `Overlay` para no ensanchar el catálogo compartido de íconos sin un segundo uso
+      real). Comentario de contrato agregado arriba del componente, resolviendo por escrito la
+      tensión con `knowledge-base/08_arquitectura_propuesta.md:28,35` ("nunca como modal" es sobre
+      formularios de edición, no sobre superficies de solo lectura) — mismo texto que ya había
+      quedado escrito en el veredicto de 0.1, ahora también en el código.
+- [x] 3.2 Triangular accesibilidad y teclado: abrir/cerrar con `Escape`, cerrar con backdrop, foco
       devuelto, y que el contenido de fondo no sea alcanzable por tabulación mientras está abierto.
-- [ ] 3.3 Agregar la entrada de catálogo en `frontend/src/design-system/DesignSystem.tsx` — **no
+      **Hecho (2026-08-06)**, dentro del mismo ciclo RED→GREEN que 3.1 (7 tests, cada uno un caso
+      distinto, no una sola prueba genérica): (1) `open=false` no renderiza nada; (2) `open=true`:
+      `role="dialog"` + `aria-modal="true"` + `aria-labelledby` resuelve al `id` real del `<h2>`
+      con el texto del título; (3) `Escape` llama `onClose` una vez; (4) click en el backdrop llama
+      `onClose`, click dentro del contenido **no** lo llama (verificado con el mismo texto de
+      contenido, para distinguir ambos casos); (5) al abrir, el contenedor del diálogo
+      (`tabIndex={-1}`) recibe el foco (`toHaveFocus()`); (6) al cerrar con `Escape`, el foco vuelve
+      al botón que abrió el overlay (`OverlayHost`, componente de test con estado real de
+      open/close — necesario porque el efecto de devolución de foco depende del ciclo de vida real
+      del componente, no se puede simular con props estáticas); (7) trampa de teclado: dentro del
+      diálogo hay dos elementos tabulables (el botón "Cerrar" y un botón de contenido de ejemplo) —
+      `Tab` desde el contenedor va a "Cerrar", después a "Botón interno", y un tercer `Tab` **vuelve
+      a "Cerrar"** (wrap hacia adelante) en vez de escapar a "Botón de fondo" (fuera del diálogo,
+      antes en el DOM); `Shift+Tab` desde "Cerrar" wrappea hacia atrás a "Botón interno". Nota:
+      la primera versión de este test asumía un solo elemento tabulable adentro (solo "Botón
+      interno") y falló en GREEN porque el botón "Cerrar" también es tabulable — se corrigió el
+      test para reflejar los dos elementos reales, no se cambió el comportamiento del componente.
+      `npx vitest run src/design-system/components.test.tsx`: 10/10 passing, dos corridas.
+- [x] 3.3 Agregar la entrada de catálogo en `frontend/src/design-system/DesignSystem.tsx` — **no
       negociable**: es donde el resto del equipo descubre que el componente existe, y es lo que hace
       que la regla dura de "revisar el design system antes de escribir markup" siga funcionando.
-- [ ] 3.4 (REFACTOR) Revisar que el componente no haya quedado acoplado a documentos: si tiene alguna
+      **Hecho (2026-08-06)**: `Overlay` agregado al import de `./components`; nueva `Section
+      label="18"` con un botón que dispara un `OverlayCatalog` de ejemplo (mismo criterio que
+      `DocumentosDemo` más arriba — demuestra el componente funcionando, no solo su forma
+      estática) y un párrafo que explica el alcance genérico y la restricción de "no formularios de
+      edición". `DesignSystem.tsx` no tiene test propio (no existía antes de este pase — mismo
+      estado que el resto del catálogo, ej. la Section 10 de `DocumentChecklist`), así que la
+      verificación de esta tarea es `npx tsc -b --noEmit` (sigue en los mismos 15 archivos rojos
+      de §2, `DesignSystem.tsx` no aparece) — no hay ciclo RED→GREEN de test automatizado para
+      esta tarea puntual, consistente con que tampoco lo tuvo la Section 10 (`DocumentChecklist`)
+      cuando se agregó.
+- [x] 3.4 (REFACTOR) Revisar que el componente no haya quedado acoplado a documentos: si tiene alguna
       referencia a `DocumentoAdjunto`, está en el archivo equivocado.
+      **Verificado (2026-08-06)**: `grep -n "DocumentoAdjunto\|documento" frontend/src/design-system/components.tsx`
+      no encuentra ningún import ni referencia de tipo a `DocumentoAdjunto` — las únicas coincidencias
+      de "documento" son prosa de comentarios (uno preexistente de `useDesbordaViewport`, y el propio
+      comentario de `Overlay` explicando que su primer consumidor será la previsualización de
+      documentos pero que el componente "no sabe nada de documentos"). `Overlay` no importa nada de
+      `shared/types/documento.ts` ni de `shared/lib/documentos/`. Sin cambios de código en esta tarea
+      (la revisión confirmó que no hacía falta refactor). `npx tsc -b --noEmit` y
+      `npx vitest run src/design-system/components.test.tsx` re-verificados después de esta
+      confirmación: mismos resultados que 3.1/3.2 (15 archivos rojos preexistentes de §2, 10/10
+      tests passing). `npx oxlint` sobre `components.tsx`, `components.test.tsx` y
+      `DesignSystem.tsx`: exit 0, solo 2 warnings preexistentes de `react(only-export-components)`
+      (línea de `export { chipColors }` y de `redondearProgreso`, ninguna introducida por `Overlay`
+      — verificado que ambas ya existían antes de este pase). **No se avanzó a §4.**
 
 ## 4. `useDocumentChecklist` — exponer la resolución a la UI
 
