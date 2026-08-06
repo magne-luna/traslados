@@ -310,6 +310,16 @@ así que queda anotado acá hasta que se construya esa feature.
   (independencia ida/vuelta) se sigue cumpliendo en `ParadaRecorrido.tramo` (hojaDeRuta.ts), que ya
   elige origen/destino de forma independiente por parada sin derivar uno del otro — `Direccion`
   queda como catálogo de lugares reutilizables, sin tramo propio.
+  **⚠️ Discrepancia nueva, sin resolver contra el docx (2026-08-06)**: `Direccion.descripcion`
+  (texto libre, opcional) se agregó a **pedido directo de la usuaria** — para diferenciar dos
+  direcciones del mismo `tipo` (ej. dos `terapia`: "Kinesióloga" vs "Fonoaudióloga") al elegir
+  origen/destino de un tramo en Hojas de Ruta (`PacienteTramoCampos.tsx`). El docx no modela ningún
+  campo de descripción para esta entidad. Columna `pacientes.direcciones.descripcion` (`TEXT`,
+  NULLable, migración `20260806150000_direcciones_descripcion.sql`) — mismo criterio NULLable que
+  `parentesco` (discrepancia de "Personas a Cargo" arriba): opcional también en el frontend, así
+  que no hace falta backfill. Cartel `AvisoModeloDatos` agregado en `PacienteDetail.tsx` (sección
+  Direcciones) señalando esto. Pendiente: confirmar con quien mantiene el docx si el campo debe
+  sumarse ahí también.
 - **Presupuesto / Autorización** (detalle completo en `openspec/changes/presupuestos-ui/design.md`
   §Discrepancias, propose validado 2026-07-24): el docx modela Presupuesto como un `Monto` único +
   Fecha de emisión + un solo Archivo (NO "estimación anual por prestación" como decía esta KB), y

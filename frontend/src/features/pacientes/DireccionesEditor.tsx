@@ -11,14 +11,13 @@ interface DireccionesEditorProps {
   onChange: (direcciones: Direccion[]) => void;
 }
 
-const NUEVA_DIRECCION_DEFAULT = { tipo: 'domicilio' as TipoDireccion, calle: '', localidad: '' };
-
 // Editor de direcciones múltiples (tasks.md 8.1/8.2, RF-113): catálogo de lugares del paciente,
 // cada uno un registro independiente identificado por `id`. Sin `tramo` propio (RN-HR-02): el
 // tramo ida/vuelta es del recorrido que usa la dirección, no de la dirección en sí — ver
-// `Tramo`/`Direccion` en shared/types/paciente.ts. Se muestran de solo lectura (tarjeta con
-// ícono por tipo) — no hay edición inline, para agregar una corregida hay que quitar y volver a
-// cargar (mismo criterio que el checklist de obras-sociales-ui).
+// `Tramo`/`Direccion` en shared/types/paciente.ts. Cada dirección ya cargada se muestra de solo
+// lectura (nunca como inputs editables inline); "Editar" precarga el mismo form de abajo en modo
+// edición — mismo patrón que PersonasACargoEditor.tsx (decisión del usuario, 2026-08-06: antes
+// era "quitar y volver a cargar", como el checklist de obras-sociales-ui; ahora corrige in situ).
 //
 // NOTA (tasks.md 12.3, gobernanza MEDIO): el `<li>` de cada fila usa `flex flex-wrap
 // items-center justify-between` con padding asimétrico (`px-md py-sm`) — Card (layout.tsx) solo
@@ -26,17 +25,44 @@ const NUEVA_DIRECCION_DEFAULT = { tipo: 'domicilio' as TipoDireccion, calle: '',
 // límite ya visto en AsignacionSemanalTabla.tsx, sección 11.2). Excepción permanente confirmada
 // por el usuario: queda como `<li>` nativo, sin ampliar Card por un solo caso.
 export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorProps) {
-  const [nueva, setNueva] = useState(NUEVA_DIRECCION_DEFAULT);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [tipo, setTipo] = useState<TipoDireccion>('domicilio');
+  const [calle, setCalle] = useState('');
+  const [localidad, setLocalidad] = useState('');
+  const [descripcion, setDescripcion] = useState('');
   const formId = useId();
 
-  function handleAdd() {
-    if (!nueva.calle.trim() || !nueva.localidad.trim()) return;
-    onChange([...direcciones, { id: crypto.randomUUID(), ...nueva }]);
-    setNueva(NUEVA_DIRECCION_DEFAULT);
+  function limpiarForm() {
+    setEditingId(null);
+    setTipo('domicilio');
+    setCalle('');
+    setLocalidad('');
+    setDescripcion('');
+  }
+
+  function handleEdit(direccion: Direccion) {
+    setEditingId(direccion.id);
+    setTipo(direccion.tipo);
+    setCalle(direccion.calle);
+    setLocalidad(direccion.localidad);
+    setDescripcion(direccion.descripcion ?? '');
+  }
+
+  function handleSubmit() {
+    if (!calle.trim() || !localidad.trim()) return;
+    const datos = { tipo, calle, localidad, descripcion: descripcion.trim() || undefined };
+
+    if (editingId) {
+      onChange(direcciones.map((direccion) => (direccion.id === editingId ? { id: editingId, ...datos } : direccion)));
+    } else {
+      onChange([...direcciones, { id: crypto.randomUUID(), ...datos }]);
+    }
+    limpiarForm();
   }
 
   function handleRemove(id: string) {
     onChange(direcciones.filter((direccion) => direccion.id !== id));
+    if (editingId === id) limpiarForm();
   }
 
   return (
@@ -59,9 +85,10 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
     <Card radius="md" gap="lg">
       {/* gateo-pacientes (design.md D2): cuelga de PacienteDetail, fuera de PacienteForm, así que
           no lo alcanza el envoltorio de la sección de datos personales — tiene el suyo propio.
-          Una sola inserción cubre el <button> nativo "Quitar" de cada fila y el bloque de
-          "Agregar nueva dirección" completo (campos + Button); las direcciones ya cargadas
-          siguen legibles porque el fieldset solo deshabilita controles, no oculta contenido. */}
+          Una sola inserción cubre los <button> nativos ("Editar"/"Quitar" por fila, "Cancelar"
+          del form inline) y el bloque de alta/edición completo (campos + Button); las direcciones
+          ya cargadas siguen legibles porque el fieldset solo deshabilita controles, no oculta
+          contenido. */}
       <CamposSoloLectura>
       <div className="flex flex-col gap-lg">
       {direcciones.length === 0 ? (
@@ -79,71 +106,106 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
                   <InlineIcon size={18}>{TIPO_DIRECCION_ICON[direccion.tipo]}</InlineIcon>
                 </span>
                 <div className="flex flex-col gap-xs">
-                  <span className="font-body text-[14px] font-semibold text-ink">{TIPO_DIRECCION_LABELS[direccion.tipo]}</span>
+                  <span className="font-body text-[14px] font-semibold text-ink">
+                    {TIPO_DIRECCION_LABELS[direccion.tipo]}
+                    {direccion.descripcion ? ` — ${direccion.descripcion}` : ''}
+                  </span>
                   <span className="font-body text-[13px] text-muted">
                     {direccion.calle}, {direccion.localidad}
                   </span>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => handleRemove(direccion.id)}
-                aria-label={`Quitar ${TIPO_DIRECCION_LABELS[direccion.tipo]} (${direccion.calle})`}
-                className="cursor-pointer border-none bg-transparent p-0 text-danger"
-              >
-                <InlineIcon>{iconTacho}</InlineIcon>
-              </button>
+              <div className="flex items-center gap-md">
+                <button
+                  type="button"
+                  onClick={() => handleEdit(direccion)}
+                  aria-label={`Editar ${TIPO_DIRECCION_LABELS[direccion.tipo]} (${direccion.calle})`}
+                  className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-primary"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemove(direccion.id)}
+                  aria-label={`Quitar ${TIPO_DIRECCION_LABELS[direccion.tipo]} (${direccion.calle})`}
+                  className="cursor-pointer border-none bg-transparent p-0 text-danger"
+                >
+                  <InlineIcon>{iconTacho}</InlineIcon>
+                </button>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
       <div className="flex flex-col gap-md border-t border-border pt-md">
-        <p className="m-0 font-body text-[14px] font-bold text-ink">Agregar nueva dirección</p>
+        <div className="flex items-center justify-between gap-sm">
+          <p className="m-0 font-body text-[14px] font-bold text-ink">{editingId ? 'Editar dirección' : 'Agregar nueva dirección'}</p>
+          {editingId && (
+            <button
+              type="button"
+              onClick={limpiarForm}
+              className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-muted"
+            >
+              Cancelar
+            </button>
+          )}
+        </div>
 
-        <div className="grid grid-cols-1 gap-md md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-md md:grid-cols-4">
           <Field label="Tipo de lugar" htmlFor={`${formId}-tipo`}>
             <Select
               id={`${formId}-tipo`}
               density="comfortable"
               placeholderTone="faint"
-              value={nueva.tipo}
-              onChange={(event) => setNueva((prev) => ({ ...prev, tipo: event.target.value as TipoDireccion }))}
+              value={tipo}
+              onChange={(event) => setTipo(event.target.value as TipoDireccion)}
             >
-              {TIPO_DIRECCION_OPTIONS.map((tipo) => (
-                <option key={tipo} value={tipo}>
-                  {TIPO_DIRECCION_LABELS[tipo]}
+              {TIPO_DIRECCION_OPTIONS.map((opcion) => (
+                <option key={opcion} value={opcion}>
+                  {TIPO_DIRECCION_LABELS[opcion]}
                 </option>
               ))}
             </Select>
           </Field>
 
-          <Field label="Calle y número" htmlFor={`${formId}-nueva-calle`}>
+          <Field label="Calle y número" htmlFor={`${formId}-calle`}>
             <Input
-              id={`${formId}-nueva-calle`}
+              id={`${formId}-calle`}
               placeholder="Ej. Av. Santa Fe 1234"
               density="comfortable"
               placeholderTone="faint"
-              value={nueva.calle}
-              onChange={(event) => setNueva((prev) => ({ ...prev, calle: event.target.value }))}
+              value={calle}
+              onChange={(event) => setCalle(event.target.value)}
             />
           </Field>
 
-          <Field label="Localidad" htmlFor={`${formId}-nueva-localidad`}>
+          <Field label="Localidad" htmlFor={`${formId}-localidad`}>
             <Input
-              id={`${formId}-nueva-localidad`}
+              id={`${formId}-localidad`}
               placeholder="Ej. CABA"
               density="comfortable"
               placeholderTone="faint"
-              value={nueva.localidad}
-              onChange={(event) => setNueva((prev) => ({ ...prev, localidad: event.target.value }))}
+              value={localidad}
+              onChange={(event) => setLocalidad(event.target.value)}
+            />
+          </Field>
+
+          <Field label="Descripción (opcional)" htmlFor={`${formId}-descripcion`}>
+            <Input
+              id={`${formId}-descripcion`}
+              placeholder="Ej. Kinesióloga"
+              density="comfortable"
+              placeholderTone="faint"
+              value={descripcion}
+              onChange={(event) => setDescripcion(event.target.value)}
             />
           </Field>
         </div>
 
         <div className="flex justify-end">
-          <Button variant="primary" onClick={handleAdd}>
-            + Agregar dirección
+          <Button variant="primary" onClick={handleSubmit}>
+            {editingId ? 'Guardar cambios' : '+ Agregar dirección'}
           </Button>
         </div>
       </div>

@@ -1,8 +1,17 @@
 import type { Direccion, Tramo } from '../../shared/types/hojaDeRuta';
-import { TRAMO_LABELS, TRAMO_OPTIONS } from '../pacientes/direccionOptions';
+import { TIPO_DIRECCION_LABELS, TRAMO_LABELS, TRAMO_OPTIONS } from '../pacientes/direccionOptions';
 import { Field, Select } from '../../design-system/form';
 import { HoraEstimadaCombo } from './HoraEstimadaCombo';
 import { HORARIOS_SUGERIDOS } from './horaOptions';
+
+// Etiqueta de una opción del select de dirección: tipo + descripción (si la tiene, para
+// diferenciar dos direcciones del mismo tipo — ej. dos "Terapia") + calle.
+function etiquetaDireccion(direccion: Direccion): string {
+  const tipoYDescripcion = direccion.descripcion
+    ? `${TIPO_DIRECCION_LABELS[direccion.tipo]} (${direccion.descripcion})`
+    : TIPO_DIRECCION_LABELS[direccion.tipo];
+  return `${tipoYDescripcion} — ${direccion.calle}`;
+}
 
 interface PacienteTramoCamposProps {
   formId: string;
@@ -64,7 +73,7 @@ export function PacienteTramoCampos({
           <option value="">Elegir…</option>
           {direcciones.map((direccion) => (
             <option key={direccion.id} value={direccion.id}>
-              {direccion.calle}
+              {etiquetaDireccion(direccion)}
             </option>
           ))}
         </Select>
@@ -79,7 +88,7 @@ export function PacienteTramoCampos({
           <option value="">Elegir…</option>
           {direcciones.map((direccion) => (
             <option key={direccion.id} value={direccion.id}>
-              {direccion.calle}
+              {etiquetaDireccion(direccion)}
             </option>
           ))}
         </Select>

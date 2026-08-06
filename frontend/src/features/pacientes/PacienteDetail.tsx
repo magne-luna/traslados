@@ -205,7 +205,10 @@ export function PacienteDetail({
             <AvisoModeloDatos>
               El docx separa "Direcciones" (catálogo: calle + tipo de lugar) de "Recorridos" (entidad
               aparte: dirección inicial/final + día de la semana + hora). Acá están fusionados en un
-              solo objeto `Direccion` con `dias`/`horario` opcionales que no existen en el docx.
+              solo objeto `Direccion` con `dias`/`horario` opcionales que no existen en el docx. El
+              campo <strong>Descripción</strong> tampoco existe en el docx — se agregó a pedido
+              directo de la usuaria para diferenciar dos direcciones del mismo tipo (ej. dos
+              "Terapia").
             </AvisoModeloDatos>
             <DireccionesEditor direcciones={paciente.direcciones} onChange={handleDireccionesChange} />
           </Section>

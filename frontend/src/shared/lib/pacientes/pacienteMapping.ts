@@ -172,18 +172,21 @@ export function parseDireccionRow(row: unknown): Direccion | null {
     tipo: parseTipoDireccion(row.tipo_lugar),
     calle,
     localidad: readNullableString(row, 'localidad') ?? '',
+    descripcion: readOptionalString(row, 'descripcion'),
   };
 }
 
 /** Fila para escribir en `pacientes.direcciones`. `numero` siempre `null` (discrepancia #5, D9):
  * no se inventa un parseo de la altura desde `calle`. `localidad` es `NOT NULL` en la base — hay
- * que mandarla siempre. */
+ * que mandarla siempre. `descripcion` es opcional en el dominio y NULLable en la base (misma
+ * discrepancia que `Parentesco`) — `undefined`/string vacío se manda como `null`. */
 export interface DireccionRowInput {
   id?: string;
   calle: string;
   numero: null;
   tipo_lugar: TipoDireccion;
   localidad: string;
+  descripcion: string | null;
 }
 
 export function toDireccionRows(direcciones: Direccion[]): DireccionRowInput[] {
@@ -193,6 +196,7 @@ export function toDireccionRows(direcciones: Direccion[]): DireccionRowInput[] {
     numero: null,
     tipo_lugar: direccion.tipo,
     localidad: direccion.localidad,
+    descripcion: direccion.descripcion?.trim() ? direccion.descripcion.trim() : null,
   }));
 }
 

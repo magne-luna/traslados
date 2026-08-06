@@ -98,6 +98,41 @@ describe('DireccionesEditor', () => {
     const { container } = render(<DireccionesEditor direcciones={[domicilio]} onChange={vi.fn()} />);
     expect(container.querySelector('li[data-direccion-id="dir-1"]')).not.toBeNull();
   });
+
+  it('editar una dirección precarga sus campos y guarda los cambios por id, sin duplicarla (triangulación con el default)', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const terapia: Direccion = { id: 'dir-9', tipo: 'terapia', calle: 'Corrientes 500', localidad: 'CABA', descripcion: 'Kinesióloga' };
+
+    render(<DireccionesEditor direcciones={[terapia]} onChange={onChange} />);
+    await user.click(screen.getByRole('button', { name: /editar terapia/i }));
+
+    expect(screen.getByLabelText(/tipo de lugar/i)).toHaveValue('terapia');
+    expect(screen.getByLabelText(/calle y número/i)).toHaveValue('Corrientes 500');
+    expect(screen.getByLabelText(/^localidad$/i)).toHaveValue('CABA');
+    expect(screen.getByLabelText(/descripción/i)).toHaveValue('Kinesióloga');
+
+    await user.clear(screen.getByLabelText(/descripción/i));
+    await user.type(screen.getByLabelText(/descripción/i), 'Fonoaudióloga');
+    await user.click(screen.getByRole('button', { name: /guardar cambios/i }));
+
+    expect(onChange).toHaveBeenCalledWith([{ id: 'dir-9', tipo: 'terapia', calle: 'Corrientes 500', localidad: 'CABA', descripcion: 'Fonoaudióloga' }]);
+  });
+
+  it('cancelar una edición no llama a onChange y vuelve el form a "Agregar nueva dirección"', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(<DireccionesEditor direcciones={[domicilio]} onChange={onChange} />);
+    await user.click(screen.getByRole('button', { name: /editar domicilio/i }));
+    expect(screen.getByText(/editar dirección/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /cancelar/i }));
+
+    expect(screen.getByText(/agregar nueva dirección/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/calle y número/i)).toHaveValue('');
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });
 
 // tasks.md 5.3 (integracion-pacientes), design.md D9 #4/#6: días/horario no tienen columna propia
@@ -123,17 +158,18 @@ describe('DireccionesEditor — cartel de modelo de datos', () => {
 });
 
 // Gateo de escritura (gateo-pacientes, design.md D2, tasks.md 4.3). DireccionesEditor cuelga de
-// PacienteDetail, fuera de PacienteForm — un único <CamposSoloLectura> cubre el <button> nativo
-// "Quitar" de cada fila, los 3 campos de "Agregar nueva dirección" y el Button "+ Agregar
-// dirección", sin que el componente reciba el módulo por props ni importe el literal 'pacientes'
-// (usePuedeEscribir() resuelve el permiso).
+// PacienteDetail, fuera de PacienteForm — un único <CamposSoloLectura> cubre los <button>
+// nativos ("Editar"/"Quitar" por fila), los 4 campos de alta/edición y el Button
+// "Agregar/Guardar cambios", sin que el componente reciba el módulo por props ni importe el
+// literal 'pacientes' (usePuedeEscribir() resuelve el permiso).
 describe('DireccionesEditor — gateo de escritura', () => {
-  it('sin permiso de escritura: "+ Agregar dirección", el <button> nativo "Quitar" y los campos quedan inertes, pero las direcciones existentes siguen legibles', async () => {
+  it('sin permiso de escritura: "+ Agregar dirección", "Editar"/"Quitar" y los campos quedan inertes, pero las direcciones existentes siguen legibles', async () => {
     const user = userEvent.setup();
 
     renderConPermiso(false, <DireccionesEditor direcciones={[domicilio]} onChange={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: /agregar dirección/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /editar domicilio/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /quitar domicilio/i })).toBeDisabled();
     expect(screen.getByLabelText(/tipo de lugar/i)).toBeDisabled();
     expect(screen.getByLabelText(/calle y número/i)).toBeDisabled();
@@ -147,10 +183,11 @@ describe('DireccionesEditor — gateo de escritura', () => {
     expect(screen.getByText(/av\. rivadavia 4500, caba/i)).toBeInTheDocument();
   });
 
-  it('con permiso de escritura: "+ Agregar dirección", "Quitar" y los campos están activables (triangulación)', () => {
+  it('con permiso de escritura: "+ Agregar dirección", "Editar", "Quitar" y los campos están activables (triangulación)', () => {
     renderConPermiso(true, <DireccionesEditor direcciones={[domicilio]} onChange={vi.fn()} />);
 
     expect(screen.getByRole('button', { name: /agregar dirección/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /editar domicilio/i })).toBeEnabled();
     expect(screen.getByRole('button', { name: /quitar domicilio/i })).toBeEnabled();
     expect(screen.getByLabelText(/calle y número/i)).toBeEnabled();
   });

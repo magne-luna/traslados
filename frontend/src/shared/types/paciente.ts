@@ -39,12 +39,17 @@ export interface Cud {
 
 /** Dirección del paciente (RF-113): catálogo de lugares reutilizables (domicilio, escuela,
  * terapia, etc.) que hojas-de-ruta referencia por id para armar origen/destino de cada parada de
- * un recorrido — el tramo (ida/vuelta) de ese uso es del recorrido, no de la dirección. */
+ * un recorrido — el tramo (ida/vuelta) de ese uso es del recorrido, no de la dirección.
+ * `descripcion` (pedido directo de la usuaria, no viene del docx — ver discrepancia en
+ * `knowledge-base/04_modelo_de_datos.md` §Discrepancias, mismo criterio que `Parentesco`) es
+ * texto libre opcional para diferenciar dos direcciones del mismo `tipo` (ej. dos `terapia`:
+ * "Kinesióloga" vs "Fonoaudióloga"). */
 export interface Direccion {
   id: string;
   tipo: TipoDireccion;
   calle: string;
   localidad: string;
+  descripcion?: string;
   dias?: string;
   horario?: string;
 }

@@ -212,7 +212,7 @@ describe('toDireccionRows', () => {
     ];
 
     expect(toDireccionRows(direcciones)).toEqual([
-      { id: 'd-1', calle: 'San Martín 123', numero: null, tipo_lugar: 'domicilio', localidad: 'CABA' },
+      { id: 'd-1', calle: 'San Martín 123', numero: null, tipo_lugar: 'domicilio', localidad: 'CABA', descripcion: null },
     ]);
   });
 
@@ -225,7 +225,22 @@ describe('toDireccionRows', () => {
     const rows = toDireccionRows(direcciones);
 
     expect(rows).toHaveLength(2);
-    expect(rows[1]).toEqual({ id: 'd-2', calle: 'Calle 2', numero: null, tipo_lugar: 'escuela', localidad: 'Vicente López' });
+    expect(rows[1]).toEqual({
+      id: 'd-2',
+      calle: 'Calle 2',
+      numero: null,
+      tipo_lugar: 'escuela',
+      localidad: 'Vicente López',
+      descripcion: null,
+    });
+  });
+
+  it('manda la descripción cuando la dirección la tiene, trimeada', () => {
+    const direcciones: Direccion[] = [
+      { id: 'd-1', tipo: 'terapia', calle: 'Calle 1', localidad: 'CABA', descripcion: '  Kinesióloga  ' },
+    ];
+
+    expect(toDireccionRows(direcciones)[0]?.descripcion).toBe('Kinesióloga');
   });
 });
 
@@ -478,7 +493,9 @@ describe('toCrearPacientePayload', () => {
       amparo_judicial: true,
       clinicos: { diagnostico: 'TEA', condicion: 'Estable' },
       cud: { numero_cud: 'C-1', emision: '2023-01-01', vencimiento: '2027-01-01' },
-      direcciones: [{ id: 'd-1', calle: 'San Martín 123', numero: null, tipo_lugar: 'domicilio', localidad: 'CABA' }],
+      direcciones: [
+        { id: 'd-1', calle: 'San Martín 123', numero: null, tipo_lugar: 'domicilio', localidad: 'CABA', descripcion: null },
+      ],
       personas_a_cargo: [
         { id: 'pc-1', nombre: 'Marta', apellido: 'López', dni: '30111222', parentesco: 'madre', telefono: '111', telefono_alternativo: null },
       ],
