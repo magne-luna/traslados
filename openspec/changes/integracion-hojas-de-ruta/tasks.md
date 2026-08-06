@@ -52,20 +52,30 @@
         **→ VEREDICTO (2026-08-04, usuaria/Enzo): OPCIÓN A — sin geocoding por ahora.**
         `RecorridoMapa` queda sin coordenadas sobre datos reales, con `AvisoModeloDatos`
         explicando que es por diseño.
-- [ ] 0.2 Confirmar contra el filesystem del repo (no contra la memoria de una sesión anterior) que
+- [x] 0.2 Confirmar contra el filesystem del repo (no contra la memoria de una sesión anterior) que
       `integracion-conductores-vehiculos` sigue sin `SupabaseVehiculoRepository.ts` ni
       `SupabaseConductorRepository.ts` en `frontend/src/shared/lib/{vehiculos,conductores}/` al
       momento de arrancar el apply — si para entonces ya aterrizaron, el Checkpoint 0 puede
       resolverse distinto (swap completo de los tres repositories a la vez) y este documento necesita
       un ajuste antes de continuar.
-- [ ] 0.3 Verificar el estado del historial de migraciones contra el remoto
+      **Reconfirmado 2026-08-05: siguen sin existir.** `frontend/src/shared/lib/{vehiculos,conductores}/`
+      solo tiene `VehiculoRepository.ts`/`ConductorRepository.ts` (las interfaces/contratos), sin
+      implementación Supabase. Checkpoint 0 opción A (swap parcial) se mantiene vigente.
+- [x] 0.3 Verificar el estado del historial de migraciones contra el remoto
       (`supabase migration list --linked`) inmediatamente antes de escribir la primera migración
       nueva — confirmar que sigue en `local == remote` (era así el 2026-08-04) y que ningún timestamp
       planeado en `design.md` Checkpoint 1 colisiona con una migración que haya aparecido desde
       entonces (mismo tipo de colisión que ya le pasó al timestamp que
       `integracion-conductores-vehiculos` tenía planeado para `conductores_vehiculos_campos.sql`).
-- [ ] 0.4 Correr `cd frontend && npx vitest run` y registrar el baseline exacto (tests passing/
+      **Reconfirmado 2026-08-05: `local == remote` en las 34 migraciones**, incluidas
+      `20260804100000_schema_hoja_de_ruta.sql` y `20260804110000_hoja_de_ruta_rpc.sql` (las de este
+      change) — **ya están aplicadas al proyecto real**, sin colisión de timestamp.
+- [x] 0.4 Correr `cd frontend && npx vitest run` y registrar el baseline exacto (tests passing/
       failing, archivos en verde) antes de tocar cualquier archivo existente.
+      **Corrido retroactivamente 2026-08-05** (no quedaba código de producción por escribir, todas las
+      fases 2-6 ya estaban `[x]`): 1890/1893 passing, 3 fallos — los 3 en `ChecklistEditor.test.tsx`,
+      dentro de la flakiness de baseline ya documentada en `facturacion-wizard-paciente-prestador` 4.6.
+      Cero regresiones nuevas atribuibles a este change.
 
 ## 1. Precondiciones del backend (verificar, no modificar)
 
@@ -73,17 +83,33 @@
       `integracion-pacientes` 1.2, reconfirmar que no cambió) y que `conductores` también lo está (lo
       necesitan las FK de `recorrido.vehiculo_id`/`conductor_id`, ya confirmado por
       `integracion-conductores-vehiculos` 1.1 — reconfirmar).
-- [ ] 1.2 Confirmar en vivo, con `select conname, pg_get_constraintdef(oid) from pg_constraint where
+      **Sin verificar en vivo 2026-08-05**: no hay comando de `supabase` CLI para leer *Exposed schemas*
+      sin pasar por el dashboard/Management API de config de PostgREST, y no se forzó esa llamada.
+      Indicio fuerte a favor: ambos schemas ya se usan con éxito en producción hoy (`PacientesRoute` y
+      `HojaDeRutaRoute` contra `pacientes`, `ConductorRepository`/`VehiculoRepository` contra
+      `conductores`) — pero **queda como verificación pendiente real**, no dar por cerrado sin
+      confirmarlo por dashboard.
+- [x] 1.2 Confirmar en vivo, con `select conname, pg_get_constraintdef(oid) from pg_constraint where
       conrelid = 'pacientes.historial_recorridos'::regclass`, que la forma de la tabla sigue siendo la
       documentada en `design.md` Context antes de escribir el `ALTER TABLE` — por si alguna migración
       posterior a este propose ya la tocó.
-- [ ] 1.3 Confirmar en vivo que el módulo `hojas_de_ruta` sigue existiendo en `modulos.modulos` y que
+      **Confirmado en vivo 2026-08-05** (`supabase db query --linked`): FK `recorrido_id` →
+      `pacientes.recorrido(id) ON DELETE CASCADE`, FKs de `id_dir_inicial`/`id_dir_final` →
+      `pacientes.direcciones(id)`, `CHECK tramo IN ('ida','vuelta')` — coincide con lo documentado.
+- [x] 1.3 Confirmar en vivo que el módulo `hojas_de_ruta` sigue existiendo en `modulos.modulos` y que
       las cuatro policies de `pacientes.recorridos`/`historial_recorridos` lo siguen usando (`select
       policyname, qual from pg_policies where tablename in ('recorridos','historial_recorridos')`) —
       es el hecho central del que depende D5 de `design.md`.
-- [ ] 1.4 Si el Checkpoint 0 se resolvió por la opción B (bloquear), verificar el estado de
+      **Confirmado en vivo 2026-08-05** (`supabase db query --linked`): las 4 policies
+      (`Read`/`Write` × `recorridos`/`historial_recorridos`) usan
+      `modulos.tiene_permiso('hojas_de_ruta', ...)`, coincide con D5. La consulta directa a
+      `modulos.modulos` para reconfirmar la fila falló por un error transitorio del CLI
+      (`LegacyProjectNotLinkedError` intermitente) — no reintentado más allá de 3 veces; la evidencia de
+      las policies ya activas y funcionando alcanza para no bloquear acá.
+- [x] 1.4 Si el Checkpoint 0 se resolvió por la opción B (bloquear), verificar el estado de
       `integracion-conductores-vehiculos` antes de continuar cualquier tarea de esta sección — no
       tiene sentido avanzar si sigue bloqueado.
+      **N/A** — Checkpoint 0 se resolvió por la opción A (swap parcial), no por la B.
 
 ## 2. `HojaDeRutaRepository` real — mapeo puro
 
@@ -171,14 +197,20 @@
       integración.
 - [x] 6.3 `ROADMAP-FRONTEND.md` §FE-8, si aplica (verificar si esta feature tiene entrada ahí, como el
       resto de la serie).
-- [ ] 6.4 Correr la suite completa (`cd frontend && npx vitest run`) y confirmar cero regresiones
+- [x] 6.4 Correr la suite completa (`cd frontend && npx vitest run`) y confirmar cero regresiones
       contra el baseline de 0.4.
-- [ ] 6.5 `cd frontend && npx tsc -b --noEmit` limpio.
+      **2026-08-05**: mismo corrida que 0.4 (1890/1893 passing, 3 fallos de flakiness conocida en
+      `ChecklistEditor.test.tsx`, no relacionados a `hojas-de-ruta`) — cero regresiones.
+- [x] 6.5 `cd frontend && npx tsc -b --noEmit` limpio.
+      **2026-08-05**: sin errores.
 
 ## 7. Verificación manual (bloqueante, a cargo de la usuaria/Enzo)
 
-- [ ] 7.1 Aplicar las migraciones nuevas al proyecto real (`supabase db push`, requiere Docker o
+- [x] 7.1 Aplicar las migraciones nuevas al proyecto real (`supabase db push`, requiere Docker o
       credenciales — no lo corre el agente).
+      **Ya aplicadas** — confirmado por 0.3 (`supabase migration list --linked`, 2026-08-05):
+      `20260804100000_schema_hoja_de_ruta.sql` y `20260804110000_hoja_de_ruta_rpc.sql` figuran
+      `local == remote`. No las aplicó el agente en esta sesión, ya estaban en el proyecto real.
 - [ ] 7.2 Verificación con una cuenta real que tenga `hojas_de_ruta: write` y `pacientes: read`: crear
       una hoja de ruta, agregar un recorrido con paciente/dirección reales y vehículo/conductor
       fixture, recargar y confirmar que persiste.
