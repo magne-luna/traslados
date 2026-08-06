@@ -364,10 +364,12 @@ async function aplicarDiffAccesorios(
   for (const tipo of aAgregar) {
     const accesorioId = idsPorTipo.get(tipo);
     if (!accesorioId) continue;
+    // Mismo riesgo que `clinicos` (ver más abajo): `accesorios_pacientes_pkey` es `id`, no el par
+    // (paciente_id, accesorio_id) — sin `onConflict` explícito el upsert intenta un INSERT.
     const { error } = await supabase
       .schema('pacientes')
       .from('accesorios_pacientes')
-      .upsert({ paciente_id: pacienteId, accesorio_id: accesorioId });
+      .upsert({ paciente_id: pacienteId, accesorio_id: accesorioId }, { onConflict: 'paciente_id,accesorio_id' });
     if (error) throw mapearErrorPaciente(error, { operacion: 'actualizar' });
   }
 
@@ -397,10 +399,13 @@ async function actualizarPaciente(id: string, data: ActualizacionPaciente): Prom
   }
 
   if (data.diagnostico !== undefined || data.condicion !== undefined) {
+    // `clinicos_pkey` es `id` (no `paciente_id`) — sin `onConflict: 'paciente_id'` el upsert no
+    // tiene con qué matchear la fila existente e intenta un INSERT, que choca contra
+    // `clinicos_paciente_id_key` (UNIQUE) en cualquier edición posterior a la primera.
     const { error } = await supabase
       .schema('pacientes')
       .from('clinicos')
-      .upsert({ paciente_id: id, diagnostico: data.diagnostico, condicion: data.condicion ?? null });
+      .upsert({ paciente_id: id, diagnostico: data.diagnostico, condicion: data.condicion ?? null }, { onConflict: 'paciente_id' });
     if (error) throw mapearErrorPaciente(error, { operacion: 'actualizar' });
   }
 
