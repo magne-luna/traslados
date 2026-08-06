@@ -23,6 +23,7 @@ Cada regla tiene un código único `RN-{DOMINIO}-{NN}` para trazabilidad. Extra�
 - **RN-FA-06**: Los ajustes de valores de facturas ya emitidas no son retroactivos: se cobra al valor vigente a la fecha de facturación (fuera de alcance Fase 1).
 - **RN-FA-07**: El tipo de comprobante (A, B o C) depende de la obra social/empresa receptora.
 - **RN-FA-08**: El checklist de documentación requerido para facturar es configurable por obra social (no es una lista única fija); el orden y los ítems deben respetarse en la interfaz tal como los exige cada obra social.
+- **RN-FA-09**: El checklist documental admite múltiples documentos por tipo/ítem — no se sobrescribe al cargar uno nuevo, se acumula, sin tope de cantidad. Cuando conviven varios documentos del mismo tipo (ej. autorizaciones con vigencia agosto-julio que se renuevan y se solapan durante la transición), se distingue cuál es el vigente del resto (feedback real de la clienta, `pacientes-documentos-multiples`, 2026-08-06).
 
 ## Dominio: Vehículos y mantenimiento (RN-VE)
 

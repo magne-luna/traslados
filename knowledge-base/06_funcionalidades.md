@@ -56,8 +56,9 @@ Organizadas por épica (= módulo del DRF) y luego por historia de usuario (US-N
 - [ ] Se pueden adjuntar imágenes/PDF según el checklist de documentación de la obra social del paciente.
 - [ ] Los documentos se organizan por paciente.
 - [ ] Se puede marcar si la cobertura está respaldada por un amparo judicial, con campo de aclaración.
+- [x] El checklist documental admite múltiples documentos por tipo (sin tope), sin sobrescribir el anterior al cargar uno nuevo — el vigente se distingue del resto (RN-FA-09, `pacientes-documentos-multiples`, 2026-08-06).
 
-**Reglas relacionadas**: RF-112, RF-114, RN-FA-04
+**Reglas relacionadas**: RF-112, RF-114, RN-FA-04, RN-FA-09
 
 ## Épica 3: Presupuestos y autorizaciones
 

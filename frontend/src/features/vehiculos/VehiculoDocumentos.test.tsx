@@ -30,7 +30,7 @@ describe('VehiculoDocumentos', () => {
   });
 
   it('distingue el documento subido del faltante consultando al repository por entidad "vehiculo"', async () => {
-    const doc: DocumentoAdjunto = { itemId: 'vehiculo-doc-cedula', nombreArchivo: 'cedula.pdf', subidoEn: '2026-07-01' };
+    const doc: DocumentoAdjunto = { id: 'doc-cedula', itemId: 'vehiculo-doc-cedula', nombreArchivo: 'cedula.pdf', subidoEn: '2026-07-01' };
     const repository = buildFakeRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
 
     render(<VehiculoDocumentos vehiculoId="v1" repository={repository} />);
@@ -44,25 +44,25 @@ describe('VehiculoDocumentos', () => {
 // gatea; consultar/descargar sigue disponible con `read`.
 describe('VehiculoDocumentos — gateo de escritura', () => {
   it('sin permiso de escritura: "Subir" queda deshabilitado, pero el documento ya cargado sigue siendo consultable', async () => {
-    const doc: DocumentoAdjunto = { itemId: 'vehiculo-doc-cedula', nombreArchivo: 'cedula.pdf', subidoEn: '2026-07-01' };
+    const doc: DocumentoAdjunto = { id: 'doc-cedula', itemId: 'vehiculo-doc-cedula', nombreArchivo: 'cedula.pdf', subidoEn: '2026-07-01' };
     const repository = buildFakeRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
 
     renderConPermiso(false, <VehiculoDocumentos vehiculoId="v1" repository={repository} />);
 
     expect(await screen.findByText(/cedula\.pdf/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reemplazar/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /agregar otro/i })).toBeDisabled();
     expect(screen.getByText('VTV')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^subir$/i })[0]).toBeDisabled();
   });
 
   it('con permiso de escritura: "Subir" y "Reemplazar" están activables (triangulación)', async () => {
-    const doc: DocumentoAdjunto = { itemId: 'vehiculo-doc-cedula', nombreArchivo: 'cedula.pdf', subidoEn: '2026-07-01' };
+    const doc: DocumentoAdjunto = { id: 'doc-cedula', itemId: 'vehiculo-doc-cedula', nombreArchivo: 'cedula.pdf', subidoEn: '2026-07-01' };
     const repository = buildFakeRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
 
     renderConPermiso(true, <VehiculoDocumentos vehiculoId="v1" repository={repository} />);
 
     expect(await screen.findByText(/cedula\.pdf/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reemplazar/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /agregar otro/i })).toBeEnabled();
     expect(screen.getAllByRole('button', { name: /^subir$/i })[0]).toBeEnabled();
   });
 });
