@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Direcciones múltiples por paciente
-El sistema SHALL permitir registrar múltiples direcciones por paciente (domicilio, escuela, terapias, CISET), cada una con su tipo/etiqueta y, opcionalmente, días y horarios de traslado (RF-113). Al renderizar la lista de direcciones, el sistema MUST usar un identificador estable por dirección como key (nunca el índice del array), y ese identificador MUST ser el `id` real de la fila de `pacientes.direcciones` cuando la dirección ya está persistida, porque otras entidades la referencian por `id` con integridad referencial restrictiva. El sistema MUST preservar el `id` de una dirección al editarla: una edición se persiste como actualización de esa fila, NUNCA como borrado más alta.
+El sistema SHALL permitir registrar múltiples direcciones por paciente (domicilio, escuela, terapias, CET), cada una con su tipo/etiqueta y, opcionalmente, días y horarios de traslado (RF-113). Al renderizar la lista de direcciones, el sistema MUST usar un identificador estable por dirección como key (nunca el índice del array), y ese identificador MUST ser el `id` real de la fila de `pacientes.direcciones` cuando la dirección ya está persistida, porque otras entidades la referencian por `id` con integridad referencial restrictiva. El sistema MUST preservar el `id` de una dirección al editarla: una edición se persiste como actualización de esa fila, NUNCA como borrado más alta.
 
 #### Scenario: Alta de varias direcciones de distinto tipo
 - **WHEN** el usuario agrega un domicilio y una escuela al mismo paciente

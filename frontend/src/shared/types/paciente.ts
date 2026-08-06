@@ -17,7 +17,7 @@ export interface IdentificadorAfiliado {
 }
 
 /** Tipo/etiqueta de una dirección del paciente (RF-113). Unión cerrada, no `string` libre. */
-export type TipoDireccion = 'domicilio' | 'escuela' | 'terapia' | 'ciset' | 'otro';
+export type TipoDireccion = 'domicilio' | 'escuela' | 'terapia' | 'cet' | 'otro';
 
 /**
  * Tramo de un recorrido (RN-HR-02): vive en `ParadaRecorrido` (hojaDeRuta.ts), nunca en

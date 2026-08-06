@@ -50,7 +50,7 @@ Recorrido N---1 Paciente (por tramo, con dirección de ida y de vuelta independi
 
 ### Paciente
 - Atributos: apellido(s), nombre(s), fecha de nacimiento, DNI, CUIL del titular, diagnóstico/condición, accesorio de movilidad (silla plegable/rígida, silla postural, andador, trípode), teléfono alternativo del responsable.
-- Relaciones: N direcciones (domicilio, escuela, terapias, CISET — catálogo reutilizable, sin tramo propio), N personas a cargo, 1 obra social, N documentos, N presupuestos.
+- Relaciones: N direcciones (domicilio, escuela, terapias, CET — catálogo reutilizable, sin tramo propio), N personas a cargo, 1 obra social, N documentos, N presupuestos.
 - Constraints: el identificador de afiliado varía según obra social (número de documento, alfanumérico, o CUIL del titular con sufijo /01, /02...) — el campo debe adaptarse.
 
 ### CUD (Certificado Único de Discapacidad)

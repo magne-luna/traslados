@@ -7,19 +7,19 @@ export const TIPO_DIRECCION_LABELS: Record<TipoDireccion, string> = {
   domicilio: 'Domicilio',
   escuela: 'Escuela',
   terapia: 'Terapia',
-  ciset: 'CISET',
+  cet: 'CET',
   otro: 'Otro',
 };
 
 export const TIPO_DIRECCION_OPTIONS = Object.keys(TIPO_DIRECCION_LABELS) as TipoDireccion[];
 
 // Ícono por tipo de lugar (InlineIcon) — domicilio/escuela tienen ícono propio, el resto
-// (terapia/CISET/otro) comparte un pin genérico de ubicación.
+// (terapia/CET/otro) comparte un pin genérico de ubicación.
 export const TIPO_DIRECCION_ICON: Record<TipoDireccion, ReactNode> = {
   domicilio: iconCasa,
   escuela: iconEscuela,
   terapia: iconUbicacion,
-  ciset: iconUbicacion,
+  cet: iconUbicacion,
   otro: iconUbicacion,
 };
 

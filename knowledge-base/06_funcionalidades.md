@@ -42,7 +42,7 @@ Organizadas por épica (= módulo del DRF) y luego por historia de usuario (US-N
 **Para** reflejar la realidad de traslados donde el regreso no es el mismo trayecto que la ida
 
 **Criterios de aceptación**:
-- [ ] Se pueden registrar múltiples direcciones (domicilio, escuela, terapias, CISET).
+- [ ] Se pueden registrar múltiples direcciones (domicilio, escuela, terapias, CET).
 - [ ] La dirección de ida y la de vuelta se modelan como datos independientes, sin asumir que la vuelta es el trayecto inverso.
 
 **Reglas relacionadas**: RF-113, RF-708, RN-HR-02
