@@ -1,6 +1,7 @@
-import { useRef } from 'react';
-import { Chip, chipColors, InlineIcon, ProgressBar } from '../../design-system/components';
-import { iconDocumento, iconTacho } from '../../design-system/icons';
+import { useEffect, useRef, useState } from 'react';
+import { Chip, chipColors, InlineIcon, Overlay, ProgressBar } from '../../design-system/components';
+import { Alert } from '../../design-system/feedback';
+import { iconDocumento, iconOjo, iconTacho } from '../../design-system/icons';
 import type { ChecklistItem, DocumentoAdjunto } from '../types/documento';
 
 interface DocumentChecklistProps {
@@ -14,7 +15,35 @@ interface DocumentChecklistProps {
    * Agregar otro/Quitar en vez de dispararlos con handlers noop, para no abrir el selector de
    * archivos del SO sin que la selección vaya a ningún lado. */
   readOnly?: boolean;
+  /** documentos-previsualizacion (design.md D2/D3, tasks.md 5.1): resuelve una URL efímera para
+   * mostrar el documento en la ventana "Ver". Prop opcional a propósito — mientras los 6 puntos
+   * de montaje (tasks.md §6, fuera de alcance de esta pasada) no la pasen, la acción "Ver" no se
+   * renderiza en vez de mostrar un botón sin capacidad real detrás. */
+  onResolverPrevisualizacion?: (documentoId: string) => Promise<string | null>;
+  /** documentos-previsualizacion (tasks.md 5.3/5.7, useDocumentChecklist.ts): revoca la URL
+   * efímera que devolvió `onResolverPrevisualizacion` (p. ej. `URL.revokeObjectURL`) al cerrar la
+   * ventana o al desmontar `DocumentChecklist` con la ventana todavía abierta. El hook no la
+   * revoca solo — es este componente el que sabe cuándo terminó de usarla (D3). */
+  onRevocarPrevisualizacion?: (url: string) => void;
 }
+
+// documentos-previsualizacion (tasks.md 5.3, design.md D3): el documento que se está mostrando
+// en el overlay ahora mismo, junto con el nombre del ítem (para el título del overlay y el
+// aria-label ya usado por "Ver"/"Quitar"). `null` = overlay cerrado.
+interface DocumentoEnVista {
+  documento: DocumentoAdjunto;
+  itemNombre: string;
+}
+
+// documentos-previsualizacion (tasks.md 5.4/5.5, design.md D5/Checkpoint (e)): los cuatro
+// desenlaces posibles de resolver el contenido de un documento. `sin-contenido` es el `null` del
+// contrato D2 (documento sin binario resoluble, caso normal para documentos previos a este
+// change) — distinto de `error` (403/404/expirado: un fallo real, no "no hay nada que ver").
+type EstadoPrevisualizacion =
+  | { status: 'cargando' }
+  | { status: 'lista'; url: string }
+  | { status: 'sin-contenido' }
+  | { status: 'error' };
 
 // pacientes-documentos-multiples (design.md Checkpoint (b) / D2): "vigente" se deriva como el
 // documento con `vigenciaDesde` más reciente que no sea futuro (fallback a `subidoEn` si no se
@@ -45,13 +74,123 @@ function ordenarParaMostrar(docs: DocumentoAdjunto[], vigente: DocumentoAdjunto 
   return [vigente, ...resto];
 }
 
+// documentos-previsualizacion (tasks.md 5.4, design.md Checkpoint (e)): decide qué elemento
+// renderizar según `tipoMime` y el desenlace de `resolverPrevisualizacion`. `<iframe>` va
+// SIEMPRE sandboxeado sin `allow-scripts` ni `allow-same-origin` — un PDF/SVG subido por un
+// usuario puede ejecutar script en el origen de la app si el iframe no está sandboxeado, y eso
+// aplica igual en mock (`ObjectURL` es same-origin) que contra una URL firmada real el día de
+// mañana. No es opcional.
+function ContenidoPreview({ estado, documento }: { estado: EstadoPrevisualizacion; documento: DocumentoAdjunto }) {
+  if (estado.status === 'cargando') {
+    return <p className="font-body text-sm text-muted">Cargando previsualización…</p>;
+  }
+
+  // tasks.md 5.5 / design.md D5: mensaje comprensible, nunca el mensaje crudo del error real
+  // (403/404/expirado) — mismo requisito duro que el resto de la serie de integración.
+  if (estado.status === 'error') {
+    return <Alert tone="danger">No se pudo cargar la previsualización. Probá de nuevo en un momento.</Alert>;
+  }
+
+  if (estado.status === 'sin-contenido') {
+    return <Alert tone="secondary">Este documento no tiene contenido para previsualizar.</Alert>;
+  }
+
+  if (documento.tipoMime?.startsWith('image/')) {
+    return (
+      <img
+        src={estado.url}
+        alt={documento.nombreArchivo}
+        className="max-h-[70vh] w-full rounded-sm object-contain"
+      />
+    );
+  }
+
+  if (documento.tipoMime === 'application/pdf') {
+    return (
+      <iframe
+        src={estado.url}
+        title={documento.nombreArchivo}
+        sandbox=""
+        className="h-[70vh] w-full rounded-sm border border-border"
+      />
+    );
+  }
+
+  return (
+    <Alert tone="secondary">
+      Este tipo de archivo no se puede previsualizar acá. Nombre: {documento.nombreArchivo}
+    </Alert>
+  );
+}
+
 // Componente reutilizable de checklist documental (RF-900 a RF-902). Un solo componente para
 // Pacientes, Vehículos, Conductores y Facturas — lo único que cambia entre pantallas es la lista
 // de `items` (el checklist configurado por obra social, RF-305) y la entidad que se le pasa al
 // hook useDocumentChecklist. Resumen de progreso (X de Y cargados, % + pendientes) arriba de la
 // lista; cada fila con ícono de estado, nombre + requerido/opcional, y Subir/Reemplazar/Quitar.
-export function DocumentChecklist({ items, documentos, onUpload, onRemove, readOnly = false }: DocumentChecklistProps) {
+export function DocumentChecklist({
+  items,
+  documentos,
+  onUpload,
+  onRemove,
+  readOnly = false,
+  onResolverPrevisualizacion,
+  onRevocarPrevisualizacion,
+}: DocumentChecklistProps) {
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  // documentos-previsualizacion (tasks.md 5.3, design.md D3): estado de "qué documento estoy
+  // viendo" vive acá, igual que el useRef de los file inputs — no en los wrappers.
+  const [enVista, setEnVista] = useState<DocumentoEnVista | null>(null);
+  const [estadoPreview, setEstadoPreview] = useState<EstadoPrevisualizacion>({ status: 'cargando' });
+  // Descarta resoluciones obsoletas (se cerró la ventana o se abrió otro documento antes de que
+  // la promesa anterior resolviera) y guarda la URL abierta para poder revocarla al cerrar o
+  // desmontar sin depender de que `estadoPreview` esté actualizado en el cleanup.
+  const vistaIdRef = useRef<string | null>(null);
+  const urlAbiertaRef = useRef<string | null>(null);
+
+  function abrirPreview(documento: DocumentoAdjunto, itemNombre: string) {
+    if (!onResolverPrevisualizacion) return;
+    vistaIdRef.current = documento.id;
+    setEnVista({ documento, itemNombre });
+    setEstadoPreview({ status: 'cargando' });
+    onResolverPrevisualizacion(documento.id)
+      .then((url) => {
+        if (vistaIdRef.current !== documento.id) return;
+        if (url === null) {
+          setEstadoPreview({ status: 'sin-contenido' });
+        } else {
+          urlAbiertaRef.current = url;
+          setEstadoPreview({ status: 'lista', url });
+        }
+      })
+      .catch(() => {
+        if (vistaIdRef.current !== documento.id) return;
+        setEstadoPreview({ status: 'error' });
+      });
+  }
+
+  function cerrarPreview() {
+    vistaIdRef.current = null;
+    if (urlAbiertaRef.current) {
+      onRevocarPrevisualizacion?.(urlAbiertaRef.current);
+      urlAbiertaRef.current = null;
+    }
+    setEnVista(null);
+  }
+
+  // documentos-previsualizacion (tasks.md 5.3/5.7): si el componente se desmonta con la ventana
+  // todavía abierta (navegación fuera de la pantalla, no un cierre explícito), la URL igual se
+  // revoca — el hook (useDocumentChecklist.ts) documenta esta responsabilidad como de
+  // DocumentChecklist, no suya.
+  useEffect(() => {
+    return () => {
+      if (urlAbiertaRef.current) {
+        onRevocarPrevisualizacion?.(urlAbiertaRef.current);
+        urlAbiertaRef.current = null;
+      }
+    };
+  }, [onRevocarPrevisualizacion]);
 
   const cargados = items.filter((item) => documentos.some((doc) => doc.itemId === item.id)).length;
   const pendientes = items.length - cargados;
@@ -137,15 +276,33 @@ export function DocumentChecklist({ items, documentos, onUpload, onRemove, readO
                         </span>
                       )}
                     </span>
-                    <button
-                      type="button"
-                      aria-label={`Quitar ${item.nombre} - ${doc.nombreArchivo}`}
-                      disabled={readOnly}
-                      onClick={() => onRemove(doc.id)}
-                      className="cursor-pointer border-none bg-transparent p-0 text-danger disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <InlineIcon>{iconTacho}</InlineIcon>
-                    </button>
+                    <div className="flex items-center gap-sm">
+                      {onResolverPrevisualizacion && (
+                        // documentos-previsualizacion (tasks.md 5.6, design.md Checkpoint (c)):
+                        // "Ver" NUNCA se deshabilita con `readOnly` a propósito — `readOnly` gatea
+                        // ESCRITURA (Subir/Agregar otro/Quitar), y el principio ya escrito en los
+                        // wrappers de dominio dice que el gateo de cliente nunca debe ser más
+                        // restrictivo que la RLS del servidor: quien tiene permiso de lectura del
+                        // módulo puede previsualizar, aunque no pueda cargar ni quitar.
+                        <button
+                          type="button"
+                          aria-label={`Ver ${item.nombre} - ${doc.nombreArchivo}`}
+                          onClick={() => abrirPreview(doc, item.nombre)}
+                          className="cursor-pointer border-none bg-transparent p-0 text-primary"
+                        >
+                          <InlineIcon>{iconOjo}</InlineIcon>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        aria-label={`Quitar ${item.nombre} - ${doc.nombreArchivo}`}
+                        disabled={readOnly}
+                        onClick={() => onRemove(doc.id)}
+                        className="cursor-pointer border-none bg-transparent p-0 text-danger disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <InlineIcon>{iconTacho}</InlineIcon>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -168,6 +325,14 @@ export function DocumentChecklist({ items, documentos, onUpload, onRemove, readO
         );
       })}
       </div>
+
+      <Overlay
+        open={enVista !== null}
+        onClose={cerrarPreview}
+        title={enVista ? `${enVista.itemNombre} - ${enVista.documento.nombreArchivo}` : ''}
+      >
+        {enVista && <ContenidoPreview estado={estadoPreview} documento={enVista.documento} />}
+      </Overlay>
     </div>
   );
 }

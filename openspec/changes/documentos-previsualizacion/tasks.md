@@ -434,29 +434,173 @@
 > **Corte real: acá recién se ve algo.** Si la gobernanza quedó CRÍTICA, repetir la aprobación humana
 > explícita antes de esta sección.
 
-- [ ] 5.1 (RED→GREEN) Agregar la acción "Ver" **por documento** (no por ítem — un ítem puede tener N
+**Aprobación humana explícita re-confirmada para arrancar la §5 (2026-08-06)**: el usuario confirmó
+explícitamente en esta misma sesión, después de recordarle el requisito de `0.4`, dar inicio a esta
+sección puntual — gobernanza CRÍTICA reconocida (checkpoint (c)) y respetada. Esta es la sección que
+tasks.md marca como "el corte real: acá recién se ve algo"; la aprobación cubre específicamente
+§5.1-§5.7, no §6 en adelante.
+
+**Safety net previo (2026-08-06), antes de tocar `DocumentChecklist.tsx`/`.test.tsx`**:
+`cd frontend && npx vitest run src/shared/components/DocumentChecklist.test.tsx` → 9/9 passing.
+`cd frontend && npx vitest run src/features/obras-sociales/ChecklistEditor.test.tsx` (por 5.6, antes de
+tocar nada que pueda afectar su preview `readOnly`) → **2 failed | 12 passed (14)**, pre-existente y ya
+anotado en el baseline general de `0.3` (uno de los 21 archivos con la causa `TypeError: Cannot read
+properties of undefined (reading 'clear')`/contención de localStorage — acá específicamente el fallo es
+`Unable to find … role "button" name /^agregar$/i` porque el botón real dice "+ Agregar", un bug de
+test preexistente no relacionado con este change). Re-verificado al cierre de §5: mismo resultado exacto
+(2 failed | 12 passed (14)) — sin regresión.
+
+**Decisión de diseño no explícita en el texto literal de la §5, documentada acá**: para que
+`DocumentChecklist` pueda llamar a `resolverPrevisualizacion`/`revocarPrevisualizacion` (que viven en
+`useDocumentChecklist`, instanciado por cada wrapper, no por `DocumentChecklist`), se agregan dos props
+nuevas **opcionales**: `onResolverPrevisualizacion?: (documentoId: string) => Promise<string | null>` y
+`onRevocarPrevisualizacion?: (url: string) => void`. Opcionales a propósito: los 6 puntos de montaje
+(§6, fuera de alcance de esta pasada) todavía no las pasan, y la firma pública de
+`DocumentChecklistProps` **no se vuelve una ruptura** para ningún consumidor existente — sin esto, tocar
+solo `DocumentChecklist.tsx` habría forzado tocar los 6 wrappers en esta misma pasada, violando el
+límite explícito de la tarea. Consecuencia de diseño: mientras un wrapper no pase
+`onResolverPrevisualizacion`, el botón "Ver" **no se renderiza en absoluto** (no un botón deshabilitado
+sin capacidad detrás) — esto es lo que mantiene el preview `readOnly` de `ChecklistEditor.tsx` sin
+cambios visibles (5.6) y es coherente con D3 ("los seis puntos de montaje no cambian de forma"): ningún
+wrapper necesita tocarse para que esta sección compile, pase sus tests y no rompa nada corriente.
+
+- [x] 5.1 (RED→GREEN) Agregar la acción "Ver" **por documento** (no por ítem — un ítem puede tener N
       documentos desde `pacientes-documentos-multiples`), en la misma fila donde ya vive "Quitar".
-- [ ] 5.2 (RED→GREEN→TRIANGULATE) `aria-label` distinguible por documento, siguiendo el patrón ya
+      **Hecho (2026-08-06)**: RED confirmado — test nuevo en `DocumentChecklist.test.tsx`
+      (`describe('DocumentChecklist — acción "Ver" por documento (tasks.md 5.1)')`) fallando
+      (`getByRole('button', { name: /ver/i })` no encuentra nada). Implementado: nueva prop opcional
+      `onResolverPrevisualizacion` en `DocumentChecklistProps`; botón "Ver" con ícono `iconOjo`
+      (`design-system/icons.tsx`, ya existente, no se agregó ninguno), montado en la misma fila que
+      "Quitar" (mismo `<div className="flex items-center gap-sm">` contenedor de ambos botones,
+      "Ver" antes que "Quitar"), renderizado condicionalmente solo si `onResolverPrevisualizacion` está
+      presente. GREEN confirmado: 11/11 passing (9 preexistentes + 2 nuevos: "muestra Ver cuando se
+      provee la prop" y "sin la prop no se renderiza ningún Ver").
+- [x] 5.2 (RED→GREEN→TRIANGULATE) `aria-label` distinguible por documento, siguiendo el patrón ya
       establecido: `aria-label={\`Quitar ${item.nombre} - ${doc.nombreArchivo}\`}`. Con N documentos por
       ítem, un label genérico produce N botones indistinguibles para lector de pantalla **y para los
       tests**. Triangular con un ítem de 2+ documentos.
-- [ ] 5.3 (RED→GREEN) Estado local de "qué documento estoy viendo" **dentro de `DocumentChecklist`**
+      **Hecho (2026-08-06)**: RED confirmado — test nuevo con 2 documentos del mismo ítem
+      (`presupuesto-2025.pdf`/`presupuesto-2026.pdf`) esperando labels exactos
+      `'Ver Presupuesto - presupuesto-2025.pdf'`/`'Ver Presupuesto - presupuesto-2026.pdf'`; falla
+      porque la implementación de 5.1 usaba `aria-label={\`Ver ${doc.nombreArchivo}\`}` (sin el nombre
+      del ítem) — con archivos de nombre distinto ya eran técnicamente distinguibles, pero no seguían
+      el patrón exacto pedido ni serían distinguibles si dos documentos de ítems distintos tuvieran el
+      mismo nombre de archivo. Corregido a `aria-label={\`Ver ${item.nombre} - ${doc.nombreArchivo}\`}`
+      (mismo patrón exacto que "Quitar"). GREEN confirmado: 12/12 passing, triangulado con 2 documentos
+      reales del mismo ítem, cada uno con su botón "Ver" localizable por `getByRole` sin ambigüedad.
+- [x] 5.3 (RED→GREEN) Estado local de "qué documento estoy viendo" **dentro de `DocumentChecklist`**
       (D3), igual que hoy vive ahí el `useRef` de los file inputs. Los seis puntos de montaje no
       cambian de forma.
-- [ ] 5.4 (RED→GREEN→TRIANGULATE) Renderizar el contenido según el veredicto de (e): `<img>` para
+      **Hecho (2026-08-06)**: RED confirmado — test nuevo verificando que clickear "Ver" llama a
+      `onResolverPrevisualizacion(doc.id)` y monta un `role="dialog"`; falla porque el botón de 5.1/5.2
+      no tenía `onClick`. Implementado: `useState<DocumentoEnVista | null>` (documento + nombre del
+      ítem, para el título del overlay), `useState<EstadoPrevisualizacion>` (unión de 4 variantes:
+      `cargando`/`lista`/`sin-contenido`/`error`, ver 5.4/5.5), y dos `useRef` auxiliares
+      (`vistaIdRef` para descartar resoluciones obsoletas si se cierra o se abre otro documento antes
+      de que la promesa anterior resuelva; `urlAbiertaRef` para poder revocar la URL en el cleanup de
+      unmount sin depender de que `estadoPreview` esté actualizado ahí). `abrirPreview()` dispara
+      `onResolverPrevisualizacion` y transiciona el estado; `cerrarPreview()` revoca la URL abierta
+      (si `onRevocarPrevisualizacion` fue provisto) y limpia el estado. `<Overlay>` (§3) se monta una
+      sola vez al final del componente (no por documento), con `open={enVista !== null}`. Se agregó
+      también la prop opcional `onRevocarPrevisualizacion` (ver nota de diseño arriba del §5).
+      **Desviación/anticipación documentada**: junto con el estado se implementó también un
+      `useEffect` de cleanup en unmount que revoca `urlAbiertaRef.current` si el componente se
+      desmonta con la ventana todavía abierta — este comportamiento es, en rigor, el alcance de 5.7,
+      pero se construyó acá porque es la misma pieza de estado (`urlAbiertaRef`) y separarlo habría
+      significado escribir la mitad de la lógica de cierre dos veces. La responsabilidad exacta
+      ("`DocumentChecklist` decide cuándo llamar a `revocarPrevisualizacion`, el hook no lo hace solo")
+      es la que dejó anotada `useDocumentChecklist.ts` (tasks.md 4.3) como pendiente de esta sección.
+      GREEN confirmado: 13/13 passing.
+- [x] 5.4 (RED→GREEN→TRIANGULATE) Renderizar el contenido según el veredicto de (e): `<img>` para
       imágenes, `<iframe>` **sandboxeado** (`sandbox` sin `allow-scripts` ni `allow-same-origin`) para
       PDF, estado explícito de "no previsualizable" para el resto. **El sandbox no es opcional**: un
       PDF o SVG subido por un usuario puede ejecutar script en el origen de la app si el iframe no está
       sandboxeado, y eso aplica igual en mock (`ObjectURL` es same-origin) que contra URL firmada.
-- [ ] 5.5 (RED→GREEN→TRIANGULATE) Estados de carga / error / no-previsualizable visibles (D5), con
+      **Hecho (2026-08-06)**: RED confirmado — 3 tests nuevos (imagen/PDF/tipo no soportado, cada uno
+      con su propio `tipoMime` y aserciones distintas, no un test genérico con mocks intercambiados),
+      los 3 fallando porque el overlay solo mostraba el placeholder "Cargando previsualización…" sin
+      transicionar nunca a contenido real. Implementado: componente `ContenidoPreview({ estado,
+      documento })`, que decide por `estado.status` y, en `'lista'`, por `documento.tipoMime`:
+      `tipoMime?.startsWith('image/')` → `<img src={url} alt={nombreArchivo}>`;
+      `tipoMime === 'application/pdf'` → `<iframe src={url} title={nombreArchivo} sandbox="">`
+      (`sandbox=""` — el valor vacío es deliberado: sandboxea con la política más restrictiva posible,
+      sin conceder `allow-scripts` ni `allow-same-origin`, exactamente lo que pide el checkpoint (e));
+      cualquier otro `tipoMime` (incluido `undefined`) → `Alert tone="secondary"` con "Este tipo de
+      archivo no se puede previsualizar acá". GREEN confirmado: 16/16 passing. Triangulado con 3
+      `tipoMime` reales y distintos (`image/jpeg`, `application/pdf`, `application/zip`), cada test
+      verificando además la **ausencia** de los otros elementos (ej. el test de PDF no verifica que no
+      haya `<img>`, pero el test de "no soportado" sí verifica explícitamente `queryByRole('img')` y
+      `document.querySelector('iframe')` ambos ausentes, para no dejar pasar una implementación que
+      renderice los tres a la vez).
+- [x] 5.5 (RED→GREEN→TRIANGULATE) Estados de carga / error / no-previsualizable visibles (D5), con
       mensaje comprensible y **sin propagar el mensaje crudo del error** a la UI (mismo requisito duro
       que toda la serie de integración de este proyecto). Triangular los tres.
-- [ ] 5.6 (RED→GREEN) Decidir e implementar el comportamiento en `readOnly` según el veredicto de (c):
+      **Hecho (2026-08-06), con una desviación real del ciclo RED→GREEN que se documenta explícitamente
+      en vez de ocultarla**: los 3 tests nuevos (cargando con promesa pendiente controlada a mano /
+      error con `.mockRejectedValue(new Error('403: sin permiso para este documento'))` verificando
+      `queryByText(/403/)` y `queryByText(/sin permiso/i)` ambos ausentes / `null` mostrando "no tiene
+      contenido para previsualizar") **pasaron en verde en la primera corrida**, sin una fase RED
+      propia — porque `ContenidoPreview` (5.4) ya necesitó implementar las cuatro ramas de
+      `EstadoPrevisualizacion` (incluidas `cargando`/`error`/`sin-contenido`) para poder tipar
+      exhaustivamente el `switch` antes de llegar a la rama `'lista'` que sí tenía tests propios en
+      5.4. El mensaje de error genérico (`Alert tone="danger"`, "No se pudo cargar la previsualización.
+      Probá de nuevo en un momento.") y el de `sin-contenido` (`Alert tone="secondary"`, "Este documento
+      no tiene contenido para previsualizar.") se escribieron durante 5.4, guiados directamente por el
+      requisito explícito de D5 y por el patrón ya usado en el proyecto (`AsignacionPanel.tsx`: mensajes
+      de error siempre hardcodeados, nunca `error.message` crudo — verificado antes de escribir el
+      código, no asumido) — no por un test de 5.5 en rojo. Los tests de 5.5 quedan como triangulación
+      explícita y confirmatoria de un comportamiento ya implementado, con foco puntual en la
+      aserción dura del requisito ("nunca el mensaje crudo"), que 5.4 no verificaba. GREEN confirmado:
+      19/19 passing, con los 3 desenlaces cubiertos por tests independientes.
+- [x] 5.6 (RED→GREEN) Decidir e implementar el comportamiento en `readOnly` según el veredicto de (c):
       la recomendación es que **"Ver" siga disponible** (`readOnly` gatea escritura; el principio ya
       escrito en los wrappers dice que el gateo de cliente nunca debe ser más restrictivo que la RLS).
       Verificar que el preview de configuración de `obras-sociales/ChecklistEditor.tsx` no quede raro.
-- [ ] 5.7 (REFACTOR) Cerrar la ventana no debe recargar el checklist ni perder el progreso ni la marca
+      **Hecho (2026-08-06)**: la implementación de 5.1 había copiado `disabled={readOnly}` del botón
+      "Quitar" al botón "Ver" por similitud estructural — una decisión por defecto, no la decisión
+      correcta según el checkpoint (c). RED confirmado con un test explícito (`readOnly` + `onResolverPrevisualizacion`
+      provisto → "Ver" debe seguir `toBeEnabled()` mientras "Agregar otro"/"Quitar" quedan
+      `toBeDisabled()`), que falló contra la implementación heredada de 5.1 (`disabled=""` presente en
+      "Ver"). Corregido: se quitó `disabled={readOnly}` del botón "Ver" (y las clases
+      `disabled:cursor-not-allowed disabled:opacity-40`, que ya no aplican) — con un comentario en el
+      propio componente explicando por qué, citando el mismo principio ya escrito en
+      `PacienteDocumentosChecklist.tsx` ("el gateo de cliente nunca debe ser más restrictivo que la RLS
+      del servidor"). GREEN confirmado: 20/20 passing. **Verificación explícita de `ChecklistEditor.tsx`
+      (obras-sociales)**: `grep -n "DocumentChecklist" ChecklistEditor.tsx` confirma que monta
+      `<DocumentChecklist items={items} documentos={[]} onUpload={noop} onRemove={noop} readOnly />`
+      — no pasa `onResolverPrevisualizacion`, así que "Ver" **no se renderiza ahí** (por la prop
+      opcional gateada, ver nota de diseño arriba de §5) y `documentos=[]` de todos modos no tendría
+      ningún documento sobre el que mostrar "Ver". `cd frontend && npx vitest run
+      src/features/obras-sociales/ChecklistEditor.test.tsx` re-corrido después del cambio: **2 failed
+      | 12 passed (14)**, idéntico byte a byte al safety net previo — sin regresión, los 2 fallos son
+      el mismo bug preexistente de regex `/^agregar$/i` contra el texto real "+ Agregar", ya anotado
+      arriba y en el baseline general de `0.3`.
+- [x] 5.7 (REFACTOR) Cerrar la ventana no debe recargar el checklist ni perder el progreso ni la marca
       de "Vigente" — test explícito, es un requisito del spec.
+      **Hecho (2026-08-06), con la misma desviación honesta que 5.5**: 2 tests nuevos — (1) abrir "Ver",
+      cerrar con `Escape`, y verificar que "1 de 2 documentos cargados" y el chip "Vigente" sobre
+      `presupuesto.pdf` siguen exactamente igual, que `onUpload`/`onRemove` **nunca** se llamaron, y que
+      `onRevocarPrevisualizacion` sí se llamó con la URL resuelta; (2) desmontar el componente
+      (`unmount()` de Testing Library) con la ventana todavía abierta (sin `Escape` ni backdrop) y
+      verificar que la URL igual se revoca. **Ambos pasaron en verde en la primera corrida** — el
+      cierre no toca `documentos`/`items` (son props del padre, nunca mutadas acá) por construcción
+      desde 5.3, y el `useEffect` de cleanup en unmount ya se había escrito en 5.3 (ver nota de
+      desviación ahí) precisamente para cubrir este caso. No hubo código nuevo de producción en esta
+      tarea — es la confirmación explícita, con test, de una garantía que ya existía por diseño, más el
+      caso de unmount que sí era una pieza real de 5.3 sin test propio hasta acá. GREEN confirmado:
+      22/22 passing.
+      **Verificación de cierre de §5 (2026-08-06)**: `cd frontend && npx vitest run
+      src/shared/components/DocumentChecklist.test.tsx` corrido dos veces adicionales: 22/22 passing,
+      estable en ambas. `cd frontend && npx tsc -b --noEmit`: **exactamente los mismos 14 archivos
+      rojos** que dejó §4 (mismo `sed -E 's/\(.*//' | sort -u`, diff exacto contra la lista de 4.3) —
+      `DocumentChecklist.tsx` no rompió tipado de ningún consumidor porque las dos props nuevas son
+      opcionales (ver nota de diseño arriba de §5). `npx oxlint src/shared/components/DocumentChecklist.tsx
+      src/shared/components/DocumentChecklist.test.tsx`: exit 0, sin hallazgos. Corrida completa `cd
+      frontend && npx vitest run` (todo el repo): **21 archivos fallando, 208 pasando (229)** · **126
+      tests fallando, 1888 pasando (2014)** — mismos 21 archivos y mismos 126 tests fallando que el
+      baseline de `0.3`/cierre de `0.4`, ninguno nuevo introducido por esta pasada; el conteo total de
+      tests subió (1976→2014, +38) por los tests ya agregados en §1-§4 (commits previos) más los 13
+      tests nuevos de esta pasada — no por regresión. **No se avanzó a §6.**
 
 ## 6. Ajuste de los tests existentes (seis puntos de montaje)
 
