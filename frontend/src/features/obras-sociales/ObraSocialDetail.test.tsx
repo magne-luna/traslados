@@ -1,29 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render as rtlRender, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PrestadorRepository } from '../../shared/lib/prestadores/PrestadorRepository';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
-import { PrestadorRepositoryProvider } from '../prestadores/PrestadorRepositoryContext';
 import { ObraSocialDetail } from './ObraSocialDetail';
 
-// `ObraSocialDetail` monta `PrestadoresDeObraSocial` (design.md D2, tasks.md 5.2) en modo
-// edición, que exige un `PrestadorRepositoryProvider` en el árbol (`usePrestadorRepository()`
-// lanza si falta). Fake mínimo tipado (sin `any`/`as`) que resuelve sin vínculos — este archivo no
-// testea el panel de solo lectura en sí (eso es plomería sin test dedicado, ver
-// PrestadoresDeObraSocial.tsx), solo necesita que `ObraSocialDetail` no explote al montarse.
-const fakePrestadorRepository: PrestadorRepository = {
-  list: () => Promise.resolve([]),
-  getById: () => Promise.resolve(null),
-  create: () => Promise.reject(new Error('no implementado en este test')),
-  update: () => Promise.reject(new Error('no implementado en este test')),
-  listarPorObraSocial: () => Promise.resolve([]),
-};
-
-// Sombra local de `render` (mismo nombre, wrapper agregado) para no tocar ninguno de los ~20
-// call-sites de este archivo: todos ya asumían que `render(<ObraSocialDetail .../>)` alcanzaba.
+// Sombra local de `render` (mismo nombre) para no tocar ninguno de los ~20 call-sites de este
+// archivo: todos ya asumían que `render(<ObraSocialDetail .../>)` alcanzaba. Antes envolvía en
+// `PrestadorRepositoryProvider` (`ObraSocialDetail` montaba `PrestadoresDeObraSocial`) — removido
+// junto con el módulo Prestador (change `sacar-prestadores`).
 function render(ui: React.ReactElement) {
-  return rtlRender(<PrestadorRepositoryProvider repository={fakePrestadorRepository}>{ui}</PrestadorRepositoryProvider>);
+  return rtlRender(ui);
 }
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
@@ -203,14 +190,6 @@ describe('ObraSocialDetail — carteles de discrepancia (6.2/6.3)', () => {
     if (!cartel) throw new Error(`No se encontró el cartel que matchea ${String(regex)}`);
     return cartel;
   }
-
-  it('muestra un cartel sobre la ambigüedad del CUIT (D8, discrepancia #12)', () => {
-    render(<ObraSocialDetail obraSocial={osecac} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={vi.fn()} />);
-
-    const cartel = encontrarCartel(/prestadores\.cuit/i);
-    expect(cartel).toHaveTextContent(/obra_social\.cuit/i);
-    expect(cartel).toHaveTextContent(/no está confirmado/i);
-  });
 
   it('el cartel de facturación dice qué quedó resuelto (D4/D9) y qué sigue abierto (condición IVA, #14)', () => {
     render(<ObraSocialDetail obraSocial={osecac} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={vi.fn()} />);

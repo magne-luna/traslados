@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
-import { Field, Select } from '../../design-system/form';
+import { Field, Input, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import { Stepper, type StepperStep } from '../../design-system/stepper';
 import type { AsistenciaPrestacion, Factura } from '../../shared/types/factura';
@@ -13,11 +13,8 @@ import { AsistenciasEditor } from './AsistenciasEditor';
 import { DiasFacturablesSelector } from './DiasFacturablesSelector';
 import { FacturaFormDatosBasicos } from './FacturaFormDatosBasicos';
 import { FacturaFormEconomicos } from './FacturaFormEconomicos';
-import { PrestadorSelector } from './PrestadorSelector';
-import { usePrestadorRepository } from '../prestadores/PrestadorRepositoryContext';
 import { ResumenPasoWizard } from './ResumenPasoWizard';
 import { SeccionPlegable } from './SeccionPlegable';
-import type { Prestador } from '../../shared/types/prestador';
 import { construirDatosDescripcion } from '../../shared/lib/facturacion/construirDatosDescripcion';
 import { TIPO_COMPROBANTE_DEFAULT } from '../../shared/lib/facturacion/constantes';
 import { cupoConsumido } from '../../shared/lib/facturacion/cupoConsumido';
@@ -85,9 +82,8 @@ const PASOS_WIZARD: StepperStep[] = [
 
 // Formulario de alta/edición de factura (tasks.md 7.1 a 7.6): selector de paciente y de domicilio
 // inyectados (guardan solo el id), período estructurado (design.md Decisión 4), económicos con
-// valor del km de carga manual (RN-FA-05), tipo de comprobante con default fijo provisorio
-// (RN-FA-07, editable — ver TIPO_COMPROBANTE_DEFAULT, design.md D4 de prestadores-crud, SIN
-// confirmar con Andrea), asistencias embebidas (AsistenciasEditor, RN-FA-01), días facturables
+// valor del km de carga manual (RN-FA-05), tipo de comprobante con default fijo, siempre editable
+// a mano (RN-FA-07 — ver TIPO_COMPROBANTE_DEFAULT), asistencias embebidas (AsistenciasEditor, RN-FA-01), días facturables
 // sugeridos (DiasFacturablesSelector) y alerta de cupo persistente (AlertaCupo). Componentes
 // pesados extraídos aparte para mantenerse bajo las ~200 líneas (tasks.md 12.3).
 //
@@ -105,16 +101,16 @@ const PASOS_WIZARD: StepperStep[] = [
 // render sobre el MISMO árbol de contenido (`pasoPacienteContent`/`pasoObraSocialContent`/
 // `pasoRestoContent`, definidos más abajo):
 //   - Alta (sin `initial`): wizard real — un paso visible a la vez, `paso` (estado local) avanza
-//     con "Siguiente" (gateado: Paso 1→2 requiere `pacienteId`, Paso 2→3 requiere `prestadorId`
-//     cuando `obraSocial.modalidadFacturacion === 'por-prestacion'`, ver `faltaElegirPrestador`
-//     más abajo — la misma variable que ya gateaba la vista previa desde `factura-por-prestador`)
-//     y retrocede con "Atrás", sin perder nada de `values` (el estado vive en el componente, no en
-//     el paso visible).
+//     con "Siguiente" (gateado: Paso 1→2 requiere `pacienteId`, Paso 2→3 requiere completar
+//     nombre y domicilio del prestador cuando `obraSocial.modalidadFacturacion ===
+//     'por-prestacion'`, ver `faltaCompletarPrestador` más abajo — misma variable que gatea la
+//     vista previa) y retrocede con "Atrás", sin perder nada de `values` (el estado vive en el
+//     componente, no en el paso visible).
 //   - Edición (`initial?.pacienteId` truthy): el wizard se saltea por completo — se renderizan los
 //     tres bloques juntos, sin Stepper ni botones de navegación, igual que el formulario plano de
-//     antes de este change. No tiene sentido forzar el flujo guiado cuando paciente/obra
-//     social/prestador ya están resueltos de entrada; el wizard existe para el caso "no sé
-//     todavía qué paciente/prestador es", que en edición no aplica.
+//     antes de este change. No tiene sentido forzar el flujo guiado cuando paciente/obra social ya
+//     están resueltos de entrada; el wizard existe para el caso "no sé todavía qué paciente es",
+//     que en edición no aplica.
 export function FacturaForm({
   initial,
   pacientes,
@@ -150,41 +146,8 @@ export function FacturaForm({
     setSeccionesAbiertas((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
-  // Prestador completo elegido en el Paso 2 (integración "Con contexto", 2026-08-05): además de
-  // `values.prestadorId` (lo único que persiste la factura), `ResumenPasoWizard` necesita
-  // `razonSocial`/`cuit` para el panel de contexto — `PrestadorSelector.onChange` ya entrega el
-  // objeto completo (ver PrestadorSelector.tsx), así que solo hace falta guardar una referencia,
-  // sin ir a buscarlo de nuevo al repository.
-  const [prestadorSeleccionado, setPrestadorSeleccionado] = useState<Prestador | undefined>(undefined);
-  const prestadorRepository = usePrestadorRepository();
-
   const paciente = pacientes.find((p) => p.id === values.pacienteId);
   const obraSocial = obrasSociales.find((o) => o.id === paciente?.obraSocialId);
-  // `tipoComprobante` fijo mientras haya un Prestador elegido (change `factura-por-prestador`,
-  // design.md D3): se calcula acá (no en FacturaFormEconomicos) porque depende de `prestadorId`,
-  // que vive en `values` junto con el resto del form. En modalidad "general" (sin prestador)
-  // `values.prestadorId` nunca se setea, así que esto queda `false` y RN-FA-07 sigue rigiendo.
-  const tipoComprobanteBloqueado = Boolean(values.prestadorId);
-
-  // Resuelve el Prestador completo cuando la factura ya trae `prestadorId` cargado desde
-  // `initial` (edición de una factura existente): `PrestadorSelector.onChange` solo dispara con
-  // una interacción del usuario (design.md D3 de `factura-por-prestador`), así que sin este
-  // efecto el panel de contexto (`ResumenPasoWizard`) no podría mostrar razón social/CUIT de un
-  // prestador que ya estaba elegido antes de abrir el formulario — el mismo `listarPorObraSocial`
-  // que ya usa `PrestadorSelector`, sin acoplarse a su estado interno.
-  useEffect(() => {
-    if (!obraSocial || obraSocial.modalidadFacturacion !== 'por-prestacion' || !values.prestadorId) return;
-    if (prestadorSeleccionado?.id === values.prestadorId) return;
-    let cancelado = false;
-    prestadorRepository.listarPorObraSocial(obraSocial.id).then((lista) => {
-      if (cancelado) return;
-      const encontrado = lista.find((p) => p.id === values.prestadorId);
-      if (encontrado) setPrestadorSeleccionado(encontrado);
-    });
-    return () => {
-      cancelado = true;
-    };
-  }, [obraSocial, values.prestadorId, prestadorRepository, prestadorSeleccionado]);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,18 +170,21 @@ export function FacturaForm({
     });
   }, [facturasExistentes, values.pacienteId, values.mesFacturado, values.anioFacturado, values.dias, values.cantidadKm, facturaIdEnEdicion, cupo]);
 
-  // Gateo por Prestador (change `factura-por-prestador`, design.md D5, corrección post-revisión
-  // 2026-08-04): en modalidad "por-prestacion" la plantilla NO se arma hasta elegir un Prestador —
-  // es el paso previo, no un dato más de la descripción. En "general" no cambia nada (sin
-  // prestador que esperar, se comporta como siempre). Reutilizada por el wizard (más abajo) para
-  // gatear "Siguiente" del Paso 2→3: en alta, nunca se llega al Paso 3 (donde vive la vista
-  // previa) sin haber elegido prestador cuando la modalidad lo exige, así que en ese modo esta
-  // bandera siempre da `false` una vez visible el Paso 3. Sigue pudiendo dar `true` en edición
-  // (wizard salteado, todo visible junto) si se limpia el prestador ya elegido.
-  const faltaElegirPrestador = obraSocial?.modalidadFacturacion === 'por-prestacion' && !values.prestadorId;
+  // Gateo por datos del prestador (change `sacar-prestadores`, design.md D2 — revierte
+  // `factura-por-prestador`): en modalidad "por-prestacion" la plantilla NO se arma hasta
+  // completar nombre Y domicilio del prestador (texto libre, sin entidad) — es el paso previo, no
+  // un dato más de la descripción. En "general" no cambia nada (sin nada que completar, se
+  // comporta como siempre). Reutilizada por el wizard (más abajo) para gatear "Siguiente" del
+  // Paso 2→3: en alta, nunca se llega al Paso 3 (donde vive la vista previa) sin haber completado
+  // ambos campos cuando la modalidad lo exige, así que en ese modo esta bandera siempre da
+  // `false` una vez visible el Paso 3. Sigue pudiendo dar `true` en edición (wizard salteado,
+  // todo visible junto) si se borra lo ya cargado.
+  const faltaCompletarPrestador =
+    obraSocial?.modalidadFacturacion === 'por-prestacion' &&
+    (!values.prestadorNombre?.trim() || !values.prestadorDomicilio?.trim());
 
   const previaDescripcion =
-    esBorrador && obraSocial && paciente && !faltaElegirPrestador
+    esBorrador && obraSocial && paciente && !faltaCompletarPrestador
       ? renderDescripcionFactura(obraSocial.plantillaFactura, construirDatosDescripcion(values, paciente))
       : null;
 
@@ -257,10 +223,11 @@ export function FacturaForm({
     </CamposSoloLectura>
   );
 
-  // Paso 2 — Obra social / Prestador (design.md): la obra social se muestra de solo lectura (se
-  // deriva del paciente elegido en el Paso 1, no es un campo editable acá) y `PrestadorSelector`
-  // (change `factura-por-prestador`, reusado tal cual) se monta solo si la modalidad lo requiere —
-  // idéntica condición que ya usaba antes dentro de FacturaFormDatosBasicos.
+  // Paso 2 — Obra social / Prestador (design.md, change `sacar-prestadores` D4 — revierte
+  // `factura-por-prestador`): la obra social se muestra de solo lectura (se deriva del paciente
+  // elegido en el Paso 1, no es un campo editable acá) y, cuando la modalidad lo requiere, dos
+  // campos de texto libre ("Nombre"/"Domicilio" del prestador que hizo la prestación) — sin
+  // entidad ni repository detrás, cargados a mano por factura.
   const pasoObraSocialContent: ReactNode = (
     <div className="flex flex-col gap-md">
       <div className="flex flex-col gap-xs">
@@ -272,16 +239,24 @@ export function FacturaForm({
 
       {obraSocial?.modalidadFacturacion === 'por-prestacion' && (
         <CamposSoloLectura>
-          <PrestadorSelector
-            formId={formId}
-            obraSocialId={obraSocial.id}
-            prestadorId={values.prestadorId ?? ''}
-            onChange={(prestador) => {
-              set('prestadorId', prestador?.id);
-              if (prestador) set('tipoComprobante', prestador.tipoComprobante);
-              setPrestadorSeleccionado(prestador);
-            }}
-          />
+          <div className="flex flex-col gap-md">
+            <Field label="Nombre" htmlFor={`${formId}-prestador-nombre`}>
+              <Input
+                id={`${formId}-prestador-nombre`}
+                type="text"
+                value={values.prestadorNombre ?? ''}
+                onChange={(e) => set('prestadorNombre', e.target.value)}
+              />
+            </Field>
+            <Field label="Domicilio" htmlFor={`${formId}-prestador-domicilio`}>
+              <Input
+                id={`${formId}-prestador-domicilio`}
+                type="text"
+                value={values.prestadorDomicilio ?? ''}
+                onChange={(e) => set('prestadorDomicilio', e.target.value)}
+              />
+            </Field>
+          </div>
         </CamposSoloLectura>
       )}
     </div>
@@ -315,7 +290,7 @@ export function FacturaForm({
             <div className="grid grid-cols-1 gap-md md:grid-cols-2">
               <FacturaFormDatosBasicos formId={formId} values={values} errors={errors} paciente={paciente} set={set} />
 
-              <FacturaFormEconomicos formId={formId} values={values} errors={errors} tipoComprobanteBloqueado={tipoComprobanteBloqueado} set={set} />
+              <FacturaFormEconomicos formId={formId} values={values} errors={errors} set={set} />
             </div>
           </CamposSoloLectura>
         </SeccionPlegable>
@@ -351,7 +326,8 @@ export function FacturaForm({
         <ResumenPasoWizard
           paciente={paciente}
           obraSocial={obraSocial}
-          prestador={prestadorSeleccionado}
+          prestadorNombre={values.prestadorNombre}
+          prestadorDomicilio={values.prestadorDomicilio}
           datosFactura={{ dias: values.dias, total: values.monto }}
         />
         <AlertaCupo resultado={resultadoCupo} />
@@ -406,7 +382,7 @@ export function FacturaForm({
                   <Button variant="primary" disabled={!values.pacienteId} onClick={() => setPaso(1)}>Siguiente</Button>
                 </div>
               </div>
-              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} prestador={prestadorSeleccionado} />
+              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} prestadorNombre={values.prestadorNombre} prestadorDomicilio={values.prestadorDomicilio} />
             </div>
           )}
 
@@ -416,10 +392,10 @@ export function FacturaForm({
                 {pasoObraSocialContent}
                 <div className="flex items-center justify-between gap-sm">
                   <Button variant="secondary" onClick={() => setPaso(0)}>Atrás</Button>
-                  <Button variant="primary" disabled={faltaElegirPrestador} onClick={() => setPaso(2)}>Siguiente</Button>
+                  <Button variant="primary" disabled={faltaCompletarPrestador} onClick={() => setPaso(2)}>Siguiente</Button>
                 </div>
               </div>
-              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} prestador={prestadorSeleccionado} />
+              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} prestadorNombre={values.prestadorNombre} prestadorDomicilio={values.prestadorDomicilio} />
             </div>
           )}
 

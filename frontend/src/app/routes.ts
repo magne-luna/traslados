@@ -19,7 +19,6 @@ import type { Modulo } from '../shared/types/usuario';
 export type IconKey =
   | 'dashboard'
   | 'obrasSociales'
-  | 'prestadores'
   | 'vehiculos'
   | 'pacientes'
   | 'conductores'
@@ -53,18 +52,6 @@ export const APP_ROUTES: readonly AppRoute[] = [
     path: '/obras-sociales',
     label: 'Obras Sociales',
     icon: 'obrasSociales',
-    section: 'Operación',
-    modulo: 'obra_social',
-  },
-  {
-    // Ruta propia, gateada con el módulo `obra_social` ya existente (prestadores-crud, design.md
-    // D5): NO se crea un módulo `prestadores` nuevo — la RLS real de `obra_social.prestadores`
-    // ya está fija a ese módulo (supabase/migrations/20260724100003_schema_obra_social.sql).
-    // Consecuencia esperada: esta entrada y "Obras Sociales" aparecen/desaparecen juntas en el
-    // sidebar según el mismo permiso.
-    path: '/prestadores',
-    label: 'Prestadores',
-    icon: 'prestadores',
     section: 'Operación',
     modulo: 'obra_social',
   },

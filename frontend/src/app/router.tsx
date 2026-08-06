@@ -10,7 +10,6 @@ import { FacturacionRoute } from '../features/facturacion/FacturacionRoute';
 import { HojaDeRutaRoute } from '../features/hojas-de-ruta/HojaDeRutaRoute';
 import { ObraSocialesRoute } from '../features/obras-sociales/ObraSocialesRoute';
 import { PacientesRoute } from '../features/pacientes/PacientesRoute';
-import { PrestadoresRoute } from '../features/prestadores/PrestadoresRoute';
 import { PresupuestosRoute } from '../features/presupuestos/PresupuestosRoute';
 import { VehiculosRoute } from '../features/vehiculos/VehiculosRoute';
 import { PlaceholderPage } from '../shared/components/PlaceholderPage';
@@ -48,14 +47,13 @@ import DesignSystem from '../design-system/DesignSystem';
 // C-11) reemplaza `/` con DashboardRoute (inyecta mockFacturaRepository, mockCobroRepository,
 // mockPacienteRepository, mockVehiculoRepository, mockHojaDeRutaRepository y
 // mockConductorRepository de FE-1/FE-3/FE-5/FE-6, todos de solo lectura — el dashboard no crea,
-// edita ni borra nada, ver design.md de dashboard-ui Decisión 9 y Non-Goals); prestadores-crud
-// (rama de demo, D1/D5) reemplaza /prestadores con PrestadoresRoute (inyecta
-// supabasePrestadorRepository — Prestador ya tiene backend real, sin mock, a diferencia de la
-// mayoría de las features de arriba — ver design.md de prestadores-crud).
+// edita ni borra nada, ver design.md de dashboard-ui Decisión 9 y Non-Goals). `/prestadores`
+// (prestadores-crud, PrestadoresRoute) se removió por completo (change `sacar-prestadores`,
+// decisión de Andrea 2026-08-04 confirmada por Enzo 2026-08-06): ya no queda ninguna ruta ni
+// entrada de navegación para el módulo Prestador.
 const ROUTE_ELEMENTS: Partial<Record<string, () => ReactElement>> = {
   '/': () => <DashboardRoute />,
   '/obras-sociales': () => <ObraSocialesRoute />,
-  '/prestadores': () => <PrestadoresRoute />,
   '/vehiculos': () => <VehiculosRoute />,
   '/pacientes': () => <PacientesRoute />,
   '/conductores': () => <ConductoresRoute />,

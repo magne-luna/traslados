@@ -70,11 +70,11 @@ export interface ObraSocial {
    */
   cuit: string;
   /**
-   * `plazoCobroDias`/`tipoComprobante` se mudaron a `Prestador` (change `prestadores-crud`,
-   * design.md D3/D4): lectura literal de US-300 (supuesto provisorio #3), condiciones
-   * particulares "por prestador" — **SIN confirmar con Andrea**. Las columnas gemelas de
-   * `obra_social.obra_social` quedan en la base sin uso desde el frontend (no destructivo, ver
-   * migración `20260801100000_prestadores_condiciones.sql`).
+   * `plazoCobroDias`/`tipoComprobante` nunca volvieron a `ObraSocial` (change `sacar-prestadores`,
+   * que remueve el módulo `Prestador` al que `prestadores-crud` los había movido). Las columnas
+   * vestigiales `plazo_cobro_dias`/`tipo_comprobante` de `obra_social.obra_social` son anteriores
+   * a `Prestador` (`20260729110000_schema_obra_social_facturacion_config.sql`) y siguen sin uso
+   * desde el frontend — fuera de scope, no se re-exponen acá.
    */
   modalidadFacturacion: ModalidadFacturacion;
   /** Si la obra social admite pagos parciales o por lote. */

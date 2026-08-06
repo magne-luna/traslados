@@ -1,24 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PrestadorRepository } from '../../shared/lib/prestadores/PrestadorRepository';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
-import { PrestadorRepositoryProvider } from '../prestadores/PrestadorRepositoryContext';
 import { ObraSocialRepositoryProvider } from './ObraSocialRepositoryContext';
 import { ObraSocialesPage } from './ObraSocialesPage';
-
-// `ObraSocialDetail` monta `PrestadoresDeObraSocial` (design.md D2 de prestadores-crud, tasks.md
-// 5.2) en modo edición, que exige un `PrestadorRepositoryProvider` en el árbol. Fake mínimo
-// tipado (sin `any`/`as`) que resuelve sin vínculos — este archivo no testea el panel en sí.
-const fakePrestadorRepository: PrestadorRepository = {
-  list: () => Promise.resolve([]),
-  getById: () => Promise.resolve(null),
-  create: () => Promise.reject(new Error('no implementado en este test')),
-  update: () => Promise.reject(new Error('no implementado en este test')),
-  listarPorObraSocial: () => Promise.resolve([]),
-};
 
 const osecac: ObraSocial = {
   id: 'osecac',
@@ -43,9 +30,7 @@ function buildFakeRepository(): ObraSocialRepository {
 function renderPage(repository: ObraSocialRepository) {
   return render(
     <ObraSocialRepositoryProvider repository={repository}>
-      <PrestadorRepositoryProvider repository={fakePrestadorRepository}>
-        <ObraSocialesPage />
-      </PrestadorRepositoryProvider>
+      <ObraSocialesPage />
     </ObraSocialRepositoryProvider>,
   );
 }
@@ -54,9 +39,7 @@ function renderPageConPermiso(puedeEscribir: boolean, repository: ObraSocialRepo
   return render(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <ObraSocialRepositoryProvider repository={repository}>
-        <PrestadorRepositoryProvider repository={fakePrestadorRepository}>
-          <ObraSocialesPage />
-        </PrestadorRepositoryProvider>
+        <ObraSocialesPage />
       </ObraSocialRepositoryProvider>
     </PuedeEscribirContext.Provider>,
   );

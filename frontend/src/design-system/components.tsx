@@ -598,9 +598,9 @@ export function ChecklistOption({
 // Encabezado de subsección dentro de un form (título + línea divisoria) — variante más liviana
 // de <Section>: esa lleva además un label mono superior que acá no aplica, son agrupaciones de
 // campos dentro de una sola card, no secciones de página. Antes vivía duplicado idéntico en
-// ObraSocialForm.tsx y PrestadorForm.tsx (feedback de usuario: "que todos los formularios tengan
-// los títulos de cada sección con el separador") — ahora es la única fuente para cualquier form
-// con más de un bloque de campos.
+// varios forms (feedback de usuario: "que todos los formularios tengan los títulos de cada
+// sección con el separador") — ahora es la única fuente para cualquier form con más de un bloque
+// de campos.
 export function FieldGroupHeading({ children }: { children: string }) {
   return (
     <div className="mb-lg flex items-baseline gap-sm">

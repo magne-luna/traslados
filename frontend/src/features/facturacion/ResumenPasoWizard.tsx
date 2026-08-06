@@ -3,12 +3,15 @@ import { Card } from '../../design-system/layout';
 import { iconCredencial } from '../../design-system/icons';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
-import type { Prestador } from '../../shared/types/prestador';
 
 interface ResumenPasoWizardProps {
   paciente: Paciente | undefined;
   obraSocial: ObraSocial | undefined;
-  prestador: Prestador | undefined;
+  /** Texto libre cargado en el Paso 2 (change `sacar-prestadores`, revierte
+   * `factura-por-prestador`) — sin entidad `Prestador` detrás. Solo se muestra el panel cuando la
+   * modalidad es "por-prestacion" y al menos uno de los dos ya se cargó. */
+  prestadorNombre?: string;
+  prestadorDomicilio?: string;
   /** Días facturables y total, solo disponibles una vez llegado al Paso 3 (o en edición, donde
    * ya están cargados de entrada) — omitido en los Pasos 1 y 2, donde todavía no existen. */
   datosFactura?: { dias: number; total: number };
@@ -23,12 +26,12 @@ function iniciales(paciente: Paciente): string {
 // 1-2, y después "el formulario entero" no convencía como flujo — la combinación wizard + vista
 // plana con acordeón se sentía como dos formularios distintos). Un mismo panel, cada vez un poco
 // más completo, acompaña los tres pasos del wizard Y la vista de edición: en los Pasos 1-2 (y en
-// edición antes de que haya días/total) solo muestra paciente/obra social/prestador; en el Paso 3
-// y en edición además muestra `datosFactura` — así el mismo concepto de "campos a la izquierda,
-// contexto a la derecha" corre de punta a punta, en vez de que el Paso 3 cambie a otro patrón
-// (antes: acordeón sin panel). Puramente de lectura: nunca gatea con `CamposSoloLectura` porque
-// no hay nada editable adentro.
-export function ResumenPasoWizard({ paciente, obraSocial, prestador, datosFactura }: ResumenPasoWizardProps) {
+// edición antes de que haya días/total) solo muestra paciente/obra social/prestador (texto libre,
+// change `sacar-prestadores`); en el Paso 3 y en edición además muestra `datosFactura` — así el
+// mismo concepto de "campos a la izquierda, contexto a la derecha" corre de punta a punta, en vez
+// de que el Paso 3 cambie a otro patrón (antes: acordeón sin panel). Puramente de lectura: nunca
+// gatea con `CamposSoloLectura` porque no hay nada editable adentro.
+export function ResumenPasoWizard({ paciente, obraSocial, prestadorNombre, prestadorDomicilio, datosFactura }: ResumenPasoWizardProps) {
   return (
     <Card radius="sm" padding="lg" gap="sm" background="surface-soft">
       <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-faint">Esta factura, hasta ahora</span>
@@ -53,11 +56,11 @@ export function ResumenPasoWizard({ paciente, obraSocial, prestador, datosFactur
             </div>
           )}
 
-          {prestador && (
+          {(prestadorNombre || prestadorDomicilio) && (
             <div className="flex flex-col gap-xs rounded-sm border border-border bg-surface px-md py-sm">
               <span className="font-body text-[11px] font-semibold text-muted">Prestador</span>
-              <span className="font-body text-[13px] text-text">{prestador.razonSocial}</span>
-              <span className="font-mono text-[11px] text-faint">{prestador.cuit}</span>
+              {prestadorNombre && <span className="font-body text-[13px] text-text">{prestadorNombre}</span>}
+              {prestadorDomicilio && <span className="font-mono text-[11px] text-faint">{prestadorDomicilio}</span>}
             </div>
           )}
 

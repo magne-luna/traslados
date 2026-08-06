@@ -108,9 +108,9 @@ export interface ObraSocialCamposBase {
 }
 
 /** Fila plana de `obra_social.obra_social` -> campos base del dominio (discrepancia #1 de la
- * tabla D11: `razon_social`->`nombre`). `tipo_comprobante`/`plazo_cobro_dias` de esta tabla ya no
- * se mapean acá: se mudaron a `Prestador` (change `prestadores-crud`, design.md D3, sin confirmar
- * con Andrea) — las columnas gemelas quedan vestigiales en `obra_social.obra_social`. */
+ * tabla D11: `razon_social`->`nombre`). `tipo_comprobante`/`plazo_cobro_dias` de esta tabla no se
+ * mapean acá: son columnas vestigiales anteriores al módulo `Prestador` (ya removido, change
+ * `sacar-prestadores`), sin uso desde el frontend — fuera de scope. */
 export function parseObraSocialRow(row: unknown): ObraSocialCamposBase {
   const record = isRecord(row) ? row : {};
 

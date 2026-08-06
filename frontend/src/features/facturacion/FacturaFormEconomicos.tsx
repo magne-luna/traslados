@@ -9,10 +9,6 @@ interface FacturaFormEconomicosProps {
   formId: string;
   values: FacturaFormValues;
   errors: FacturaFormErrors;
-  /** `true` mientras haya un `Prestador` elegido (change `factura-por-prestador`, design.md D3):
-   * el `<Select>` de tipo de comprobante pasa a solo lectura, con el valor tomado del prestador.
-   * En modalidad "general" (sin prestador) siempre es `false` — RN-FA-07 no cambia. */
-  tipoComprobanteBloqueado: boolean;
   set: <K extends keyof FacturaFormValues>(key: K, value: FacturaFormValues[K]) => void;
 }
 
@@ -20,8 +16,8 @@ const TIPOS_COMPROBANTE: TipoComprobante[] = ['A', 'B', 'C'];
 
 // Bloque de campos económicos del formulario de factura (tasks.md 7.2, 7.3): valor del km de
 // carga manual (RN-FA-05), cantidad de km, cantidad de días, total propuesto (editable) y tipo
-// de comprobante precargado desde la obra social (RN-FA-07). Extraído de FacturaForm para
-// mantener ambos componentes bajo las ~200 líneas (tasks.md 12.3).
+// de comprobante, siempre editable a mano (RN-FA-07). Extraído de FacturaForm para mantener
+// ambos componentes bajo las ~200 líneas (tasks.md 12.3).
 //
 // Migrado a Field/Input/Select (tasks.md 16.1, design.md Decisión 3) — cero cambio de
 // comportamiento: cálculos y validaciones intactos.
@@ -29,7 +25,12 @@ const TIPOS_COMPROBANTE: TipoComprobante[] = ['A', 'B', 'C'];
 // Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`, design.md): este componente
 // no cambió — sigue recibiendo las mismas props de siempre — pero ahora se monta dentro del Paso
 // 3 ("el resto") de `FacturaForm.tsx`, nunca en los pasos 1/2.
-export function FacturaFormEconomicos({ formId, values, errors, tipoComprobanteBloqueado, set }: FacturaFormEconomicosProps) {
+//
+// `tipoComprobanteBloqueado` (change `factura-por-prestador`) se removió (change
+// `sacar-prestadores`, design.md D2): sin `Prestador`, no hay ninguna fuente que fije el tipo de
+// comprobante — el `<Select>` vuelve a ser siempre editable, mismo comportamiento que ya tenía la
+// modalidad "general".
+export function FacturaFormEconomicos({ formId, values, errors, set }: FacturaFormEconomicosProps) {
   return (
     <>
       <div className="md:col-span-2">
@@ -58,7 +59,6 @@ export function FacturaFormEconomicos({ formId, values, errors, tipoComprobanteB
         <Select
           id={`${formId}-tipo`}
           value={values.tipoComprobante}
-          disabled={tipoComprobanteBloqueado}
           onChange={(e) => set('tipoComprobante', e.target.value as TipoComprobante)}
         >
           {TIPOS_COMPROBANTE.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}

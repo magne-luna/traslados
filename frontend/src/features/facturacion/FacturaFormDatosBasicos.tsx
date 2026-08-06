@@ -25,10 +25,10 @@ interface FacturaFormDatosBasicosProps {
 // Reorganizado en un wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`,
 // design.md): el campo "Paciente" (antes acá, primero del bloque) se mudó al Paso 1 del wizard
 // en `FacturaForm.tsx` — el paciente ahora se elige ANTES de ver el resto de estos campos, no
-// junto con ellos. `PrestadorSelector` (antes acá, condicionado a
-// `obraSocial.modalidadFacturacion === 'por-prestacion'`, insertado justo después de
-// "Prestación" — change `factura-por-prestador`, design.md D2/D3) también se mudó, al Paso 2.
-// Este componente ya NO recibe `pacientes` ni `obraSocial` como prop — ninguno de los dos campos
+// junto con ellos. Los campos de prestador (antes acá, condicionados a
+// `obraSocial.modalidadFacturacion === 'por-prestacion'`, insertados justo después de
+// "Prestación") también se mudaron, al Paso 2 — hoy dos campos de texto libre sin entidad, ver
+// change `sacar-prestadores`. Este componente ya NO recibe `pacientes` ni `obraSocial` como prop — ninguno de los dos campos
 // que los necesitaba sigue viviendo acá. Sigue recibiendo `paciente` (para poblar el `<Select>`
 // de domicilio con `paciente.direcciones`), que en el wizard de alta ya está resuelto para cuando
 // se llega al Paso 3 (el paciente se elige en el Paso 1, antes de montar este componente); en

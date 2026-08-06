@@ -70,10 +70,10 @@ export function useEmisionFactura({
       const fechaEstimadaCobro = calcularFechaEstimadaCobro({
         fechaFactura,
         amparoJudicial: paciente.amparoJudicial,
-        // `ObraSocial.plazoCobroDias` se mudó a `Prestador` (design.md D3/D4 de
-        // prestadores-crud, sin confirmar con Andrea): sin esa relación resuelta todavía,
-        // siempre se pasa `undefined` — `calcularFechaEstimadaCobro` cae en
-        // `PLAZO_COBRO_DEFAULT_DIAS` por esa misma rama.
+        // Sin ninguna fuente de plazo propio por obra social todavía (change `sacar-prestadores`,
+        // design.md D1: confirmado que `Prestador.plazoCobroDias` nunca tuvo un consumidor real
+        // fuera de sus propias pantallas, ya borradas) — siempre se pasa `undefined` —
+        // `calcularFechaEstimadaCobro` cae en `PLAZO_COBRO_DEFAULT_DIAS` por esa misma rama.
         plazoObraSocial: undefined,
       });
       const descripcion = obraSocial

@@ -27,10 +27,8 @@ export const PLAZO_COBRO_AMPARO_DIAS = 45;
 export const PLAZO_ALERTA_VENCIDA_DIAS = 60;
 
 /**
- * ⚠️ PROVISORIO — supuesto #5 del proposal de `prestadores-crud`, SIN resolver. RN-FA-07 dice que
- * el tipo de comprobante depende de la relación con la obra social; hasta que se decida qué
- * Prestador aplica al facturar, el formulario arranca en 'A' y el operador lo corrige a mano. NO
- * es la resolución de RN-FA-07: es el marcador de que falta resolverla. Ver design.md D4 de
- * `prestadores-crud`.
+ * RN-FA-07: tipo de comprobante fiscal. Sin ninguna fuente que lo auto-complete (change
+ * `sacar-prestadores` removió el módulo Prestador, que era la única candidata) — el formulario
+ * siempre arranca en 'A' y el operador lo corrige a mano.
  */
 export const TIPO_COMPROBANTE_DEFAULT: TipoComprobante = 'A';
