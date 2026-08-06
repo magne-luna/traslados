@@ -20,20 +20,6 @@ export const iconPaths: Record<IconKey, ReactNode> = {
       <line x1={6} y1={15} x2={10} y2={15} />
     </>
   ),
-  // Prestadores (prestadores-crud, design.md D5): edificio/empresa prestadora, distinto del
-  // ícono de credencial de Obras Sociales para no sugerir que son el mismo maestro.
-  prestadores: (
-    <>
-      <rect x={4} y={3} width={16} height={18} rx={1} />
-      <line x1={8} y1={7} x2={8} y2={7.01} strokeLinecap="round" />
-      <line x1={12} y1={7} x2={12} y2={7.01} strokeLinecap="round" />
-      <line x1={16} y1={7} x2={16} y2={7.01} strokeLinecap="round" />
-      <line x1={8} y1={11} x2={8} y2={11.01} strokeLinecap="round" />
-      <line x1={12} y1={11} x2={12} y2={11.01} strokeLinecap="round" />
-      <line x1={16} y1={11} x2={16} y2={11.01} strokeLinecap="round" />
-      <path d="M9 21v-4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v4" strokeLinecap="round" strokeLinejoin="round" />
-    </>
-  ),
   vehiculos: (
     <>
       <path

@@ -77,8 +77,6 @@ export function ObrasSocialesList({ obrasSociales, loading, error, onSelect, onC
                   </div>
                 </div>
 
-                {/* `tipoComprobante`/`plazoCobroDias` se mudaron a `Prestador` (design.md D3 de
-                    prestadores-crud, sin confirmar con Andrea) — dejan de mostrarse acá. */}
                 <div className="grid grid-cols-2 gap-sm border-y border-border py-sm">
                   <div className="flex flex-col gap-0.5">
                     <span className="flex items-center gap-xs font-body text-[11px] text-muted">

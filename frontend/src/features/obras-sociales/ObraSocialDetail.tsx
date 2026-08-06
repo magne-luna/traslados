@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { AvisoModeloDatos, Button, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
-import { PrestadoresDeObraSocial } from '../prestadores/PrestadoresDeObraSocial';
 import type { ActualizacionObraSocial, NuevaObraSocial, ObraSocial } from '../../shared/types/obraSocial';
 import { ChecklistEditor } from './ChecklistEditor';
 import { DEFAULT_IDENTIFICADOR_ORIGEN } from './origenCampoOptions';
@@ -90,8 +89,6 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
               <span className="font-mono text-[12px] text-muted">CUIT: {obraSocial.cuit}</span>
             </div>
 
-            {/* `tipoComprobante`/`plazoCobroDias` se mudaron a `Prestador` (design.md D3 de
-                prestadores-crud, sin confirmar con Andrea) — dejan de mostrarse acá. */}
             <div className="grid grid-cols-2 gap-md border-y border-border py-md md:grid-cols-3">
               <div className="flex flex-col gap-0.5">
                 <span className="font-body text-[11px] text-muted">Modalidad de facturación</span>
@@ -183,16 +180,6 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
         valores válidos de "Condición frente al IVA", así que queda como texto libre sin validar.
       </AvisoModeloDatos>
 
-      {/* tasks.md 6.2 (D8, discrepancia #12): ambigüedad de qué CUIT representa este campo,
-          descubierta al verificar que la base tiene dos columnas distintas. No se resuelve acá. */}
-      <AvisoModeloDatos>
-        Este CUIT es <strong>obra_social.cuit</strong>, distinto de <strong>prestadores.cuit</strong>{' '}
-        (otra tabla, ya existe en la base). No está confirmado si este campo debería mostrar el CUIT
-        de la obra social o el del prestador — el docx solo dice "CUIT del prestador/entidad
-        pagadora", que podría ser cualquiera de las dos tablas. Pendiente de confirmar con quien
-        mantiene el docx.
-      </AvisoModeloDatos>
-
       {obraSocial && (
         <>
           {sectionError && <Alert tone="danger">{sectionError}</Alert>}
@@ -203,13 +190,6 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
 
           <Section label="Facturación" title="Plantilla de descripción de factura">
             <PlantillaFacturaEditor plantilla={obraSocial.plantillaFactura} onChange={handlePlantillaChange} />
-          </Section>
-
-          {/* Panel de solo lectura del vínculo N:N (design.md D2 de prestadores-crud, tasks.md
-              5.2/5.3): el multi-select de edición vive del lado de Prestador
-              (PrestadorForm.tsx) — acá solo se muestra quién ya está vinculado. */}
-          <Section label="Prestadores" title="Prestadores vinculados">
-            <PrestadoresDeObraSocial obraSocialId={obraSocial.id} />
           </Section>
         </>
       )}

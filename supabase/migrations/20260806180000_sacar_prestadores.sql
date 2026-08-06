@@ -1,0 +1,45 @@
+-- Migration: sacar_prestadores
+-- Change: sacar-prestadores. Decisión del cliente (Andrea, reunión 2026-08-04,
+-- `TODO-video-revision.txt` §Prestadores): la sección de Prestadores no es necesaria — Traslado
+-- Personalizado (Andrea) es la única prestadora real, la tercerización con Uber/remis es mínima
+-- y no estructurada. Confirmado por Enzo (backend, 2026-08-06): remover el módulo Prestador del
+-- sistema por completo, frontend y backend.
+--
+-- Esta migración revierte, del lado de la base, tres migraciones de `prestadores-crud`:
+--   - 20260801100000_prestadores_condiciones.sql   (agregó plazo_cobro_dias/tipo_comprobante a
+--     obra_social.prestadores — se van solas al dropear la tabla completa)
+--   - 20260801110000_prestadores_vinculo_obra_social.sql (creó la tabla de vínculo N:N
+--     obra_social.obra_social_prestador, su índice, su RLS y su trigger de auditoría)
+--   - 20260801120000_seed_obras_sociales_prestadores.sql (sembró 2 filas en obra_social.prestadores
+--     y 3 filas en obra_social.obra_social_prestador — se borran solas al dropear las tablas, sin
+--     necesidad de un DELETE separado)
+-- y la porción de `20260724100003_schema_obra_social.sql` que crea la tabla base
+-- `obra_social.prestadores` (el resto de ese archivo — tipos_documento, obra_social,
+-- requisitos_os y sus policies/triggers — queda intacto, es de un dominio distinto).
+--
+-- ⚠️ HALLAZGO (investigación de este change, 2026-08-06, `supabase db query --linked` contra el
+-- proyecto real `pkryfoljypuzfifofdwp`): a diferencia de lo que decía `CHANGES.md` ("escrita, no
+-- aplicada"), las tres migraciones de `prestadores-crud` de arriba SÍ están aplicadas —
+-- `supabase_migrations.schema_migrations` las tiene registradas y hay datos reales sembrados
+-- (`obra_social.prestadores`: 2 filas, `obra_social.obra_social_prestador`: 3 filas). Esta
+-- migración es, entonces, una reversión real de estado productivo, no un "por-las-dudas" sobre
+-- algo que nunca se aplicó. Ver `openspec/changes/sacar-prestadores/design.md` D3.
+--
+-- Se dropea `obra_social_prestador` primero (tiene los FKs hacia ambas tablas). NO se dropea el
+-- enum compartido `facturacion.tipo_factura` (lo usa también `facturacion.facturas.tipo`, entre
+-- otras tablas) — solo se dropean las columnas que lo usaban, vía DROP TABLE. NO se tocan las
+-- columnas vestigiales `plazo_cobro_dias`/`tipo_comprobante` de `obra_social.obra_social`
+-- (anteriores a Prestador, de `20260729110000_schema_obra_social_facturacion_config.sql`) — fuera
+-- de scope de este change, ver `design.md` D1.
+--
+-- ⚠️ Se redacta como artefacto de diseño. NO se aplica desde el agente: `supabase db push` es
+-- siempre acción explícita de Enzo, en el momento que él decida. Al aplicarla se borran los datos
+-- reales de Prestador mencionados arriba — acción irreversible sin un backup previo.
+--
+-- Nota aparte: la Edge Function `prestadores` (`supabase/functions/prestadores/`) está deployada
+-- y activa en el mismo proyecto. Esta migración NO la da de baja — Enzo debe correr
+-- `supabase functions delete prestadores --project-ref pkryfoljypuzfifofdwp` por separado. Borrar
+-- la carpeta local (ya hecho en este change) no afecta lo deployado.
+
+DROP TABLE obra_social.obra_social_prestador;
+DROP TABLE obra_social.prestadores;

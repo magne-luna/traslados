@@ -6,7 +6,6 @@ import { resolverIdentificadorFactura } from '../facturacion/resolverIdentificad
 import { calcularTotalFactura } from '../facturacion/totalesFactura';
 import { buildOsecacFixture } from './osecacFixture';
 import { buildPacientesFixture } from './pacientesFixture';
-import { PRESTADOR_ID_TRASLADOS_ANDREA_PASTOR } from './prestadoresFixture';
 
 // Fixture inicial del mock de Facturas (tasks.md 4.4): ligadas a pacientes/obra social que
 // existen en pacientesFixture.ts/osecacFixture.ts ('paciente-martina', 'paciente-facundo',
@@ -34,10 +33,10 @@ function mesesAtras(meses: number): { mes: number; anio: number } {
   return { mes: fecha.getMonth() + 1, anio: fecha.getFullYear() };
 }
 
-// `PRESTADOR_ID_TRASLADOS_ANDREA_PASTOR` viene de `prestadoresFixture.ts` (fix de coordinación
-// 2026-08-04, ver `CHANGES.md`): mismo id que sirve `mockPrestadorRepository.listarPorObraSocial`
-// para 'osecac' — estas facturas de ejemplo apuntan a un prestador que el mock efectivamente
-// resuelve, no a un id inventado sin repository detrás.
+// `prestadorNombre`/`prestadorDomicilio` (change `sacar-prestadores`, revierte
+// `factura-por-prestador`): texto libre de ejemplo, sin entidad ni repository detrás — antes
+// estas facturas referenciaban `PRESTADOR_ID_TRASLADOS_ANDREA_PASTOR` (`prestadoresFixture.ts`,
+// ya borrado).
 
 export function buildFacturasFixture(): Factura[] {
   const [martina, facundo] = buildPacientesFixture();
@@ -80,7 +79,8 @@ export function buildFacturasFixture(): Factura[] {
     fechaInicial: isoDate(primerDiaDelMes(periodoActual.anio, periodoActual.mes)),
     fechaTope: isoDate(ultimoDiaDelMes(periodoActual.anio, periodoActual.mes)),
     tipoComprobante: TIPO_COMPROBANTE_DEFAULT,
-    prestadorId: PRESTADOR_ID_TRASLADOS_ANDREA_PASTOR,
+    prestadorNombre: 'Traslados Andrea Pastor',
+    prestadorDomicilio: 'Av. Rivadavia 4500, CABA',
     cantidadKm: 40,
     prestacion: 'Kinesiología',
     mesFacturado: periodoActual.mes,
@@ -123,7 +123,8 @@ export function buildFacturasFixture(): Factura[] {
     fechaInicial: isoDate(primerDiaDelMes(periodoFacturado.anio, periodoFacturado.mes)),
     fechaTope: isoDate(ultimoDiaDelMes(periodoFacturado.anio, periodoFacturado.mes)),
     tipoComprobante: TIPO_COMPROBANTE_DEFAULT,
-    prestadorId: PRESTADOR_ID_TRASLADOS_ANDREA_PASTOR,
+    prestadorNombre: 'Traslados Andrea Pastor',
+    prestadorDomicilio: 'Av. Rivadavia 4500, CABA',
     cantidadKm: datosDescripcionFacundo.cantidadKm,
     fechaFactura: fechaFacturaFacundo,
     fechaEstimadaCobro: calcularFechaEstimadaCobro({

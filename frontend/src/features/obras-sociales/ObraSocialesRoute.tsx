@@ -1,6 +1,4 @@
 import { supabaseObraSocialRepository } from '../../shared/lib/obrasSociales/SupabaseObraSocialRepository';
-import { supabasePrestadorRepository } from '../../shared/lib/prestadores/SupabasePrestadorRepository';
-import { PrestadorRepositoryProvider } from '../prestadores/PrestadorRepositoryContext';
 import { ObraSocialesPage } from './ObraSocialesPage';
 import { ObraSocialRepositoryProvider } from './ObraSocialRepositoryContext';
 
@@ -11,17 +9,14 @@ import { ObraSocialRepositoryProvider } from './ObraSocialRepositoryContext';
 // propios backends todavía no existen. El resto de la feature solo conoce la interfaz
 // `ObraSocialRepository` — mismo criterio que `PacientesRoute.tsx`/`CuentasRoute.tsx`.
 //
-// `PrestadorRepositoryProvider` (design.md D2 de prestadores-crud, tasks.md 5.3) se monta acá
-// también: es el único lugar que conoce las dos implementaciones concretas a la vez, para que
-// `PrestadoresDeObraSocial.tsx` (panel de solo lectura dentro de `ObraSocialDetail.tsx`) resuelva
-// el vínculo sin que ninguna pantalla de esta feature importe `supabasePrestadorRepository`
-// directamente.
+// `PrestadorRepositoryProvider` (design.md D2 de prestadores-crud, tasks.md 5.3) se removió
+// (change `sacar-prestadores`): montaba acá el repository real de Prestador solo para
+// `PrestadoresDeObraSocial.tsx` (panel de solo lectura dentro de `ObraSocialDetail.tsx`), que ya
+// no existe.
 export function ObraSocialesRoute() {
   return (
     <ObraSocialRepositoryProvider repository={supabaseObraSocialRepository}>
-      <PrestadorRepositoryProvider repository={supabasePrestadorRepository}>
-        <ObraSocialesPage />
-      </PrestadorRepositoryProvider>
+      <ObraSocialesPage />
     </ObraSocialRepositoryProvider>
   );
 }

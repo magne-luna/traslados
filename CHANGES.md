@@ -285,7 +285,16 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   edición, gateado por el módulo `obra_social` existente) más el vínculo N:N con ObraSocial
   (`obra_social.obra_social_prestador`, multi-select en `PrestadorForm.tsx`, panel de solo lectura
   en `ObraSocialDetail.tsx`). Migración `20260801100000_prestadores_condiciones.sql` **escrita, no
-  aplicada** (`supabase db push` sigue a cargo de Enzo). **Los 5 supuestos de abajo son la premisa
+  aplicada** (`supabase db push` sigue a cargo de Enzo).
+
+  ⚠️ **Corrección (2026-08-06)**: al investigar para `sacar-prestadores` se confirmó que estas
+  migraciones (`20260801100000`, `20260801110000`, `20260801120000`) SÍ habían sido aplicadas
+  contra el proyecto Supabase real (`pkryfoljypuzfifofdwp`) — la nota de arriba de "no aplicada"
+  era incorrecta. `supabase_migrations.schema_migrations` las tiene registradas y hay datos reales
+  sembrados (`obra_social.prestadores`: 2 filas, `obra_social.obra_social_prestador`: 3 filas). Ver
+  el bullet `sacar-prestadores` más abajo y `openspec/changes/sacar-prestadores/design.md` D3.
+
+  **Los 5 supuestos de abajo son la premisa
   de toda la rama y NINGUNO está confirmado con Andrea** (ver `proposal.md`/`design.md` de
   `prestadores-crud` y `knowledge-base/10_preguntas_abiertas.md` §`prestadores-crud`):
   1. Relación Prestador↔ObraSocial: **N:N** (confirmado con Enzo, no con Andrea).
@@ -330,6 +339,41 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   mocks). Tests: `PrestadorSelector.test.tsx` (nuevo) y casos agregados a `FacturaForm.test.tsx`
   ("selección de Prestador"). `tsc -b`/suite completa verificados antes de dar el change por
   terminado.
+- **✅ `sacar-prestadores`** (2026-08-06, decisión de Andrea en reunión del 2026-08-04 —
+  `TODO-video-revision.txt` §Prestadores — confirmada por Enzo el 2026-08-06): revierte por
+  completo `prestadores-crud` y `factura-por-prestador` de arriba. Andrea (Traslado Personalizado)
+  es la única prestadora real de la operación; la tercerización con Uber/remis es mínima y no
+  estructurada — no amerita un módulo de gestión propio. Ver
+  `openspec/changes/sacar-prestadores/{proposal,design,tasks}.md`.
+  - **Frontend, borrado completo**: `features/prestadores/` (10 archivos), `shared/types/
+    prestador.ts`, `shared/lib/prestadores/` (5 archivos), `shared/lib/mocks/
+    mockPrestadorRepository.ts`+test, `shared/lib/mocks/prestadoresFixture.ts`,
+    `features/facturacion/PrestadorSelector.tsx`+test, ruta `/prestadores` y su ícono de nav.
+  - **Facturación, Paso 2 del wizard**: el selector de Prestador se reemplaza por dos campos de
+    texto libre ("Nombre"/"Domicilio"), sin entidad ni repository — `Factura.prestadorId?: string`
+    pasa a `prestadorNombre?: string`/`prestadorDomicilio?: string` (flat). `tipoComprobanteBloqueado`
+    se elimina: tipo de comprobante vuelve a ser siempre editable a mano, revirtiendo el
+    comportamiento que había introducido `factura-por-prestador`. `faltaElegirPrestador` se
+    renombra a `faltaCompletarPrestador`, gateando ahora sobre ambos campos de texto completos.
+  - **Checkpoint de datos huérfanos (resuelto, ver design.md D1)**: `Prestador.plazoCobroDias`
+    nunca tuvo un consumidor real fuera de sus propias pantallas (ya borradas) —
+    `calcularFechaEstimadaCobro` siempre recibió `plazoObraSocial: undefined`. Nada que mover de
+    vuelta a `ObraSocial`. `Prestador.tipoComprobante` sí estaba activamente leído — se resuelve
+    quitando el lock, no con un auto-fill nuevo. Las columnas vestigiales
+    `plazo_cobro_dias`/`tipo_comprobante` de `obra_social.obra_social` (anteriores a Prestador, de
+    `20260729110000_schema_obra_social_facturacion_config.sql`) quedan fuera de scope, sin tocar.
+  - **Backend**: `supabase/migrations/20260806180000_sacar_prestadores.sql` — dropea
+    `obra_social.obra_social_prestador` y `obra_social.prestadores`. **Redactada, NO aplicada**
+    (`supabase db push` a cargo de Enzo). No dropea `facturacion.tipo_factura` (enum compartido).
+    `supabase/functions/prestadores/` se borra localmente — el deploy real en Supabase requiere
+    `supabase functions delete prestadores --project-ref pkryfoljypuzfifofdwp` por separado
+    (acción pendiente de Enzo, borrar la carpeta local no la da de baja).
+  - `openspec/changes/prestadores-crud/` y `openspec/changes/factura-por-prestador/` quedan sin
+    tocar, como registro histórico de lo que se construyó.
+  - `tsc -b --noEmit` limpio, suite completa verificada, `grep -rni "prestador"` sin restos de la
+    entidad `Prestador` en `frontend/src`/`supabase/functions` (quedan `prestadorNombre`/
+    `prestadorDomicilio` y comentarios de historia, ambos esperados) antes de dar el change por
+    terminado.
 
 ### [C-08] `vehiculos-mantenimiento`
 - **Estado**: `[x]` completado (frontend mock, 2026-07-31)

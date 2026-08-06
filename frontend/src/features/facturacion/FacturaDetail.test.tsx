@@ -4,14 +4,11 @@ import userEvent from '@testing-library/user-event';
 import type { Cobro, Factura } from '../../shared/types/factura';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
-import type { Prestador } from '../../shared/types/prestador';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
-import type { PrestadorRepository } from '../../shared/lib/prestadores/PrestadorRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
-import { PrestadorRepositoryProvider } from '../prestadores/PrestadorRepositoryContext';
 import { FacturaDetail } from './FacturaDetail';
 
 const martina: Paciente = {
@@ -41,29 +38,6 @@ const osecac: ObraSocial = {
   checklist: [{ id: 'item-1', nombre: 'Comprobante ARCA', requerido: true }],
   plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
 };
-
-const prestadorTraslados: Prestador = {
-  id: 'prestador-1',
-  razonSocial: 'Traslados Andrea Pastor',
-  cuit: '30-71234567-8',
-  plazoCobroDias: 90,
-  tipoComprobante: 'B',
-};
-
-// El wizard de `FacturaForm` (change `facturacion-wizard-paciente-prestador`) monta
-// `PrestadorSelector` en su Paso 2 cuando la obra social del paciente elegido está en
-// "por-prestacion" — como `osecac` (fixture de arriba) lo está, cualquier test que llegue a
-// mostrar "Nueva factura" (`factura: null`) y avance más allá del Paso 1 necesita este provider
-// en el árbol (`usePrestadorRepository()` lanza si falta).
-function fakePrestadorRepository(prestadores: Prestador[] = [prestadorTraslados]): PrestadorRepository {
-  return {
-    list: () => Promise.resolve(prestadores),
-    getById: () => Promise.resolve(null),
-    create: () => Promise.reject(new Error('no implementado en este test')),
-    update: () => Promise.reject(new Error('no implementado en este test')),
-    listarPorObraSocial: () => Promise.resolve(prestadores),
-  };
-}
 
 function facturaAFacturar(overrides: Partial<Factura> = {}): Factura {
   return {
@@ -132,7 +106,34 @@ function renderDetail(overrides: Partial<React.ComponentProps<typeof FacturaDeta
   const onBack = vi.fn();
 
   render(
-    <PrestadorRepositoryProvider repository={fakePrestadorRepository()}>
+    <FacturaDetail
+      factura={facturaAFacturar()}
+      crear={crear}
+      actualizar={actualizar}
+      facturasExistentes={[facturaAFacturar()]}
+      pacientes={[martina]}
+      obrasSociales={[osecac]}
+      feriados={[]}
+      presupuestoRepository={buildPresupuestoRepository()}
+      autorizacionRepository={buildAutorizacionRepository()}
+      cobroRepository={buildCobroRepository()}
+      documentoRepository={buildDocumentoRepository()}
+      onCreated={onCreated}
+      onBack={onBack}
+      {...overrides}
+    />,
+  );
+  return { crear, actualizar, onCreated, onBack };
+}
+
+function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React.ComponentProps<typeof FacturaDetail>> = {}) {
+  const crear = vi.fn().mockResolvedValue(facturaAFacturar());
+  const actualizar = vi.fn().mockResolvedValue(facturaAFacturar({ estado: 'facturado' }));
+  const onCreated = vi.fn();
+  const onBack = vi.fn();
+
+  render(
+    <PuedeEscribirContext.Provider value={puedeEscribir}>
       <FacturaDetail
         factura={facturaAFacturar()}
         crear={crear}
@@ -149,38 +150,7 @@ function renderDetail(overrides: Partial<React.ComponentProps<typeof FacturaDeta
         onBack={onBack}
         {...overrides}
       />
-    </PrestadorRepositoryProvider>,
-  );
-  return { crear, actualizar, onCreated, onBack };
-}
-
-function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React.ComponentProps<typeof FacturaDetail>> = {}) {
-  const crear = vi.fn().mockResolvedValue(facturaAFacturar());
-  const actualizar = vi.fn().mockResolvedValue(facturaAFacturar({ estado: 'facturado' }));
-  const onCreated = vi.fn();
-  const onBack = vi.fn();
-
-  render(
-    <PrestadorRepositoryProvider repository={fakePrestadorRepository()}>
-      <PuedeEscribirContext.Provider value={puedeEscribir}>
-        <FacturaDetail
-          factura={facturaAFacturar()}
-          crear={crear}
-          actualizar={actualizar}
-          facturasExistentes={[facturaAFacturar()]}
-          pacientes={[martina]}
-          obrasSociales={[osecac]}
-          feriados={[]}
-          presupuestoRepository={buildPresupuestoRepository()}
-          autorizacionRepository={buildAutorizacionRepository()}
-          cobroRepository={buildCobroRepository()}
-          documentoRepository={buildDocumentoRepository()}
-          onCreated={onCreated}
-          onBack={onBack}
-          {...overrides}
-        />
-      </PuedeEscribirContext.Provider>
-    </PrestadorRepositoryProvider>,
+    </PuedeEscribirContext.Provider>,
   );
   return { crear, actualizar, onCreated, onBack };
 }
@@ -300,14 +270,16 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
 
   // Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`): "Nueva factura" arranca
   // en el Paso 1 (solo Paciente) — AsistenciasEditor vive en el Paso 3, hay que elegir paciente y
-  // (esta obra social es "por-prestacion") un prestador antes de llegar a verlo.
+  // (esta obra social es "por-prestacion") completar nombre y domicilio del prestador (texto
+  // libre, change `sacar-prestadores`) antes de llegar a verlo.
   it('con write (sin admin): editar asistencias está activable (en modo edición del form)', async () => {
     renderDetailConPermiso(true, { factura: null });
 
     await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    const selectorPrestador = await screen.findByLabelText(/^prestador$/i);
-    await userEvent.selectOptions(selectorPrestador, 'prestador-1');
+
+    await userEvent.type(await screen.findByLabelText(/^nombre$/i), 'Traslados Andrea Pastor');
+    await userEvent.type(screen.getByLabelText(/^domicilio$/i, { selector: 'input' }), 'Av. Rivadavia 4500, CABA');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     // "Prestación" existe dos veces en el Paso 3: FacturaFormDatosBasicos (gateo tasks.md 4.3) y

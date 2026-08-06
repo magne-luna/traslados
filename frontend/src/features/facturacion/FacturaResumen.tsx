@@ -21,9 +21,9 @@ const ESTADO_CHIP: Record<EstadoFactura, 'secondary' | 'warning' | 'success' | '
   'pagado-parcialmente': 'info',
 };
 
-// `ObraSocial.plazoCobroDias` se mudó a `Prestador` (design.md D3/D4 de prestadores-crud, sin
-// confirmar con Andrea): sin esa relación resuelta todavía, solo quedan amparo judicial y el
-// plazo general — la rama "plazo propio de {nombre}" se retira.
+// Sin ninguna fuente de plazo propio por obra social (change `sacar-prestadores`, ver
+// `useEmisionFactura.ts`): solo quedan amparo judicial y el plazo general — nunca hubo una rama
+// "plazo propio de {nombre}" que mostrar acá.
 function motivoPlazo(paciente: Paciente | undefined): string {
   if (paciente?.amparoJudicial) return `amparo judicial (${PLAZO_COBRO_AMPARO_DIAS} días)`;
   return `plazo general (${PLAZO_COBRO_DEFAULT_DIAS} días)`;

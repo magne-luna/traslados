@@ -88,14 +88,15 @@ export interface Factura {
   fechaTope: string;
   tipoComprobante: TipoComprobante;
   /**
-   * Referencia por id al `Prestador` elegido (change `factura-por-prestador`, design.md D1/D3),
-   * nunca embebido — mismo criterio que `pacienteId`/`domicilioId`. Ausente cuando
-   * `ObraSocial.modalidadFacturacion === 'general'` o cuando la obra social no tiene ningún
-   * `Prestador` vinculado. Cuando está presente, `tipoComprobante` se fija desde
-   * `Prestador.tipoComprobante` y queda de solo lectura en el form (D3) — no valida acá, es
-   * responsabilidad del form (`FacturaForm.tsx`).
+   * Nombre y domicilio del prestador que efectivamente realizó la prestación (change
+   * `sacar-prestadores`, revierte `factura-por-prestador`): texto libre cargado a mano por
+   * factura, sin entidad ni repository detrás — Andrea (Traslado Personalizado) es la única
+   * prestadora real, así que no amerita un maestro propio. Ausentes cuando
+   * `ObraSocial.modalidadFacturacion === 'general'`. Ambos deben estar completos antes de que el
+   * form arme la vista previa de la descripción (`FacturaForm.tsx`, `faltaCompletarPrestador`).
    */
-  prestadorId?: string;
+  prestadorNombre?: string;
+  prestadorDomicilio?: string;
 
   // --- Agregados sobre el docx (documentados con su discrepancia, design.md §Discrepancias) ---
 
