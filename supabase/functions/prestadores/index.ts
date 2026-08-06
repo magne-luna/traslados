@@ -53,16 +53,16 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('obra_social').from('prestadores').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('obra_social').from('prestadores').select('*').eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'prestador no encontrado' });
       return jsonResponse(200, toApi(data as PrestadorRow));
     }
-    const { data, error } = await admin.schema('obra_social').from('prestadores').select('*').order('razon_social');
+    const { data, error } = await userClient.schema('obra_social').from('prestadores').select('*').order('razon_social');
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(200, (data as PrestadorRow[]).map(toApi));
   }
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
     if (!body.nombre || !body.cuit) {
       return jsonResponse(400, { error: 'faltan campos requeridos: nombre, cuit' });
     }
-    const { data, error } = await admin.schema('obra_social').from('prestadores').insert(toDb(body)).select('*').single();
+    const { data, error } = await userClient.schema('obra_social').from('prestadores').insert(toDb(body)).select('*').single();
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(201, toApi(data as PrestadorRow));
   }
@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('obra_social')
       .from('prestadores')
       .update(toDb(body))
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id del prestador en la URL' });
-    const { error } = await admin.schema('obra_social').from('prestadores').delete().eq('id', id);
+    const { error } = await userClient.schema('obra_social').from('prestadores').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

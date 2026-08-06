@@ -37,12 +37,12 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (!pacienteId) return jsonResponse(400, { error: 'falta ?pacienteId=' });
 
   if (req.method === 'GET') {
-    const { data, error } = await admin.schema('pacientes').from('clinicos').select('*').eq('paciente_id', pacienteId).maybeSingle();
+    const { data, error } = await userClient.schema('pacientes').from('clinicos').select('*').eq('paciente_id', pacienteId).maybeSingle();
     if (error) return jsonResponse(400, { error: error.message });
     if (!data) return jsonResponse(404, { error: 'sin datos clinicos para este paciente' });
     return jsonResponse(200, toApi(data as ClinicosRow));
@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('pacientes')
       .from('clinicos')
       .upsert({ paciente_id: pacienteId, diagnostico: body.diagnostico, condicion: body.condicion }, { onConflict: 'paciente_id' })

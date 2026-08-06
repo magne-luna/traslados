@@ -45,16 +45,16 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('facturacion').from('cobros').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('facturacion').from('cobros').select('*').eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'cobro no encontrado' });
       return jsonResponse(200, toApi(data as CobroRow));
     }
-    let query = admin.schema('facturacion').from('cobros').select('*');
+    let query = userClient.schema('facturacion').from('cobros').select('*');
     if (facturaId) query = query.eq('facturas_id', facturaId);
     const { data, error } = await query.order('fecha');
     if (error) return jsonResponse(400, { error: error.message });
@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
     if (!body.facturaId || !body.fecha || body.montoPagado === undefined) {
       return jsonResponse(400, { error: 'faltan campos requeridos: facturaId, fecha, montoPagado' });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('facturacion')
       .from('cobros')
       .insert({ facturas_id: body.facturaId, fecha: body.fecha, monto_pagado: body.montoPagado })
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id del cobro en la URL' });
-    const { error } = await admin.schema('facturacion').from('cobros').delete().eq('id', id);
+    const { error } = await userClient.schema('facturacion').from('cobros').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

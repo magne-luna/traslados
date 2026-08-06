@@ -92,11 +92,11 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === "GET") {
     if (id) {
-      const { data, error } = await admin
+      const { data, error } = await userClient
         .schema("obra_social")
         .from("obra_social")
         .select("*")
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
         return jsonResponse(404, { error: "obra social no encontrada" });
       return jsonResponse(200, toApi(data as ObraSocialRow));
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema("obra_social")
       .from("obra_social")
       .select("*")
@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
         error: "faltan campos requeridos: nombre, cuit",
       });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema("obra_social")
       .from("obra_social")
       .insert(toDb(body))
@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: "body invalido, se espera JSON" });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema("obra_social")
       .from("obra_social")
       .update(toDb(body))
@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
       return jsonResponse(400, {
         error: "falta el id de la obra social en la URL",
       });
-    const { error } = await admin
+    const { error } = await userClient
       .schema("obra_social")
       .from("obra_social")
       .delete()

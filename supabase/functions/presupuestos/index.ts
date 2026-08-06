@@ -65,16 +65,16 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('facturacion').from('presupuesto').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('facturacion').from('presupuesto').select('*').eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'presupuesto no encontrado' });
       return jsonResponse(200, toApi(data as PresupuestoRow));
     }
-    const { data, error } = await admin.schema('facturacion').from('presupuesto').select('*').order('fecha_emision', { ascending: false });
+    const { data, error } = await userClient.schema('facturacion').from('presupuesto').select('*').order('fecha_emision', { ascending: false });
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(200, (data as PresupuestoRow[]).map(toApi));
   }
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     if (!body.pacienteId || !body.obraSocialId || body.monto === undefined || !body.fechaEmision) {
       return jsonResponse(400, { error: 'faltan campos requeridos: pacienteId, obraSocialId, monto, fechaEmision' });
     }
-    const { data, error } = await admin.schema('facturacion').from('presupuesto').insert(toDb(body)).select('*').single();
+    const { data, error } = await userClient.schema('facturacion').from('presupuesto').insert(toDb(body)).select('*').single();
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(201, toApi(data as PresupuestoRow));
   }
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('facturacion')
       .from('presupuesto')
       .update(toDb(body))
@@ -116,7 +116,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id del presupuesto en la URL' });
-    const { error } = await admin.schema('facturacion').from('presupuesto').delete().eq('id', id);
+    const { error } = await userClient.schema('facturacion').from('presupuesto').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

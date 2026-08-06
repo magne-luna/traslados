@@ -46,17 +46,17 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (req.method === 'GET') {
     if (id) {
-      const { data, error } = await admin.schema('conductores').from('documentacion_vehiculo').select('*').eq('id', id).maybeSingle();
+      const { data, error } = await userClient.schema('conductores').from('documentacion_vehiculo').select('*').eq('id', id).maybeSingle();
       if (error) return jsonResponse(400, { error: error.message });
       if (!data) return jsonResponse(404, { error: 'documento no encontrado' });
       return jsonResponse(200, toApi(data as DocumentoRow));
     }
     if (!vehiculoId) return jsonResponse(400, { error: 'falta ?vehiculoId= para listar' });
-    const { data, error } = await admin.schema('conductores').from('documentacion_vehiculo').select('*').eq('vehiculo_id', vehiculoId);
+    const { data, error } = await userClient.schema('conductores').from('documentacion_vehiculo').select('*').eq('vehiculo_id', vehiculoId);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(200, (data as DocumentoRow[]).map(toApi));
   }
@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
     if (!body.vehiculoId || !body.tipoDocumento || !body.archivoUrl) {
       return jsonResponse(400, { error: 'faltan campos requeridos: vehiculoId, tipoDocumento, archivoUrl' });
     }
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('conductores')
       .from('documentacion_vehiculo')
       .insert({ vehiculo_id: body.vehiculoId, tipo_documento: body.tipoDocumento, archivo_url: body.archivoUrl })
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
 
   if (req.method === 'DELETE') {
     if (!id) return jsonResponse(400, { error: 'falta el id del documento en la URL' });
-    const { error } = await admin.schema('conductores').from('documentacion_vehiculo').delete().eq('id', id);
+    const { error } = await userClient.schema('conductores').from('documentacion_vehiculo').delete().eq('id', id);
     if (error) return jsonResponse(400, { error: error.message });
     return jsonResponse(204, null);
   }

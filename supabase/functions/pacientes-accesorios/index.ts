@@ -20,12 +20,12 @@ Deno.serve(async (req) => {
 
   const ctx = await requirePermiso(req, MODULO, nivel);
   if (!isAuthorized(ctx)) return ctx;
-  const { admin } = ctx;
+  const { userClient } = ctx;
 
   if (!pacienteId) return jsonResponse(400, { error: 'falta ?pacienteId=' });
 
   if (req.method === 'GET') {
-    const { data, error } = await admin
+    const { data, error } = await userClient
       .schema('pacientes')
       .from('accesorios_pacientes')
       .select('accesorios(tipo)')
@@ -50,14 +50,14 @@ Deno.serve(async (req) => {
       return jsonResponse(400, { error: `valores invalidos: ${invalidos.join(', ')}` });
     }
 
-    const { data: catalogo, error: catalogoError } = await admin
+    const { data: catalogo, error: catalogoError } = await userClient
       .schema('pacientes')
       .from('accesorios')
       .select('id, tipo')
       .in('tipo', body.accesorios);
     if (catalogoError) return jsonResponse(400, { error: catalogoError.message });
 
-    const { error: deleteError } = await admin
+    const { error: deleteError } = await userClient
       .schema('pacientes')
       .from('accesorios_pacientes')
       .delete()
@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
 
     if (catalogo.length > 0) {
       const filas = catalogo.map((c: { id: string }) => ({ paciente_id: pacienteId, accesorio_id: c.id }));
-      const { error: insertError } = await admin.schema('pacientes').from('accesorios_pacientes').insert(filas);
+      const { error: insertError } = await userClient.schema('pacientes').from('accesorios_pacientes').insert(filas);
       if (insertError) return jsonResponse(400, { error: insertError.message });
     }
 
