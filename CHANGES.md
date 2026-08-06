@@ -292,7 +292,8 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   contra el proyecto Supabase real (`pkryfoljypuzfifofdwp`) — la nota de arriba de "no aplicada"
   era incorrecta. `supabase_migrations.schema_migrations` las tiene registradas y hay datos reales
   sembrados (`obra_social.prestadores`: 2 filas, `obra_social.obra_social_prestador`: 3 filas). Ver
-  el bullet `sacar-prestadores` más abajo y `openspec/changes/sacar-prestadores/design.md` D3.
+  el bullet `sacar-prestadores` más abajo y
+  `openspec/changes/archive/2026-08-06-sacar-prestadores/design.md` D3.
 
   **Los 5 supuestos de abajo son la premisa
   de toda la rama y NINGUNO está confirmado con Andrea** (ver `proposal.md`/`design.md` de
@@ -344,7 +345,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   completo `prestadores-crud` y `factura-por-prestador` de arriba. Andrea (Traslado Personalizado)
   es la única prestadora real de la operación; la tercerización con Uber/remis es mínima y no
   estructurada — no amerita un módulo de gestión propio. Ver
-  `openspec/changes/sacar-prestadores/{proposal,design,tasks}.md`.
+  `openspec/changes/archive/2026-08-06-sacar-prestadores/{proposal,design,tasks}.md`.
   - **Frontend, borrado completo**: `features/prestadores/` (10 archivos), `shared/types/
     prestador.ts`, `shared/lib/prestadores/` (5 archivos), `shared/lib/mocks/
     mockPrestadorRepository.ts`+test, `shared/lib/mocks/prestadoresFixture.ts`,
@@ -405,7 +406,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 - **✅ RESUELTO (2026-08-01)** — discrepancia backend/frontend detectada en merge 2026-07-31: el
   punto de arriba (frontend, `vehiculo-mantenimiento-registro`) describía `gasto_vehiculo`/
   `mantenimiento_registro` como dos tablas reales separadas, sin FK. Reconciliado contra
-  `openspec/changes/C-08-vehiculos-mantenimiento/` de Enzo, ya mergeado a `main` (commit `f840a96`):
+  `openspec/changes/archive/2026-08-06-C-08-vehiculos-mantenimiento/` de Enzo, ya mergeado a `main` (commit `f840a96`):
   **la versión de Enzo es la que va** — los gastos viven como filas `categoria = 'gasto'` dentro de
   `conductores.mantenimiento` (columnas `monto`/`descripcion`/`categoria_gasto` de
   `20260730110000_schema_vehiculo_gaps.sql`), no en `facturacion.gastos_vehiculos` (que queda
@@ -469,11 +470,14 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   propio, distinto de `documentacion_vehiculo`). Edge Functions `vehiculos` (habilitaciones,
   gastos y `accesoriosCompatibles` embebidos con reemplazo completo) y `vehiculo-documentos`
   (mismo patrón que `pacientes-documentos`). Detalle en
-  `openspec/changes/C-08-vehiculos-mantenimiento/`. **Falta**: `supabase db push` + deploy de
-  las 2 funciones (requiere OK explícito); una Edge Function para registrar mantenimiento
-  preventivo/correctivo cuando el frontend tenga esa pantalla (hoy no existe, `gasto`/
-  `kilometrajeUltimoService` son los únicos casos con consumidor real); el campo `Notas` (3er
-  punto de la discrepancia) queda igual de pendiente que antes, del lado frontend.
+  `openspec/changes/archive/2026-08-06-C-08-vehiculos-mantenimiento/`. ✅ **Deploy confirmado
+  (2026-08-06)**: migración `20260730110000_schema_vehiculo_gaps.sql` aplicada contra el proyecto
+  Supabase real (`pkryfoljypuzfifofdwp`, `supabase migration list --linked` con local == remote) y
+  ambas funciones (`vehiculos`, `vehiculo-documentos`) `ACTIVE` (`supabase functions list`). Queda
+  pendiente: una Edge Function para registrar mantenimiento preventivo/correctivo cuando el
+  frontend tenga esa pantalla (hoy no existe, `gasto`/`kilometrajeUltimoService` son los únicos
+  casos con consumidor real); el campo `Notas` (3er punto de la discrepancia) queda igual de
+  pendiente que antes, del lado frontend.
 
 ---
 
@@ -784,11 +788,14 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `dependencia_y_retorno`, `domicilio_id`, `identificador_origen`/`identificador_valor`). Edge
   Functions `facturas` (asistencias embebidas con reemplazo completo, mapeo de `estado` porque el
   enum de la base todavía tiene `'pendiente'`) y `cobros` (sin `PATCH`, `CobroRepository` no lo
-  tiene). Detalle en `openspec/changes/C-07-facturacion-asistencias-cobros/`. **Falta**:
-  `supabase db push` + deploy de las 2 funciones (requiere OK explícito), y confirmar con el
-  cliente los defaults de `10_preguntas_abiertas.md` antes de implementar la validación de cupo y
-  el cálculo de fecha estimada de cobro como lógica de servidor (hoy son funciones puras del
-  frontend, no replicadas acá).
+  tiene). Detalle en `openspec/changes/archive/2026-08-06-C-07-facturacion-asistencias-cobros/`.
+  ✅ **Deploy confirmado (2026-08-06)**: migración `20260730100000_schema_factura_gaps.sql`
+  aplicada contra el proyecto Supabase real (`pkryfoljypuzfifofdwp`, `supabase migration list
+  --linked` con local == remote) y ambas funciones (`facturas`, `cobros`) `ACTIVE` (`supabase
+  functions list`). Queda pendiente: confirmar con el cliente los defaults de
+  `10_preguntas_abiertas.md` antes de implementar la validación de cupo y el cálculo de fecha
+  estimada de cobro como lógica de servidor (hoy son funciones puras del frontend, no replicadas
+  acá).
 - **🔶 Propose completo del swap de backend** (`integracion-facturacion`, 2026-07-31):
   `proposal.md` + `design.md` (14 decisiones D1-D14) + `tasks.md` + 5 delta specs
   (`factura-repository-supabase` nueva, `factura-contract`/`factura-estados-circuito`/
