@@ -15,6 +15,10 @@ function buildFakeRepository(overrides: Partial<DocumentoRepository> = {}): Docu
     listByEntity: vi.fn((_entidad: EntidadDocumental, _entidadId: string) => Promise.resolve<DocumentoAdjunto[]>([])),
     upload: vi.fn(),
     remove: vi.fn().mockResolvedValue(undefined),
+    // documentos-previsualizacion (tasks.md 1.2): cuarto método del contrato, agregado acá para que
+    // el fake siga siendo asignable a `DocumentoRepository` — sin default, este archivo vuelve a
+    // aparecer en la lista de 15 archivos rojos de `npx tsc -b --noEmit` que dejó anotada 1.3.
+    resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
 }
@@ -99,5 +103,104 @@ describe('useDocumentChecklist — remove() filtra por id de documento (tasks.md
 
     expect(repository.remove).toHaveBeenCalledWith('paciente', 'p1', 'doc-1');
     expect(result.current.documentos).toEqual([dos]);
+  });
+});
+
+// documentos-previsualizacion (tasks.md 4.1/4.2): el hook expone una función que delega en
+// repository.resolverPrevisualizacion(entidad, entidadId, documentoId) — no guarda la URL en el
+// estado del hook (D2 de design.md), así que no hay nada que leer de `result.current` más allá de
+// la propia función: se testea el valor resuelto/rechazado de la promesa que devuelve.
+describe('useDocumentChecklist — resolverPrevisualizacion() delega en el repository (tasks.md 4.1)', () => {
+  it('delega en repository.resolverPrevisualizacion con entidad, entidadId y el documentoId pedido', async () => {
+    const repository = buildFakeRepository({
+      resolverPrevisualizacion: vi.fn().mockResolvedValue('blob:mock-url'),
+    });
+
+    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.resolverPrevisualizacion('doc-1');
+    });
+
+    expect(repository.resolverPrevisualizacion).toHaveBeenCalledWith('paciente', 'p1', 'doc-1');
+  });
+});
+
+describe('useDocumentChecklist — resolverPrevisualizacion() maneja los tres desenlaces del contrato (tasks.md 4.2)', () => {
+  it('resuelto: devuelve la URL tal cual la resolvió el repository', async () => {
+    const repository = buildFakeRepository({
+      resolverPrevisualizacion: vi.fn().mockResolvedValue('blob:doc-1-url'),
+    });
+    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let url: string | null = null;
+    await act(async () => {
+      url = await result.current.resolverPrevisualizacion('doc-1');
+    });
+
+    expect(url).toBe('blob:doc-1-url');
+  });
+
+  it('null: no es un error — la promesa resuelve null sin lanzar', async () => {
+    const repository = buildFakeRepository({
+      resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+    });
+    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let url: string | null = 'sin-tocar';
+    await act(async () => {
+      url = await result.current.resolverPrevisualizacion('doc-sin-contenido');
+    });
+
+    expect(url).toBeNull();
+  });
+
+  it('error: la promesa rechaza con el error real, no lo traga ni lo convierte en null', async () => {
+    const fallo = new Error('403: sin permiso para este documento');
+    const repository = buildFakeRepository({
+      resolverPrevisualizacion: vi.fn().mockRejectedValue(fallo),
+    });
+    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await expect(result.current.resolverPrevisualizacion('doc-1')).rejects.toThrow(
+      '403: sin permiso para este documento',
+    );
+
+    // El error de resolverPrevisualizacion() es independiente de la carga inicial del checklist:
+    // no debe dejar el estado general del hook en "cargando" (mismo criterio que usePacientes.ts
+    // aplica con su try/catch/finally para la carga inicial).
+    expect(result.current.loading).toBe(false);
+  });
+});
+
+// documentos-previsualizacion (tasks.md 4.3): revocar el ObjectURL que el hook resolvió para
+// mostrarlo en la ventana. Distinto del revoke que ya hace el mock en remove() (tasks.md 2.3) sobre
+// el store interno del repository — este es el de la URL que quedó en manos del consumidor mientras
+// la ventana estuvo abierta.
+describe('useDocumentChecklist — revocarPrevisualizacion() libera el ObjectURL (tasks.md 4.3)', () => {
+  it('llama a URL.revokeObjectURL exactamente una vez con la URL resuelta', async () => {
+    const repository = buildFakeRepository({
+      resolverPrevisualizacion: vi.fn().mockResolvedValue('blob:doc-1-url'),
+    });
+    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+
+    let url: string | null = null;
+    await act(async () => {
+      url = await result.current.resolverPrevisualizacion('doc-1');
+    });
+    act(() => {
+      result.current.revocarPrevisualizacion(url as string);
+    });
+
+    expect(revokeSpy).toHaveBeenCalledTimes(1);
+    expect(revokeSpy).toHaveBeenCalledWith('blob:doc-1-url');
+    revokeSpy.mockRestore();
   });
 });

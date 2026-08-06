@@ -352,15 +352,82 @@
 
 ## 4. `useDocumentChecklist` — exponer la resolución a la UI
 
-- [ ] 4.1 (RED→GREEN) Exponer desde el hook la capacidad de resolver la previsualización de un
+- [x] 4.1 (RED→GREEN) Exponer desde el hook la capacidad de resolver la previsualización de un
       documento por su `id`, delegando en el repository inyectado. No guardar la URL en el estado del
       hook más allá de lo que dure la ventana abierta — es un dato efímero (D2).
-- [ ] 4.2 (RED→GREEN→TRIANGULATE) Manejar los tres desenlaces del contrato: resuelto, `null` (no
+      **Hecho (2026-08-06)**: safety net previo sobre `useDocumentChecklist.test.tsx` (único archivo
+      de test existente tocado): 3/3 passing antes de escribir nada. RED confirmado: nuevo describe
+      `'useDocumentChecklist — resolverPrevisualizacion() delega en el repository (tasks.md 4.1)'`
+      fallando con `TypeError: result.current.resolverPrevisualizacion is not a function` (señal de
+      runtime real, mismo criterio que 3.1/2.2 — no solo de tipos). Implementado: `resolverPrevisualizacion(documentoId)`,
+      un `useCallback` que devuelve directo `repository.resolverPrevisualizacion(entidad, entidadId, documentoId)`,
+      **sin** `useState` propio para la URL — se verificó leyendo el resto del hook (`upload`/`remove`)
+      que el único estado persistido es `documentos`/`loading`; acá no se agrega ningún `useState`
+      nuevo, la función es pura delegación. GREEN confirmado: test pasa, `repository.resolverPrevisualizacion`
+      llamado con `('paciente', 'p1', 'doc-1')`. **Desviación del texto literal**: para que este test
+      (y los de 4.2/4.3) tipen contra `DocumentoRepository` — que desde 1.2 exige el método como
+      obligatorio — se agregó un default `resolverPrevisualizacion: vi.fn().mockResolvedValue(null)`
+      a `buildFakeRepository()` en este mismo archivo. Esto no estaba en el texto de 4.1, pero era
+      inevitable: sin ese default, los objetos devueltos por `buildFakeRepository({...})` no son
+      asignables a `DocumentoRepository` y el archivo no compila. Efecto colateral verificado: este
+      archivo **sale** de la lista de "15 archivos rojos" que dejó anotada 1.3/2.4 (baja a 14) — no
+      se tocó ningún otro de los 14 restantes, confirmado con `tsc -b --noEmit` antes/después.
+- [x] 4.2 (RED→GREEN→TRIANGULATE) Manejar los tres desenlaces del contrato: resuelto, `null` (no
       previsualizable) y error. Triangular los tres; el error **no** debe dejar el estado en "cargando"
       (D5 de `design.md`, mismo criterio que el spec de `paciente-documentos` ya exige para la carga
       del checklist).
-- [ ] 4.3 (RED→GREEN) Revocar el `ObjectURL` al cerrar la ventana / desmontar, para no filtrar memoria
+      **Hecho (2026-08-06)**, mismo ciclo RED→GREEN que 4.1 (3 tests nuevos, cada uno un desenlace
+      distinto, no un solo test genérico con mocks intercambiados): (1) **resuelto** —
+      `repository.resolverPrevisualizacion` resuelve `'blob:doc-1-url'` → la función del hook
+      devuelve exactamente esa URL; (2) **`null`** — resuelve `null` → la función del hook resuelve
+      `null` sin lanzar (verificado explícitamente que la promesa **no** rechaza en este caso, es el
+      caso normal según D2: documento sin contenido previsualizable); (3) **error** — el repository
+      **rechaza** con `new Error('403: sin permiso para este documento')` → verificado con
+      `.rejects.toThrow('403: sin permiso para este documento')` que la función del hook **propaga
+      el error real**, no lo traga ni lo convierte en `null`. Se revisó primero cómo maneja errores
+      el resto del hook (no hay ningún `try/catch` en `upload`/`remove` tampoco — dejan que el error
+      de `repository.*` se propague sin capturar, y es el `try/finally` de quien llama —
+      `usePacientes.ts` es el patrón externo del proyecto para eso— el que apaga su propio
+      "cargando"); se siguió el mismo criterio acá en vez de inventar un `try/catch` nuevo dentro
+      del hook. **Verificación explícita del requisito "no debe dejar el estado en cargando"**: tras
+      el `.rejects.toThrow(...)` del caso (3), se afirma `result.current.loading` sigue en `false`
+      — el error de `resolverPrevisualizacion()` no toca ni deja colgado el `loading` general del
+      hook (que es de la carga inicial del checklist, un estado completamente distinto). RED
+      confirmado antes de implementar (mismos 3 tests fallando con
+      `TypeError: result.current.resolverPrevisualizacion is not a function`, agrupados en el mismo
+      commit RED que 4.1 — no se implementó nada entre escribir estos tests y correr el RED). GREEN
+      confirmado: 8/8 passing (3 preexistentes + 5 nuevos de 4.1-4.3), corrido dos veces para
+      descartar flakiness — estable en ambas.
+- [x] 4.3 (RED→GREEN) Revocar el `ObjectURL` al cerrar la ventana / desmontar, para no filtrar memoria
       durante una sesión larga.
+      **Hecho (2026-08-06)**, mismo ciclo RED→GREEN que 4.1/4.2: RED confirmado (mismo
+      `TypeError: ... is not a function`, ahora sobre `revocarPrevisualizacion`). Implementado:
+      `revocarPrevisualizacion(url)`, función pura (sin `useState`, sin `useEffect`) que llama
+      `URL.revokeObjectURL(url)`. **Decisión de diseño, documentada acá porque no es 1:1 con el
+      texto literal de la tarea**: el hook **no** rastrea internamente "cuál es la URL actualmente
+      abierta" para revocarla solo en unmount de forma automática — eso violaría 4.1 ("no guardar la
+      URL en el estado del hook... el hook expone una función, no un valor que vive en el estado
+      global del checklist"). En su lugar, el hook expone la función de revocación como una segunda
+      pieza simétrica a `resolverPrevisualizacion()`: `<DocumentChecklist />` (D3, §5 — fuera de
+      alcance de este pase) es quien sabe "qué documento y qué URL está mostrando ahora mismo" y
+      quien decide cuándo llamarla (al cerrar con Escape/backdrop/botón, y en el cleanup de su
+      propio `useEffect` de desmontaje) — el hook solo provee el mecanismo de revocar de forma
+      centralizada y testeable, sin duplicar estado. `URL.revokeObjectURL` es un no-op inofensivo
+      si la URL no vino de `URL.createObjectURL` (p. ej. una URL firmada real de
+      `integracion-documentos`), así que la función sirve sin cambios cuando el repository deje de
+      ser el mock. Test: `vi.spyOn(URL, 'revokeObjectURL')` — llamado exactamente 1 vez con la URL
+      resuelta por `resolverPrevisualizacion()` en el mismo test (end-to-end: resolver → revocar,
+      no un spy aislado). GREEN confirmado. Nota: el mock ya revoca su propio `ObjectURL` en
+      `remove()` (tasks.md 2.3) sobre el store interno del repository — esto es un revoke distinto,
+      de la URL que quedó en manos del consumidor del hook mientras la ventana estuvo abierta, sin
+      relación con el store del mock.
+      **Verificación de cierre de §4 (2026-08-06)**: `cd frontend && npx vitest run src/shared/lib/documentos/useDocumentChecklist.test.tsx`:
+      8/8 passing, dos corridas, estable. `cd frontend && npx tsc -b --noEmit`: baja de 15 a **14**
+      archivos rojos (mismos 14 de la lista de 1.3/2.4 menos `useDocumentChecklist.test.tsx`, que
+      salió por el default agregado a `buildFakeRepository()` en 4.1 — ningún otro archivo cambió de
+      estado, verificado con diff exacto de la lista antes/después). `npx oxlint` sobre
+      `useDocumentChecklist.ts` y `useDocumentChecklist.test.tsx`: exit 0, sin hallazgos. **No se
+      avanzó a §5.**
 
 ## 5. `DocumentChecklist.tsx` — acción "Ver" y montaje del overlay (D3, D4)
 
