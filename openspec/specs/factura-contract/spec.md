@@ -9,7 +9,11 @@ El sistema SHALL definir los tipos TypeScript del dominio en `frontend/src/share
 
 #### Scenario: Campos agregados sobre el docx para soportar las reglas de negocio
 - **WHEN** se declara `Factura`
-- **THEN** contiene además `cantidadKm: number` (necesario para el cupo de km, RN-FA-02) y `fechaEstimadaCobro?: string` (RN-FA-04), ambos comentados como campos **agregados sobre el docx** (design.md Discrepancias 3 y 4), más los campos estructurados de la descripción (`prestacion`, `mesFacturado`, `anioFacturado`, `dependenciaYRetorno`, `domicilioId`, `identificadorFactura`) y `fechaFactura?`
+- **THEN** contiene además `cantidadKm: number` (necesario para el cupo de km, RN-FA-02), `fechaEstimadaCobro?: string` (RN-FA-04) y `prestadorNombre?: string`/`prestadorDomicilio?: string` (nombre y domicilio del prestador que realizó la prestación, texto libre sin entidad, presentes solo cuando `ObraSocial.modalidadFacturacion === 'por-prestacion'`), todos comentados como campos **agregados sobre el docx** (design.md Discrepancias 3 y 4), más los campos estructurados de la descripción (`prestacion`, `mesFacturado`, `anioFacturado`, `dependenciaYRetorno`, `domicilioId`, `identificadorFactura`) y `fechaFactura?`
+
+#### Scenario: `prestadorNombre`/`prestadorDomicilio` son texto libre, no una referencia
+- **WHEN** se declaran `Factura.prestadorNombre` y `Factura.prestadorDomicilio`
+- **THEN** ambos son `string` opcionales, flat sobre `Factura` (mismo estilo que el resto del tipo, nunca un objeto anidado), sin ningún `prestadorId` ni referencia a una entidad `Prestador` — el sistema no define ningún tipo `Prestador`
 
 #### Scenario: Período estructurado, no texto libre
 - **WHEN** se declara el período que cubre la factura

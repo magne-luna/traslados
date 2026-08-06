@@ -98,11 +98,11 @@ significa que `20260806180000_sacar_prestadores.sql` es una reversión real de e
 no un "deshacer algo que nunca llegó a existir" — ver D3 de `design.md` y la corrección agregada a
 `CHANGES.md`.
 
-**Acciones pendientes de Enzo (bloqueantes para que este change tenga efecto real)**:
-1. Aplicar `20260806180000_sacar_prestadores.sql` con `supabase db push` cuando esté listo — esto
-   sí borra datos reales (2 prestadores, 3 vínculos).
-2. Ejecutar `supabase functions delete prestadores --project-ref pkryfoljypuzfifofdwp` — borrar la
-   carpeta local `supabase/functions/prestadores/` NO da de baja la función ya deployada.
+**Acciones de Enzo — ✅ ambas ejecutadas el 2026-08-06**:
+1. `supabase db push --linked` — aplicó `20260806180000_sacar_prestadores.sql` contra
+   `pkryfoljypuzfifofdwp`, borrando los datos reales (2 prestadores, 3 vínculos).
+2. `supabase functions delete prestadores --project-ref pkryfoljypuzfifofdwp` — dio de baja la
+   función ya deployada.
 
 **Fuera de scope** (ver D1 de `design.md`, checkpoint resuelto): las columnas vestigiales
 `plazo_cobro_dias`/`tipo_comprobante` en `obra_social.obra_social` (de una migración anterior a
