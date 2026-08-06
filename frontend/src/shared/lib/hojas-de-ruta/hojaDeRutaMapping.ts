@@ -19,6 +19,7 @@
 
 import type {
   ActualizacionHojaDeRuta,
+  Coordenada,
   HojaDeRuta,
   NuevaHojaDeRuta,
   ParadaRecorrido,
@@ -137,7 +138,13 @@ export function parseRecorridoRow(row: unknown): RecorridoCamposBase | null {
 /** `pacientes.historial_recorridos` (fila con `recorrido_id` NOT NULL) -> `ParadaRecorrido`.
  *  Devuelve `null` ante una fila malformada (campos requeridos por el dominio ausentes o fuera
  *  de la unión cerrada de `Tramo`) — la robustez de la colección la maneja quien la agrupa.
- *  `coordenadaOrigen` queda `undefined` siempre: Checkpoint 2, la base no persiste coordenadas. */
+ *  `coordenadaOrigen` queda `undefined` acá SIEMPRE — el `SELECT` de esta fila no trae lat/lng
+ *  (viven en `pacientes.direcciones`, no en `historial_recorridos`). Ya no es la última palabra
+ *  (Checkpoint 2 de `integracion-hojas-de-ruta` quedó resuelto por el change
+ *  `hojas-de-ruta-geocoding`, RF-701): `SupabaseHojaDeRutaRepository` enriquece el agregado
+ *  después con `aplicarCoordenadasOrigen`, resolviendo cada `direccionOrigenId` contra
+ *  `pacientes.direcciones.lat/lng` ya geocodeados. Acá, en el parseo puro de la fila, sigue
+ *  quedando `undefined` a propósito — es una responsabilidad de otra capa, no de este parser. */
 export function parseParadaRow(row: unknown): ParadaRecorrido | null {
   if (!isRecord(row)) return null;
 
@@ -227,6 +234,57 @@ export function ensamblarHojaDeRuta(
     franjaFin: base.franjaFin,
     notas: base.notas,
     recorridos: ordenarPorIdAsc(recorridos),
+  };
+}
+
+// -------------------------------------------------------------------------------------------
+// Enriquecimiento de coordenadas (change hojas-de-ruta-geocoding, RF-701, resuelve Checkpoint 2
+// de integracion-hojas-de-ruta/design.md). Dos funciones puras: traducir las filas crudas de
+// `pacientes.direcciones` a un mapa `id -> Coordenada`, y aplicar ese mapa sobre un `HojaDeRuta`
+// ya ensamblado. El I/O (la consulta batch a `pacientes.direcciones`) vive en
+// `SupabaseHojaDeRutaRepository.ts` — acá solo se traduce, mismo criterio que el resto del archivo.
+// -------------------------------------------------------------------------------------------
+
+/** `pacientes.direcciones` (columnas `id, lat, lng`) -> mapa `id -> Coordenada`. Una fila sin `id`
+ *  string, o con `lat`/`lng` no numéricos (NULL — dirección todavía sin geocodificar, o geocoding
+ *  fallido) se excluye del mapa en silencio: no es un error, es el estado esperado de cualquier
+ *  dirección que nunca se guardó/editó desde que existe este change. Nunca lanza. */
+export function parseCoordenadasPorDireccion(rows: unknown): Map<string, Coordenada> {
+  const mapa = new Map<string, Coordenada>();
+  if (!Array.isArray(rows)) return mapa;
+
+  for (const row of rows) {
+    if (!isRecord(row)) continue;
+    const id = row['id'];
+    const lat = row['lat'];
+    const lng = row['lng'];
+    if (typeof id !== 'string' || id === '') continue;
+    if (typeof lat !== 'number' || typeof lng !== 'number') continue;
+    mapa.set(id, { lat, lng });
+  }
+
+  return mapa;
+}
+
+/** Aplica un mapa `direccionId -> Coordenada` (ya resuelto por I/O) sobre un `HojaDeRuta`
+ *  ensamblado: cada `ParadaRecorrido.coordenadaOrigen` se resuelve contra su `direccionOrigenId`.
+ *  Un mapa vacío devuelve la MISMA referencia de `hoja` sin recorrer nada (atajo barato para el
+ *  caso común — hoja sin ninguna dirección todavía geocodificada). Una parada cuyo
+ *  `direccionOrigenId` no está en el mapa conserva su `coordenadaOrigen` tal cual llegó (`undefined`
+ *  desde `parseParadaRow`, siempre) — nunca se fuerza a `undefined` explícitamente, así la función
+ *  es igual de válida si en el futuro `parada.coordenadaOrigen` llega con algo. */
+export function aplicarCoordenadasOrigen(hoja: HojaDeRuta, coordenadas: ReadonlyMap<string, Coordenada>): HojaDeRuta {
+  if (coordenadas.size === 0) return hoja;
+
+  return {
+    ...hoja,
+    recorridos: hoja.recorridos.map((recorrido) => ({
+      ...recorrido,
+      paradas: recorrido.paradas.map((parada) => ({
+        ...parada,
+        coordenadaOrigen: coordenadas.get(parada.direccionOrigenId) ?? parada.coordenadaOrigen,
+      })),
+    })),
   };
 }
 

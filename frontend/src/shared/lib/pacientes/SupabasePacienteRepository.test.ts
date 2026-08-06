@@ -13,7 +13,15 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 // SupabaseCuentaRepository.test.ts: código fuente como string en build time.
 import supabasePacienteRepositorySource from './SupabasePacienteRepository.ts?raw';
 import { ensamblarPaciente } from './pacienteMapping';
-import type { ActualizacionPaciente, NuevoPaciente } from '../../types/paciente';
+import type { ActualizacionPaciente, Direccion, NuevoPaciente } from '../../types/paciente';
+import { geocodificarDireccion } from '../googleMapsClient';
+
+// Change hojas-de-ruta-geocoding (RF-701): `geocodificarDireccion` se mockea acá (nunca golpea la
+// red real en un test) — cada `it` controla su propio resultado con `mockResolvedValueOnce`/
+// `mockImplementation`. Default: `undefined` (mismo comportamiento que "sin API key configurada"),
+// para que los tests de 3.2-3.11 que no le prestan atención al geocoding sigan pasando sin cambios.
+vi.mock('../googleMapsClient', () => ({ geocodificarDireccion: vi.fn() }));
+const geocodificarDireccionMock = vi.mocked(geocodificarDireccion);
 
 // -------------------------------------------------------------------------------------------
 // 3.1 — Fake tipado del subconjunto de supabase-js usado. Sin `any`, sin `as`. Registra todas las
@@ -171,6 +179,8 @@ const { supabasePacienteRepository } = await import('./SupabasePacienteRepositor
 
 beforeEach(() => {
   resetFake();
+  geocodificarDireccionMock.mockReset();
+  geocodificarDireccionMock.mockResolvedValue(undefined);
 });
 
 // -------------------------------------------------------------------------------------------
@@ -732,8 +742,20 @@ describe('supabasePacienteRepository.update — diff de colecciones (3.9)', () =
 
     const upserts = calls.filter((c) => c.table === 'direcciones' && c.op === 'upsert');
     expect(upserts).toHaveLength(1);
+    // RF-701: d-1 cambió de calle -> se reintenta geocodificar (el mock por defecto resuelve
+    // `undefined` -> lat/lng viajan `null` explícito). d-2 no cambió -> lat/lng ni aparecen (el
+    // upsert no debe pisar una coordenada ya guardada de una dirección sin cambios).
     expect(upserts[0]?.payload).toEqual([
-      { id: 'd-1', calle: 'San Martín 999', numero: null, tipo_lugar: 'domicilio', localidad: '', paciente_id: 'p-1' },
+      {
+        id: 'd-1',
+        calle: 'San Martín 999',
+        numero: null,
+        tipo_lugar: 'domicilio',
+        localidad: '',
+        lat: null,
+        lng: null,
+        paciente_id: 'p-1',
+      },
       { id: 'd-2', calle: 'Belgrano', numero: null, tipo_lugar: 'escuela', localidad: '', paciente_id: 'p-1' },
     ]);
   });
@@ -756,9 +778,31 @@ describe('supabasePacienteRepository.update — diff de colecciones (3.9)', () =
 
     const upserts = calls.filter((c) => c.table === 'direcciones' && c.op === 'upsert');
     expect(upserts).toHaveLength(1);
+    // RF-701: d-1 llega con `calle: 'San Martín'`, distinta del `calle` combinado que devuelve
+    // `parseDireccionRow` para la fila existente (`'San Martín 123'`, calle+numero) -> se
+    // considera cambiada y se reintenta geocodificar (mock por defecto -> `undefined` -> null
+    // explícito). d-3 es nueva -> también se geocodifica.
     expect(upserts[0]?.payload).toEqual([
-      { id: 'd-1', calle: 'San Martín', numero: null, tipo_lugar: 'domicilio', localidad: '', paciente_id: 'p-1' },
-      { id: 'd-3', calle: 'Nueva 456', numero: null, tipo_lugar: 'terapia', localidad: '', paciente_id: 'p-1' },
+      {
+        id: 'd-1',
+        calle: 'San Martín',
+        numero: null,
+        tipo_lugar: 'domicilio',
+        localidad: '',
+        lat: null,
+        lng: null,
+        paciente_id: 'p-1',
+      },
+      {
+        id: 'd-3',
+        calle: 'Nueva 456',
+        numero: null,
+        tipo_lugar: 'terapia',
+        localidad: '',
+        lat: null,
+        lng: null,
+        paciente_id: 'p-1',
+      },
     ]);
 
     const borrados = calls.filter((c) => c.table === 'direcciones' && c.op === 'delete');
@@ -1234,6 +1278,202 @@ describe('supabasePacienteRepository.create — bug 23502 formato_afiliado (task
     const mensaje = (error as Error).message;
     expect(mensaje).toBe('No se pudo guardar el paciente.');
     expect(mensaje).not.toMatch(/coberturas_paciente|violates|not-null|formato_afiliado/i);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// Geocoding de direcciones (change hojas-de-ruta-geocoding, RF-701)
+// -------------------------------------------------------------------------------------------
+
+describe('supabasePacienteRepository.create — geocoding de direcciones (RF-701)', () => {
+  function nuevoConDireccion(overrides: Partial<Direccion> = {}): NuevoPaciente {
+    return {
+      ...buildNuevoPacienteMinimo(),
+      direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'Corrientes 1000', localidad: 'CABA', ...overrides }],
+    };
+  }
+
+  it('geocodifica todas las direcciones del alta (todas son nuevas) y las manda en el payload de la RPC', async () => {
+    geocodificarDireccionMock.mockResolvedValueOnce({ lat: -34.6, lng: -58.4 });
+    configurarRpc('pacientes', 'crear_paciente_completo', () => ok('nuevo-uuid'));
+    configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente({ id: 'nuevo-uuid' })]));
+
+    await supabasePacienteRepository.create(nuevoConDireccion());
+
+    expect(geocodificarDireccionMock).toHaveBeenCalledTimes(1);
+    expect(geocodificarDireccionMock).toHaveBeenCalledWith({
+      id: 'd-1',
+      tipo: 'domicilio',
+      calle: 'Corrientes 1000',
+      localidad: 'CABA',
+    });
+
+    const rpc = calls.find((c) => c.op === 'rpc');
+    const payload = (rpc?.payload as { p_paciente: { direcciones: Array<{ lat: number | null; lng: number | null }> } })
+      .p_paciente;
+    expect(payload.direcciones[0]).toMatchObject({ lat: -34.6, lng: -58.4 });
+  });
+
+  it('un fallo de geocoding (undefined) no bloquea el alta: lat/lng viajan null, la RPC igual se llama', async () => {
+    geocodificarDireccionMock.mockResolvedValueOnce(undefined);
+    configurarRpc('pacientes', 'crear_paciente_completo', () => ok('nuevo-uuid'));
+    configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente({ id: 'nuevo-uuid' })]));
+
+    await expect(supabasePacienteRepository.create(nuevoConDireccion())).resolves.toBeDefined();
+
+    const rpc = calls.find((c) => c.op === 'rpc');
+    const payload = (rpc?.payload as { p_paciente: { direcciones: Array<{ lat: number | null; lng: number | null }> } })
+      .p_paciente;
+    expect(payload.direcciones[0]).toMatchObject({ lat: null, lng: null });
+  });
+
+  it('un paciente sin direcciones no llama a geocodificarDireccion', async () => {
+    configurarRpc('pacientes', 'crear_paciente_completo', () => ok('nuevo-uuid'));
+    configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente({ id: 'nuevo-uuid' })]));
+
+    await supabasePacienteRepository.create(buildNuevoPacienteMinimo());
+
+    expect(geocodificarDireccionMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('supabasePacienteRepository.update — geocoding de direcciones (RF-701)', () => {
+  function filaExistenteConDireccion(): Record<string, unknown> {
+    return filaPaciente({
+      direcciones: [{ id: 'd-1', calle: 'Corrientes', numero: '1000', tipo_lugar: 'domicilio', localidad: 'CABA' }],
+    });
+  }
+
+  it('una dirección sin cambios (calle/localidad idénticas) NO se re-geocodifica', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistenteConDireccion()]));
+
+    await supabasePacienteRepository.update('p-1', {
+      direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'Corrientes 1000', localidad: 'CABA' }],
+    });
+
+    expect(geocodificarDireccionMock).not.toHaveBeenCalled();
+  });
+
+  it('una dirección con calle cambiada SÍ se re-geocodifica', async () => {
+    geocodificarDireccionMock.mockResolvedValueOnce({ lat: 1, lng: 2 });
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistenteConDireccion()]));
+
+    await supabasePacienteRepository.update('p-1', {
+      direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'Otra calle 500', localidad: 'CABA' }],
+    });
+
+    expect(geocodificarDireccionMock).toHaveBeenCalledTimes(1);
+    expect(geocodificarDireccionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ calle: 'Otra calle 500', localidad: 'CABA' }),
+    );
+
+    const upsert = calls.find((c) => c.table === 'direcciones' && c.op === 'upsert');
+    const payload = upsert?.payload as Array<{ lat?: number | null; lng?: number | null }>;
+    expect(payload[0]).toMatchObject({ lat: 1, lng: 2 });
+  });
+
+  it('una dirección con localidad cambiada SÍ se re-geocodifica (calle igual)', async () => {
+    geocodificarDireccionMock.mockResolvedValueOnce({ lat: 3, lng: 4 });
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistenteConDireccion()]));
+
+    await supabasePacienteRepository.update('p-1', {
+      direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'Corrientes 1000', localidad: 'Vicente López' }],
+    });
+
+    expect(geocodificarDireccionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('un fallo de geocoding en update no bloquea el guardado: la dirección se guarda con lat/lng null', async () => {
+    geocodificarDireccionMock.mockResolvedValueOnce(undefined);
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistenteConDireccion()]));
+
+    const resultado = await supabasePacienteRepository.update('p-1', {
+      direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'Cambiada 1', localidad: 'CABA' }],
+    });
+
+    expect(resultado).toBeDefined();
+    const upsert = calls.find((c) => c.table === 'direcciones' && c.op === 'upsert');
+    const payload = upsert?.payload as Array<{ lat?: number | null; lng?: number | null }>;
+    expect(payload[0]).toMatchObject({ lat: null, lng: null });
+  });
+
+  it('una dirección nueva agregada junto a una sin cambios: solo la nueva se geocodifica', async () => {
+    geocodificarDireccionMock.mockResolvedValueOnce({ lat: 9, lng: 8 });
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistenteConDireccion()]));
+
+    await supabasePacienteRepository.update('p-1', {
+      direcciones: [
+        { id: 'd-1', tipo: 'domicilio', calle: 'Corrientes 1000', localidad: 'CABA' },
+        { id: 'd-nueva', tipo: 'terapia', calle: 'Terapia 200', localidad: 'CABA' },
+      ],
+    });
+
+    expect(geocodificarDireccionMock).toHaveBeenCalledTimes(1);
+    expect(geocodificarDireccionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'd-nueva', calle: 'Terapia 200' }),
+    );
+
+    const upsert = calls.find((c) => c.table === 'direcciones' && c.op === 'upsert');
+    const payload = upsert?.payload as Array<{ id: string; lat?: number | null; lng?: number | null }>;
+    const filaSinCambios = payload.find((fila) => fila.id === 'd-1');
+    const filaNueva = payload.find((fila) => fila.id === 'd-nueva');
+    expect(filaSinCambios).not.toHaveProperty('lat');
+    expect(filaNueva).toMatchObject({ lat: 9, lng: 8 });
+  });
+
+  it('sin cambio en direcciones (clave ausente del payload) no llama a geocodificarDireccion', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistenteConDireccion()]));
+
+    await supabasePacienteRepository.update('p-1', { apellido: 'Otro' });
+
+    expect(geocodificarDireccionMock).not.toHaveBeenCalled();
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// migración 20260805140000_direcciones_geocoding.sql — barrera de texto (mismo criterio que 3.12b
+// y 8.0: no hay harness para ejecutar funciones de Postgres, se valida el SQL activo).
+// -------------------------------------------------------------------------------------------
+
+describe('migración 20260805140000_direcciones_geocoding.sql', () => {
+  function leerMigracionGeocoding(): string {
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+    const ruta = resolve(__dirname, '../../../../../supabase/migrations/20260805140000_direcciones_geocoding.sql');
+    return readFileSync(ruta, 'utf-8');
+  }
+
+  it('agrega lat/lng como columnas nuevas de pacientes.direcciones', () => {
+    const sql = leerMigracionGeocoding();
+
+    expect(sql).toContain('ALTER TABLE pacientes.direcciones');
+    expect(sql).toMatch(/ADD COLUMN lat DOUBLE PRECISION/i);
+    expect(sql).toMatch(/ADD COLUMN lng DOUBLE PRECISION/i);
+  });
+
+  it('declara SECURITY INVOKER y la cláusula activa nunca es SECURITY DEFINER', () => {
+    const codigoActivo = quitarComentariosYStrings(leerMigracionGeocoding());
+
+    expect(codigoActivo).toContain('SECURITY INVOKER');
+    expect(codigoActivo).not.toContain('SECURITY DEFINER');
+  });
+
+  it('el INSERT a pacientes.direcciones del paso 4 incluye lat y lng', () => {
+    const codigoActivo = quitarComentariosYStrings(leerMigracionGeocoding());
+    const inicioInsert = codigoActivo.indexOf('INSERT INTO pacientes.direcciones');
+    expect(inicioInsert).toBeGreaterThanOrEqual(0);
+
+    const finInsert = codigoActivo.indexOf(';', inicioInsert);
+    const statement = codigoActivo.slice(inicioInsert, finInsert === -1 ? undefined : finInsert + 1);
+
+    expect(statement).toContain('lat');
+    expect(statement).toContain('lng');
+  });
+
+  it('no toca la firma de la función (mismo nombre, mismo único argumento p_paciente jsonb)', () => {
+    const codigoActivo = quitarComentariosYStrings(leerMigracionGeocoding());
+
+    expect(codigoActivo).toContain('CREATE OR REPLACE FUNCTION pacientes.crear_paciente_completo(p_paciente jsonb)');
+    expect(codigoActivo).toContain('RETURNS uuid');
   });
 });
 

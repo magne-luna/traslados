@@ -215,13 +215,32 @@ describe('supabaseHojaDeRutaRepository.list (3.2)', () => {
   });
 
   it('el embed de la consulta NO incluye una lectura extra por recorrido (anti N+1)', async () => {
-    configurarSelect('pacientes', 'hoja_de_ruta', () => ok([filaHojaEmbed()]));
+    // Dos recorridos con dos paradas cada uno: si el enriquecimiento de coordenadas (RF-701)
+    // consultara `direcciones` por parada o por recorrido, esto se notaría acá. La única consulta
+    // adicional esperada es UNA (batch) a `pacientes.direcciones`, sin importar cuántas paradas haya.
+    configurarSelect(
+      'pacientes',
+      'hoja_de_ruta',
+      () =>
+        ok([
+          filaHojaEmbed({
+            recorrido: [
+              filaRecorridoEmbed({
+                id: 'rec-1',
+                historial_recorridos: [filaParadaEmbed({ id: 'par-a' }), filaParadaEmbed({ id: 'par-b' })],
+              }),
+              filaRecorridoEmbed({ id: 'rec-2', historial_recorridos: [filaParadaEmbed({ id: 'par-c' })] }),
+            ],
+          }),
+        ]),
+    );
 
     await supabaseHojaDeRutaRepository.list();
 
-    const consultas = calls.filter((c) => c.op === 'select');
-    expect(consultas).toHaveLength(1);
-    expect(consultas[0]?.table).toBe('hoja_de_ruta');
+    const consultasHoja = calls.filter((c) => c.op === 'select' && c.table === 'hoja_de_ruta');
+    const consultasDirecciones = calls.filter((c) => c.op === 'select' && c.table === 'direcciones');
+    expect(consultasHoja).toHaveLength(1);
+    expect(consultasDirecciones).toHaveLength(1);
   });
 
   it('une hoja sin recorridos a un arreglo vacío sin romper (robustez del embed ausente)', async () => {
@@ -326,6 +345,100 @@ describe('supabaseHojaDeRutaRepository.getById (3.2)', () => {
     await expect(supabaseHojaDeRutaRepository.getById('hdr-1')).rejects.toThrow(
       'No se pudo cargar la hoja de ruta.',
     );
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// Enriquecimiento de coordenadas (change hojas-de-ruta-geocoding, RF-701) — resuelve Checkpoint 2
+// de integracion-hojas-de-ruta/design.md. Consulta batch a `pacientes.direcciones (id, lat, lng)`,
+// nunca N+1 (ver test dedicado en list() más arriba).
+// -------------------------------------------------------------------------------------------
+
+describe('enriquecimiento de coordenadas — RF-701', () => {
+  it('getById resuelve coordenadaOrigen desde pacientes.direcciones.lat/lng de la dirección de origen', async () => {
+    configurarSelect('pacientes', 'hoja_de_ruta', () => ok([filaHojaEmbed()])); // parada con id_dir_inicial: 'dir-a'
+    configurarSelect('pacientes', 'direcciones', () => ok([{ id: 'dir-a', lat: -34.6, lng: -58.4 }]));
+
+    const hoja = await supabaseHojaDeRutaRepository.getById('hdr-1');
+
+    expect(hoja?.recorridos[0]?.paradas[0]?.coordenadaOrigen).toEqual({ lat: -34.6, lng: -58.4 });
+  });
+
+  it('una dirección sin lat/lng geocodificados (NULL) deja la parada sin coordenadaOrigen, sin lanzar', async () => {
+    configurarSelect('pacientes', 'hoja_de_ruta', () => ok([filaHojaEmbed()]));
+    configurarSelect('pacientes', 'direcciones', () => ok([{ id: 'dir-a', lat: null, lng: null }]));
+
+    const hoja = await supabaseHojaDeRutaRepository.getById('hdr-1');
+
+    expect(hoja?.recorridos[0]?.paradas[0]?.coordenadaOrigen).toBeUndefined();
+  });
+
+  it('sin configurar la tabla direcciones (default [] del fake), coordenadaOrigen queda undefined sin romper la hoja', async () => {
+    configurarSelect('pacientes', 'hoja_de_ruta', () => ok([filaHojaEmbed()]));
+
+    const hoja = await supabaseHojaDeRutaRepository.getById('hdr-1');
+
+    expect(hoja?.id).toBe('hdr-1');
+    expect(hoja?.recorridos[0]?.paradas[0]?.coordenadaOrigen).toBeUndefined();
+  });
+
+  it('un error en la consulta de coordenadas degrada a mapa vacío: la hoja igual se devuelve, sin lanzar', async () => {
+    configurarSelect('pacientes', 'hoja_de_ruta', () => ok([filaHojaEmbed()]));
+    configurarSelect('pacientes', 'direcciones', () => fail({ code: '42501', message: 'no access' }));
+
+    await expect(supabaseHojaDeRutaRepository.getById('hdr-1')).resolves.toMatchObject({ id: 'hdr-1' });
+  });
+
+  it('una hoja sin ningún recorrido/parada no dispara la consulta de coordenadas', async () => {
+    configurarSelect('pacientes', 'hoja_de_ruta', () => ok([filaHojaEmbed({ recorrido: null })]));
+
+    await supabaseHojaDeRutaRepository.getById('hdr-1');
+
+    expect(calls.filter((c) => c.table === 'direcciones')).toHaveLength(0);
+  });
+
+  it('getByFecha también enriquece coordenadaOrigen (mismo camino que getById)', async () => {
+    configurarSelect('pacientes', 'hoja_de_ruta', () => ok([filaHojaEmbed()]));
+    configurarSelect('pacientes', 'direcciones', () => ok([{ id: 'dir-a', lat: 1, lng: 2 }]));
+
+    const hoja = await supabaseHojaDeRutaRepository.getByFecha('2026-08-04');
+
+    expect(hoja?.recorridos[0]?.paradas[0]?.coordenadaOrigen).toEqual({ lat: 1, lng: 2 });
+  });
+
+  it('list() enriquece varias hojas con UNA sola consulta batch a direcciones', async () => {
+    const filaA = filaHojaEmbed({ id: 'hdr-1' });
+    const filaB = filaHojaEmbed({
+      id: 'hdr-2',
+      fecha: '2026-08-05',
+      recorrido: [
+        filaRecorridoEmbed({
+          hoja_de_ruta_id: 'hdr-2',
+          historial_recorridos: [filaParadaEmbed({ id_dir_inicial: 'dir-b' })],
+        }),
+      ],
+    });
+    configurarSelect('pacientes', 'hoja_de_ruta', () => ok([filaA, filaB]));
+    configurarSelect('pacientes', 'direcciones', () =>
+      ok([
+        { id: 'dir-a', lat: 1, lng: 2 },
+        { id: 'dir-b', lat: 3, lng: 4 },
+      ]),
+    );
+
+    const [hojaA, hojaB] = await supabaseHojaDeRutaRepository.list();
+
+    expect(hojaA?.recorridos[0]?.paradas[0]?.coordenadaOrigen).toEqual({ lat: 1, lng: 2 });
+    expect(hojaB?.recorridos[0]?.paradas[0]?.coordenadaOrigen).toEqual({ lat: 3, lng: 4 });
+    expect(calls.filter((c) => c.table === 'direcciones')).toHaveLength(1);
+  });
+
+  it('list() con 0 hojas no dispara la consulta de coordenadas', async () => {
+    configurarSelect('pacientes', 'hoja_de_ruta', () => ok([]));
+
+    await supabaseHojaDeRutaRepository.list();
+
+    expect(calls.filter((c) => c.table === 'direcciones')).toHaveLength(0);
   });
 });
 

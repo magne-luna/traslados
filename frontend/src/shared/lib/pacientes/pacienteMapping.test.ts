@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  direccionesACambiar,
   ensamblarPaciente,
   parseAccesorios,
   parseClinicosRow,
@@ -11,6 +12,7 @@ import {
   toDireccionRows,
   toPersonaACargoRows,
 } from './pacienteMapping';
+import type { Coordenada } from '../../types/hojaDeRuta';
 import type { Direccion, NuevoPaciente, PersonaACargo } from '../../types/paciente';
 
 function buildNuevoPacienteMinimo(): NuevoPaciente {
@@ -226,6 +228,114 @@ describe('toDireccionRows', () => {
 
     expect(rows).toHaveLength(2);
     expect(rows[1]).toEqual({ id: 'd-2', calle: 'Calle 2', numero: null, tipo_lugar: 'escuela', localidad: 'Vicente López' });
+  });
+
+  // Change hojas-de-ruta-geocoding (RF-701): segundo argumento opcional `coordenadas`.
+  describe('con coordenadas (RF-701)', () => {
+    const direcciones: Direccion[] = [
+      { id: 'd-1', tipo: 'domicilio', calle: 'San Martín 123', localidad: 'CABA' },
+      { id: 'd-2', tipo: 'escuela', calle: 'Calle 2', localidad: 'Vicente López' },
+    ];
+
+    it('id presente en el mapa con Coordenada -> lat/lng viajan con el valor geocodificado', () => {
+      const coordenadas = new Map<string, Coordenada | null>([['d-1', { lat: -34.6, lng: -58.4 }]]);
+
+      const [fila] = toDireccionRows([direcciones[0] as Direccion], coordenadas);
+
+      expect(fila).toEqual({
+        id: 'd-1',
+        calle: 'San Martín 123',
+        numero: null,
+        tipo_lugar: 'domicilio',
+        localidad: 'CABA',
+        lat: -34.6,
+        lng: -58.4,
+      });
+    });
+
+    it('id presente en el mapa con null (geocoding falló) -> lat/lng viajan como null explícito', () => {
+      const coordenadas = new Map<string, Coordenada | null>([['d-1', null]]);
+
+      const [fila] = toDireccionRows([direcciones[0] as Direccion], coordenadas);
+
+      expect(fila?.lat).toBeNull();
+      expect(fila?.lng).toBeNull();
+    });
+
+    it('id AUSENTE del mapa (no se re-geocodificó) -> lat/lng no aparecen en la fila (preserva lo existente en el upsert)', () => {
+      const coordenadas = new Map<string, Coordenada | null>([['d-1', { lat: -34.6, lng: -58.4 }]]);
+
+      const [, filaSinGeocodificar] = toDireccionRows(direcciones, coordenadas);
+
+      expect(filaSinGeocodificar).not.toHaveProperty('lat');
+      expect(filaSinGeocodificar).not.toHaveProperty('lng');
+    });
+
+    it('sin segundo argumento (default), ninguna fila incluye lat/lng (compatibilidad)', () => {
+      const rows = toDireccionRows(direcciones);
+
+      for (const fila of rows) {
+        expect(fila).not.toHaveProperty('lat');
+        expect(fila).not.toHaveProperty('lng');
+      }
+    });
+  });
+});
+
+describe('direccionesACambiar (RF-701)', () => {
+  it('una dirección nueva (id no está entre las existentes) siempre se marca a cambiar', () => {
+    const existentes: Direccion[] = [];
+    const entrantes: Direccion[] = [{ id: 'd-nueva', tipo: 'domicilio', calle: 'Calle 1', localidad: 'CABA' }];
+
+    expect(direccionesACambiar(existentes, entrantes)).toEqual(entrantes);
+  });
+
+  it('una dirección existente con calle igual no se marca a cambiar', () => {
+    const existentes: Direccion[] = [{ id: 'd-1', tipo: 'domicilio', calle: 'Calle 1', localidad: 'CABA' }];
+    const entrantes: Direccion[] = [{ id: 'd-1', tipo: 'domicilio', calle: 'Calle 1', localidad: 'CABA' }];
+
+    expect(direccionesACambiar(existentes, entrantes)).toEqual([]);
+  });
+
+  it('una dirección existente con calle cambiada sí se marca a cambiar', () => {
+    const existentes: Direccion[] = [{ id: 'd-1', tipo: 'domicilio', calle: 'Calle 1', localidad: 'CABA' }];
+    const entrantes: Direccion[] = [{ id: 'd-1', tipo: 'domicilio', calle: 'Calle 1 bis', localidad: 'CABA' }];
+
+    expect(direccionesACambiar(existentes, entrantes)).toEqual(entrantes);
+  });
+
+  it('una dirección existente con localidad cambiada sí se marca a cambiar (calle igual)', () => {
+    const existentes: Direccion[] = [{ id: 'd-1', tipo: 'domicilio', calle: 'Calle 1', localidad: 'CABA' }];
+    const entrantes: Direccion[] = [{ id: 'd-1', tipo: 'domicilio', calle: 'Calle 1', localidad: 'Vicente López' }];
+
+    expect(direccionesACambiar(existentes, entrantes)).toEqual(entrantes);
+  });
+
+  it('un cambio de tipo sin cambiar calle/localidad NO marca a cambiar (RF-701 solo mira calle/localidad)', () => {
+    const existentes: Direccion[] = [{ id: 'd-1', tipo: 'domicilio', calle: 'Calle 1', localidad: 'CABA' }];
+    const entrantes: Direccion[] = [{ id: 'd-1', tipo: 'terapia', calle: 'Calle 1', localidad: 'CABA' }];
+
+    expect(direccionesACambiar(existentes, entrantes)).toEqual([]);
+  });
+
+  it('mezcla: solo devuelve las que cambiaron o son nuevas, preservando el resto', () => {
+    const existentes: Direccion[] = [
+      { id: 'd-1', tipo: 'domicilio', calle: 'Sin cambios', localidad: 'CABA' },
+      { id: 'd-2', tipo: 'escuela', calle: 'Vieja', localidad: 'CABA' },
+    ];
+    const entrantes: Direccion[] = [
+      { id: 'd-1', tipo: 'domicilio', calle: 'Sin cambios', localidad: 'CABA' },
+      { id: 'd-2', tipo: 'escuela', calle: 'Nueva', localidad: 'CABA' },
+      { id: 'd-3', tipo: 'terapia', calle: 'Recién agregada', localidad: 'CABA' },
+    ];
+
+    const resultado = direccionesACambiar(existentes, entrantes);
+
+    expect(resultado.map((d) => d.id)).toEqual(['d-2', 'd-3']);
+  });
+
+  it('sin direcciones entrantes devuelve []', () => {
+    expect(direccionesACambiar([{ id: 'd-1', tipo: 'domicilio', calle: 'X', localidad: 'CABA' }], [])).toEqual([]);
   });
 });
 
@@ -512,6 +622,35 @@ describe('toCrearPacientePayload', () => {
       expect(direccion).toHaveProperty('localidad');
       expect(direccion).not.toHaveProperty('dias');
       expect(direccion).not.toHaveProperty('horario');
+    }
+  });
+
+  // Change hojas-de-ruta-geocoding (RF-701): tercer... segundo argumento opcional `coordenadas`,
+  // reenviado tal cual a `toDireccionRows`.
+  it('con coordenadas: cada dirección del payload lleva lat/lng geocodificados', () => {
+    const coordenadas = new Map<string, Coordenada | null>([['d-1', { lat: -34.6, lng: -58.4 }]]);
+
+    const payload = toCrearPacientePayload(buildNuevoPacienteCompleto(), coordenadas);
+
+    expect(payload.direcciones).toEqual([
+      {
+        id: 'd-1',
+        calle: 'San Martín 123',
+        numero: null,
+        tipo_lugar: 'domicilio',
+        localidad: 'CABA',
+        lat: -34.6,
+        lng: -58.4,
+      },
+    ]);
+  });
+
+  it('sin coordenadas (default), las direcciones del payload no llevan lat/lng (compatibilidad)', () => {
+    const payload = toCrearPacientePayload(buildNuevoPacienteCompleto());
+
+    for (const direccion of payload.direcciones) {
+      expect(direccion).not.toHaveProperty('lat');
+      expect(direccion).not.toHaveProperty('lng');
     }
   });
 });

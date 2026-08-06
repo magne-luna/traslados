@@ -1,12 +1,15 @@
 import { supabase } from '../supabaseClient';
 import type {
   ActualizacionHojaDeRuta,
+  Coordenada,
   HojaDeRuta,
   NuevaHojaDeRuta,
 } from '../../types/hojaDeRuta';
 import type { HojaDeRutaRepository } from './HojaDeRutaRepository';
 import {
+  aplicarCoordenadasOrigen,
   ensamblarHojaDeRuta,
+  parseCoordenadasPorDireccion,
   toActualizarHojaDeRutaPayload,
   toCrearHojaDeRutaPayload,
 } from './hojaDeRutaMapping';
@@ -28,6 +31,14 @@ import {
 // (`pacientes.crear_hoja_de_ruta_completa` / `pacientes.actualizar_hoja_de_ruta_completa`), que
 // escriben hasta tres tablas en una sola transacción, y releen con `getById` después — lo
 // devuelto siempre es lo que quedó realmente en la base.
+//
+// Coordenadas (change hojas-de-ruta-geocoding, RF-701, resuelve Checkpoint 2 de
+// integracion-hojas-de-ruta/design.md): después de ensamblar cada hoja, se enriquece con una
+// consulta BATCH (nunca N+1, mismo criterio que `leerCoberturasBatch` de
+// SupabasePacienteRepository) a `pacientes.direcciones` para resolver `lat`/`lng` de cada
+// `direccionOrigenId` referenciado. Una dirección que nunca se geocodificó (o cuyo geocoding
+// falló) sencillamente no aparece en el mapa — su `coordenadaOrigen` sigue `undefined`, mismo
+// contrato de degradación que el resto del repository (nunca lanza por esto).
 
 // ---------------------------------------------------------------------------------------------
 // Lectura (D1) — un único select con embeds de tres niveles.
@@ -78,6 +89,38 @@ function ensamblarDesdeRow(hojaRow: unknown): HojaDeRuta {
   return ensamblarHojaDeRuta(hojaRow, recorridoRows, paradaRows);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Enriquecimiento de coordenadas (RF-701) — consulta batch, nunca N+1.
+// ---------------------------------------------------------------------------------------------
+
+function algunaParadaConDireccionOrigen(hojas: readonly HojaDeRuta[]): boolean {
+  return hojas.some((hoja) => hoja.recorridos.some((recorrido) => recorrido.paradas.length > 0));
+}
+
+/** Trae TODA `pacientes.direcciones (id, lat, lng)` en una única consulta — mismo criterio que
+ *  `leerCoberturasBatch` de SupabasePacienteRepository: sin filtrar por los ids que hacen falta
+ *  (evita depender de `.in()` sobre un listado potencialmente grande de `direccionOrigenId`), se
+ *  agrupa client-side. Un error de la consulta degrada a un mapa vacío — nunca lanza: la ausencia
+ *  de coordenadas para una hoja de ruta es un contenido más pobre, nunca un error de guardado o
+ *  lectura de la hoja en sí (mismo contrato de degradación del resto del repository). */
+async function obtenerCoordenadasDirecciones(): Promise<Map<string, Coordenada>> {
+  const { data, error } = await supabase.schema('pacientes').from('direcciones').select('id, lat, lng');
+  if (error) return new Map();
+  return parseCoordenadasPorDireccion(data);
+}
+
+/** Enriquece un lote de hojas ya ensambladas con `coordenadaOrigen` real (RF-701). Corta antes de
+ *  la consulta si ninguna hoja tiene paradas (nada que resolver) — mismo atajo que
+ *  `leerCoberturasBatch` con 0 pacientes. */
+async function enriquecerConCoordenadas(hojas: HojaDeRuta[]): Promise<HojaDeRuta[]> {
+  if (!algunaParadaConDireccionOrigen(hojas)) return hojas;
+
+  const coordenadas = await obtenerCoordenadasDirecciones();
+  if (coordenadas.size === 0) return hojas;
+
+  return hojas.map((hoja) => aplicarCoordenadasOrigen(hoja, coordenadas));
+}
+
 async function listarHojasDeRuta(): Promise<HojaDeRuta[]> {
   const { data, error } = await supabase
     .schema('pacientes')
@@ -90,7 +133,7 @@ async function listarHojasDeRuta(): Promise<HojaDeRuta[]> {
   const rows: unknown = data;
   if (!Array.isArray(rows)) return [];
 
-  return rows.map(ensamblarDesdeRow);
+  return enriquecerConCoordenadas(rows.map(ensamblarDesdeRow));
 }
 
 async function getHojaDeRutaPorId(id: string): Promise<HojaDeRuta | null> {
@@ -105,7 +148,8 @@ async function getHojaDeRutaPorId(id: string): Promise<HojaDeRuta | null> {
   // `data === null` cubre tanto "no existe" como "RLS filtró la fila" (mismo contrato, nunca lanza).
   if (data === null || data === undefined) return null;
 
-  return ensamblarDesdeRow(data);
+  const [hoja] = await enriquecerConCoordenadas([ensamblarDesdeRow(data)]);
+  return hoja ?? null;
 }
 
 async function getHojaDeRutaPorFecha(fecha: string): Promise<HojaDeRuta | null> {
@@ -119,7 +163,8 @@ async function getHojaDeRutaPorFecha(fecha: string): Promise<HojaDeRuta | null> 
   if (error) throw mapearErrorHojaDeRuta(error, { operacion: 'listar' });
   if (data === null || data === undefined) return null;
 
-  return ensamblarDesdeRow(data);
+  const [hoja] = await enriquecerConCoordenadas([ensamblarDesdeRow(data)]);
+  return hoja ?? null;
 }
 
 // ---------------------------------------------------------------------------------------------

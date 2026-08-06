@@ -11,10 +11,13 @@ import type { Direccion, Tramo } from './paciente';
 export type { Tramo, Direccion };
 
 /**
- * Coordenada geográfica fixture (design.md Decisión 6): en este prototipo NO proviene de
- * geocoding real — son valores fixture razonables para poder dibujar el mapa y calcular
- * `sugerirOrdenPorCercania` por haversine. El geocoding real de las direcciones del paciente lo
- * resuelve el backend (`C-10`) en producción (FE-8).
+ * Coordenada geográfica. En fixtures/mocks (`hojas-de-ruta-ui`, design.md Decisión 6) siguen
+ * siendo valores fijados a mano, sin geocoding real. Para datos reales (`SupabaseHojaDeRutaRepository`,
+ * desde el change `hojas-de-ruta-geocoding`, RF-701, que resuelve el Checkpoint 2 de
+ * `integracion-hojas-de-ruta/design.md`) sí proviene de geocoding real: se geocodifica una vez al
+ * crear/editar la `Direccion` del paciente (nunca en cada carga de la hoja de ruta) y se persiste
+ * en `pacientes.direcciones.lat/lng`; una dirección que todavía no se geocodificó (o cuyo
+ * geocoding falló) deja su parada sin `coordenadaOrigen`, igual que antes.
  */
 export interface Coordenada {
   lat: number;
@@ -36,7 +39,9 @@ export interface ParadaRecorrido {
   direccionDestinoId: string;
   /** Orden de recogida dentro del recorrido — dato editable, nunca ruta impuesta (RN-HR-01). */
   orden: number;
-  /** Fixture, no geocoding real (design.md Decisión 6) — usada para el mapa y sugerirOrdenPorCercania. */
+  /** Fixture en mocks (design.md Decisión 6); geocoding real sobre datos reales desde el change
+   *  hojas-de-ruta-geocoding (RF-701) — ver doc de `Coordenada` arriba. Usada para el mapa y
+   *  `sugerirOrdenPorCercania`. */
   coordenadaOrigen?: Coordenada;
   /**
    * Hora estimada del tramo (formato "HH:mm"), ej. "08:30". Opcional — un recorrido manual
