@@ -29,3 +29,103 @@ El sistema SHALL derivar los ítems del checklist documental del paciente del ch
 #### Scenario: Estado de carga al resolver la obra social
 - **WHEN** la pestaña está resolviendo la obra social y sus documentos
 - **THEN** se muestra un estado de carga durante la latencia, sin pantalla en blanco ni loading infinito ante error
+
+### Requirement: Previsualización de un documento cargado sin salir de la pantalla
+
+El sistema SHALL permitir ver el contenido de un documento adjunto puntual del checklist documental
+del paciente sin abandonar la pantalla de documentación y sin requerir que el usuario descargue el
+archivo previamente.
+
+La acción de previsualizar SHALL apuntar a un documento puntual por su `id` propio, no al ítem del
+checklist — un ítem puede tener N documentos cargados simultáneamente.
+
+La previsualización SHALL mostrarse en una superficie de **solo lectura** provista por un componente
+reutilizable del design system. El sistema MUST NOT implementar esa superficie como markup ad-hoc
+dentro del componente de checklist, y MUST NOT incluir en ella campos editables ni acciones de
+escritura sobre el documento.
+
+Cerrar la previsualización SHALL devolver al usuario a la pantalla de documentación en el mismo
+estado en que la dejó, sin recargar el checklist ni perder el progreso visible.
+
+#### Scenario: Ver el contenido de un documento recién cargado
+
+- **GIVEN** un paciente con un documento cargado en un ítem del checklist (ej. el RHC)
+- **WHEN** el usuario activa la acción de previsualizar ese documento
+- **THEN** se muestra el contenido del documento en una ventana de solo lectura sobre la misma
+  pantalla, sin navegar a otra ruta ni descargar el archivo
+
+#### Scenario: Cada documento de un ítem con múltiples documentos se previsualiza por separado
+
+- **GIVEN** un ítem del checklist con dos o más documentos cargados (ej. el presupuesto vigente y el
+  de la renovación)
+- **WHEN** el usuario activa la previsualización de uno de ellos
+- **THEN** se muestra el contenido de ese documento puntual, y no el de otro documento del mismo ítem
+
+#### Scenario: Cerrar la previsualización no altera el checklist
+
+- **GIVEN** una previsualización abierta sobre la pantalla de documentación
+- **WHEN** el usuario la cierra
+- **THEN** el checklist permanece con los mismos documentos, el mismo progreso y la misma marca de
+  documento vigente que antes de abrirla
+
+### Requirement: Estados explícitos de la previsualización
+
+El sistema SHALL representar explícitamente el estado de resolución del contenido a previsualizar.
+El sistema MUST NOT mostrar una ventana en blanco ni un indicador de carga indefinido ante un fallo.
+
+Mientras el contenido se resuelve, el sistema SHALL mostrar un estado de carga. Si la resolución
+falla, el sistema SHALL mostrar un mensaje de error comprensible y MUST NOT propagar a la interfaz el
+mensaje crudo del error de origen. Si el documento existe pero su contenido no puede previsualizarse
+—porque su formato no es soportado o porque no hay contenido asociado— el sistema SHALL mostrar un
+estado explícito que lo indique, junto con el nombre del archivo, en vez de un error.
+
+#### Scenario: Documento cuyo contenido todavía se está resolviendo
+
+- **WHEN** el usuario abre la previsualización y el contenido aún no está disponible
+- **THEN** se muestra un estado de carga acotado, que se reemplaza por el contenido o por un estado
+  de error, nunca por una ventana en blanco permanente
+
+#### Scenario: Falla la resolución del contenido
+
+- **GIVEN** un documento cuya previsualización no puede resolverse (por ejemplo, permiso denegado o
+  contenido inaccesible)
+- **WHEN** el usuario abre la previsualización
+- **THEN** se muestra un mensaje de error comprensible para la usuaria, sin exponer el mensaje técnico
+  del error de origen
+
+#### Scenario: Documento de un formato no previsualizable
+
+- **GIVEN** un documento cargado cuyo formato no puede renderizarse en la ventana
+- **WHEN** el usuario abre la previsualización
+- **THEN** se muestra un estado explícito de "no previsualizable" junto con el nombre del archivo, y
+  el sistema no intenta renderizar el contenido
+
+#### Scenario: Documento sin contenido asociado
+
+- **GIVEN** un documento registrado en el checklist antes de que existiera la previsualización, sin
+  contenido resoluble
+- **WHEN** el usuario abre la previsualización
+- **THEN** se muestra el estado explícito de contenido no disponible, y el sistema no lo trata como
+  un error
+
+### Requirement: La previsualización no amplía el acceso a los documentos
+
+La previsualización SHALL operar exclusivamente sobre mecanismos de acceso autenticados. El sistema
+MUST NOT exponer los documentos mediante URLs de acceso público, MUST NOT alterar la privacidad de los
+buckets de almacenamiento y MUST NOT usar credenciales de servicio desde el frontend.
+
+El acceso al contenido SHALL seguir estando determinado por las políticas de seguridad del servidor.
+Ningún control de la interfaz SHALL ser la autoridad que decide si un documento puede leerse.
+
+#### Scenario: La previsualización no genera acceso público
+
+- **WHEN** el usuario previsualiza un documento
+- **THEN** el contenido se obtiene por un mecanismo de acceso autenticado y acotado en el tiempo, y no
+  queda accesible mediante una URL pública permanente
+
+#### Scenario: Sin permiso de lectura no hay previsualización
+
+- **GIVEN** un usuario sin permiso de lectura sobre el módulo de la entidad del documento
+- **WHEN** se intenta resolver el contenido de un documento
+- **THEN** la resolución es rechazada por las políticas del servidor y la interfaz muestra el estado
+  de error correspondiente, sin mostrar el contenido
