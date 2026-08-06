@@ -315,6 +315,31 @@ Enzo lo mire junto con el resto.
 > requiere `allow-scripts` **y** `allow-same-origin` juntos — con solo `allow-same-origin`, sin
 > `allow-scripts`, nada dentro del iframe puede ejecutar código, tenga o no identidad de origen.
 
+> **⚠️ Corrección (2026-08-06, hallada en verificación manual, `tasks.md` 8.2, segunda vuelta —
+> revierte la recomendación de este mismo Checkpoint)**: con `sandbox="allow-same-origin"` la
+> `blob:` sí cargaba (fix anterior), pero el **visor nativo de PDF del navegador se niega a correr
+> dentro de CUALQUIER iframe sandboxeado**, sin importar la combinación de tokens — confirmado
+> empíricamente en dos navegadores (Arc y otro Chromium) sacando el `sandbox` por completo como
+> diagnóstico temporal (ya revertido): sin `sandbox` el PDF cargaba perfecto, con cualquier
+> combinación de `sandbox` no. Conclusión: no existe una combinación de `sandbox` que sea segura y
+> funcional a la vez — el escape de sandbox conocido necesita `allow-scripts` + `allow-same-origin`
+> juntos, que es exactamente lo que el visor nativo necesitaría para correr, y exactamente lo que
+> no se le puede conceder a contenido subido por un usuario en un dominio con datos clínicos.
+>
+> **Decisión (consultada y aprobada explícitamente por el usuario, gobernanza CRÍTICO — dominio de
+> documentos clínicos)**: se agrega `pdfjs-dist` como dependencia nueva y se renderiza el PDF a un
+> `<canvas>` con un componente propio (`shared/components/PdfPreview.tsx`), reemplazando por
+> completo el `<iframe>` para el caso PDF. pdf.js parsea el archivo y dibuja gráficos/texto vía la
+> API de canvas — no ejecuta nada del contenido del PDF como si fuera HTML/script de la página, así
+> que no hay iframe, no hay plugin del navegador, no hay browsing context separado, y por lo tanto
+> no hace falta `sandbox` en absoluto para este caso. Esto revierte la recomendación explícita de
+> este mismo Checkpoint ("`<iframe>` nativo, sin dependencias nuevas") — el veredicto original
+> asumía que el visor nativo funcionaría dentro de un iframe sandboxeado, lo cual resultó falso en
+> la práctica. Worker de pdf.js configurado con el patrón estándar de Vite (`?url` sobre
+> `pdf.worker.min.mjs`, asignado a `GlobalWorkerOptions.workerSrc`), confirmado tanto en dev como
+> en un build real (`npm run build`: el worker se emite como asset propio, referenciado por URL).
+> Ver evidencia completa (tests, TDD cycle, `tsc`/`oxlint`/build) en `tasks.md` bajo 5.4/8.2.
+
 ---
 
 ## Decisions

@@ -98,6 +98,16 @@ const buttonVariantClasses: Record<ButtonVariant, string> = {
 // inventa un estilo de disabled nuevo, es el que el repo ya usa donde hoy existe.
 const BUTTON_DISABLED_CLASSES = 'disabled:cursor-not-allowed disabled:opacity-40';
 
+// documentos-previsualizacion (fix "quiero poder descargarlo", 2026-08-06): `Button` solo
+// renderiza `<button>`, pero un `<a download>` necesita ser una etiqueta `<a>` de verdad (regla
+// del navegador para el atributo `download`, no una decisión de este componente) — no hay forma
+// de lograrlo pasando por `Button`. Se exportan las mismas clases que arma `Button` para que un
+// `<a>` se vea idéntico a un botón secundario sin reimplementar el estilo a mano (regla dura:
+// nunca reinventar clases Tailwind que el design system ya resolvió).
+export function buttonClassName(variant: ButtonVariant, size: ButtonSize): string {
+  return [buttonBaseClasses, buttonSizeClasses[size], buttonVariantClasses[variant]].join(' ');
+}
+
 export function Button({
   variant = 'primary',
   size = 'md',
@@ -522,7 +532,12 @@ export function Overlay({
             </InlineIcon>
           </button>
         </div>
-        {children}
+        {/* min-w-0 (fix genérico de flexbox, 2026-08-06, hallado por documentos-previsualizacion
+            con contenido zoomeable): sin esto, este flex item nunca se achica por debajo del
+            ancho de SU contenido — un consumidor con algo ancho adentro (scrolleable o no)
+            terminaría empujando el diálogo entero más allá de `max-w-[640px]` en vez de
+            contenerse. No es específico de documentos, aplica a cualquier contenido futuro. */}
+        <div className="min-w-0">{children}</div>
       </div>
     </div>,
     document.body,

@@ -3,6 +3,17 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import type { ChecklistItem, DocumentoAdjunto } from '../types/documento';
 import { DocumentChecklist } from './DocumentChecklist';
 
+// documentos-previsualizacion (corrección 2026-08-06): `ContenidoPreview` delega PDF a
+// `PdfPreview` (pdf.js + canvas, ver DocumentChecklist.tsx). Se mockea acá para verificar solo la
+// delegación (qué props recibe) — el comportamiento interno de `PdfPreview` (carga, paginación,
+// error, limpieza) ya está cubierto exhaustivamente en `PdfPreview.test.tsx`; duplicarlo acá
+// además obligaría a mockear pdf.js completo en este archivo sin aportar cobertura nueva.
+vi.mock('./PdfPreview', () => ({
+  PdfPreview: ({ url, nombreArchivo }: { url: string; nombreArchivo: string }) => (
+    <div data-testid="pdf-preview-stub" data-url={url} data-nombre-archivo={nombreArchivo} />
+  ),
+}));
+
 const items: ChecklistItem[] = [
   { id: 'item-presupuesto', nombre: 'Presupuesto', requerido: true },
   { id: 'item-rhc', nombre: 'RHC', requerido: true },
@@ -53,6 +64,74 @@ describe('DocumentChecklist — colección de N documentos por ítem (tasks.md 4
 
     expect(onRemove).toHaveBeenCalledWith('doc-especifico');
     expect(onRemove).not.toHaveBeenCalledWith('item-presupuesto');
+  });
+});
+
+describe('DocumentChecklist — clickear la fila abre "Ver" (feedback de usuario, 2026-08-06)', () => {
+  it('clickear la fila del documento (no el botón "Ver") abre la previsualización', async () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'foto.jpg',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+      tipoMime: 'image/jpeg',
+    };
+
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[doc]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        onResolverPrevisualizacion={vi.fn().mockResolvedValue('blob:foto-url')}
+      />,
+    );
+
+    // Click sobre el texto del nombre de archivo, NO sobre el botón "Ver" — es el punto central
+    // de este test: la fila entera es clickeable, no solo el botón.
+    fireEvent.click(screen.getByText(/foto\.jpg/i));
+
+    const img = await screen.findByRole('img', { name: /foto\.jpg/i });
+    expect(img).toHaveAttribute('src', 'blob:foto-url');
+  });
+
+  it('clickear "Quitar" NO abre la previsualización (stopPropagation, no dispara también el click de la fila)', () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+      tipoMime: 'application/pdf',
+    };
+
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[doc]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        onResolverPrevisualizacion={vi.fn().mockResolvedValue('blob:pdf-url')}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /quitar presupuesto/i }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('sin onResolverPrevisualizacion (punto de montaje sin cablear), la fila no es clickeable', () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+
+    render(<DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={vi.fn()} />);
+
+    fireEvent.click(screen.getByText(/presupuesto\.pdf/i));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
 
@@ -286,7 +365,7 @@ describe('DocumentChecklist — contenido de la previsualización según tipoMim
     expect(img).toHaveAttribute('src', 'blob:foto-url');
   });
 
-  it('PDF (tipoMime application/pdf) se renderiza como <iframe> sandboxeado con allow-same-origin (necesario para cargar blob:) pero sin allow-scripts', async () => {
+  it('PDF (tipoMime application/pdf) delega en PdfPreview (pdf.js + canvas, sin <iframe>) con la url y el nombre de archivo correctos', async () => {
     const doc: DocumentoAdjunto = {
       id: 'doc-1',
       itemId: 'item-presupuesto',
@@ -307,11 +386,88 @@ describe('DocumentChecklist — contenido de la previsualización según tipoMim
 
     fireEvent.click(screen.getByRole('button', { name: /ver presupuesto - presupuesto\.pdf/i }));
 
-    const iframe = await screen.findByTitle('presupuesto.pdf');
-    expect(iframe.tagName).toBe('IFRAME');
-    expect(iframe).toHaveAttribute('src', 'blob:pdf-url');
-    expect(iframe).toHaveAttribute('sandbox', 'allow-same-origin');
-    expect(iframe.getAttribute('sandbox')).not.toContain('allow-scripts');
+    const pdfPreview = await screen.findByTestId('pdf-preview-stub');
+    expect(pdfPreview).toHaveAttribute('data-url', 'blob:pdf-url');
+    expect(pdfPreview).toHaveAttribute('data-nombre-archivo', 'presupuesto.pdf');
+    expect(document.querySelector('iframe')).not.toBeInTheDocument();
+  });
+
+  it('con contenido resuelto (imagen o PDF), aparece un link "Descargar" con la url y el nombre de archivo original', async () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'foto.jpg',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+      tipoMime: 'image/jpeg',
+    };
+
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[doc]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        onResolverPrevisualizacion={vi.fn().mockResolvedValue('blob:foto-url')}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /ver presupuesto - foto\.jpg/i }));
+
+    const link = await screen.findByRole('link', { name: /descargar/i });
+    expect(link).toHaveAttribute('href', 'blob:foto-url');
+    expect(link).toHaveAttribute('download', 'foto.jpg');
+  });
+
+  it('tipo no soportado (ej. zip) tiene URL válida igual, así que "Descargar" aparece ahí también', async () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'archivo.zip',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+      tipoMime: 'application/zip',
+    };
+
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[doc]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        onResolverPrevisualizacion={vi.fn().mockResolvedValue('blob:zip-url')}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /ver presupuesto - archivo\.zip/i }));
+
+    await screen.findByText(/no se puede previsualizar/i);
+    const link = await screen.findByRole('link', { name: /descargar/i });
+    expect(link).toHaveAttribute('href', 'blob:zip-url');
+    expect(link).toHaveAttribute('download', 'archivo.zip');
+  });
+
+  it('sin contenido resuelto (null, D2) o con error, no aparece el link "Descargar" — no hay url válida que ofrecer', async () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+      tipoMime: 'application/pdf',
+    };
+
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[doc]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        onResolverPrevisualizacion={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /ver presupuesto - presupuesto\.pdf/i }));
+
+    await screen.findByText(/no tiene contenido para previsualizar/i);
+    expect(screen.queryByRole('link', { name: /descargar/i })).not.toBeInTheDocument();
   });
 
   it('tipo no soportado (ej. application/zip) muestra un estado explícito de "no previsualizable", sin <img> ni <iframe>', async () => {
@@ -374,7 +530,7 @@ describe('DocumentChecklist — estados de carga/error/no-previsualizable (tasks
 
     // Resolver la promesa pendiente para no dejar el test colgado (act warning).
     resolver('blob:x');
-    await screen.findByTitle('presupuesto.pdf');
+    await screen.findByTestId('pdf-preview-stub');
   });
 
   it('si resolverPrevisualizacion rechaza, muestra un mensaje de error genérico, nunca el mensaje crudo del error', async () => {

@@ -92,6 +92,23 @@ export const iconArrastrar: ReactNode = (
   </>
 );
 
+// documentos-previsualizacion (feedback de zoom con iconos, 2026-08-06): botones +/− del zoom de
+// PdfPreview — círculo con signo, mismo criterio de "nunca emoji" del encabezado del archivo.
+export const iconMas: ReactNode = (
+  <>
+    <circle cx={12} cy={12} r={9} />
+    <line x1={12} y1={8} x2={12} y2={16} strokeLinecap="round" />
+    <line x1={8} y1={12} x2={16} y2={12} strokeLinecap="round" />
+  </>
+);
+
+export const iconMenos: ReactNode = (
+  <>
+    <circle cx={12} cy={12} r={9} />
+    <line x1={8} y1={12} x2={16} y2={12} strokeLinecap="round" />
+  </>
+);
+
 export const iconFlechaArriba: ReactNode = <polyline points="18 15 12 9 6 15" strokeLinecap="round" strokeLinejoin="round" />;
 
 export const iconFlechaAbajo: ReactNode = <polyline points="6 9 12 15 18 9" strokeLinecap="round" strokeLinejoin="round" />;

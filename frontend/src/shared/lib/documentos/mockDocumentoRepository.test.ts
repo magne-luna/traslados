@@ -139,14 +139,14 @@ describe('mockDocumentoRepository — upload() conserva el contenido (tasks.md 2
     );
   });
 
-  it('upload() efectivamente conserva el File recibido — llama a URL.createObjectURL con ese File (triangulación)', async () => {
+  it('upload() efectivamente conserva el File recibido — NO crea el ObjectURL todavía (eso pasa recién en resolverPrevisualizacion(), bajo demanda)', async () => {
     const createSpy = vi.spyOn(URL, 'createObjectURL');
     const entidadId = entidadIdUnico('paciente-content-guardado');
     const file = archivo('rhc.pdf');
 
     await mockDocumentoRepository.upload('paciente', entidadId, 'item-rhc', file);
 
-    expect(createSpy).toHaveBeenCalledWith(file);
+    expect(createSpy).not.toHaveBeenCalled();
     createSpy.mockRestore();
   });
 });
@@ -183,17 +183,50 @@ describe('mockDocumentoRepository — resolverPrevisualizacion() (tasks.md 2.2, 
 
     expect(url).toBeNull();
   });
+
+  // documentos-previsualizacion (fix "cerrar y volver a abrir tira ERR_FILE_NOT_FOUND",
+  // 2026-08-06): DocumentChecklist revoca la URL al cerrar la ventana (D2, "efímera") — si el mock
+  // devolviera siempre la MISMA url cacheada desde upload(), la segunda apertura reusaría una
+  // blob: ya revocada y rota. Cada llamada a resolverPrevisualizacion() tiene que crear una URL
+  // nueva (createObjectURL nuevo cada vez), exactamente como se comportaría una URL firmada real
+  // con expiración corta — nunca la misma referencia dos veces.
+  it('llamado dos veces para el mismo documento, devuelve dos ObjectURL DISTINTOS (createObjectURL nuevo en cada llamada)', async () => {
+    const createSpy = vi.spyOn(URL, 'createObjectURL');
+    const entidadId = entidadIdUnico('paciente-preview-dos-veces');
+    const doc = await mockDocumentoRepository.upload('paciente', entidadId, 'item-rhc', archivo('rhc.pdf'));
+
+    const primera = await mockDocumentoRepository.resolverPrevisualizacion('paciente', entidadId, doc.id);
+    const segunda = await mockDocumentoRepository.resolverPrevisualizacion('paciente', entidadId, doc.id);
+
+    expect(createSpy).toHaveBeenCalledTimes(2);
+    expect(primera).not.toBe(segunda);
+    createSpy.mockRestore();
+  });
+
+  it('revocar la URL de la primera apertura no rompe una segunda apertura posterior (regresión del bug real)', async () => {
+    const entidadId = entidadIdUnico('paciente-preview-revoke-y-reabrir');
+    const doc = await mockDocumentoRepository.upload('paciente', entidadId, 'item-rhc', archivo('rhc.pdf'));
+
+    const primera = await mockDocumentoRepository.resolverPrevisualizacion('paciente', entidadId, doc.id);
+    // Simula lo que hace DocumentChecklist.cerrarPreview(): revoca la URL que se mostró.
+    URL.revokeObjectURL(primera as string);
+
+    const segunda = await mockDocumentoRepository.resolverPrevisualizacion('paciente', entidadId, doc.id);
+
+    expect(segunda).toEqual(expect.any(String));
+    expect(segunda).not.toBe(primera);
+  });
 });
 
-describe('mockDocumentoRepository — remove() revoca el ObjectURL (tasks.md 2.3)', () => {
-  it('remove() llama a URL.revokeObjectURL con la URL del documento eliminado', async () => {
+describe('mockDocumentoRepository — remove() (tasks.md 2.3)', () => {
+  it('remove() ya no revoca nada por su cuenta — el mock no cachea una url permanente que revocar (esa responsabilidad es 100% del consumidor, ver useDocumentChecklist.ts)', async () => {
     const entidadId = entidadIdUnico('paciente-revoke');
     const doc = await mockDocumentoRepository.upload('paciente', entidadId, 'item-rhc', archivo('rhc.pdf'));
     const revokeSpy = vi.spyOn(URL, 'revokeObjectURL');
 
     await mockDocumentoRepository.remove('paciente', entidadId, doc.id);
 
-    expect(revokeSpy).toHaveBeenCalledTimes(1);
+    expect(revokeSpy).not.toHaveBeenCalled();
     revokeSpy.mockRestore();
   });
 

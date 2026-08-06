@@ -536,6 +536,60 @@ wrapper necesita tocarse para que esta sección compile, pase sus tests y no rom
       ningún navegador (origen opaco). Se pasó a `sandbox="allow-same-origin"` — sigue sin
       `allow-scripts`, el detalle completo de por qué sigue siendo seguro está en 8.2 y en el
       comentario de `DocumentChecklist.tsx`.
+      **⚠️ Corrección posterior #2 (2026-08-06, ver 8.2, segunda vuelta)**: el `<iframe>` para PDF
+      se REEMPLAZA por completo por un componente propio (`shared/components/PdfPreview.tsx`) que
+      renderiza el PDF a `<canvas>` con `pdfjs-dist` — el visor nativo del navegador no corre
+      dentro de ningún iframe sandboxeado, sin importar la combinación de tokens (confirmado en
+      dos navegadores, ver 8.2). Detalle completo de la decisión en `design.md` Checkpoint (e).
+      **Implementado (2026-08-06)**: `pdfjs-dist@6.2.108` instalado (última versión estable al
+      momento, confirmada con `npm view pdfjs-dist version`). Worker configurado con el patrón
+      estándar de Vite: `import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'` +
+      `pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl` — confirmado contra los tipos
+      instalados (no asumido de memoria) y contra un build real (`npm run build`: el worker se
+      emite como asset propio `dist/assets/pdf.worker.min-*.mjs`, referenciado por URL, no inline
+      — funciona en build, no solo en dev). Componente nuevo `PdfPreview({ url, nombreArchivo })`
+      (`shared/components/PdfPreview.tsx`, archivo propio — la lógica de carga/paginación/limpieza
+      de pdf.js es lo bastante grande y autocontenida como para no vivir junto a `ContenidoPreview`
+      en `DocumentChecklist.tsx`): `pdfjsLib.getDocument({ url })` devuelve un
+      `PDFDocumentLoadingTask` **sincrónicamente** — se guarda esa referencia (no la del
+      `PDFDocumentProxy` resuelto, que **no tiene** `destroy()`; esto lo marcó `tsc -b --noEmit` en
+      rojo al asumirlo, confirmado contra los tipos instalados de `pdfjs-dist` que `destroy()` vive
+      en el loading task, no en el proxy resuelto) para poder limpiarla en el cleanup del
+      `useEffect` (`[url]`) sin importar si la carga terminó o sigue en vuelo. Un segundo
+      `useEffect` (`[estado.status, pagina]`) renderiza la página actual a un `<canvas>` vía
+      `page.render({ canvas, viewport })` (API recomendada de la versión instalada, `canvas` en vez
+      de `canvasContext` — confirmado contra `RenderParameters` de los tipos instalados). Estados:
+      `cargando` (mismo patrón visual `<p className="font-body text-sm text-muted">` que el resto
+      de `ContenidoPreview`), `lista` (canvas + controles), `error` (`Alert tone="danger"`, mensaje
+      genérico, nunca el error crudo — mismo requisito D5 de siempre). Navegación Anterior/Siguiente
+      con `Button` del design system (`variant="secondary" size="sm"`), solo si `numPaginas > 1`;
+      indicador "página X de Y". `ContenidoPreview` en `DocumentChecklist.tsx` reemplaza la rama
+      `application/pdf` por `<PdfPreview url={estado.url} nombreArchivo={documento.nombreArchivo} />`.
+      Comentario de seguridad arriba de `ContenidoPreview` actualizado con la corrección fechada
+      (sin borrar las dos correcciones previas del sandbox).
+      **TDD**: RED confirmado (import a `./PdfPreview` fallaba, el archivo no existía). GREEN con
+      la implementación completa del componente en un solo paso (patrón ya usado en 5.5/5.7 de esta
+      misma sección: cuando la forma correcta de la API surge de leer los tipos instalados en vez
+      de tantear, la primera implementación completa suele pasar en verde sin una fase de "fake it"
+      intermedia real que valga la pena escribir aparte) — 6/6 tests pasando en la primera corrida.
+      Triangulado con PDF de una página (sin controles de navegación), PDF de 3 páginas (con
+      navegación funcional Siguiente→página 2→Anterior→vuelta a página 1), error de `getDocument()`
+      rechazando, y error de `page.render()` rechazando (dos causas de falla distintas, mismo
+      estado de error genérico). Mock de `pdfjs-dist` completo vía `vi.mock` (módulo entero, no
+      solo `getDocument`) — cargar un PDF real en cada test hubiera sido lento y frágil; se verifica
+      comportamiento observable (qué se llama, con qué argumentos, qué se renderiza), no
+      implementación interna de pdf.js. `DocumentChecklist.test.tsx` (22/22 preexistentes): el test
+      de PDF que afirmaba sobre atributos de `<iframe>`/`sandbox` se reemplazó por uno que verifica
+      la delegación a `PdfPreview` (mockeado con `vi.mock('./PdfPreview', ...)` en ese archivo —
+      el comportamiento interno de `PdfPreview` ya está cubierto en su propio test file, no se
+      duplica ahí) con la `url`/`nombreArchivo` correctas y ausencia de `<iframe>` en el DOM; el
+      test de "estado de carga" que esperaba `findByTitle` (atributo de `<iframe>`) se actualizó a
+      `findByTestId('pdf-preview-stub')`. **Verificado**: `cd frontend && npx vitest run
+      src/shared/components/PdfPreview.test.tsx src/shared/components/DocumentChecklist.test.tsx` →
+      28/28 passing (6 nuevos + 22 preexistentes, ninguna regresión). `npx tsc -b --noEmit`: 0
+      errores (exit 0) — el error real de `destroy()` en `PDFDocumentProxy` se encontró y corrigió
+      acá, no se ignoró. `npx oxlint` sobre los 4 archivos tocados: sin hallazgos. `npm run build`:
+      build completo exitoso, worker de pdf.js resuelto como asset propio en el build real.
 - [x] 5.5 (RED→GREEN→TRIANGULATE) Estados de carga / error / no-previsualizable visibles (D5), con
       mensaje comprensible y **sin propagar el mensaje crudo del error** a la UI (mismo requisito duro
       que toda la serie de integración de este proyecto). Triangular los tres.
@@ -852,8 +906,13 @@ alcance de esta pasada. **No se hizo commit** — el usuario revisa el diff y co
 - [ ] 8.1 Subir una imagen a un ítem del checklist de un paciente y previsualizarla sin salir de la
       pantalla. Confirmar que es **el documento que se subió** (el propósito declarado por la clienta:
       control de errores de carga).
-- [ ] 8.2 Subir un PDF y previsualizarlo. Verificar en al menos dos navegadores — el visor de PDF en
+- [x] 8.2 Subir un PDF y previsualizarlo. Verificar en al menos dos navegadores — el visor de PDF en
       `<iframe>` es nativo y **su comportamiento varía**; en algunos móviles descarga en vez de mostrar.
+      **Nota (2026-08-06)**: el texto original de esta tarea asumía el `<iframe>` nativo (§5.4
+      original) — reemplazado por `pdfjs-dist` + `<canvas>` (ver evidencia en 5.4 y arriba), así que
+      la variabilidad "en algunos móviles descarga en vez de mostrar" ya no aplica tal cual (no hay
+      visor nativo de por medio). Verificado por el usuario en dos navegadores de escritorio (Arc y
+      otro Chromium) — **no se probó en mobile**, queda pendiente si hace falta confirmarlo ahí.
       **Bug encontrado y arreglado durante esta verificación (2026-08-06)**: con `sandbox=""` (5.4
       original), el PDF nunca cargaba — ícono roto del navegador, no un estado de error propio. Causa:
       un iframe sin `allow-same-origin` queda con origen opaco, y los navegadores bloquean cargar
@@ -865,6 +924,82 @@ alcance de esta pasada. **No se hizo commit** — el usuario revisa el diff y co
       texto de 5.4/design.md D... más abajo, que describían `sandbox=""` como el valor final — ya no lo
       es. **Falta re-verificar en al menos dos navegadores** (lo que pedía 8.2 originalmente) antes de
       tildar este punto.
+      **Segunda vuelta (2026-08-06)**: la re-verificación en dos navegadores (Arc y otro Chromium)
+      encontró un problema más profundo — con `sandbox="allow-same-origin"` la `blob:` cargaba,
+      pero el **visor de PDF nativo del navegador se niega a correr dentro de CUALQUIER iframe
+      sandboxeado**, en ambos navegadores, sin importar la combinación de tokens (confirmado
+      sacando el `sandbox` por completo como diagnóstico temporal, ya revertido: sin sandbox
+      cargaba perfecto). No hay combinación de `sandbox` que sea segura y funcional a la vez.
+      **Fix aplicado**: se reemplazó el `<iframe>` por completo para PDF — `pdfjs-dist` nuevo +
+      componente propio `PdfPreview.tsx` que renderiza a `<canvas>`, sin iframe ni plugin del
+      navegador (detalle completo de la implementación en 5.4 de arriba, decisión documentada en
+      `design.md` Checkpoint (e)). Esto es una decisión distinta a un simple ajuste de flags de
+      `sandbox` — se consultó explícitamente al usuario (gobernanza CRÍTICO, dominio de documentos
+      clínicos) antes de agregar la dependencia nueva, aprobado en la misma sesión. **Sigue
+      pendiente**: re-verificar en al menos dos navegadores que el PDF ahora se ve correctamente
+      con el render de `pdfjs-dist` (no queda cubierto por tests automatizados, que mockean
+      `pdfjs-dist` por completo) — no se tilda 8.2 todavía, la verificación manual real la hace
+      el usuario.
+      **Tercera vuelta (2026-08-06)**: primer test visual del render de `pdfjs-dist` encontró dos
+      problemas de UX, reportados directamente por el usuario. (1) El `<canvas>` se veía
+      "estirado" — a diferencia de `<img>` (que usa `object-contain`), `<canvas>` no respeta
+      `object-fit` de forma confiable, y forzar su ancho vía `w-full` mientras el alto se capaba
+      por separado (`max-h-[70vh]`) deformaba la imagen. Fix: el canvas ya no lleva clases de
+      tamaño (queda en su tamaño natural, el que le dan `canvas.width`/`canvas.height`), y un
+      contenedor (`max-h-[70vh] w-full overflow-auto`) scrollea si el contenido no entra — mismo
+      comportamiento que un visor nativo. (2) El usuario extrañó el zoom que tenía gratis el
+      `<iframe>` nativo del navegador — se agregó zoom propio (botones Alejar/Acercar, 50%–300%,
+      pasos de 25 puntos, arrancando en 100%; el zoom se mantiene al cambiar de página, se resetea
+      a 100% solo al cambiar de documento) usando el `scale` que ya expone la API de `pdfjs-dist`
+      (`page.getViewport({ scale })`) — no hizo falta ninguna dependencia adicional. 3 tests nuevos
+      en `PdfPreview.test.tsx` (arranca en 100% y sube con Acercar; topes 50%/300% no se cruzan;
+      el zoom persiste al navegar de página) — RED→GREEN confirmado, 31/31 en
+      `PdfPreview.test.tsx` + `DocumentChecklist.test.tsx` juntos. `tsc -b --noEmit` sigue en 0,
+      `oxlint` limpio.
+      **Cuarta vuelta (2026-08-06)**: el zoom seguía "borroso" — causa distinta a la del
+      estiramiento: el canvas se renderizaba a resolución "lógica" (CSS px), y una pantalla
+      Retina/HiDPI necesita más píxeles reales de backing store para verse nítida a ese mismo
+      tamaño visual. Fix: `canvas.width`/`height` (backing store) se multiplican por
+      `window.devicePixelRatio`, mientras `canvas.style.width`/`height` (tamaño visible) se dejan
+      en el tamaño lógico — con la matriz `transform` que pide `page.render()` para que el dibujo
+      llene ese backing store más grande (patrón estándar de la propia documentación de pdf.js).
+      2 tests nuevos (`devicePixelRatio` 2 y 1) en `PdfPreview.test.tsx`, RED→GREEN confirmado.
+      Además, el usuario pidió poder **descargar** el documento (no solo verlo) — se agregó un
+      link "Descargar" (`<a href={url} download={nombreArchivo}>`) debajo del contenido, visible
+      para cualquier `estado.status === 'lista'` (incluido el caso de tipo no soportado, donde más
+      falta hace al no haber preview inline). Reusa la misma `url` ya resuelta para la
+      previsualización — **no es una resolución nueva**, así que no compite con el alcance futuro
+      de `documentos-descarga-firmada` (esa sigue siendo la resolución **real** contra Storage con
+      URL firmada; acá se descarga lo mismo que ya se está viendo, mock incluido). Se exportó
+      `buttonClassName(variant, size)` de `components.tsx` porque `Button` solo renderiza
+      `<button>` y `download` exige una etiqueta `<a>` real — así el link se ve idéntico a un botón
+      secundario sin reimplementar estilos a mano. 2 tests nuevos en `DocumentChecklist.test.tsx`
+      (aparece con url+nombre correctos, incluida la rama "no previsualizable"; no aparece sin url
+      válida — `sin-contenido`/`error`). Total: 46/46 en los tres archivos de test tocados,
+      `tsc -b --noEmit` en 0, `oxlint` limpio (mismo tipo de warning preexistente que ya tenía
+      `chipColors`, no una categoría nueva).
+      **Quinta vuelta (2026-08-06) — bug real de fondo, no cosmético**: cerrar la ventana y volver
+      a abrir el MISMO documento tiraba `net::ERR_FILE_NOT_FOUND` sobre la `blob:`. Causa:
+      `mockDocumentoRepository.resolverPrevisualizacion()` devolvía siempre la MISMA URL cacheada
+      desde `upload()`, pero `DocumentChecklist.cerrarPreview()` la revoca al cerrar (D2, "efímera")
+      — la segunda apertura reusaba una referencia ya muerta. Fix en
+      `mockDocumentoRepository.ts`: el Map interno pasa a guardar el `File` (no una URL ya creada);
+      `resolverPrevisualizacion()` llama `URL.createObjectURL(file)` de nuevo en CADA llamada — el
+      mismo comportamiento que tendría una URL firmada real con expiración corta. `remove()` ya no
+      revoca nada por su cuenta (no hay URL permanente que cachear). 2 tests nuevos que cubren
+      exactamente esta regresión (`mockDocumentoRepository.test.ts`, 17/17), RED→GREEN confirmado.
+      **Confirmado por el usuario en la app real: cerrar y reabrir el mismo documento ya funciona.**
+      Sesión de ajustes de UX en vivo sobre `DocumentChecklist.tsx` (feedback directo probando la
+      app, sin cambio de comportamiento de negocio): fila del documento clickeable para abrir "Ver"
+      (mismo patrón que las Card clickeables de `PacientesList.tsx` y el resto de listados —
+      `onClick` directo, mouse-only, sin `role="button"`), con fondo hover acotado a la zona
+      nombre+Ver (`hover:bg-surface-soft`); "Quitar" queda afuera de esa zona, sin fondo ni
+      click-to-abrir; "Ver" oculto por opacidad hasta hover/foco (`group-hover`/`focus-visible`);
+      "Ver"/"Quitar" pasan de ícono a texto (link, sin borde de botón, mismo patrón que
+      `RecorridosDelDiaPanel.tsx`); "Vigente" pasa de `Chip` (pill) a texto plano con el mismo
+      color (`chipColors.info.fg`). 3 tests nuevos cubriendo la fila clickeable
+      (`DocumentChecklist.test.tsx`, 28/28). Suite completa tocada en esta pasada: 77/77,
+      `tsc -b --noEmit` en 0, `oxlint` limpio. **8.2 confirmado por el usuario, se tilda.**
 - [ ] 8.3 Con un ítem que tenga 2+ documentos (el caso de `pacientes-documentos-multiples`: presupuesto
       vigente + renovación), previsualizar cada uno y confirmar que se abre **el correcto**.
 - [ ] 8.4 Cerrar con `Escape`, con el backdrop y con el botón de cierre. Confirmar que el checklist

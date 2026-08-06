@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Chip, chipColors, InlineIcon, Overlay, ProgressBar } from '../../design-system/components';
+import { buttonClassName, Chip, chipColors, InlineIcon, Overlay, ProgressBar } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
-import { iconDocumento, iconOjo, iconTacho } from '../../design-system/icons';
+import { iconDocumento } from '../../design-system/icons';
 import type { ChecklistItem, DocumentoAdjunto } from '../types/documento';
+import { PdfPreview } from './PdfPreview';
 
 interface DocumentChecklistProps {
   items: ChecklistItem[];
@@ -87,6 +88,21 @@ function ordenarParaMostrar(docs: DocumentoAdjunto[], vigente: DocumentoAdjunto 
 // con `allow-same-origin` solo, sin `allow-scripts`, nada puede ejecutar código aunque el iframe
 // tenga identidad de origen. Contra una URL firmada real (https, no blob) esta restricción no
 // aplicaría de todos modos, pero se deja igual por consistencia entre mock y real.
+//
+// **Corrección (2026-08-06, verificación manual en dos navegadores — Arc y otro Chromium)**: el
+// `<iframe>` de arriba se REEMPLAZA por completo para PDF. Con `sandbox="allow-same-origin"` la
+// `blob:` sí cargaba (fix anterior), pero el visor nativo de PDF del navegador se niega a correr
+// dentro de CUALQUIER iframe sandboxeado, sin importar la combinación de tokens — confirmado
+// sacando el `sandbox` por completo como diagnóstico (ya revertido): sin sandbox el PDF cargaba
+// perfecto, con cualquier sandbox no. No existe una combinación de `sandbox` que sea segura y
+// funcional a la vez: el visor nativo necesitaría `allow-scripts` + `allow-same-origin` juntos
+// (el escape de sandbox conocido) para poder correr, y eso es exactamente lo que no se puede
+// conceder a contenido subido por un usuario. Se agrega `pdfjs-dist` como dependencia nueva
+// (decisión explícita del usuario, ver `design.md` Checkpoint (e) y `tasks.md`) y se renderiza el
+// PDF a un `<canvas>` con `PdfPreview` (`./PdfPreview.tsx`) en vez de con el visor nativo: pdf.js
+// parsea el archivo y dibuja gráficos/texto vía la API de canvas, no ejecuta nada del contenido
+// del PDF como si fuera HTML/script de la página — sin iframe, sin plugin del navegador, sin
+// browsing context separado, por lo tanto sin necesidad de `sandbox` en absoluto para este caso.
 function ContenidoPreview({ estado, documento }: { estado: EstadoPrevisualizacion; documento: DocumentoAdjunto }) {
   if (estado.status === 'cargando') {
     return <p className="font-body text-sm text-muted">Cargando previsualización…</p>;
@@ -102,31 +118,46 @@ function ContenidoPreview({ estado, documento }: { estado: EstadoPrevisualizacio
     return <Alert tone="secondary">Este documento no tiene contenido para previsualizar.</Alert>;
   }
 
+  // A partir de acá `estado.status === 'lista'`: hay una url válida (mock: ObjectURL; real
+  // mañana: URL firmada), así que "Descargar" siempre tiene sentido — incluida la rama de tipo no
+  // soportado más abajo, que es justo el caso donde más falta hace (no hay preview inline al que
+  // recurrir). `download={documento.nombreArchivo}` conserva el nombre original, no el id interno
+  // ni el nombre que el navegador le pondría a una blob: URL por defecto.
+  let contenido;
   if (documento.tipoMime?.startsWith('image/')) {
-    return (
+    contenido = (
       <img
         src={estado.url}
         alt={documento.nombreArchivo}
         className="max-h-[70vh] w-full rounded-sm object-contain"
       />
     );
-  }
-
-  if (documento.tipoMime === 'application/pdf') {
-    return (
-      <iframe
-        src={estado.url}
-        title={documento.nombreArchivo}
-        sandbox="allow-same-origin"
-        className="h-[70vh] w-full rounded-sm border border-border"
-      />
+  } else if (documento.tipoMime === 'application/pdf') {
+    contenido = <PdfPreview url={estado.url} nombreArchivo={documento.nombreArchivo} />;
+  } else {
+    contenido = (
+      <Alert tone="secondary">
+        Este tipo de archivo no se puede previsualizar acá. Nombre: {documento.nombreArchivo}
+      </Alert>
     );
   }
 
   return (
-    <Alert tone="secondary">
-      Este tipo de archivo no se puede previsualizar acá. Nombre: {documento.nombreArchivo}
-    </Alert>
+    // min-w-0 (fix "el zoom agranda toda la tarjeta", 2026-08-06): propaga la posibilidad de
+    // achicarse a través de toda la cadena de flex items entre el <canvas> de PdfPreview y el
+    // `max-w-[640px]` del diálogo de Overlay — sin esto en cada nivel, un flex item no se achica
+    // por debajo del ancho de su contenido, sea cual sea el `overflow-auto` que tenga adentro.
+    <div className="flex w-full min-w-0 flex-col gap-sm">
+      <div className="flex w-full min-w-0 flex-col items-center gap-sm">{contenido}</div>
+      {/* documentos-previsualizacion (feedback de ubicación, 2026-08-06): "Descargar" va abajo,
+          alineado a la derecha — separado de los controles de zoom/paginación de PdfPreview
+          (que quedan centrados arriba de esta fila), no mezclado en la misma torre de botones. */}
+      <div className="flex w-full justify-end">
+        <a href={estado.url} download={documento.nombreArchivo} className={buttonClassName('secondary', 'sm')}>
+          Descargar
+        </a>
+      </div>
+    </div>
   );
 }
 
@@ -274,16 +305,34 @@ export function DocumentChecklist({
             {docsOrdenados.length > 0 && (
               <div className="flex flex-col gap-xs pl-11">
                 {docsOrdenados.map((doc) => (
-                  <div key={doc.id} className="flex flex-wrap items-center justify-between gap-sm">
-                    <span className="font-body text-[11px] text-muted">
-                      {doc.nombreArchivo} · {new Date(doc.subidoEn).toLocaleDateString('es-AR')}
-                      {vigente?.id === doc.id && (
-                        <span className="ml-xs inline-block align-middle">
-                          <Chip kind="info">Vigente</Chip>
-                        </span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-sm">
+                  // documentos-previsualizacion (feedback de layout, 2026-08-06 — "más intuitivo
+                  // si aprieto la fila" / "Quitar afuera del hover" / "Ver adentro de la caja con
+                  // fondo, a la derecha"): la caja con `hover:bg-surface-soft` + click-para-abrir
+                  // (mismo patrón que las Card clickeables de PacientesList.tsx: `onClick`
+                  // directo, sin role="button"/tabIndex, mouse-only por diseño) ocupa todo el
+                  // ancho disponible y usa `justify-between` PARA SÍ MISMA — nombre/Vigente a la
+                  // izquierda, "Ver" a la derecha DENTRO de esa misma caja (oculto por opacidad,
+                  // `group-hover` lo revela). "Quitar" queda afuera de la caja, como hermano, sin
+                  // fondo ni click-to-abrir — la naturaleza de esa acción es distinta (destruir,
+                  // no ver).
+                  <div key={doc.id} className="group flex flex-wrap items-center justify-between gap-sm">
+                    <div
+                      onClick={onResolverPrevisualizacion ? () => abrirPreview(doc, item.nombre) : undefined}
+                      className={`flex flex-1 items-center justify-between gap-sm rounded-sm px-3 py-1.5 ${
+                        onResolverPrevisualizacion ? 'cursor-pointer transition-colors hover:bg-surface-soft' : ''
+                      }`}
+                    >
+                      <span className="font-body text-[11px] text-muted">
+                        {doc.nombreArchivo} · {new Date(doc.subidoEn).toLocaleDateString('es-AR')}
+                        {vigente?.id === doc.id && (
+                          // documentos-previsualizacion (feedback "Vigente como texto, sin pill",
+                          // 2026-08-06): mismo color que tenía el Chip (`chipColors.info.fg`,
+                          // text-info) pero sin fondo/borde — solo texto.
+                          <span className={`ml-xs font-body text-[11px] font-semibold ${chipColors.info.fg}`}>
+                            Vigente
+                          </span>
+                        )}
+                      </span>
                       {onResolverPrevisualizacion && (
                         // documentos-previsualizacion (tasks.md 5.6, design.md Checkpoint (c)):
                         // "Ver" NUNCA se deshabilita con `readOnly` a propósito — `readOnly` gatea
@@ -294,22 +343,25 @@ export function DocumentChecklist({
                         <button
                           type="button"
                           aria-label={`Ver ${item.nombre} - ${doc.nombreArchivo}`}
-                          onClick={() => abrirPreview(doc, item.nombre)}
-                          className="cursor-pointer border-none bg-transparent p-0 text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            abrirPreview(doc, item.nombre);
+                          }}
+                          className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-primary underline-offset-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:underline"
                         >
-                          <InlineIcon>{iconOjo}</InlineIcon>
+                          Ver
                         </button>
                       )}
-                      <button
-                        type="button"
-                        aria-label={`Quitar ${item.nombre} - ${doc.nombreArchivo}`}
-                        disabled={readOnly}
-                        onClick={() => onRemove(doc.id)}
-                        className="cursor-pointer border-none bg-transparent p-0 text-danger disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <InlineIcon>{iconTacho}</InlineIcon>
-                      </button>
                     </div>
+                    <button
+                      type="button"
+                      aria-label={`Quitar ${item.nombre} - ${doc.nombreArchivo}`}
+                      disabled={readOnly}
+                      onClick={() => onRemove(doc.id)}
+                      className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-danger underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-40"
+                    >
+                      Quitar
+                    </button>
                   </div>
                 ))}
               </div>
