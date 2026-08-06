@@ -361,11 +361,11 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
     `plazo_cobro_dias`/`tipo_comprobante` de `obra_social.obra_social` (anteriores a Prestador, de
     `20260729110000_schema_obra_social_facturacion_config.sql`) quedan fuera de scope, sin tocar.
   - **Backend**: `supabase/migrations/20260806180000_sacar_prestadores.sql` — dropea
-    `obra_social.obra_social_prestador` y `obra_social.prestadores`. **Redactada, NO aplicada**
-    (`supabase db push` a cargo de Enzo). No dropea `facturacion.tipo_factura` (enum compartido).
-    `supabase/functions/prestadores/` se borra localmente — el deploy real en Supabase requiere
-    `supabase functions delete prestadores --project-ref pkryfoljypuzfifofdwp` por separado
-    (acción pendiente de Enzo, borrar la carpeta local no la da de baja).
+    `obra_social.obra_social_prestador` y `obra_social.prestadores`. **Aplicada el 2026-08-06**
+    vía `supabase db push --linked` (Enzo). No dropea `facturacion.tipo_factura` (enum compartido).
+    `supabase/functions/prestadores/` se borra localmente y la función deployada en Supabase se dio
+    de baja el mismo día con `supabase functions delete prestadores --project-ref
+    pkryfoljypuzfifofdwp`.
   - `openspec/changes/prestadores-crud/` y `openspec/changes/factura-por-prestador/` quedan sin
     tocar, como registro histórico de lo que se construyó.
   - `tsc -b --noEmit` limpio, suite completa verificada, `grep -rni "prestador"` sin restos de la
