@@ -741,29 +741,107 @@ wrapper necesita tocarse para que esta sección compile, pase sus tests y no rom
 > Esta sección **repara un hallazgo**, no es papeleo: `integracion-documentos` §D6 prometió una
 > anotación que nunca se escribió, y por eso `documentos-descarga-firmada` quedó huérfano.
 
-- [ ] 7.1 `CHANGES.md`: agregar la nota de refinamiento posterior bajo `C-03` y bajo `C-05` (mismo
+- [x] 7.1 `CHANGES.md`: agregar la nota de refinamiento posterior bajo `C-03` y bajo `C-05` (mismo
       patrón que usó `pacientes-documentos-multiples`, líneas 188 y 496), con el nivel de gobernanza
       confirmado en `0.1`.
-- [ ] 7.2 `CHANGES.md` + `knowledge-base/10_preguntas_abiertas.md`: dejar escrita la relación entre
+      **Hecho (2026-08-06)**: bajo `C-03` (`gestion-documental-core`), inmediatamente después del
+      bullet `pacientes-documentos-multiples`, se agregó `**Refinamiento posterior
+      (`documentos-previsualizacion`, 2026-08-06)**:` describiendo la acción "Ver" cableada en los 4
+      puntos de montaje, el método nuevo `resolverPrevisualizacion()` (la interfaz pasa a 4 métodos),
+      que corre contra mock/`ObjectURL` sin descarga real todavía, el componente `Overlay` nuevo en
+      `design-system/components.tsx`, y governance CRÍTICO confirmado en `tasks.md` 0.1 — mismo patrón
+      exacto (negrita, fecha, referencia a `openspec/changes/.../`) que el bullet vecino de
+      `pacientes-documentos-multiples`. Bajo `C-05` (`pacientes-fichas-clinicas`), inmediatamente
+      después del bullet equivalente de `pacientes-documentos-multiples`, se agregó un segundo
+      `**Refinamiento posterior**` más corto, scoped a la pantalla Pacientes → Documentos, que remite
+      al bullet de `C-03` para el detalle completo (mismo patrón que ya usaba
+      `pacientes-documentos-multiples` para remitir de `C-05` a `C-03`).
+- [x] 7.2 `CHANGES.md` + `knowledge-base/10_preguntas_abiertas.md`: dejar escrita la relación entre
       `documentos-previsualizacion` y `documentos-descarga-firmada` según el veredicto de (b), de forma
       que **las dos entradas no se contradigan**. Si el veredicto es B2, además **crear efectivamente**
       la entrada de `documentos-descarga-firmada` (hoy no existe en ningún lado salvo como mención
       dentro de un `design.md`).
-- [ ] 7.3 `knowledge-base/10_preguntas_abiertas.md`: escribir la anotación sobre US-900 que
+      **Hecho (2026-08-06)**: veredicto B2 (complementarios por capa, confirmado en 0.1). En
+      `CHANGES.md`, bajo `C-03`, se agregó un tercer bullet nuevo — `**Change futuro anotado, no
+      propuesto todavía (`documentos-descarga-firmada`, 2026-08-06)**:` — que confirma explícitamente
+      que la carpeta **no existe** en `openspec/changes/`, que esta es su primera aparición en
+      `CHANGES.md`, y describe su alcance futuro (implementar `createSignedUrl()` + descarga real,
+      heredando el contrato y el `Overlay` que deja `documentos-previsualizacion`) sin crear la carpeta
+      del change (eso es un `/opsx:propose` futuro y separado, fuera de esta tarea). En
+      `knowledge-base/10_preguntas_abiertas.md` se agregó la sección nueva `## Preguntas nuevas —
+      documentos-previsualizacion (2026-08-06)` con dos entradas: la relación B2 entre ambos changes
+      (explícitamente descartando B1-fusión y B3-separados) y la anotación de 7.3 (ver abajo). Las dos
+      entradas (CHANGES.md y la KB) se escribieron en la misma pasada, releídas una contra la otra
+      para confirmar que **no se contradicen**: ambas dicen lo mismo — complementarios por capa, UI
+      contra mock vs. resolución real + descarga, `documentos-descarga-firmada` todavía sin proponer.
+- [x] 7.3 `knowledge-base/10_preguntas_abiertas.md`: escribir la anotación sobre US-900 que
       `integracion-documentos` §D6 prometió y nunca se escribió (*"para que el criterio de aceptación
       de US-900 no quede tácitamente dado por cumplido"*). Verificado al momento del propose: ese
       archivo **no menciona** descarga de documentos ni US-900.
-- [ ] 7.4 `openspec/changes/integracion-documentos/design.md`: corregir §D6, que afirma que ese change
+      **Re-confirmado antes de escribir (2026-08-06)**: `grep -n "descarga\|US-900\|previsualiza"
+      knowledge-base/10_preguntas_abiertas.md` sobre el archivo tal como estaba antes de esta pasada
+      devolvió una sola coincidencia, la fila de la tabla de prioridad Alta sobre integración con ARCA
+      ("¿es viable descargar/consultar comprobantes...?") — sobre **comprobantes de facturación**, un
+      tema no relacionado; ninguna mención de descarga de **documentos** ni de US-900. Confirmado
+      igual que anticipaba el propose. Escrita como parte de la misma sección nueva de 7.2 (primer
+      bullet, "US-900 — 'se pueden consultar y descargar'"): dice explícitamente que el criterio
+      **sigue sin tildar**, por qué (mock, sin descarga), y quién lo cierra (backend real +
+      `documentos-descarga-firmada`).
+- [x] 7.4 `openspec/changes/integracion-documentos/design.md`: corregir §D6, que afirma que ese change
       **no toca la interfaz `DocumentoRepository`**. Si `documentos-previsualizacion` se aplica primero,
       esa interfaz pasa a tener cuatro métodos y `integracion-documentos` tiene que implementarlos
       todos. **Es un supuesto roto y hay que avisarlo ahí, no descubrirlo durante su apply.**
-- [ ] 7.5 `knowledge-base/06_funcionalidades.md` §US-900: **no tildar** el criterio *"Se pueden
+      **Hecho (2026-08-06)**: se agregó un bloque `> ⚠️ CORRECCIÓN (2026-08-06, ...)` inmediatamente
+      después del párrafo original de D6 (que se dejó intacto, sin reescribir — el bloque de
+      corrección lo cita y lo contextualiza en vez de editarlo por dentro, mismo criterio que otras
+      correcciones ya presentes en el propio `CHANGES.md`, ej. la de D12/RN-ID-02 en
+      `10_preguntas_abiertas.md`). El bloque explica: `documentos-previsualizacion` se aplicó primero
+      (§0-§6 completas) y ya agregó `resolverPrevisualizacion()` como cuarto método de
+      `DocumentoRepository`; quien escriba `SupabaseDocumentoRepository` para este change tiene que
+      implementar los 4 métodos, no los 3 originales que este `design.md` conocía; distingue
+      explícitamente esta cuarta firma "preexistente por otro change" de la cuarta firma que D6
+      imaginaba para la propia descarga (que ahora sería la quinta si se construye vía
+      `documentos-descarga-firmada`); y remite a `CHANGES.md`/`10_preguntas_abiertas.md` para el
+      detalle. **Nota operativa**: esta carpeta (`openspec/changes/integracion-documentos/`) está
+      `untracked` en git (confirmado con el brief de la tarea, de una sesión previa) — se editó igual,
+      el archivo existe en disco (`design.md`, 26739 bytes antes de este cambio, confirmado con `ls`
+      antes de tocarlo).
+- [x] 7.5 `knowledge-base/06_funcionalidades.md` §US-900: **no tildar** el criterio *"Se pueden
       consultar y descargar"* mientras corra sobre mock. Si el veredicto de (b) fue B1 (fusión) y hay
       backend real, recién ahí corresponde tildarlo.
-- [ ] 7.6 Confirmar por escrito en el cierre que **no hubo discrepancia docx↔KB** en este change (es
+      **Verificado (2026-08-06)**: `grep -n "US-900" -A 20 knowledge-base/06_funcionalidades.md`
+      muestra los tres criterios de aceptación de §US-900 (línea 191-199) **ya sin tildar**
+      (`- [ ]` los tres, incluido *"Se pueden consultar y descargar los documentos adjuntos..."*,
+      línea 198) — no hacía falta ningún cambio en este archivo. Consistente con el veredicto B2 (no
+      B1): no hay backend real ni descarga, así que no correspondía tildarlo, y no estaba mal tildado
+      para empezar. Se deja esta constancia en vez de tocar el archivo sin necesidad.
+- [x] 7.6 Confirmar por escrito en el cierre que **no hubo discrepancia docx↔KB** en este change (es
       una funcionalidad de UI, sin contraparte estructural en
       `docs/core/Traslados-Modelo-Datos.docx`) y que por lo tanto **no corresponde** ningún
       `AvisoModeloDatos` nuevo ni nota en `04_modelo_de_datos.md` §Discrepancias.
+      **Confirmado (2026-08-06)**: `documentos-previsualizacion` no agrega ni modifica ninguna
+      entidad, tabla, columna ni campo de dominio — el único campo nuevo (`tipoMime?: string` en
+      `DocumentoAdjunto`, tasks.md 1.1) es metadata de UI derivada de `File.type` en el momento de
+      subir, no un dato estructural del modelo de negocio que el docx pudiera modelar distinto. Todo
+      el resto del change es contrato (`resolverPrevisualizacion()`), componente de design system
+      (`Overlay`) y cableado de UI (botón "Ver") — cero superficie de modelo de datos. Revisado
+      `knowledge-base/04_modelo_de_datos.md` §Discrepancias (línea 119 en adelante, confirmado que la
+      sección existe) — **no corresponde** agregar ninguna entrada nueva ahí, ni montar
+      `AvisoModeloDatos` (`frontend/src/design-system/components.tsx`) en ninguna pantalla de este
+      change. Sin cambios en `04_modelo_de_datos.md` ni en ningún componente de UI por este punto.
+
+**Verificación de cierre de §7 (2026-08-06)**: sección puramente documental — sin código de
+producción, sin ciclo RED→GREEN, sin `tsc -b --noEmit` ni `vitest` que corran (nada de lo tocado es
+`.ts`/`.tsx`). Archivos tocados en esta sección: `CHANGES.md` (2 ediciones: bajo `C-03` y bajo `C-05`),
+`knowledge-base/10_preguntas_abiertas.md` (1 sección nueva), `openspec/changes/integracion-documentos/design.md`
+(1 bloque de corrección sobre §D6) — 3 archivos, 4 ediciones en total, ninguna de las cuales pisó texto
+existente (todas son bloques nuevos agregados junto al contenido original, que se dejó intacto).
+`knowledge-base/06_funcionalidades.md` se **verificó pero no se tocó** (7.5, ya estaba correcto).
+`knowledge-base/04_modelo_de_datos.md` se **revisó pero no se tocó** (7.6, no correspondía). El
+hallazgo que motivó esta sección (`integracion-documentos` §D6 con dos promesas incumplidas: la
+anotación en `10_preguntas_abiertas.md` y "no toca `DocumentoRepository`") queda reparado en las dos
+puntas. **No se avanzó a §8** — es verificación manual bloqueante a cargo de Enzo/la usuaria, fuera del
+alcance de esta pasada. **No se hizo commit** — el usuario revisa el diff y comitea manualmente.
 
 ## 8. Verificación manual (bloqueante, a cargo de Enzo / la usuaria)
 

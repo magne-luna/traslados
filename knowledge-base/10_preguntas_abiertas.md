@@ -244,6 +244,34 @@ cierra en este change — se registran acá y quedan para confirmar.
   depender de `auth.uid()` en el trigger. **No se propone como solución decidida** — solo se deja
   registrado el hueco y la opción que existe. **Decisor**: Enzo / backend.
 
+## Preguntas nuevas — `documentos-previsualizacion` (2026-08-06)
+
+Anotación que `integracion-documentos` §D6 prometió dejar acá y nunca escribió (ver `CHANGES.md`
+entrada `⚠️` del propio `integracion-documentos` y `openspec/changes/integracion-documentos/design.md`
+§D6, corregido el mismo día que esta entrada) — **US-900** ("consultar y descargar" documentos
+adjuntos) sigue **sin cerrar del todo**:
+
+- **US-900 — "se pueden consultar y descargar"**: `documentos-previsualizacion` (2026-08-06) cierra la
+  mitad de "consultar" agregando previsualización en pantalla (`Overlay` + `resolverPrevisualizacion()`
+  en `DocumentoRepository`), pero corre contra el mock (`ObjectURL`, se pierde al recargar la página) y
+  **no implementa descarga**. El criterio de aceptación de US-900 sigue **sin tildar** en
+  `knowledge-base/06_funcionalidades.md` a propósito — no dar por cumplido lo que todavía no está
+  contra Storage real ni tiene botón de descarga. **Decisor**: se cierra cuando exista un backend real
+  para documentos (`integracion-documentos`) y una descarga real (`documentos-descarga-firmada`, ver
+  bullet siguiente).
+- **Relación entre `documentos-previsualizacion` y `documentos-descarga-firmada`**: son **complementarios
+  por capa**, no duplicados ni competidores (Checkpoint (b) de `documentos-previsualizacion/design.md`,
+  veredicto **B2**, 2026-08-06). `documentos-previsualizacion` es la UI (contrato + componente + acción
+  "Ver") contra el mock; `documentos-descarga-firmada` — **todavía no propuesto, no existe como carpeta
+  en `openspec/changes/`, recién anotado en `CHANGES.md` bajo `C-03`/`C-05` el 2026-08-06** — se
+  reformula como el change que implementa `createSignedUrl()` contra Storage real y agrega la descarga
+  efectiva, heredando el contrato de `DocumentoRepository` (incluido `resolverPrevisualizacion()`) y el
+  componente `Overlay` que deja escritos `documentos-previsualizacion`. Ninguno de los dos absorbe al
+  otro (Opción B1, fusión, fue evaluada y descartada) ni quedan como temas separados sin relación
+  (Opción B3, el estado que causó este mismo huérfano, también descartada). **Decisor**: ya decidido
+  (Enzo, 2026-08-06) — queda para quien proponga `documentos-descarga-firmada` a futuro, que debe leer
+  esta entrada y `documentos-previsualizacion/design.md` Checkpoint (b) antes de arrancar.
+
 ## Insumos pendientes del cliente
 
 - Logo (árbol de discapacidad) y colores de marca; fondo de pantalla de referencia.
