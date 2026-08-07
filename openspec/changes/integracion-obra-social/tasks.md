@@ -129,40 +129,35 @@
       funciones `SECURITY DEFINER` legítimas × `anon`/`authenticated` + protección de contraseñas
       filtradas deshabilitada) — ninguno menciona `obra_social.crear_obra_social_completa` ni
       `actualizar_obra_social_completa` (esperado: no están aplicadas todavía).
-- [ ] 1B.6 **BLOQUEADO — requiere a la usuaria / Enzo (backend).** Aplicar las dos migraciones al
-      proyecto real. El desfasaje de historial de 1.2 sigue igual; si se aplica por SQL Editor,
-      puede hacer falta `supabase migration repair --status applied`. **Esta tarea bloquea la §5**
-      en el sentido estricto de "la pantalla funciona contra datos reales" — el código de la §5 ya
-      está escrito y cableado (ver esa sección), pero no puede ejercitarse de verdad hasta que esto
-      se aplique. Después de aplicar, volver a correr `supabase db advisors --linked --type
-      security` y confirmar que las funciones nuevas no agregan hallazgos respecto de los 15 de
-      1B.5.
+- [x] 1B.6 **Confirmado aplicado (2026-08-06).** La nota "bloqueado" estaba desactualizada — Enzo ya
+      había aplicado ambas migraciones. Verificado contra `pkryfoljypuzfifofdwp`: `select proname,
+      prosecdef from pg_proc where proname in ('crear_obra_social_completa',
+      'actualizar_obra_social_completa')` → ambas existen, `prosecdef = false` en las dos (SECURITY
+      INVOKER confirmado). `supabase db advisors --linked --type security` → 15 hallazgos, idénticos
+      a los de 1B.5, ninguno nuevo sobre estas funciones.
 - [x] 1B.7 **No aplica — confirmado durante 1.3.** El segundo paso del expand/contract de
       `tipo_factura` era necesario solo si la columna seguía siendo `TEXT` con un `CHECK NOT VALID`.
       La columna real (`tipo_comprobante`) ya es el enum `facturacion.tipo_factura`
       ('A'/'B'/'C') — más estricto que un CHECK, sin filas que puedan violarlo. No hay nada que
       validar en dos pasos.
-- [ ] 1B.8 **BLOQUEADO — nota importante sobre el punto (b)/(c) para quien lo ejecute**: como se
-      documenta en `04_modelo_de_datos.md` y en la cabecera de `20260731120001_obra_social_rpc.sql`,
-      un `UPDATE` sobre una fila que RLS oculta por falta de `write` afecta 0 filas sin lanzar
-      `42501` por sí solo — `actualizar_obra_social_completa` lo traduce a `45103`. El resultado en
-      filas escritas es el mismo (cero) en cualquiera de los dos casos; verificar cuál código
-      realmente aparece y actualizar esta nota si difiere de lo esperado. **Requiere a la usuaria /
-      Enzo (SQL editor + 3 cuentas reales).** Verificación
-      manual de las dos funciones, checklist del §Migration Plan paso 6 de `design.md`. Registrar el
-      resultado de cada punto:
-      (a) cuenta con `obra_social: write` → `crear_obra_social_completa` da de alta la obra social,
-      su checklist (con orden) y su plantilla; un `select` posterior las ve todas;
-      (b) cuenta con `obra_social: read` **sin** `write` → `42501` y **cero** filas creadas en las
-      cuatro tablas — **esta es la prueba de que `SECURITY INVOKER` está haciendo su trabajo**: si
-      alguna vez pasa a `DEFINER`, este caso empieza a crear filas y esta verificación lo detecta;
-      (c) cuenta con `obra_social: read` sin `write` → `actualizar_obra_social_completa` sobre una
-      obra social existente falla con `42501` y no modifica nada;
-      (d) reordenar el checklist vía `actualizar_…` y releer → el orden persiste exactamente;
-      (e) `actualizar_…` con `p_cambios` que **no** trae la clave `checklist` → el checklist queda
-      intacto (la trampa de jsonb de D6);
-      (f) alta con un ítem de checklist de nombre vacío → `45101` y **ninguna** fila escrita en
-      ninguna de las cuatro tablas;
+- [x] 1B.8 **Hecho (2026-08-06/07), verificado en vivo contra `pkryfoljypuzfifofdwp` vía REST/RPC
+      con JWTs reales** (`andrea.test@gmail.com` = `obra_social: admin`; `rominaop@pastor.com` =
+      `obra_social: read`, sin `write`). Los 6 puntos:
+      (a) Andrea crea una obra social de prueba (`TEST-C04-1B8-BORRAR`) con un ítem de checklist →
+      `200`, `id` devuelto, `select` posterior la ve completa;
+      (b) Romina intenta crear → `403`, `code: 42501`, "new row violates row-level security
+      policy" — **0 filas creadas**, `SECURITY INVOKER` funcionando;
+      (c) Romina intenta `actualizar_obra_social_completa` sobre la obra social de Andrea → **no**
+      da `42501` directo, da **`45103`** ("No existe una obra social con id...") — confirma
+      exactamente la nota que dejó este ítem: el `UPDATE` afecta 0 filas por RLS y la función lo
+      traduce a `45103`, mismo resultado neto (cero escrituras);
+      (d) Andrea reordena el checklist (2 ítems, `orden` 5 y 1) → releído, el orden persiste exacto;
+      (e) Andrea actualiza `telefono` sin incluir la clave `checklist` → releído, los 2 ítems del
+      checklist siguen intactos (la trampa de jsonb de D6 no rompe nada);
+      (f) alta con un ítem de checklist de nombre vacío → `400`, `code: 45101`, confirmado **0
+      filas** en `obra_social` (`select` posterior sin resultados) — rollback atómico.
+      Datos de prueba (obra social + 2 `tipos_documento` TEST del catálogo compartido) borrados al
+      terminar.
       (g) `select proname, prosecdef from pg_proc where proname in ('crear_obra_social_completa',
       'actualizar_obra_social_completa');` → `false` en ambas;
       (h) `auditoria.logs` tiene el rastro completo del alta exitosa de (a) —incluidas las filas de
@@ -418,26 +413,27 @@
       (líneas puntuales en `SupabaseObraSocialRepository.ts` y `obraSocialMapping.ts`) son ramas
       defensivas de códigos de error/valores fuera de unión genuinamente improbables desde la API
       pública — no se infló el número con tests tautológicos.
-- [ ] 8.5 **BLOQUEADO — requiere a la usuaria.** Verificación manual en navegador (`npm run dev`) con
-      **tres** cuentas: `obra_social: write` (alta, edición, reordenar checklist, editar plantilla),
-      `obra_social: read` (solo lectura, sin guardado fantasma, aviso de solo lectura de
-      `gateo-obrasocial` visible), y una cuenta con permiso de **otro** módulo (`pacientes`) para
-      confirmar que no habilita esta pantalla. No ejecutable hasta que `1B.6` aplique las migraciones.
-- [ ] 8.6 **BLOQUEADO — requiere a la usuaria.** Verificar en `auditoria.logs` que un alta y una
-      edición dejaron rastro (RN-GL-02), incluidas las filas de `requisitos_os`,
-      `plantilla_campo` (nombre real, no `campos_plantilla_factura`) y las de `tipos_documento`
-      creadas por el get-or-create. Sin escribir código: los triggers ya existen (confirmado por
-      1.3/1.4 — `plantilla_campo` ya tenía su trigger de auditoría antes de este change).
+- [ ] 8.5 **PARCIAL — la parte de backend/permisos ya está cubierta por 1B.8** (alta/edición con
+      `write` funciona, `read` sin `write` no escribe nada, `SECURITY INVOKER` confirmado). **Falta
+      la parte genuinamente visual, requiere navegador**: drag-and-drop del checklist, editor de
+      plantilla, y que el aviso de solo lectura de `gateo-obrasocial` se vea correctamente con una
+      cuenta `read` — y confirmar que una cuenta con permiso de **otro** módulo (`pacientes`) no
+      habilita esta pantalla en el router. Pendiente de un pase manual en `npm run dev`.
+- [x] 8.6 **Hecho (2026-08-06/07).** Verificado en `auditoria.logs` contra `pkryfoljypuzfifofdwp`:
+      el alta y las dos ediciones de `1B.8` dejaron rastro completo — `INSERT`/`UPDATE` en
+      `obra_social`, `INSERT`/`DELETE` en `requisitos_os` (el reorder borra y reinserta), `INSERT`
+      en `tipos_documento` por el get-or-create (2 filas nuevas, `TEST-doc-borrar`/`-2`), todo con
+      `usuario_id` de Andrea. `plantilla_campo` no se ejerció en esta prueba (no se mandó
+      `plantilla_factura` en el payload de test) pero su trigger de auditoría ya estaba confirmado
+      preexistente por 1.3/1.4.
 - [x] 8.7 **Hecho.** Se revirtió `ObraSocialesRoute.tsx` al mock (`mockObraSocialRepository`), se
       corrió `npx tsc -b --noEmit` (limpio) y `ObraSocialesRoute.test.tsx` (verde, el
       `vi.mock('supabaseClient')` queda inerte sin romper nada), y se volvió a aplicar el cableado
       real — confirmado idéntico al estado previo. Las migraciones no hace falta revertirlas.
-- [ ] 8.8 **Parcialmente hecho, el resto BLOQUEADO hasta después de `1B.6`.** Pre-chequeo antes de
-      aplicar: `select proname, prosecdef from pg_proc where proname in
-      ('crear_obra_social_completa', 'actualizar_obra_social_completa');` → **0 filas** (las
-      funciones todavía no existen en la base, consistente con `1B.6` bloqueada — confirma que nadie
-      las aplicó ya con `SECURITY DEFINER` por error). `supabase db advisors --linked --type
-      security` → 15 hallazgos, todos preexistentes y ajenos (ver 1B.5), ninguno sobre estas
-      funciones. El chequeo completo (`prosecdef = false` en ambas + `anon` sin `EXECUTE` +
-      `plantilla_campo.rowsecurity = true` con sus 2 policies) **debe repetirse después de `1B.6`** —
-      es un bloqueante para archivar si alguna vez aparece `SECURITY DEFINER`.
+- [x] 8.8 **Completo (2026-08-06/07), repetido post-aplicación.** `select proname, prosecdef from
+      pg_proc where proname in ('crear_obra_social_completa', 'actualizar_obra_social_completa')` →
+      ambas presentes, `prosecdef = false` en las dos (**SECURITY INVOKER**, nunca `DEFINER`).
+      `information_schema.routine_privileges` → `EXECUTE` solo para `authenticated`/`postgres`,
+      **`anon` sin `EXECUTE`**. `plantilla_campo`: `relrowsecurity = true`, 2 policies (`Read
+      plantilla_campo`, `Write plantilla_campo`). `supabase db advisors --linked --type security` →
+      15 hallazgos, idénticos a los de 1B.5/1B.6, ninguno menciona estas funciones.

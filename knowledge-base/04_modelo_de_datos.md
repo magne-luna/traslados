@@ -820,6 +820,19 @@ tiene que quedar advertido igual: **no cambiar `SECURITY INVOKER` por `SECURITY 
 ninguna circunstancia**, ni siquiera "temporalmente para probar" — es el chequeo de seguridad final
 antes de archivar el change (`security-review`, ver `tasks.md` 7.8).
 
+**🐛 Bug bloqueante encontrado y corregido (2026-08-07, verificación en vivo de `tasks.md` 1B.4).**
+El paso 4 (direcciones) nunca casteaba `tipo_lugar` al enum `pacientes.tipo_direccion` — bug
+presente desde la primera versión de la función y heredado sin cambios a través de sus 5
+reescrituras posteriores (`formato_afiliado`, `localidad`, `parentesco`, `descripcion`, `lat`/`lng`)
+porque ninguna había ejecutado una llamada real end-to-end con `tipo_lugar` poblado.
+`NULLIF(text, text)` devuelve `text`, no `unknown`, y Postgres no registra un cast automático de
+`text` a un enum de usuario en contexto de asignación — **cualquier alta de paciente con al menos
+una dirección con tipo cargado fallaba con `42804`**. Corregido en
+`supabase/migrations/20260807000000_crear_paciente_completo_tipo_lugar_cast.sql` (aditiva, mismo
+patrón de siempre, único cambio real un `::pacientes.tipo_direccion` explícito). Verificado post-fix
+contra `pkryfoljypuzfifofdwp`: alta completa con `tipo_lugar: "domicilio"` → éxito, las 7 tablas con
+su fila correspondiente.
+
 ### Funciones de alta/edición: `obra_social.crear_obra_social_completa` / `actualizar_obra_social_completa`
 
 Migraciones `supabase/migrations/20260731120000_obra_social_config_facturacion.sql` (reconciliación

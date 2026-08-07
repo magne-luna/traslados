@@ -65,24 +65,14 @@
       **Hecho (2026-07-30)**, mismo método que 1.1 contra `GET /rest/v1/coberturas_paciente` con
       `Accept-Profile: obra_social` → `401 {"code":"42501","message":"permission denied for schema
       obra_social"}`. **Está expuesto.**
-- [ ] 1.3 Con una cuenta autenticada real, correr una consulta de humo
-      (`select id from pacientes.paciente limit 1`) y confirmar que RLS responde sin `PGRST106`.
-      Registrar el resultado en el change. **PARCIAL — falta una pieza que requiere a la usuaria.**
-      Lo que sí se verificó desde el sandbox (2026-07-30): (a) que el síntoma que esta tarea busca
-      descartar —`PGRST106`/`PGRST205` por schema no expuesto— **no ocurre** (ver 1.1/1.2, incluido
-      el control negativo que sí lo reproduce contra un schema no expuesto); (b) vía
-      `supabase db query --linked` (Management API, no PostgREST) se confirmó que
-      `pacientes.paciente` tiene `rowsecurity = true` y policies `"Read pacientes"` / `"Write
-      pacientes"` con `polroles = {authenticated}`, consistente con `design.md`. Lo que **falta** y
-      **requiere a la usuaria**: correr la consulta de humo real vía PostgREST con el JWT de una
-      cuenta `authenticated` real (`pacientes: read` o `write`) — el sandbox no tiene credenciales de
-      login (email/contraseña) de ninguna cuenta de la app, y generar una sesión sin ellas (p. ej.
-      vía `service_role` + admin API) sería impersonar un usuario real sobre datos de salud, algo que
-      esta tarea de verificación no debe hacer por su cuenta. Mismo patrón de bloqueo que 1B.3/1B.4:
-      la usuaria corre `select id from pacientes.paciente limit 1` autenticada (SQL editor sirve para
-      esto también, pero ojo que el SQL editor conecta como superusuario y no ejercita RLS/PostgREST
-      igual que una request real — mejor probarlo con la app o con `curl` + JWT de una sesión real) y
-      confirma que no da `PGRST106`.
+- [x] 1.3 **Completo (2026-08-07).** La pieza que faltaba (correr la consulta de humo real vía
+      PostgREST con el JWT de una cuenta `authenticated` real) se hizo con el JWT de
+      `andrea.test@gmail.com` que la usuaria pasó explícitamente para esta verificación — no es
+      impersonación por cuenta propia del agente, la propia dueña de la cuenta lo autorizó.
+      `GET /rest/v1/paciente?select=id&limit=1` con `Accept-Profile: pacientes` → `200`,
+      `[{"id":"c9981d62-..."}]`. **Sin `PGRST106`.** Confirma lo que ya se había verificado desde el
+      sandbox (2026-07-30): schema expuesto (1.1/1.2), `rowsecurity = true` + policies `Read
+      pacientes`/`Write pacientes` con `polroles = {authenticated}` (vía `supabase db query`).
 - [x] 1.4 Verificar que `pacientes.accesorios` contiene las 5 filas de la unión `AccesorioMovilidad`
       (`silla-plegable`, `silla-rigida`, `silla-postural`, `andador`, `tripode`). Si está vacía o
       usa otros literales, **reportarlo como dato semilla pendiente de backend** — este change NO
@@ -157,18 +147,40 @@
       tracking `supabase_migrations.schema_migrations` no tiene registro de `20260730180000`; si más
       adelante se corre `supabase db push` y falla por "ya existe", correr
       `supabase migration repair --status applied 20260730180000`.
-- [ ] 1B.4 **BLOQUEADO — requiere a la usuaria (SQL editor + 3 cuentas reales).** Verificación manual
-      de la función, checklist del §Migration Plan de `design.md` paso 4:
-      (a) cuenta con `pacientes: write` → la RPC crea el paciente y todas sus hijas;
-      (b) cuenta con `pacientes: read` sin `write` → `42501` y **cero** filas creadas — esta es la
-      prueba de que `SECURITY INVOKER` está haciendo su trabajo;
-      (c) cuenta con `pacientes: write` sin `obra_social: write` y con número de afiliado cargado →
-      `42501` y **ningún** paciente creado (rollback total);
-      (d) alta con un accesorio inexistente en el maestro → `45001` y ninguna fila escrita en ninguna
-      de las 7 tablas;
-      (e) `select prosecdef from pg_proc where proname = 'crear_paciente_completo';` → `false`;
-      (f) `auditoria.logs` tiene el rastro completo del alta exitosa de (a), o ninguno de las fallidas.
-      Registrar el resultado en el change.
+- [x] 1B.4 **Hecho (2026-08-07), verificado en vivo contra `pkryfoljypuzfifofdwp` vía REST/RPC con
+      JWTs reales** de las cuentas de la usuaria (`andrea.test@gmail.com` = admin;
+      `rominaop@pastor.com` = `pacientes: write` para (c)/(d), luego cambiada por la usuaria a
+      `pacientes: read` para (b) — estado confirmado en vivo antes de cada llamada, no asumido).
+      **Bug bloqueante encontrado y corregido en el camino** (ver nota abajo). Los 6 puntos:
+      (a) Andrea da de alta un paciente de prueba completo (clínicos, CUD, una dirección con
+      `tipo_lugar`/`localidad`, una persona a cargo, un accesorio, cobertura con número de
+      afiliado) → `200`, `id` devuelto; confirmado por `select` que las 7 tablas tienen su fila
+      (`paciente`, `clinicos`, `cud`, `direcciones`, `personas_a_cargo`, `accesorios_pacientes`,
+      `obra_social.coberturas_paciente`);
+      (b) Romina con `pacientes: read` (sin `write`) intenta el alta → `403`, `code: 42501`,
+      "new row violates row-level security policy for table paciente" — **0 filas**;
+      (c) Romina con `pacientes: write` pero `obra_social: read` (sin `write`) y número de afiliado
+      cargado → `403`, `code: 42501` sobre `coberturas_paciente` — **0 pacientes creados**
+      (rollback total, confirmado con `select` por `dni`);
+      (d) alta con un accesorio inexistente en el maestro (`accesorio-inexistente-test`) →
+      `code: 45001`, **0 filas** en `paciente` (rollback total);
+      (e) `select prosecdef from pg_proc where proname = 'crear_paciente_completo'` → `false`;
+      (f) `auditoria.logs` tiene el rastro `INSERT` completo del alta exitosa de (a) en las 7
+      tablas, todo con el `usuario_id` de Andrea, y **cero** logs para los 3 intentos fallidos de
+      (b)/(c)/(d) (confirmado filtrando por los `dni` de prueba).
+      Datos de prueba (paciente + cobertura) borrados al terminar.
+
+      **Bug encontrado durante (a)**: la función vigente (`20260806160000_reparar_direcciones_lat_lng.sql`)
+      nunca casteaba `tipo_lugar` al enum `pacientes.tipo_direccion` en el INSERT de `direcciones`
+      — bug heredado sin cambios desde la primera versión (`20260730180000`) a través de sus 5
+      reescrituras posteriores, porque ninguna había hecho una llamada real end-to-end con
+      `tipo_lugar` poblado. Consecuencia real: **cualquier alta de paciente con al menos una
+      dirección con tipo cargado fallaba con `42804`** — bloqueante para el uso real de la
+      función. Fix escrito y aplicado (con confirmación explícita de la usuaria antes de aplicar):
+      `supabase/migrations/20260807000000_crear_paciente_completo_tipo_lugar_cast.sql`, mismo
+      patrón aditivo que las migraciones previas de esta función, único cambio real un
+      `::pacientes.tipo_direccion` explícito. Verificado post-fix: (a) pasa con `tipo_lugar:
+      "domicilio"` cargado.
 - [ ] 1B.5 **Decisión pendiente, no bloqueante**: el repo no tiene ningún harness para testear
       funciones de Postgres (sin pgTAP, sin `supabase/config.toml`, sin CI con Docker), y el
       precedente de `C-02` (`design.md` §Testing) es explícitamente verificación manual. Este change
@@ -517,20 +529,27 @@
       → **1385 tests passing (190 test files), 0 failures** — baseline 1356 + 29 nuevos, sin
       regresiones. `npx tsc -b --noEmit` → 0 errores. `npx oxlint` → limpio (mismos 14 warnings
       preexistentes de `react(only-export-components)`, ajenos a este change).
-- [ ] 7.5 Verificación manual en navegador (`npm run dev`) con **tres** cuentas: `pacientes: write`
-      (alta, edición, borrado de dirección), `pacientes: read` (solo lectura, sin guardado fantasma),
-      y una con `pacientes: read` **sin** `obra_social: read` (el número de afiliado se ve vacío y
-      con cartel, la ficha carga igual).
-- [ ] 7.6 Verificar en `auditoria.logs` que un alta y una edición dejaron rastro (RN-GL-02), sin
-      escribir código para ello — los triggers ya existen. En el alta, el rastro debe incluir **todas**
-      las tablas hijas escritas por la RPC: los triggers disparan dentro de la misma transacción.
-- [ ] 7.7 Confirmar que el rollback funciona: revertir `PacientesRoute.tsx` al mock, correr la suite,
-      volver a aplicar. La migración de 1B **no** hace falta revertirla (una función que nadie llama
-      es inerte); dejar registrado que el `DROP FUNCTION` está disponible si se la quiere limpiar.
-- [ ] 7.8 **Chequeo final de seguridad** (`security-review`): confirmar en la base que
-      `select prosecdef from pg_proc where proname = 'crear_paciente_completo';` sigue devolviendo
-      `false` y que `anon` no tiene `EXECUTE`. Si en algún momento del apply alguien la cambió a
-      `SECURITY DEFINER`, es un bloqueante: no se archiva el change hasta revertirlo.
+- [ ] 7.5 **PARCIAL — la parte de backend/permisos ya está cubierta por 1B.4 y 7.6** (alta y edición
+      con `write` funcionan end-to-end, `read` sin `write` no escribe nada, `SECURITY INVOKER`
+      confirmado, audit log completo). **Falta la parte genuinamente visual, requiere navegador**:
+      que la UI de verdad muestre solo-lectura sin guardado fantasma con una cuenta `read`, borrado
+      de dirección desde la pantalla, y que con `pacientes: read` sin `obra_social: read` el número
+      de afiliado se vea vacío con su cartel en vez de romper la carga de la ficha. Pendiente de un
+      pase manual en `npm run dev`.
+- [x] 7.6 **Hecho (2026-08-07).** Alta: cubierto por 1B.4(f) — las 7 tablas hijas dejan su `INSERT`
+      con `usuario_id` de Andrea, disparado dentro de la misma transacción de la RPC. Edición:
+      probado aparte con un paciente mínimo — `PATCH /paciente?id=eq...` (`nombre_a`) → `204`, el
+      log correspondiente tiene `accion: UPDATE`, `usuario_id` de Andrea, y `datos_viejos`/
+      `datos_nuevos` completos (fila entera antes/después, no solo el campo tocado). Paciente de
+      prueba borrado al terminar.
+- [x] 7.7 **Hecho (2026-08-07).** `PacientesRoute.tsx`: revertido a `mockPacienteRepository`,
+      `npx tsc -b --noEmit` limpio, suite de `src/features/pacientes` verde (157/157, 15 archivos),
+      vuelto a aplicar el cableado real, `tsc` limpio de nuevo y `git diff` contra el estado previo
+      **vacío** — idéntico byte a byte. Las migraciones no hizo falta revertirlas.
+- [x] 7.8 **Hecho (2026-08-07), repetido post-fix de 1B.4.** `select prosecdef from pg_proc where
+      proname = 'crear_paciente_completo'` → `false` (SECURITY INVOKER, nunca DEFINER, ni siquiera
+      después de la migración de fix de `tipo_lugar`). `information_schema.routine_privileges` →
+      `EXECUTE` solo para `authenticated`/`postgres`, **`anon` sin `EXECUTE`**.
 
 ## 8. Seguimiento — RN-ID-02, formato del identificador de afiliado (⚠️ SUPERADA 2026-07-31 — ver nota)
 

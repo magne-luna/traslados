@@ -193,10 +193,10 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 - **Change futuro anotado, no propuesto todavía (`documentos-descarga-firmada`, 2026-08-06)**: no existe como carpeta en `openspec/changes/` — esta es la primera vez que queda registrado en este archivo. `integracion-documentos` §D6 lo mencionó (y prometió, sin cumplir, dejar esta misma anotación) como el change que implementaría `createSignedUrl()` + botón de descarga; `documentos-previsualizacion` (Checkpoint (b), veredicto **B2 — complementarios por capa**) lo reformula como el change que construye la **resolución real contra Storage + la descarga efectiva**, heredando el contrato de `DocumentoRepository` (incluido `resolverPrevisualizacion()`, ya escrito) y el componente `Overlay` que deja este change. Hasta que se proponga (`/opsx:propose documentos-descarga-firmada`), el criterio de aceptación de US-900 *"se pueden consultar y descargar"* sigue **sin tildar** en `knowledge-base/06_funcionalidades.md` (se consulta sobre mock, no se descarga).
 
 ### [C-04] `obras-sociales-prestadores`
-- **Estado**: 🔶 `integracion-obra-social` — checkpoint D3/D8 confirmado por la usuaria (2026-07-31),
-  código + migraciones + tests completos vía apply (2026-07-31), **pendiente de aplicación real de
-  las migraciones y de verificación manual con cuentas reales a cargo de Enzo/backend** antes de
-  archivar. Ver bloque ⏳ en §Plan de integración más abajo (fila 2) para el checklist exacto.
+- **Estado**: ✅ `integracion-obra-social` — 69/70 tasks. Migraciones confirmadas aplicadas y
+  verificación con cuentas reales completa (2026-08-06/07, ver bloque abajo). Solo falta un pase
+  visual en navegador (drag-and-drop del checklist, editor de plantilla) — nada de backend
+  pendiente. Ver `tasks.md` 8.5.
 - **✅ Checkpoint confirmado por la usuaria (2026-07-31)**:
   - **D3** — `obra_social.tipos_documento` es un catálogo **compartido** con Pacientes
     (`pacientes.documentos.id_tipo_documento`, `ON DELETE RESTRICT`) **y con Facturación**
@@ -221,29 +221,22 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   — ver nota al inicio de esa sección. El bug bloqueante real (`8.0`, `crear_paciente_completo` no
   completaba `formato_afiliado`, `23502` en cualquier alta con número de afiliado) sigue arreglado,
   independiente de este vaivén.
-- **⏳ Pendiente de revisión (a cargo de Enzo/backend)** antes de poder archivar `integracion-obra-social`:
-  - `1B.6` — aplicar `20260731120000_obra_social_config_facturacion.sql` (2 índices, reconciliación
-    — casi todo lo demás ya existía en la base real, ver hallazgo arriba) y
-    `20260731120001_obra_social_rpc.sql` (las dos funciones) al proyecto real; el sandbox del agente
-    no tiene Docker ni credenciales de escritura.
-  - `1B.7` — segundo paso del expand/contract del `CHECK` de `tipo_comprobante`: **no aplica** — la
-    columna real ya es un enum (`facturacion.tipo_factura`), más estricto que un `CHECK`, no hace
-    falta el paso de validación en dos tiempos que `design.md` había planeado.
-  - `1B.8` — verificación manual de las dos funciones con 3 cuentas reales (`obra_social: write` da
-    de alta completo con checklist y plantilla; `obra_social: read` sin `write` falla y cero filas
-    creadas — ojo: para `actualizar_...` esto puede llegar como `45103` en vez de `42501`, ver nota
-    en `04_modelo_de_datos.md`; reordenar el checklist persiste el orden; `p_cambios` sin la clave
-    `checklist` no la borra; ítem con nombre vacío aborta con `45101` y cero filas;
-    `select prosecdef ...` → `false` en ambas) — checklist completo en `design.md` §Migration Plan
-    paso 6 y `tasks.md` 1B.8.
-  - `8.5`/`8.6` — verificación en navegador (`npm run dev`) con las mismas 3 cuentas y rastro en
-    `auditoria.logs` (alta y edición, incluidas las filas de `tipos_documento` creadas por el
-    get-or-create).
-  - Lo que **ya está confirmado**: schema real verificado en vivo (`supabase db query --linked`,
-    sin Docker) antes de escribir las migraciones; `SECURITY INVOKER` en las dos funciones nuevas
-    (test automatizado que lee el `.sql`); suite completa sin regresiones; `tsc`/`oxlint` limpios;
-    cobertura ≥85% en `shared/lib/obrasSociales/`.
-  - Una vez confirmado todo lo anterior: `sdd-archive integracion-obra-social`.
+- **✅ Verificación completa (2026-08-06/07)**, contra `pkryfoljypuzfifofdwp` vía REST/RPC con JWTs
+  reales de la usuaria:
+  - `1B.6` — confirmado aplicado (`select proname, prosecdef from pg_proc` → ambas funciones,
+    `prosecdef = false`).
+  - `1B.7` — no aplica (columna real ya es enum, más estricto que un `CHECK`).
+  - `1B.8` — los 6 puntos del checklist verificados en vivo: alta con checklist completo `200`;
+    `read` sin `write` → `42501`, 0 filas; `actualizar_...` sobre fila oculta por RLS → **`45103`**
+    (confirmado, no `42501` directo — exactamente como anticipaba la nota de `04_modelo_de_datos.md`);
+    reorder del checklist persiste; `p_cambios` sin `checklist` no lo borra; ítem sin nombre →
+    `45101`, 0 filas (rollback atómico).
+  - `8.5` — parcial: la parte de permisos/backend queda cubierta por `1B.8`; falta el pase visual
+    (drag-and-drop, editor de plantilla) en navegador.
+  - `8.6`/`8.8` — audit log (`INSERT`/`UPDATE`/`DELETE` con `usuario_id` correcto, incluidas las
+    filas de `tipos_documento` del get-or-create) y seguridad (`SECURITY INVOKER`, `anon` sin
+    `EXECUTE`, 15 advisors preexistentes sin hallazgos nuevos) confirmados.
+  - Datos de prueba (obra social + 2 tipos de documento) borrados al terminar.
 - **Scope**:
   - Migración: tabla `obra_social` (nombre, CUIT del prestador — **distinto** del CUIL del titular del paciente, RN-ID-01), plazo de cobro configurable, tipo de comprobante (A/B/C), modalidad de facturación (por prestación vs. general), si admite pagos parciales/por lote.
   - Migración: tabla `checklist_documentacion_obra_social` (ítems ordenados, configurable por obra social — respetar orden e ítems tal como los exige cada una) y tabla `plantilla_facturacion` (campos que la descripción de factura de esa obra social requiere).
@@ -490,23 +483,31 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 ## FASE 2 — Entidades dependientes
 
 ### [C-05] `pacientes-fichas-clinicas`
-- **Estado**: 🔶 `integracion-pacientes` implementado (2026-07-30/31) — código, migración y tests
-  completos; **pendiente de revisión manual antes de archivar**. Ver `openspec/changes/integracion-pacientes/tasks.md`
-  para el detalle tarea por tarea.
-- **⏳ Pendiente de revisión (a cargo de Enzo/backend)** antes de poder archivar `integracion-pacientes`:
-  - `1.3` — consulta de humo (`select id from pacientes.paciente limit 1`) autenticado con una cuenta
-    real vía PostgREST/la app (no desde el SQL editor, que conecta como superusuario y no ejercita RLS).
-  - `1B.4` — verificación manual de `pacientes.crear_paciente_completo` con 3 cuentas reales
-    (`pacientes: write` da de alta completo; `pacientes: read` sin `write` falla `42501` y cero filas;
-    `pacientes: write` sin `obra_social: write` con afiliado cargado falla `42501` y rollback total) —
-    checklist completo en `openspec/changes/integracion-pacientes/design.md` §Migration Plan paso 4.
-  - `7.5`-`7.8` — verificación en navegador (`npm run dev`) con las mismas 3 cuentas, rastro en
-    `auditoria.logs`, prueba de rollback (volver `PacientesRoute.tsx` al mock y reaplicar), y
-    reconfirmar `select prosecdef from pg_proc where proname = 'crear_paciente_completo';` → `false`.
-  - Lo que **ya está confirmado**: migración aplicada al proyecto real vía SQL Editor (2026-07-30),
-    `SECURITY INVOKER` verificado, suite completa en 1385/1385 tests (0 regresiones), `tsc`/`oxlint`
-    limpios, cobertura ≥85% en `shared/lib/pacientes/`.
-  - Una vez confirmado todo lo anterior: `sdd-archive integracion-pacientes`.
+- **Estado**: ✅ `integracion-pacientes` — 64/66 tasks. Verificación completa contra
+  `pkryfoljypuzfifofdwp` (2026-08-07, ver bloque abajo). Solo falta un pase visual en navegador
+  (`tasks.md` 7.5) y una decisión explícitamente diferida sobre montar pgTAP (`1B.5`, no
+  bloqueante) — nada de backend pendiente.
+- **✅ Verificación completa (2026-08-07)**, vía REST/RPC con JWTs reales de la usuaria:
+  - `1.3` — consulta de humo autenticada vía PostgREST (no SQL Editor) → sin `PGRST106`.
+  - **🐛 Bug bloqueante encontrado y corregido**: `crear_paciente_completo` (vigente desde
+    `20260806160000_reparar_direcciones_lat_lng.sql`, heredado sin cambios desde la primera versión
+    a través de 5 reescrituras) nunca casteaba `tipo_lugar` al enum `pacientes.tipo_direccion` en el
+    INSERT de `direcciones` — **cualquier alta con al menos una dirección con tipo cargado fallaba
+    con `42804`**, nadie lo había agarrado porque ninguna verificación anterior hizo una llamada
+    real end-to-end. Fix aplicado con confirmación explícita de la usuaria:
+    `supabase/migrations/20260807000000_crear_paciente_completo_tipo_lugar_cast.sql` (aditiva, mismo
+    patrón de siempre, único cambio real un `::pacientes.tipo_direccion` explícito).
+  - `1B.4` — los 6 puntos verificados post-fix: alta completa (7 tablas, incluida cobertura) `200`;
+    `pacientes: read` sin `write` → `42501`, 0 filas; `pacientes: write` sin `obra_social: write`
+    con afiliado cargado → `42501` sobre `coberturas_paciente`, 0 pacientes (rollback total);
+    accesorio inexistente → `45001`, 0 filas; `prosecdef = false`; audit log completo.
+  - `7.5` — parcial: backend/permisos cubierto por `1B.4`/`7.6`; falta el pase visual.
+  - `7.6` — audit log de alta (las 7 tablas) y de una edición (`UPDATE` con `datos_viejos`/
+    `datos_nuevos` completos) confirmados, ambos con `usuario_id` correcto.
+  - `7.7` — rollback probado: `PacientesRoute.tsx` revertido a mock, suite verde (157/157), reaplicado,
+    `git diff` contra el estado previo vacío.
+  - `7.8` — `SECURITY INVOKER` y `anon` sin `EXECUTE` reconfirmados post-fix.
+  - Datos de prueba (pacientes + cobertura) borrados al terminar.
 - **`personas-a-cargo-parentesco` (2026-08-05)**: agregado directo (sin change OPSX propio, pedido
   puntual de la usuaria) — `PersonaACargo.parentesco` (unión cerrada `padre|madre|tutor_legal|otro`,
   `<select>` obligatorio, `PersonasACargoEditor.tsx`). Columna `pacientes.personas_a_cargo.parentesco`
