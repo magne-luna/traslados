@@ -9,7 +9,7 @@ Define the requirements for document management in the patient record, reusing t
 ## Requirements
 
 ### Requirement: Documentación del paciente reutilizando el checklist de FE-1
-El sistema SHALL mostrar una pestaña/sección de documentación del paciente reutilizando el componente `DocumentChecklist` (FE-1) y su wiring (`useDocumentChecklist` + `DocumentoRepository`/`mockDocumentoRepository`), con la entidad `paciente`. El sistema MUST NOT recrear el modelo de checklist ni un componente documental paralelo.
+El sistema SHALL mostrar una pestaña/sección de documentación del paciente reutilizando el componente `DocumentChecklist` (FE-1) y su wiring (`useDocumentChecklist` + `DocumentoRepository`), con la entidad `paciente`. El sistema MUST NOT recrear el modelo de checklist ni un componente documental paralelo. Desde `integracion-documentos`, la implementación inyectada es `supabaseDocumentoRepository` (real, contra Storage/Postgres) — ver capability `documento-repository-supabase` para el contrato de esa implementación.
 
 #### Scenario: Adjuntar y quitar documentos del paciente
 - **WHEN** el usuario sube o quita un documento en la pestaña de documentación
