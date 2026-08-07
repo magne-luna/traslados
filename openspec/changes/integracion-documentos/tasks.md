@@ -419,18 +419,19 @@ Chain strategy: pending
 
 ## 6. `AvisoModeloDatos` — el Checkpoint 0 visible en pantalla
 
-- [ ] 6.1 (RED→GREEN) `VehiculoDocumentos.tsx`: `AvisoModeloDatos` explicando que la subida de
+- [x] 6.1 (RED→GREEN) `VehiculoDocumentos.tsx`: `AvisoModeloDatos` explicando que la subida de
       documentos del vehículo **sigue siendo simulada** (el archivo no se guarda) hasta que
-      `integracion-conductores-vehiculos` aterrice.
-- [ ] 6.2 (RED→GREEN) `ConductorDocumentos.tsx`: ídem. Este archivo **ya tiene** un `Chip kind="warning"`
+      `integracion-conductores-vehiculos` aterrice. (2026-08-07)
+- [x] 6.2 (RED→GREEN) `ConductorDocumentos.tsx`: ídem. Este archivo **ya tiene** un `Chip kind="warning"`
       sobre los documentos a precargar — **complementar, no duplicar**: son dos avisos distintos (qué
-      documentos van vs. si se guardan de verdad).
-- [ ] 6.3 (RED→GREEN) `FacturaDocumentos.tsx`: reemplazar el `AvisoModeloDatos` **desactualizado** que
+      documentos van vs. si se guardan de verdad). (2026-08-07)
+- [x] 6.3 (RED→GREEN) `FacturaDocumentos.tsx`: reemplazar el `AvisoModeloDatos` **desactualizado** que
       dice *"El backend `C-07` debe crear `documento_factura`"* — esa tabla **ya existe** desde C-03
       (verificada en vivo 2026-08-05). El aviso nuevo dice lo que sí es cierto hoy: la tabla existe,
       pero la subida sigue simulada porque `Factura` sigue en mock (swap parcial de Enzo, 2026-08-05).
-- [ ] 6.4 Verificar que los tres avisos usan el componente `AvisoModeloDatos` del design system, sin
-      markup nuevo ni `style={{}}` (regla dura del proyecto).
+      (2026-08-07)
+- [x] 6.4 Verificar que los tres avisos usan el componente `AvisoModeloDatos` del design system, sin
+      markup nuevo ni `style={{}}` (regla dura del proyecto). (2026-08-07)
 
 ## 7. Documentación y cierre
 

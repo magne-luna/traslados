@@ -48,6 +48,16 @@ describe('ConductorDocumentos', () => {
       await screen.findByText(/pendiente de confirmar con el cliente: documentos a precargar/i),
     ).toBeInTheDocument();
   });
+
+  it('muestra además el aviso de que la subida de documentos del conductor sigue simulada, distinto del cartel de precarga (tasks.md 6.2)', async () => {
+    render(<ConductorDocumentos conductorId="c1" repository={buildFakeRepository()} />);
+
+    expect(await screen.findByText(/modelo de datos/i)).toBeInTheDocument();
+    expect(screen.getByText(/sigue.*simulada/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/pendiente de confirmar con el cliente: documentos a precargar/i),
+    ).toBeInTheDocument();
+  });
 });
 
 // Gateo de escritura (gateo-conductores, design.md D5, tasks.md 2.6). Solo la carga y baja se

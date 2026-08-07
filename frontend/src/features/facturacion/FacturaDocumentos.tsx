@@ -40,8 +40,9 @@ export function FacturaDocumentos({ facturaId, items, repository }: FacturaDocum
   return (
     <div className="flex flex-col gap-sm">
       <AvisoModeloDatos>
-        El docx no modela ninguna tabla de documentos por Factura (Discrepancia 2). El backend
-        `C-07` debe crear <code>documento_factura</code>.
+        La tabla <code>documento_factura</code> ya existe (C-03), pero la subida real de
+        documentos de Factura sigue siendo simulada porque <code>Factura</code> todavía usa datos
+        mock (swap parcial, 2026-08-05).
       </AvisoModeloDatos>
       <DocumentChecklist
         items={items}

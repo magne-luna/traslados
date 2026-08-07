@@ -36,10 +36,12 @@ describe('FacturaDocumentos', () => {
     expect(textos).toEqual(nombres);
   });
 
-  it('muestra el aviso de discrepancia de documentos por factura contra el modelo de datos real', () => {
+  it('muestra el aviso actualizado: la tabla documento_factura ya existe, pero la subida sigue simulada porque Factura sigue en mock', () => {
     render(<FacturaDocumentos facturaId="factura-1" items={items} repository={buildFakeRepository()} />);
     expect(screen.getByText(/modelo de datos/i)).toBeInTheDocument();
     expect(screen.getByText(/documento_factura/i)).toBeInTheDocument();
+    expect(screen.getByText(/sigue.*simulada/i)).toBeInTheDocument();
+    expect(screen.queryByText(/C-07.*debe crear/i)).not.toBeInTheDocument();
   });
 
   it('no bloquea nada visualmente aunque falten documentos requeridos (solo informa el estado)', async () => {

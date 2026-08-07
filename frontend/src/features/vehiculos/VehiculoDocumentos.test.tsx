@@ -30,6 +30,13 @@ describe('VehiculoDocumentos', () => {
     expect(screen.getByText('Fotos')).toBeInTheDocument();
   });
 
+  it('muestra el aviso de que la subida de documentos del vehículo sigue simulada', async () => {
+    render(<VehiculoDocumentos vehiculoId="v1" repository={buildFakeRepository()} />);
+
+    expect(await screen.findByText(/modelo de datos/i)).toBeInTheDocument();
+    expect(screen.getByText(/sigue.*simulada/i)).toBeInTheDocument();
+  });
+
   it('distingue el documento subido del faltante consultando al repository por entidad "vehiculo"', async () => {
     const doc: DocumentoAdjunto = { id: 'doc-cedula', itemId: 'vehiculo-doc-cedula', nombreArchivo: 'cedula.pdf', subidoEn: '2026-07-01' };
     const repository = buildFakeRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
