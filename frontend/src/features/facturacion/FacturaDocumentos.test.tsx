@@ -82,3 +82,34 @@ describe('FacturaDocumentos — gateo de escritura', () => {
     expect(screen.getAllByRole('button', { name: /^subir$/i })[0]).toBeEnabled();
   });
 });
+
+// documentos-checklist-por-actividad (tasks.md 7.2, specs/paciente-documentos/spec.md
+// "Un dominio sin actividades sigue con un único checklist"): no regresión explícita. Facturas
+// nunca pasa `agrupacionId` a useDocumentChecklist (design.md D1) — aunque el tipo
+// `DocumentoAdjunto.agrupacionId` ahora existe (tasks.md 2.1) y el repository pudiera devolver
+// documentos con ese campo poblado (dato legacy o de otra integración), este dominio los sigue
+// mostrando todos juntos en un único checklist, sin bloques por actividad ni pasos adicionales.
+describe('FacturaDocumentos — no regresión por agrupación (tasks.md 7.2)', () => {
+  it('muestra un único checklist sin bloques por actividad, incluso si el repository devuelve documentos con agrupacionId', async () => {
+    const docSinAgrupar: DocumentoAdjunto = { id: 'doc-arca', itemId: 'item-arca', nombreArchivo: 'arca.pdf', subidoEn: '2026-07-01' };
+    const docConAgrupacionLegacy: DocumentoAdjunto = {
+      id: 'doc-asistencia',
+      itemId: 'item-asistencia',
+      nombreArchivo: 'asistencia.pdf',
+      subidoEn: '2026-07-02',
+      agrupacionId: 'direccion-x',
+    };
+    const repository = buildFakeRepository([docSinAgrupar, docConAgrupacionLegacy]);
+
+    render(<FacturaDocumentos facturaId="factura-1" items={items} repository={repository} />);
+
+    expect(await screen.findByText(/arca\.pdf/i)).toBeInTheDocument();
+    expect(await screen.findByText(/asistencia\.pdf/i)).toBeInTheDocument();
+    // "sin bloques por actividad": role="group" es el marcador que usa Pacientes
+    // (PacienteDocumentosChecklist.tsx) para cada bloque de actividad — acá no debe aparecer ninguno.
+    expect(screen.queryAllByRole('group')).toHaveLength(0);
+    // "sin pasos adicionales": la misma llamada de siempre, con exactamente 2 argumentos — nunca un
+    // 3.er `agrupacionId` explícito, porque este dominio nunca se lo pasa a useDocumentChecklist.
+    expect(repository.listByEntity).toHaveBeenCalledWith('factura', 'factura-1');
+  });
+});

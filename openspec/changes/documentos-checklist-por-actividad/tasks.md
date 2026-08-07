@@ -277,12 +277,31 @@
 
 ## 7. Los otros tres dominios documentales — sin cambio de comportamiento
 
-- [ ] 7.1 Si §2 tocó el contrato: ajuste **mecánico** de `VehiculoDocumentos.test.tsx`,
+- [x] 7.1 Si §2 tocó el contrato: ajuste **mecánico** de `VehiculoDocumentos.test.tsx`,
       `ConductorDocumentos.test.tsx` y `FacturaDocumentos.test.tsx` a la forma nueva del tipo, **sin
       agregar comportamiento de negocio** en esos tres dominios.
-- [ ] 7.2 Test explícito de no-regresión: con la agrupación en `undefined`, cada uno de los tres
+      **Verificado, no hizo falta ningún cambio (2026-08-07)**: §2.6 ya diseñó `useDocumentChecklist`
+      para llamar al repository con la aridad exacta de siempre cuando no recibe `agrupacionId`
+      (2 args en `listByEntity`, 4 en `upload` — sin un 3.er/6.º argumento `undefined` explícito, ver
+      comentario en `useDocumentChecklist.ts` líneas 29-38). Ninguno de los tres componentes
+      (`VehiculoDocumentos.tsx`, `ConductorDocumentos.tsx`, `FacturaDocumentos.tsx`) pasa
+      `agrupacionId` al hook, así que su forma de llamar a `useDocumentChecklist` no cambió. Safety
+      net antes de tocar nada: `npx vitest run` sobre los 3 test files → 16/16 en verde sin
+      modificarlos. `npx tsc -b --noEmit` limpio. Confirmado que 7.1 es un no-op de código — no se
+      modificaron `VehiculoDocumentos.tsx`/`ConductorDocumentos.tsx`/`FacturaDocumentos.tsx` ni sus
+      `*Items.ts`.
+- [x] 7.2 Test explícito de no-regresión: con la agrupación en `undefined`, cada uno de los tres
       dominios se comporta exactamente igual que antes del change (spec: "Un dominio sin actividades
       sigue con un único checklist").
+      **Hecho (2026-08-07)**: 1 test nuevo por dominio (3 en total) en cada `*Documentos.test.tsx`,
+      describe `"— no regresión por agrupación (tasks.md 7.2)"`. Cada test hace que el repository
+      mock devuelva documentos donde uno de ellos trae `agrupacionId` poblado (simula dato legacy o
+      de otra integración, ya que el campo ahora existe en el tipo) y verifica: (1) todos los
+      documentos siguen apareciendo juntos en el mismo checklist, (2) `screen.queryAllByRole('group')`
+      tiene longitud 0 — `role="group"` es el marcador que usa
+      `PacienteDocumentosChecklist.tsx` (§3.6) para cada bloque de actividad, así que su ausencia
+      prueba "sin bloques por actividad" literalmente, y (3) `repository.listByEntity` se sigue
+      llamando con exactamente 2 argumentos posicionales (sin un 3.er `agrupacionId` explícito).
 
 ## 8. Documentación y cierre
 
