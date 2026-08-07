@@ -467,10 +467,11 @@ Chain strategy: pending
       migraciones, mismo cuidado que el incidente de la migración de geocoding) — `nombre_archivo`
       existe hoy en las 4 tablas (`pacientes.documentos`, `conductores.documentacion_vehiculo`,
       `conductores.documentacion_conductores`, `facturacion.documento_factura`).**
-- [ ] 8.2 **Precondición de datos (Checkpoint 4)**: con el `ChecklistEditor` que ya existe, configurar
+- [x] 8.2 **Precondición de datos (Checkpoint 4)**: con el `ChecklistEditor` que ya existe, configurar
       en una obra social real un checklist de al menos 2 ítems (uno requerido, uno opcional) y asignar
       esa obra social a un paciente de prueba. Sin esto el checklist renderiza vacío y no hay nada que
       verificar.
+      **→ CONFIRMADO (2026-08-07) por la usuaria.**
 - [x] 8.3 Con una cuenta con `pacientes: write`: abrir la ficha del paciente de `8.2`, subir un PDF y
       una imagen, **recargar la pantalla** y confirmar que los dos siguen ahí con su nombre original
       (con acentos y espacios, si el archivo los tenía) y su fecha. Confirmar en el dashboard de
@@ -482,20 +483,26 @@ Chain strategy: pending
       `inferirTipoMime()` (deriva el tipo de la extensión de `nombreArchivo`, sin columna nueva) en
       `documentoMapping.ts`, TDD estricto, sin regresiones. **CONFIRMADO (2026-08-07): la usuaria
       re-probó con el fix aplicado, "Ver" ya muestra el PDF correctamente.**
-- [ ] 8.4 Reemplazar uno de los dos documentos por otro archivo y confirmar: la fila apunta al archivo
+- [x] 8.4 Reemplazar uno de los dos documentos por otro archivo y confirmar: la fila apunta al archivo
       nuevo, el nombre mostrado cambia, y **el objeto viejo ya no está** en el bucket (paso 5 de D4).
-- [ ] 8.5 Quitar un documento y confirmar que desaparecen la fila **y** el objeto.
-- [ ] 8.6 Con una cuenta con `pacientes: read` solamente: confirmar que Subir/Reemplazar/Quitar quedan
+      **→ CONFIRMADO (2026-08-07) por la usuaria.**
+- [x] 8.5 Quitar un documento y confirmar que desaparecen la fila **y** el objeto.
+      **→ CONFIRMADO (2026-08-07) por la usuaria.**
+- [x] 8.6 Con una cuenta con `pacientes: read` solamente: confirmar que Subir/Reemplazar/Quitar quedan
       deshabilitados (ya cableado por `gateo-pacientes`, no se re-testea el mecanismo, solo que sigue
       funcionando) y que la **consulta** del checklist sigue disponible.
-- [ ] 8.7 Confirmar que las altas y bajas de documento aparecen en `auditoria.logs` (RN-GL-02) — los
+      **→ CONFIRMADO (2026-08-07) por la usuaria.**
+- [x] 8.7 Confirmar que las altas y bajas de documento aparecen en `auditoria.logs` (RN-GL-02) — los
       triggers `trg_audit_documentos` ya existen. Nota conocida: `integracion-presupuestos` documentó
       que `usuario_id` llega `null` en ese log; si vuelve a pasar acá, se anota como el **mismo gap ya
       aceptado**, no como hallazgo nuevo de este change.
-- [ ] 8.8 🔴 Si el Checkpoint 3 se aplicó: con una cuenta con `vehiculos: write` y **sin**
+      **→ CONFIRMADO (2026-08-07) por la usuaria.**
+- [x] 8.8 🔴 Si el Checkpoint 3 se aplicó: con una cuenta con `vehiculos: write` y **sin**
       `conductores: write`, confirmar que puede leer el bucket `documentos-vehiculos`. Y con la lista
       de `2.4`, confirmar que ninguna cuenta real perdió acceso.
-- [ ] 8.9 Confirmar con el dueño de `docs/core/Traslados-Modelo-Datos.docx` las dos discrepancias
+      **→ CONFIRMADO (2026-08-07) por la usuaria.**
+- [x] 8.9 Confirmar con el dueño de `docs/core/Traslados-Modelo-Datos.docx` las dos discrepancias
       nuevas de `7.1` (`archivo_url` que no guarda una URL; y si el modelo documental heterogéneo —FK a
       catálogo para paciente/factura, TEXT libre para vehículo/conductor— es intencional o un descuido
       del modelo original).
+      **→ CONFIRMADO (2026-08-07) por la usuaria.**
