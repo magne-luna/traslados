@@ -35,14 +35,31 @@ const EXPIRACION_URL_FIRMADA_SEGUNDOS = 120; // "corta" (D6/D7) sin número fija
 // Lectura (D4): una sola consulta a la tabla de la config, sin tocar Storage.
 // ---------------------------------------------------------------------------------------------
 
-async function listarDocumentos(entidad: EntidadDocumental, entidadId: string): Promise<DocumentoAdjunto[]> {
+// Corrección (2026-08-07, bug real hallado en verificación manual de tasks.md §9 de
+// `documentos-checklist-por-actividad`): esta función ignoraba por completo `agrupacionId` —
+// devolvía TODOS los documentos de la entidad sin importar de qué bloque se pedían, así que en
+// Pacientes los tres bloques (General + cada actividad) mostraban exactamente los mismos
+// documentos, y subir/quitar en uno se veía reflejado en los demás (misma fila para los tres).
+// Ahora filtra por `config.columnaAgrupacion` (solo `paciente` la declara, ver
+// documentoMapping.ts): con `agrupacionId`, solo esa agrupación puntual; sin él, solo los
+// documentos SIN agrupación (`IS NULL`, no "todos") — mismo contrato que ya cumplía el mock
+// (`mockDocumentoRepository.ts`). Vehículos/Conductores/Facturas no tienen `columnaAgrupacion`,
+// así que el filtro nunca se aplica para esos tres dominios — cero cambio de comportamiento ahí.
+async function listarDocumentos(
+  entidad: EntidadDocumental,
+  entidadId: string,
+  agrupacionId?: string,
+): Promise<DocumentoAdjunto[]> {
   const config = CONFIG_ENTIDAD[entidad];
 
-  const { data, error } = await supabase
-    .schema(config.schema)
-    .from(config.tabla)
-    .select('*')
-    .eq(config.columnaEntidad, entidadId);
+  let query = supabase.schema(config.schema).from(config.tabla).select('*').eq(config.columnaEntidad, entidadId);
+  if (config.columnaAgrupacion !== undefined) {
+    query =
+      agrupacionId !== undefined
+        ? query.eq(config.columnaAgrupacion, agrupacionId)
+        : query.is(config.columnaAgrupacion, null);
+  }
+  const { data, error } = await query;
 
   if (error) throw mapearErrorDocumento(error, { operacion: 'listar', entidad });
 
@@ -80,6 +97,11 @@ async function subirDocumento(
   // reales tiene columna para `vigenciaDesde` (mismo criterio que `documentoMapping.ts` §3.6 con
   // `vigenciaDesde`/`tipoMime` en `DocumentoAdjunto`, design.md D4 corrección).
   _vigenciaDesde?: string,
+  // Corrección (2026-08-07, mismo bug que `listarDocumentos`): antes esta firma ni siquiera
+  // declaraba `agrupacionId` — el 6.º argumento que le mandaba `useDocumentChecklist.ts` se
+  // perdía en silencio, así que ningún documento de Pacientes quedaba asociado a su actividad.
+  // Se reenvía tal cual a `toInsertPayload`, que decide si la entidad tiene dónde guardarlo.
+  agrupacionId?: string,
 ): Promise<DocumentoAdjunto> {
   const config = CONFIG_ENTIDAD[entidad];
   const clave = construirClaveStorage(entidadId, itemId, file.name, crypto.randomUUID());
@@ -87,7 +109,7 @@ async function subirDocumento(
   const { error: errorUpload } = await supabase.storage.from(config.bucket).upload(clave, file, { upsert: false });
   if (errorUpload) throw mapearErrorDocumento(errorUpload, { operacion: 'subir', entidad });
 
-  const payload = toInsertPayload(entidadId, itemId, clave, file.name, config);
+  const payload = toInsertPayload(entidadId, itemId, clave, file.name, config, agrupacionId);
   const { data, error: errorInsert } = await supabase
     .schema(config.schema)
     .from(config.tabla)

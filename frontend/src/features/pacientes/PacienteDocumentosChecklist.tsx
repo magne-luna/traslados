@@ -88,6 +88,12 @@ export function PacienteDocumentosChecklist({
       readOnly={!puedeEscribir}
       onResolverPrevisualizacion={resolverPrevisualizacion}
       onRevocarPrevisualizacion={revocarPrevisualizacion}
+      // documentos-checklist-por-actividad (feedback directo de la usuaria, 2026-08-07): con N
+      // instancias montadas (General + una por actividad), ya existe el total agregado de
+      // PacienteDocumentos.tsx (tasks.md 5.1) — la barra individual de cada instancia queda
+      // suprimida en las N, no solo en las actividades, para no repetir la misma información N+1
+      // veces en una sola pantalla.
+      mostrarProgreso={false}
     />
   );
 

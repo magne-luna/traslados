@@ -274,6 +274,47 @@ describe('DocumentChecklist — dos instancias montadas en paralelo calculan su 
   });
 });
 
+describe('DocumentChecklist — mostrarProgreso oculta la barra "X de Y cargados" propia de la instancia (feedback 2026-08-07)', () => {
+  it('mostrarProgreso={false}: no renderiza el resumen "X de Y documentos cargados" ni el chip de pendientes', () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[doc]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        mostrarProgreso={false}
+      />,
+    );
+
+    expect(screen.queryByText(/documentos cargados/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/pendiente/i)).not.toBeInTheDocument();
+    // Triangulación: el resto del checklist (ítems, chips por ítem, botones) sigue intacto — solo
+    // desaparece el bloque de resumen agregado, no el componente entero.
+    expect(screen.getByText('Presupuesto')).toBeInTheDocument();
+    expect(screen.getByText(/presupuesto\.pdf/i)).toBeInTheDocument();
+  });
+
+  it('sin pasar mostrarProgreso (default true): sigue mostrando el resumen — cero regresión para Vehículos/Conductores/Facturas', () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+
+    render(<DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={vi.fn()} />);
+
+    expect(screen.getByText(/1 de 2 documentos cargados/i)).toBeInTheDocument();
+  });
+});
+
 describe('DocumentChecklist — readOnly deshabilita agregar y cada "Quitar" (tasks.md 4.6)', () => {
   it('con readOnly, "Agregar otro" y cada "Quitar" individual quedan deshabilitados', () => {
     const doc: DocumentoAdjunto = {

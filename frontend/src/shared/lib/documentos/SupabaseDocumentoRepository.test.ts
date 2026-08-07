@@ -35,6 +35,11 @@ interface RecordedCall {
   schema: string;
   table: string;
   eq: Array<[string, unknown]>;
+  // documentos-checklist-por-actividad (Checkpoint (b)/(h)): registra las llamadas a `.is()` por
+  // separado de `.eq()` — el filtro "sin agrupación" real usa `IS NULL`, no `= null` (Postgres
+  // nunca matchea `= NULL`), y este fake debe distinguirlas para que un test pueda afirmar cuál de
+  // las dos se usó.
+  is: Array<[string, null]>;
   payload?: unknown;
 }
 
@@ -128,6 +133,11 @@ class FakeSelectBuilder implements PromiseLike<FakeResult> {
     return this;
   }
 
+  is(column: string, value: null): FakeSelectBuilder {
+    this.call.is.push([column, value]);
+    return this;
+  }
+
   maybeSingle(): Promise<FakeResult> {
     calls.push(this.call);
     const result = resolver(this.call);
@@ -193,13 +203,13 @@ function crearFakeSupabase() {
         from(table: string) {
           return {
             select(columns: string) {
-              return new FakeSelectBuilder({ op: 'select', schema: schemaName, table, eq: [] }).select(columns);
+              return new FakeSelectBuilder({ op: 'select', schema: schemaName, table, eq: [], is: [] }).select(columns);
             },
             insert(payload: unknown) {
-              return new FakeInsertBuilder({ op: 'insert', schema: schemaName, table, eq: [], payload });
+              return new FakeInsertBuilder({ op: 'insert', schema: schemaName, table, eq: [], is: [], payload });
             },
             delete() {
-              return new FakeDeleteBuilder({ op: 'delete', schema: schemaName, table, eq: [] });
+              return new FakeDeleteBuilder({ op: 'delete', schema: schemaName, table, eq: [], is: [] });
             },
           };
         },
@@ -296,6 +306,60 @@ describe('supabaseDocumentoRepository.listByEntity (tasks.md 4.2)', () => {
 });
 
 // -------------------------------------------------------------------------------------------
+// Corrección (2026-08-07, bug real hallado en verificación manual de tasks.md §9 de
+// `documentos-checklist-por-actividad`): `listarDocumentos` ignoraba `agrupacionId` por completo
+// — devolvía TODOS los documentos de la entidad a cualquier bloque que preguntara, sin importar de
+// qué actividad venía el pedido. Estos tests cubren el filtro real, agregado junto con la columna
+// `direccion_id` (migración 20260807010000_documentos_direccion_id.sql).
+// -------------------------------------------------------------------------------------------
+
+describe('supabaseDocumentoRepository.listByEntity — filtro por agrupacionId (fix 2026-08-07, Checkpoint (b)/(h))', () => {
+  it('paciente CON agrupacionId: filtra por columnaAgrupacion (direccion_id) además de paciente_id', async () => {
+    configurar('pacientes', 'documentos', 'select', () => ok([filaDocumento(configPaciente)]));
+
+    await supabaseDocumentoRepository.listByEntity('paciente', 'entidad-1', 'dir-1');
+
+    expect(calls[0]?.eq).toEqual([['paciente_id', 'entidad-1'], ['direccion_id', 'dir-1']]);
+    expect(calls[0]?.is).toEqual([]);
+  });
+
+  it('paciente SIN agrupacionId: filtra IS NULL sobre columnaAgrupacion (no "todos", solo los sin agrupar)', async () => {
+    configurar('pacientes', 'documentos', 'select', () => ok([filaDocumento(configPaciente)]));
+
+    await supabaseDocumentoRepository.listByEntity('paciente', 'entidad-1');
+
+    expect(calls[0]?.eq).toEqual([['paciente_id', 'entidad-1']]);
+    expect(calls[0]?.is).toEqual([['direccion_id', null]]);
+  });
+
+  it('dos actividades distintas del mismo paciente NUNCA comparten resultado — aislación real, no solo de forma', async () => {
+    configurar('pacientes', 'documentos', 'select', (call) => {
+      const filtroAgrupacion = call.eq.find(([col]) => col === 'direccion_id')?.[1];
+      if (filtroAgrupacion === 'dir-escuela') return ok([filaDocumento(configPaciente, { id: 'doc-escuela', direccion_id: 'dir-escuela' })]);
+      if (filtroAgrupacion === 'dir-kinesio') return ok([filaDocumento(configPaciente, { id: 'doc-kinesio', direccion_id: 'dir-kinesio' })]);
+      return ok([]);
+    });
+
+    const escuela = await supabaseDocumentoRepository.listByEntity('paciente', 'entidad-1', 'dir-escuela');
+    const kinesio = await supabaseDocumentoRepository.listByEntity('paciente', 'entidad-1', 'dir-kinesio');
+
+    expect(escuela).toHaveLength(1);
+    expect(escuela[0]?.id).toBe('doc-escuela');
+    expect(kinesio).toHaveLength(1);
+    expect(kinesio[0]?.id).toBe('doc-kinesio');
+  });
+
+  it('vehículo (sin columnaAgrupacion en su config): nunca agrega filtro IS/EQ de agrupación, aunque se pase agrupacionId por error — cero regresión', async () => {
+    configurar('conductores', 'documentacion_vehiculo', 'select', () => ok([]));
+
+    await supabaseDocumentoRepository.listByEntity('vehiculo', 'entidad-1');
+
+    expect(calls[0]?.eq).toEqual([['vehiculo_id', 'entidad-1']]);
+    expect(calls[0]?.is).toEqual([]);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
 // 4.3 — upload: algoritmo corregido de 2 pasos (UPLOAD -> INSERT), sin reemplazo.
 // -------------------------------------------------------------------------------------------
 
@@ -351,6 +415,50 @@ describe('supabaseDocumentoRepository.upload (tasks.md 4.3)', () => {
 
     expect(payloadRecibido).not.toHaveProperty('vigenciaDesde');
     expect(payloadRecibido).not.toHaveProperty('vigencia_desde');
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// Corrección (2026-08-07, mismo bug que listByEntity): `subirDocumento` ni siquiera declaraba un
+// 6.º parámetro `agrupacionId` — el argumento que le mandaba `useDocumentChecklist.ts` se perdía
+// en silencio, y ningún documento de Pacientes quedaba asociado a su actividad en la base real.
+// -------------------------------------------------------------------------------------------
+
+describe('supabaseDocumentoRepository.upload — persiste agrupacionId (fix 2026-08-07, Checkpoint (b)/(h))', () => {
+  it('paciente CON agrupacionId: el INSERT incluye direccion_id', async () => {
+    let payloadRecibido: unknown;
+    configurar('pacientes', 'documentos', 'insert', (call) => {
+      payloadRecibido = call.payload;
+      return ok(filaDocumento(configPaciente));
+    });
+
+    await supabaseDocumentoRepository.upload('paciente', 'entidad-1', 'item-1', archivo('dni.pdf'), undefined, 'dir-1');
+
+    expect(payloadRecibido).toMatchObject({ direccion_id: 'dir-1' });
+  });
+
+  it('paciente SIN agrupacionId: el INSERT no incluye direccion_id (documentación general)', async () => {
+    let payloadRecibido: unknown;
+    configurar('pacientes', 'documentos', 'insert', (call) => {
+      payloadRecibido = call.payload;
+      return ok(filaDocumento(configPaciente));
+    });
+
+    await supabaseDocumentoRepository.upload('paciente', 'entidad-1', 'item-1', archivo('dni.pdf'));
+
+    expect(payloadRecibido).not.toHaveProperty('direccion_id');
+  });
+
+  it('vehículo (sin columnaAgrupacion en su config): pasar un agrupacionId no persiste nada — cero regresión', async () => {
+    let payloadRecibido: unknown;
+    configurar('conductores', 'documentacion_vehiculo', 'insert', (call) => {
+      payloadRecibido = call.payload;
+      return ok(filaDocumento(CONFIG_ENTIDAD.vehiculo));
+    });
+
+    await supabaseDocumentoRepository.upload('vehiculo', 'entidad-1', 'item-1', archivo('vtv.pdf'), undefined, 'no-deberia-persistirse');
+
+    expect(payloadRecibido).not.toHaveProperty('direccion_id');
   });
 });
 

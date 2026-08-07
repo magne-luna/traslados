@@ -26,6 +26,15 @@ interface DocumentChecklistProps {
    * ventana o al desmontar `DocumentChecklist` con la ventana todavía abierta. El hook no la
    * revoca solo — es este componente el que sabe cuándo terminó de usarla (D3). */
   onRevocarPrevisualizacion?: (url: string) => void;
+  /** documentos-checklist-por-actividad (feedback directo de la usuaria, 2026-08-07): con N
+   * instancias montadas (Pacientes, una por actividad), la barra "X de Y cargados" propia de CADA
+   * instancia dejó de tener sentido — ya existe un total agregado en `PacienteDocumentos.tsx`
+   * (design.md Checkpoint (f)), y mostrar además N barras individuales (una por bloque, incluida
+   * "General") es ruido repetido, no información nueva. Opcional con default `true` a propósito:
+   * Vehículos/Conductores/Facturas tienen un único checklist por entidad, ahí la barra sigue
+   * siendo la única fuente de progreso y no se les pasa este prop — cero cambio de comportamiento
+   * para esos tres dominios. */
+  mostrarProgreso?: boolean;
 }
 
 // documentos-previsualizacion (tasks.md 5.3, design.md D3): el documento que se está mostrando
@@ -174,6 +183,7 @@ export function DocumentChecklist({
   readOnly = false,
   onResolverPrevisualizacion,
   onRevocarPrevisualizacion,
+  mostrarProgreso = true,
 }: DocumentChecklistProps) {
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -239,7 +249,7 @@ export function DocumentChecklist({
 
   return (
     <div className="flex flex-col gap-md">
-      {items.length > 0 && (
+      {mostrarProgreso && items.length > 0 && (
         <div className="flex flex-col gap-xs rounded-md border border-border bg-surface p-lg">
           <div className="flex flex-wrap items-center justify-between gap-sm font-body text-[13px] text-text">
             <span>

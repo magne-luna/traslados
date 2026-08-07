@@ -31,6 +31,12 @@ export interface ConfiguracionEntidad {
   readonly columnaItem: string; // dónde vive el itemId (UUID de tipos_documento o TEXT libre)
   readonly bucket: string;
   readonly modulo: string; // solo redacta el mensaje de error — nunca autoriza (design.md D2/D7)
+  /** documentos-checklist-por-actividad (design.md Checkpoint (b)/(h), migración
+   * 20260807010000_documentos_direccion_id.sql): columna que guarda la agrupación por actividad
+   * (`agrupacionId` del contrato `DocumentoRepository`). Solo `paciente` la tiene — es la única
+   * entidad con el concepto de "actividad"; los otros 3 dominios quedan `undefined` a propósito,
+   * sin columna ni comportamiento nuevo. */
+  readonly columnaAgrupacion?: string;
 }
 
 // -------------------------------------------------------------------------------------------
@@ -46,6 +52,7 @@ export const CONFIG_ENTIDAD: Record<EntidadDocumental, ConfiguracionEntidad> = {
     columnaItem: 'id_tipo_documento',
     bucket: 'documentos-pacientes',
     modulo: 'pacientes',
+    columnaAgrupacion: 'direccion_id',
   },
   vehiculo: {
     schema: 'conductores',
@@ -197,7 +204,15 @@ export function parseDocumentoRow(row: unknown, config: ConfiguracionEntidad): D
   const createdAtCrudo = row.created_at;
   const subidoEn = typeof createdAtCrudo === 'string' ? createdAtCrudo : '';
 
-  return { id, itemId, nombreArchivo, subidoEn, tipoMime: inferirTipoMime(nombreArchivo) };
+  // documentos-checklist-por-actividad (design.md Checkpoint (b)/(h)): solo se lee si `config`
+  // declara `columnaAgrupacion` (hoy, únicamente `paciente`) — ausente, `null` o mal tipada ->
+  // `undefined`, nunca se inventa un valor. `agrupacionId: undefined` es equivalente a "sin esa
+  // clave" para cualquier comparación estructural (toEqual), por lo tanto no hace falta condicionar
+  // el objeto devuelto según si la entidad tiene o no la columna.
+  const agrupacionCruda = config.columnaAgrupacion !== undefined ? row[config.columnaAgrupacion] : undefined;
+  const agrupacionId = typeof agrupacionCruda === 'string' ? agrupacionCruda : undefined;
+
+  return { id, itemId, nombreArchivo, subidoEn, tipoMime: inferirTipoMime(nombreArchivo), agrupacionId };
 }
 
 // -------------------------------------------------------------------------------------------
@@ -231,11 +246,21 @@ export function toInsertPayload(
   clave: string,
   nombreArchivo: string,
   config: ConfiguracionEntidad,
+  // documentos-checklist-por-actividad (design.md Checkpoint (b)/(h)): último parámetro, opcional,
+  // a propósito — no reordena callers existentes (mismo criterio que `vigenciaDesde` en el
+  // contrato de `DocumentoRepository`). Solo se agrega la clave al payload si la entidad declara
+  // `columnaAgrupacion` (hoy, únicamente `paciente`) Y se recibió un valor — nunca se manda una
+  // columna que la tabla real no tiene, ni un `null` explícito cuando no hace falta.
+  agrupacionId?: string,
 ): DocumentoInsertPayload {
-  return {
+  const payload: DocumentoInsertPayload = {
     [config.columnaEntidad]: entidadId,
     [config.columnaItem]: itemId,
     archivo_url: clave,
     nombre_archivo: nombreArchivo,
   };
+  if (config.columnaAgrupacion !== undefined && agrupacionId !== undefined) {
+    payload[config.columnaAgrupacion] = agrupacionId;
+  }
+  return payload;
 }

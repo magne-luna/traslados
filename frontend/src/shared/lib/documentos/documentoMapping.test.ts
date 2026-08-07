@@ -24,7 +24,7 @@ describe('CONFIG_ENTIDAD (3.1)', () => {
     expect(Object.keys(CONFIG_ENTIDAD).sort()).toEqual(['conductor', 'factura', 'paciente', 'vehiculo']);
   });
 
-  it('paciente -> pacientes.documentos, columnaItem id_tipo_documento (FK a tipos_documento)', () => {
+  it('paciente -> pacientes.documentos, columnaItem id_tipo_documento (FK a tipos_documento), columnaAgrupacion direccion_id', () => {
     expect(CONFIG_ENTIDAD.paciente).toEqual({
       schema: 'pacientes',
       tabla: 'documentos',
@@ -32,6 +32,7 @@ describe('CONFIG_ENTIDAD (3.1)', () => {
       columnaItem: 'id_tipo_documento',
       bucket: 'documentos-pacientes',
       modulo: 'pacientes',
+      columnaAgrupacion: 'direccion_id',
     });
   });
 
@@ -261,6 +262,49 @@ describe('parseDocumentoRow (3.6)', () => {
     const resultado = parseDocumentoRow(row, CONFIG_ENTIDAD.conductor);
     expect(resultado?.subidoEn).toBe('');
   });
+
+  // documentos-checklist-por-actividad (design.md Checkpoint (b)/(h), migración
+  // 20260807010000_documentos_direccion_id.sql): bug real corregido — antes esta función no leía
+  // ninguna columna de agrupación, así que `agrupacionId` siempre quedaba `undefined` sin importar
+  // lo que trajera la fila real.
+  it('paciente con direccion_id -> agrupacionId poblado', () => {
+    const row = {
+      id: 'doc-1',
+      paciente_id: 'pac-1',
+      id_tipo_documento: 'tipo-1',
+      archivo_url: 'pac-1/tipo-1/uuid-a.pdf',
+      nombre_archivo: 'a.pdf',
+      created_at: '2026-08-07T10:00:00.000Z',
+      direccion_id: 'dir-1',
+    };
+    expect(parseDocumentoRow(row, configPaciente)?.agrupacionId).toBe('dir-1');
+  });
+
+  it('paciente con direccion_id NULL (documentación general) -> agrupacionId undefined', () => {
+    const row = {
+      id: 'doc-1',
+      paciente_id: 'pac-1',
+      id_tipo_documento: 'tipo-1',
+      archivo_url: 'pac-1/tipo-1/uuid-a.pdf',
+      nombre_archivo: 'a.pdf',
+      created_at: '2026-08-07T10:00:00.000Z',
+      direccion_id: null,
+    };
+    expect(parseDocumentoRow(row, configPaciente)?.agrupacionId).toBeUndefined();
+  });
+
+  it('vehículo (sin columnaAgrupacion en su config) -> agrupacionId siempre undefined, aunque la fila tuviera un direccion_id colado', () => {
+    const row = {
+      id: 'doc-2',
+      vehiculo_id: 'veh-1',
+      tipo_documento: 'vehiculo-doc-vtv',
+      archivo_url: 'veh-1/vehiculo-doc-vtv/uuid-vtv.pdf',
+      nombre_archivo: 'VTV.pdf',
+      created_at: '2026-08-07T11:00:00.000Z',
+      direccion_id: 'dir-que-no-deberia-importar',
+    };
+    expect(parseDocumentoRow(row, configVehiculo)?.agrupacionId).toBeUndefined();
+  });
 });
 
 // -------------------------------------------------------------------------------------------
@@ -360,6 +404,42 @@ describe('toInsertPayload (3.8)', () => {
       id_tipo_documento: 'tipo-comprobante',
       archivo_url: 'fac-1/tipo-comprobante/uuid-c.pdf',
       nombre_archivo: 'comprobante.pdf',
+    });
+  });
+
+  // documentos-checklist-por-actividad (design.md Checkpoint (b)/(h)): bug real corregido — antes
+  // esta función ni siquiera aceptaba un 6.º parámetro, así que `agrupacionId` se perdía en
+  // silencio en cualquier upload de Pacientes, sin importar lo que mandara `useDocumentChecklist`.
+  it('paciente CON agrupacionId: agrega direccion_id al payload (config.columnaAgrupacion)', () => {
+    const payload = toInsertPayload('pac-1', 'tipo-1', 'pac-1/tipo-1/uuid-a.pdf', 'a.pdf', CONFIG_ENTIDAD.paciente, 'dir-1');
+    expect(payload).toEqual({
+      paciente_id: 'pac-1',
+      id_tipo_documento: 'tipo-1',
+      archivo_url: 'pac-1/tipo-1/uuid-a.pdf',
+      nombre_archivo: 'a.pdf',
+      direccion_id: 'dir-1',
+    });
+  });
+
+  it('paciente SIN agrupacionId: no agrega ninguna clave de agrupación (documentación general)', () => {
+    const payload = toInsertPayload('pac-1', 'tipo-1', 'pac-1/tipo-1/uuid-a.pdf', 'a.pdf', CONFIG_ENTIDAD.paciente);
+    expect(payload).not.toHaveProperty('direccion_id');
+  });
+
+  it('conductor CON agrupacionId igual: se ignora, esa entidad no tiene columnaAgrupacion en su config', () => {
+    const payload = toInsertPayload(
+      'cond-1',
+      'conductor-doc-dni',
+      'cond-1/conductor-doc-dni/uuid-dni.pdf',
+      'DNI.pdf',
+      CONFIG_ENTIDAD.conductor,
+      'valor-que-no-deberia-persistirse',
+    );
+    expect(payload).toEqual({
+      conductor_id: 'cond-1',
+      tipo_documento: 'conductor-doc-dni',
+      archivo_url: 'cond-1/conductor-doc-dni/uuid-dni.pdf',
+      nombre_archivo: 'DNI.pdf',
     });
   });
 });
