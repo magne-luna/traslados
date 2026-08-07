@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Chip, ProgressBar } from '../../design-system/components';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { ChecklistItem } from '../../shared/types/documento';
 import type { Direccion } from '../../shared/types/paciente';
 import { etiquetaActividad, obtenerActividadesConChecklist } from './actividadDocumental';
 import { PacienteDocumentosChecklist } from './PacienteDocumentosChecklist';
+import { agregarProgreso, type ProgresoInstancia } from './progresoDocumental';
 
 interface PacienteDocumentosProps {
   pacienteId: string;
@@ -35,6 +37,13 @@ export function PacienteDocumentos({ pacienteId, obraSocialId, obraSocialReposit
   const [resolucion, setResolucion] = useState<Resolucion>(
     obraSocialId === null ? { status: 'sin-obra-social' } : { status: 'cargando' },
   );
+  // documentos-checklist-por-actividad (tasks.md 5.1, design.md Checkpoint (f) VEREDICTO opción
+  // A): progreso por instancia (General + cada actividad), reportado desde cada
+  // `PacienteDocumentosChecklist` vía `onProgreso` — este componente solo agrega, no vuelve a
+  // calcular "cargado". Clave: `'general'` o el `Direccion.id` de la actividad.
+  const [progresos, setProgresos] = useState<Record<string, ProgresoInstancia>>({});
+  const agregado = useMemo(() => agregarProgreso(Object.values(progresos)), [progresos]);
+  const pendientesTotal = agregado.total - agregado.cargados;
 
   useEffect(() => {
     if (obraSocialId === null) {
@@ -74,8 +83,43 @@ export function PacienteDocumentos({ pacienteId, obraSocialId, obraSocialReposit
   // PacienteDocumentosChecklist, arma la lista completa (general + N actividades).
   const actividades = obtenerActividadesConChecklist(direcciones);
 
+  // tasks.md 5.1: guarda solo si el progreso reportado por esa instancia realmente cambió, para
+  // no disparar un `setState` (y su re-render) en cada montaje idéntico.
+  function reportarProgreso(clave: string, progreso: ProgresoInstancia) {
+    setProgresos((prev) => {
+      const actual = prev[clave];
+      if (actual && actual.cargados === progreso.cargados && actual.total === progreso.total) return prev;
+      return { ...prev, [clave]: progreso };
+    });
+  }
+
   return (
     <div className="flex flex-col gap-xl">
+      {/* tasks.md 5.1, design.md Checkpoint (f) VEREDICTO opción A: total agregado (General + N
+          actividades) en el encabezado de la sección — cada bloque sigue mostrando además su
+          propia barra (DocumentChecklist.tsx, sin cambios). Oculto hasta que al menos una
+          instancia reportó su progreso, para no mostrar "0 de 0" mientras carga. */}
+      {agregado.total > 0 && (
+        <div
+          role="group"
+          aria-label="Progreso total de documentación"
+          className="flex flex-col gap-xs rounded-md border border-border bg-surface p-lg"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-sm font-body text-[13px] text-text">
+            <span>
+              {agregado.cargados} de {agregado.total} documentos cargados en total ·{' '}
+              <span className="font-semibold text-success">{Math.round(agregado.pct)}%</span>
+            </span>
+            {pendientesTotal > 0 && (
+              <Chip kind="warning">
+                {pendientesTotal} pendiente{pendientesTotal === 1 ? '' : 's'}
+              </Chip>
+            )}
+          </div>
+          <ProgressBar pct={agregado.pct} kind="success" />
+        </div>
+      )}
+
       {/* tasks.md 3.5: el bloque "General" se renderiza primero, siempre — cubre documentos
           cargados antes de este change y los que genuinamente no son de ninguna actividad. */}
       <PacienteDocumentosChecklist
@@ -83,6 +127,7 @@ export function PacienteDocumentos({ pacienteId, obraSocialId, obraSocialReposit
         items={resolucion.items}
         repository={documentoRepository}
         label={ETIQUETA_GENERAL}
+        onProgreso={(progreso) => reportarProgreso('general', progreso)}
       />
       {actividades.length === 0 ? (
         // tasks.md 3.4: sin actividades registradas, nunca N=0 bloques sin explicación — invita
@@ -100,6 +145,7 @@ export function PacienteDocumentos({ pacienteId, obraSocialId, obraSocialReposit
             repository={documentoRepository}
             agrupacionId={direccion.id}
             label={etiquetaActividad(direccion)}
+            onProgreso={(progreso) => reportarProgreso(direccion.id, progreso)}
           />
         ))
       )}

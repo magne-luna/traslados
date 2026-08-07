@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
@@ -379,5 +380,216 @@ describe('PacienteDocumentos — checklist por actividad', () => {
     // "el ítem correspondiente de la segunda actividad sigue figurando como no cargado").
     expect(within(bloqueFono).getByText('RHC')).toBeInTheDocument();
     expect(within(bloqueFono).getAllByText(/^falta$/i).length).toBeGreaterThan(0);
+  });
+});
+
+// documentos-checklist-por-actividad (tasks.md 5.1, design.md Checkpoint (f) VEREDICTO opción A):
+// progreso por actividad (ya existe, sin cambios: cada `DocumentChecklist` sigue mostrando su
+// propia barra) + un total agregado NUEVO en el encabezado de PacienteDocumentos.tsx, sumando la
+// General + las N actividades vía la función pura `agregarProgreso` (progresoDocumental.ts).
+describe('PacienteDocumentos — progreso agregado en el encabezado (tasks.md 5.1)', () => {
+  it('sin actividades: el total agregado es solo el del bloque "General" (0 de 2, sin documentos)', async () => {
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={buildDocumentoRepository()}
+        direcciones={[]}
+      />,
+    );
+
+    expect(await screen.findByText(/0 de 2 documentos cargados en total/i)).toBeInTheDocument();
+  });
+
+  it('con una actividad completa y la General vacía: el total agregado suma ambas instancias (2 de 4, 50%)', async () => {
+    const kinesiologa: Direccion = {
+      id: 'dir-kine',
+      tipo: 'terapia',
+      calle: 'Calle Terapia 1',
+      localidad: 'CABA',
+      descripcion: 'Kinesióloga',
+    };
+    const docRhc: DocumentoAdjunto = {
+      id: 'doc-rhc',
+      itemId: 'item-1',
+      nombreArchivo: 'rhc.pdf',
+      subidoEn: '2026-07-01',
+      agrupacionId: 'dir-kine',
+    };
+    const docConsentimiento: DocumentoAdjunto = {
+      id: 'doc-consentimiento',
+      itemId: 'item-2',
+      nombreArchivo: 'consentimiento.pdf',
+      subidoEn: '2026-07-01',
+      agrupacionId: 'dir-kine',
+    };
+    const documentoRepository = buildRepositorioConAgrupacion([docRhc, docConsentimiento]);
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    // 2 instancias (General + Kinesióloga) × 2 ítems = 4 en total; los 2 de la actividad están
+    // cargados, los 2 de "General" no — total agregado: 2 de 4 (50%). `findByText` (no `getByText`):
+    // el grupo agregado aparece apenas la primera instancia reporta, con `cargados=0` todavía
+    // (antes de que resuelvan sus promesas) — hay que esperar a que el texto se actualice, no solo
+    // a que el grupo exista.
+    const bloqueTotal = await screen.findByRole('group', { name: /progreso total de documentación/i });
+    expect(await within(bloqueTotal).findByText(/2 de 4 documentos cargados en total/i)).toBeInTheDocument();
+    expect(within(bloqueTotal).getByText(/50%/)).toBeInTheDocument();
+  });
+
+  it('con todas las instancias completas: el total agregado llega a 100% (triangulación)', async () => {
+    const escuela: Direccion = { id: 'dir-escuela', tipo: 'escuela', calle: 'Calle Escuela 1', localidad: 'CABA' };
+    const docsCompletos: DocumentoAdjunto[] = [
+      { id: 'doc-gen-1', itemId: 'item-1', nombreArchivo: 'rhc-general.pdf', subidoEn: '2026-07-01' },
+      { id: 'doc-gen-2', itemId: 'item-2', nombreArchivo: 'consentimiento-general.pdf', subidoEn: '2026-07-01' },
+      { id: 'doc-esc-1', itemId: 'item-1', nombreArchivo: 'rhc-escuela.pdf', subidoEn: '2026-07-01', agrupacionId: 'dir-escuela' },
+      { id: 'doc-esc-2', itemId: 'item-2', nombreArchivo: 'consentimiento-escuela.pdf', subidoEn: '2026-07-01', agrupacionId: 'dir-escuela' },
+    ];
+    const documentoRepository = buildRepositorioConAgrupacion(docsCompletos);
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        direcciones={[escuela]}
+      />,
+    );
+
+    const bloqueTotal = await screen.findByRole('group', { name: /progreso total de documentación/i });
+    expect(await within(bloqueTotal).findByText(/4 de 4 documentos cargados en total/i)).toBeInTheDocument();
+    expect(within(bloqueTotal).getByText(/100%/)).toBeInTheDocument();
+  });
+});
+
+// documentos-checklist-por-actividad (tasks.md 5.2, design.md Checkpoint (f) nota de UX): los
+// bloques de actividad (no "General", que no se multiplica por N) son colapsables — arrancan
+// colapsados si ya están completos, para no alargar la pantalla con bloques que no necesitan
+// atención. Reusa `SeccionPlegable` (ya usado en facturacion) en vez de markup ad-hoc.
+describe('PacienteDocumentos — bloques de actividad colapsables (tasks.md 5.2)', () => {
+  it('una actividad completa arranca colapsada (aria-expanded=false)', async () => {
+    const kinesiologa: Direccion = {
+      id: 'dir-kine',
+      tipo: 'terapia',
+      calle: 'Calle Terapia 1',
+      localidad: 'CABA',
+      descripcion: 'Kinesióloga',
+    };
+    const docRhc: DocumentoAdjunto = { id: 'doc-rhc', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01', agrupacionId: 'dir-kine' };
+    const docConsentimiento: DocumentoAdjunto = {
+      id: 'doc-consentimiento',
+      itemId: 'item-2',
+      nombreArchivo: 'consentimiento.pdf',
+      subidoEn: '2026-07-01',
+      agrupacionId: 'dir-kine',
+    };
+    const documentoRepository = buildRepositorioConAgrupacion([docRhc, docConsentimiento]);
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    // `SeccionPlegable` nunca desmonta el contenido al colapsar (usa `grid-template-rows`, no
+    // renderizado condicional — ver su comentario), así que el documento sigue siendo consultable
+    // por testing-library aunque el bloque esté visualmente colapsado.
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+    // La decisión de colapso se toma en un efecto separado (depende de `loading`), que se
+    // confirma en un commit posterior al que pinta "rhc.pdf" — `waitFor` reintenta hasta que ese
+    // segundo commit ocurrió, en vez de asumir que ambos pasan juntos (no es así: son dos
+    // `useEffect` distintos sobre la misma actualización de `documentos`).
+    await waitFor(() => {
+      expect(within(bloqueKine).getByRole('button', { name: /terapia — kinesióloga/i })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+    });
+  });
+
+  it('una actividad incompleta arranca expandida (aria-expanded=true) — triangulación', async () => {
+    const kinesiologa: Direccion = {
+      id: 'dir-kine',
+      tipo: 'terapia',
+      calle: 'Calle Terapia 1',
+      localidad: 'CABA',
+      descripcion: 'Kinesióloga',
+    };
+    // Solo un ítem cargado de dos — actividad incompleta.
+    const docRhc: DocumentoAdjunto = { id: 'doc-rhc', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01', agrupacionId: 'dir-kine' };
+    const documentoRepository = buildRepositorioConAgrupacion([docRhc]);
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    // Espera a que el documento ya cargado esté visible (misma señal de "terminó de resolver" que
+    // usan los demás tests de este archivo) antes de leer `aria-expanded`, que se decide recién
+    // cuando `loading` pasa a `false`.
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+    const toggle = within(bloqueKine).getByRole('button', { name: /terapia — kinesióloga/i });
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('colapsar y volver a expandir un bloque de actividad no pierde el estado del checklist (el documento sigue cargado al reabrir)', async () => {
+    const user = userEvent.setup();
+    const kinesiologa: Direccion = {
+      id: 'dir-kine',
+      tipo: 'terapia',
+      calle: 'Calle Terapia 1',
+      localidad: 'CABA',
+      descripcion: 'Kinesióloga',
+    };
+    // Incompleta a propósito (arranca expandida) para poder colapsarla manualmente y verificar
+    // que reabrirla no perdió nada — si arrancara ya colapsada no probaría la interacción.
+    const docRhc: DocumentoAdjunto = { id: 'doc-rhc', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01', agrupacionId: 'dir-kine' };
+    const documentoRepository = buildRepositorioConAgrupacion([docRhc]);
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+
+    const toggle = within(bloqueKine).getByRole('button', { name: /terapia — kinesióloga/i });
+    await user.click(toggle); // colapsa
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(toggle); // vuelve a expandir
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    // El documento sigue vivo — no se perdió estado ni se volvió a pedir al repository.
+    expect(within(bloqueKine).getByText(/rhc\.pdf/i)).toBeInTheDocument();
+    expect(within(bloqueKine).getByText('RHC')).toBeInTheDocument();
+    expect(within(bloqueKine).getByText('Consentimiento informado')).toBeInTheDocument();
+    expect(documentoRepository.listByEntity).toHaveBeenCalledTimes(2); // 1 vez por instancia (General + Kine), no una vez más por togglear.
   });
 });

@@ -223,12 +223,24 @@
 
 ## 5. Progreso agregado (condicional al Checkpoint (f))
 
-- [ ] 5.1 Si (f) = por actividad + total: (RED→GREEN) función pura que agrega el progreso de las N
+- [x] 5.1 Si (f) = por actividad + total: (RED→GREEN) función pura que agrega el progreso de las N
       instancias y su render en el encabezado de la sección, reusando `ProgressBar`/`Chip` del design
       system. Casos: cero actividades, una actividad completa y otra vacía, todas completas.
-- [ ] 5.2 UX de longitud de pantalla: bloques de actividad colapsables, arrancando colapsados los que
+      **Hecho (2026-08-07)**: (f) = opción A, ya resuelta por la usuaria. `agregarProgreso()` en
+      `progresoDocumental.ts` (función pura, 4 casos incl. triangulación de "ninguna cargada").
+      Encabezado nuevo en `PacienteDocumentos.tsx` (`role="group"` "Progreso total de
+      documentación"), alimentado por un `onProgreso` que cada `PacienteDocumentosChecklist` reporta
+      (misma fórmula de "cargado" que `DocumentChecklist.tsx`, no duplicada ahí). Cada actividad
+      sigue mostrando su propia barra sin cambios.
+- [x] 5.2 UX de longitud de pantalla: bloques de actividad colapsables, arrancando colapsados los que
       están completos. Reusar `Section`/componentes existentes — **nunca markup ad-hoc ni
       `style={{}}`**. Test de que colapsar/expandir no pierde estado del checklist.
+      **Hecho (2026-08-07)**: solo los bloques de actividad (no "General", que no se multiplica por
+      N) son colapsables, reusando `SeccionPlegable` (ya existente en `features/facturacion`, cross-
+      feature import — convención ya usada en el repo). Arrancan colapsados si `cargados === total`
+      una sola vez, apenas resuelve la carga inicial (no se recolapsan solos si el usuario reabre
+      uno). Test de que colapsar/expandir no pierde el estado del checklist (documento sigue
+      cargado, sin refetch — `listByEntity` se sigue llamando 1 vez por instancia).
 
 ## 6. Protección al quitar una actividad (condicional al Checkpoint (e))
 
