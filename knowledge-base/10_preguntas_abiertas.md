@@ -272,6 +272,34 @@ adjuntos) sigue **sin cerrar del todo**:
   (Enzo, 2026-08-06) — queda para quien proponga `documentos-descarga-firmada` a futuro, que debe leer
   esta entrada y `documentos-previsualizacion/design.md` Checkpoint (b) antes de arrancar.
 
+## Preguntas nuevas — `integracion-documentos` (2026-08-07)
+
+- **US-900, actualización**: el bullet de arriba decía que "consultar y descargar" se cierra cuando
+  exista "un backend real para documentos (`integracion-documentos`)" — eso ya pasó, pero **solo para
+  Pacientes**. `SupabaseDocumentoRepository` corre contra Storage/Postgres reales únicamente en
+  `PacientesRoute.tsx`; Vehículos, Conductores y Facturación siguen sobre `mockDocumentoRepository`
+  (`AvisoModeloDatos` en las tres pantallas). El criterio de aceptación de US-900 sigue **sin tildar**
+  en `06_funcionalidades.md`: falta la descarga real (`documentos-descarga-firmada`, todavía sin
+  proponer) incluso para Pacientes, y falta el backend real de las otras tres entidades. **Decisor**:
+  sin cambios — Enzo/backend para el resto de entidades, quien proponga `documentos-descarga-firmada`
+  para la descarga.
+- **¿Qué límite de tamaño y de tipo MIME aceptan los 4 buckets de documentos?** Verificado en vivo
+  (`tasks.md` 1.4, 2026-08-06): los 4 buckets (`documentos-pacientes`, `documentos-vehiculos`,
+  `documentos-conductores`, `documentos-facturas`) están configurados sin límite explícito de tamaño
+  ("Unset", 50MB por default de Supabase) y con MIME `Any` — cualquier archivo, de cualquier tamaño
+  hasta 50MB, se acepta hoy sin validación del lado del cliente ni del servidor. No es bloqueante para
+  este change (gap conocido, no introducido por `integracion-documentos`), pero si el criterio real es
+  "solo PDF/imágenes" o un límite menor a 50MB, hay que decidir dónde se aplica: policy de Storage,
+  Edge Function, o validación de UI antes del upload. **Decisor**: cliente (¿qué tipos de archivo
+  espera realmente para documentación clínica/vehicular/factura?) / equipo técnico (dónde se aplica).
+- **Refuerzo de la pregunta ya abierta sobre `obra_social.tipos_documento`** (ver bullet de
+  `integracion-obra-social` más arriba): con Pacientes ya conectado a datos reales, el catálogo deja
+  de ser solo un fixture de seed — cada checklist real que se configure con el `ChecklistEditor`
+  agrega filas de verdad, con `ON DELETE RESTRICT` desde `pacientes.documentos` y
+  `facturacion.documento_factura`. La pregunta de quién administra ese catálogo (¿change propio de
+  administración?) pasa de "housekeeping" a "necesaria antes de que crezca sin control" ahora que hay
+  uso real detrás.
+
 ## Insumos pendientes del cliente
 
 - Logo (árbol de discapacidad) y colores de marca; fondo de pantalla de referencia.

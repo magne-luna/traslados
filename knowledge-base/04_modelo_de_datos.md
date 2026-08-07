@@ -169,9 +169,12 @@ así que queda anotado acá hasta que se construya esa feature.
   completo más abajo): esta KB asume `Factura 1---N DocumentoFactura` (comprobante ARCA, CODEM,
   etc.). El docx no tiene esa tabla — Presupuesto y Autorización tienen un campo "Archivo" único
   cada uno, pero Factura no tiene ningún adjunto. El frontend implementó el checklist multi-documento
-  (`FacturaDocumentos.tsx`, entidad `'factura'` de `EntidadDocumental`) con cartel `AvisoModeloDatos`;
-  **el backend `C-07` sigue teniendo que crear la tabla `documento_factura`** antes de cerrar el
-  esquema.
+  (`FacturaDocumentos.tsx`, entidad `'factura'` de `EntidadDocumental`) con cartel `AvisoModeloDatos`.
+  **Actualización 2026-08-07 (`integracion-documentos`, ver bullet "Documentos vs. esquema real de
+  `C-03`" más abajo)**: la tabla `documento_factura` **ya existe** desde `C-03` — lo que sigue
+  pendiente no es el schema, sino que `Factura` conecte a datos reales (`FacturacionRoute.tsx` sigue
+  en `mockFacturaRepository`, swap parcial de Enzo del 2026-08-05); el cartel de la pantalla se
+  actualizó para reflejar esto.
 - **Plazo de cobro (90 días / 45 con amparo)** — resuelto-en-frontend 2026-07-25 (`facturacion-ui`,
   FE-6, ver detalle completo más abajo): sin campo explícito en Factura del docx (cartel en UI en
   Obras Sociales, ver `ObraSocialDetail`, y ahora también en Facturación). Regla de negocio real
@@ -346,8 +349,10 @@ así que queda anotado acá hasta que se construya esa feature.
      asistencias/prestaciones en el área Facturación. El frontend la agrega, embebida en `Factura`
      (sin repository propio), para poder persistir lo declarado (RN-FA-01) y exportar "factura +
      asistencia" (US-400). **El backend debe crear la tabla `asistencia_prestacion`.**
-  2. **Documentos por factura no existen en el docx** (known, ver bullet arriba) — **el backend
-     debe crear `documento_factura`.**
+  2. **Documentos por factura no existen en el docx** (known, ver bullet arriba) — **RESUELTA
+     2026-08-07**: la tabla `documento_factura` ya existe desde `C-03` (ver bullet "Documentos vs.
+     esquema real de `C-03`" más abajo); lo pendiente es que `Factura` conecte a datos reales, no el
+     schema.
   3. **`fecha_estimada_cobro` no existe en el docx** (known, ver bullet arriba): el docx solo tiene
      "Fecha inicial / tope", ambiguo respecto de si "tope" es el fin del período o el límite de
      cobro. El frontend agrega `fechaEstimadaCobro?` **además de** `fechaInicial`/`fechaTope`, que
@@ -712,6 +717,50 @@ así que queda anotado acá hasta que se construya esa feature.
   verificada por comportamiento observado en producción, no solo por lectura de `pg_policies`. El
   único residual que dejó esa verificación es el nuevo ítem **#14** de arriba (`usuario_id null` en
   auditoría).
+
+- **Documentos vs. esquema real de `C-03`** (detalle completo en
+  `openspec/changes/integracion-documentos/design.md` y `tasks.md` §0, propose 2026-08-05, apply
+  2026-08-07): comparación entre el checklist documental compartido (`DocumentChecklist`/
+  `useDocumentChecklist`, FE-1) y las 4 tablas reales de `C-03` — `pacientes.documentos`,
+  `conductores.documentacion_vehiculo`, `conductores.documentacion_conductores`,
+  `facturacion.documento_factura` (el schema de la tabla no siempre coincide con el módulo de
+  permisos que la gatea, ver Checkpoint 3 abajo). Cinco checkpoints con veredicto de la usuaria
+  (2026-08-05, `tasks.md` §0.1), todos **RESUELTOS**:
+  1. **Checkpoint 0 — alcance del swap**: solo `PacientesRoute.tsx` se conecta a Storage/Postgres
+     reales (`SupabaseDocumentoRepository`); Vehículos, Conductores y Facturación siguen con
+     `mockDocumentoRepository` hasta que esas entidades tengan `entidadId` real
+     (`integracion-conductores-vehiculos`, `integracion-facturacion`) — señalizado con
+     `AvisoModeloDatos` en las tres pantallas (`tasks.md` §6).
+  2. **Checkpoint 1 — `itemId` heterogéneo entre las 4 tablas**: en vez de normalizar el schema
+     (columnas `TEXT` a `UUID FK`, no aditivo), `documentoMapping.ts` acepta la heterogeneidad con
+     una entrada de configuración por entidad (`CONFIG_ENTIDAD`).
+  3. **Checkpoint 2 — columnas de metadatos faltantes**: migración aditiva
+     `20260806190000_documentos_nombre_archivo.sql` agrega `nombre_archivo TEXT` a las 4 tablas y
+     `created_at TIMESTAMPTZ DEFAULT NOW()` a `documentacion_conductores` (las otras tres ya lo
+     tenían).
+  4. **🔴 Checkpoint 3 — bucket `documentos-vehiculos` gateado por el módulo equivocado (CRÍTICO)**:
+     las 4 policies de `storage.objects` pedían `modulos.tiene_permiso('conductores', …)` mientras
+     su tabla (`conductores.documentacion_vehiculo`) ya vivía bajo el módulo `vehiculos` desde el
+     split del 30/07 — cualquier cuenta con `vehiculos` pero sin `conductores` no podía subir ni
+     bajar fotos de vehículo. Repunteado a `vehiculos` en
+     `20260805140000_fix_documentos_vehiculos_rls_modulo.sql`, verificado contra `pg_policies`;
+     auditoría retroactiva de accesos: 0 cuentas afectadas.
+  5. **Checkpoint 4 — precondición de datos**: `obra_social.requisitos_os` tenía 0 filas (el
+     checklist de todo paciente renderizaba vacío); la usuaria lo carga con el `ChecklistEditor`
+     existente antes de la verificación manual de `tasks.md` §8.
+
+  Una discrepancia menor adicional, sin cartel dedicado propio (ya cubierta por el
+  `AvisoModeloDatos` de alcance del swap, Checkpoint 0 arriba): **`archivo_url` no guarda una URL**
+  — los 4 buckets son privados (una URL pública no existiría y una firmada expira), así que la
+  columna guarda la **clave dentro del bucket**, no una URL. Renombrarla sería destructivo sobre 4
+  tablas ya aplicadas; se documenta con `COMMENT ON COLUMN` en la migración del Checkpoint 2 en vez
+  de resolverse.
+
+  **Nota de estado (2026-08-07)**: el swap real de `PacientesRoute.tsx` está en producción
+  (`tasks.md` §5); Vehículos/Conductores/Facturación muestran `AvisoModeloDatos` explicando que la
+  subida sigue simulada (`tasks.md` §6). La descarga de documentos (`createSignedUrl`) queda fuera
+  de alcance de este change — ver `10_preguntas_abiertas.md`. Verificación manual con cuentas
+  reales (`tasks.md` §8) todavía pendiente.
 
 ### Presupuesto / Autorizacion — policies gateadas por `presupuestos`, no `facturacion`
 

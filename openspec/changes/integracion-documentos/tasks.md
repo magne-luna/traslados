@@ -435,25 +435,27 @@ Chain strategy: pending
 
 ## 7. Documentación y cierre
 
-- [ ] 7.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: bloque nuevo "Documentos vs. esquema
+- [x] 7.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: bloque nuevo "Documentos vs. esquema
       real de `C-03`" con los cinco veredictos, más las dos discrepancias descubiertas acá
       (`archivo_url` no guarda una URL; el bucket `documentos-vehiculos` gateado por un módulo
-      distinto al de su tabla).
-- [ ] 7.2 `CHANGES.md`: actualizar §C-03 (hoy dice *"documentos-vehiculos cae bajo conductores, no un
+      distinto al de su tabla). (2026-08-07)
+- [x] 7.2 `CHANGES.md`: actualizar §C-03 (hoy dice *"documentos-vehiculos cae bajo conductores, no un
       módulo propio"* — cierto al 29/07, **desactualizado desde el split del 30/07**) y la fila 8 del
       §Plan de integración con el corte real (Pacientes real; Vehículos/Conductores/Facturas siguen
-      simulados y por qué).
-- [ ] 7.3 `ROADMAP-FRONTEND.md` §FE-8, fila `C-03`: pasa de ⏳ a 🔶 con el alcance exacto del swap
-      parcial.
-- [ ] 7.4 `10_preguntas_abiertas.md`: agregar la descarga de documentos (US-900 cumplida a medias,
+      simulados y por qué). (2026-08-07)
+- [x] 7.3 `ROADMAP-FRONTEND.md` §FE-8, fila `C-03`: pasa de ⏳ a 🔶 con el alcance exacto del swap
+      parcial. (2026-08-07)
+- [x] 7.4 `10_preguntas_abiertas.md`: agregar la descarga de documentos (US-900 cumplida a medias,
       `design.md` D6, change propuesto `documentos-descarga-firmada`) y el límite de tamaño/MIME de los
       buckets (verificación `1.4`). Reforzar la pregunta ya abierta de quién administra
       `obra_social.tipos_documento` con el motivo nuevo: a partir de este change el catálogo puede
-      crecer por uso real.
-- [ ] 7.5 Correr la suite completa (`cd frontend && npx vitest run`) y confirmar cero regresiones
-      contra el baseline de `0.4`.
-- [ ] 7.6 `cd frontend && npx tsc -b --noEmit` limpio (**nunca** `tsc --noEmit` a secas) y
-      `cd frontend && npx oxlint` limpio.
+      crecer por uso real. (2026-08-07)
+- [x] 7.5 Correr la suite completa (`cd frontend && npx vitest run`) y confirmar cero regresiones
+      contra el baseline de `0.4`. (2026-08-07: 2144/2147, mismos 3 fallos preexistentes de `0.4`
+      —`ChecklistEditor.test.tsx`×2 y `PermisosMatrizFields.test.tsx`— el total de archivos/tests
+      subió por trabajo en paralelo de otra sesión, no relacionado a este change.)
+- [x] 7.6 `cd frontend && npx tsc -b --noEmit` limpio (**nunca** `tsc --noEmit` a secas) y
+      `cd frontend && npx oxlint` limpio. (2026-08-07)
 
 ## 8. Verificación manual (bloqueante, a cargo de la usuaria/Enzo)
 
