@@ -25,7 +25,7 @@
 
 ## 0. Checkpoint de diseño (antes de escribir código) — GOVERNANCE recomendado CRÍTICO
 
-- [ ] 0.1 Presentar a Enzo/la clienta los cuatro checkpoints de `design.md` con su trade-off escrito, y
+- [x] 0.1 Presentar a Enzo/la clienta los cuatro checkpoints de `design.md` con su trade-off escrito, y
       registrar el veredicto de cada uno en este archivo antes de continuar:
       - **Checkpoint (a)** — ¿cardinalidad sin límite (recomendado por este propose) o un tope fijo
         (2 o 3, según los ejemplos que dio la clienta)?
@@ -158,14 +158,17 @@
 
 ## 7. Verificación manual (bloqueante, a cargo de Enzo/la usuaria)
 
-- [ ] 7.1 Con una cuenta con `pacientes: write`: en la ficha de un paciente, subir dos documentos del
+- [x] 7.1 Con una cuenta con `pacientes: write`: en la ficha de un paciente, subir dos documentos del
       mismo tipo (ej. dos presupuestos) y confirmar que ambos quedan visibles, ninguno se sobrescribe,
-      y el orden/distinción vigente-siguiente se ve como se esperaba según Checkpoint (b).
-- [ ] 7.2 Confirmar que "Quitar" en un documento puntual de una colección de N no afecta a los demás
-      del mismo ítem.
-- [ ] 7.3 Confirmar con una cuenta `pacientes: read` solamente que la pantalla sigue en modo solo
+      y el orden/distinción vigente-siguiente se ve como se esperaba según Checkpoint (b). **Confirmado
+      (2026-08-06, usuaria): verificado manualmente, funciona.**
+- [x] 7.2 Confirmar que "Quitar" en un documento puntual de una colección de N no afecta a los demás
+      del mismo ítem. **Confirmado (2026-08-06, usuaria): verificado manualmente, funciona.**
+- [x] 7.3 Confirmar con una cuenta `pacientes: read` solamente que la pantalla sigue en modo solo
       lectura sobre la colección nueva (ningún botón de agregar/quitar activo) — mismo mecanismo que
       `gateo-pacientes`, no se re-testea el gateo en sí, solo que sigue funcionando con la forma nueva.
-- [ ] 7.4 Confirmar con Vehículos/Conductores/Facturas que sus pantallas de documentos siguen
+      **Confirmado (2026-08-06, usuaria): verificado manualmente, funciona.**
+- [x] 7.4 Confirmar con Vehículos/Conductores/Facturas que sus pantallas de documentos siguen
       funcionando igual que antes (sin comportamiento nuevo, solo el tipo compartido cambió) — smoke
-      test manual de que no hay regresión cruzada por el tipo compartido.
+      test manual de que no hay regresión cruzada por el tipo compartido. **Confirmado (2026-08-06,
+      usuaria): verificado manualmente, funciona.**
