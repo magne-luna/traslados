@@ -177,6 +177,80 @@ describe('useDocumentChecklist — resolverPrevisualizacion() maneja los tres de
   });
 });
 
+// documentos-checklist-por-actividad (tasks.md 2.6, design.md Checkpoint (b) VEREDICTO opción B):
+// el hook acepta la agrupación como 5.º parámetro OPCIONAL (default `undefined`) — los 3 dominios
+// que no la usan (Vehículos/Conductores/Facturas) siguen llamando al hook con 4 argumentos
+// posicionales, sin ningún cambio de comportamiento.
+
+describe('useDocumentChecklist — acepta agrupacionId y lo pasa al repository (tasks.md 2.6)', () => {
+  it('con agrupacionId, listByEntity() se llama con la agrupación como 3.er argumento', async () => {
+    const repository = buildFakeRepository();
+
+    renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository, 'direccion-terapia'));
+
+    await waitFor(() =>
+      expect(repository.listByEntity).toHaveBeenCalledWith('paciente', 'p1', 'direccion-terapia'),
+    );
+  });
+
+  it('sin agrupacionId (los otros 3 dominios), listByEntity() se llama con la misma aridad de siempre — sin agregar un 3.er argumento undefined (sin regresión)', async () => {
+    const repository = buildFakeRepository();
+
+    renderHook(() => useDocumentChecklist('vehiculo', 'v1', items, repository));
+
+    await waitFor(() => expect(repository.listByEntity).toHaveBeenCalledWith('vehiculo', 'v1'));
+  });
+
+  it('upload() pasa el agrupacionId al repository.upload() (triangulación)', async () => {
+    const nuevo: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-06T00:00:00.000Z',
+      agrupacionId: 'direccion-terapia',
+    };
+    const repository = buildFakeRepository({ upload: vi.fn().mockResolvedValue(nuevo) });
+
+    const { result } = renderHook(() =>
+      useDocumentChecklist('paciente', 'p1', items, repository, 'direccion-terapia'),
+    );
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.upload('item-presupuesto', archivo('presupuesto.pdf'));
+    });
+
+    expect(repository.upload).toHaveBeenCalledWith(
+      'paciente',
+      'p1',
+      'item-presupuesto',
+      expect.any(File),
+      undefined,
+      'direccion-terapia',
+    );
+    expect(result.current.documentos).toEqual([nuevo]);
+  });
+
+  it('sin agrupacionId, upload() se llama con la misma aridad de siempre (4 argumentos) — sin regresión (triangulación)', async () => {
+    const nuevo: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-06T00:00:00.000Z',
+    };
+    const repository = buildFakeRepository({ upload: vi.fn().mockResolvedValue(nuevo) });
+
+    const { result } = renderHook(() => useDocumentChecklist('vehiculo', 'v1', items, repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.upload('item-presupuesto', archivo('presupuesto.pdf'));
+    });
+
+    expect(repository.upload).toHaveBeenCalledWith('vehiculo', 'v1', 'item-presupuesto', expect.any(File));
+  });
+});
+
 // documentos-previsualizacion (tasks.md 4.3): revocar el ObjectURL que el hook resolvió para
 // mostrarlo en la ventana. Distinto del revoke que ya hace el mock en remove() (tasks.md 2.3) sobre
 // el store interno del repository — este es el de la URL que quedó en manos del consumidor mientras

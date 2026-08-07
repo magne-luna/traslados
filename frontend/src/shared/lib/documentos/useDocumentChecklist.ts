@@ -4,11 +4,21 @@ import type { DocumentoRepository } from './DocumentoRepository';
 
 // Wiring de estado entre <DocumentChecklist /> (presentacional) y un DocumentoRepository
 // (mock hoy, Supabase Storage el día de mañana — ver DocumentoRepository.ts).
+//
+// documentos-checklist-por-actividad (tasks.md 2.6, design.md Checkpoint (b) VEREDICTO opción B):
+// `agrupacionId` es el 5.º parámetro, OPCIONAL con default `undefined` — Pacientes lo pasa (el
+// `Direccion.id` de la actividad) para instanciar N checklists independientes; los otros 3
+// dominios (Vehículos/Conductores/Facturas) no lo pasan y siguen llamando al hook con 4 argumentos
+// posicionales, sin ningún cambio de comportamiento. El estado local `documentos` sigue
+// **acumulando**, nunca filtra por `itemId` (comportamiento heredado de
+// `pacientes-documentos-multiples`) — el filtrado por agrupación ya lo resuelve el repository en
+// `listByEntity`/`upload`, el hook solo reenvía el parámetro.
 export function useDocumentChecklist(
   entidad: EntidadDocumental,
   entidadId: string,
   items: ChecklistItem[],
   repository: DocumentoRepository,
+  agrupacionId?: string,
 ) {
   const [documentos, setDocumentos] = useState<DocumentoAdjunto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -16,7 +26,17 @@ export function useDocumentChecklist(
   useEffect(() => {
     let active = true;
     setLoading(true);
-    repository.listByEntity(entidad, entidadId).then((docs) => {
+    // documentos-checklist-por-actividad (tasks.md 2.6): llama al repository con exactamente los
+    // mismos 2 argumentos posicionales de siempre cuando no hay agrupación — nunca agrega un 3.er
+    // argumento `undefined` explícito. No es solo estética: los tests existentes de los otros 3
+    // dominios (VehiculoDocumentos.test.tsx, ConductorDocumentos.test.tsx,
+    // FacturaDocumentos.test.tsx) verifican `toHaveBeenCalledWith(entidad, entidadId)` con exactitud
+    // de aridad — un `undefined` explícito de más los rompe aunque el valor sea equivalente.
+    const promesa =
+      agrupacionId !== undefined
+        ? repository.listByEntity(entidad, entidadId, agrupacionId)
+        : repository.listByEntity(entidad, entidadId);
+    promesa.then((docs) => {
       if (!active) return;
       setDocumentos(docs);
       setLoading(false);
@@ -24,16 +44,22 @@ export function useDocumentChecklist(
     return () => {
       active = false;
     };
-  }, [entidad, entidadId, repository]);
+  }, [entidad, entidadId, agrupacionId, repository]);
 
   // pacientes-documentos-multiples (tasks.md 3.1): acumula en vez de reemplazar — ya no filtra
   // por itemId antes de agregar el documento nuevo al estado local.
+  // documentos-checklist-por-actividad (tasks.md 2.6): mismo criterio de aridad exacta que
+  // `listByEntity` arriba — sin agrupación, llama a `repository.upload` con los mismos 4 argumentos
+  // de siempre.
   const upload = useCallback(
     async (itemId: string, file: File) => {
-      const doc = await repository.upload(entidad, entidadId, itemId, file);
+      const doc =
+        agrupacionId !== undefined
+          ? await repository.upload(entidad, entidadId, itemId, file, undefined, agrupacionId)
+          : await repository.upload(entidad, entidadId, itemId, file);
       setDocumentos((prev) => [...prev, doc]);
     },
-    [entidad, entidadId, repository],
+    [entidad, entidadId, agrupacionId, repository],
   );
 
   // pacientes-documentos-multiples (tasks.md 3.2, design.md D1): filtra por `id` del documento,

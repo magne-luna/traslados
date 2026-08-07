@@ -134,8 +134,11 @@ describe('mockDocumentoRepository — upload() conserva el contenido (tasks.md 2
 
     const doc = await mockDocumentoRepository.upload('paciente', entidadId, 'item-rhc', archivo('rhc.pdf'));
 
+    // documentos-checklist-por-actividad (tasks.md 2.4): la lista de claves crece con
+    // `agrupacionId` — mismo mecanismo que ya sumó `vigenciaDesde`/`tipoMime` en los dos changes
+    // hermanos, ninguna URL se agrega.
     expect(Object.keys(doc).sort()).toEqual(
-      ['id', 'itemId', 'nombreArchivo', 'subidoEn', 'tipoMime', 'vigenciaDesde'].sort(),
+      ['id', 'itemId', 'nombreArchivo', 'subidoEn', 'tipoMime', 'vigenciaDesde', 'agrupacionId'].sort(),
     );
   });
 
@@ -215,6 +218,110 @@ describe('mockDocumentoRepository — resolverPrevisualizacion() (tasks.md 2.2, 
 
     expect(segunda).toEqual(expect.any(String));
     expect(segunda).not.toBe(primera);
+  });
+});
+
+// documentos-checklist-por-actividad (tasks.md 2.3/2.4/2.5, design.md Checkpoint (b) VEREDICTO
+// opción B, Checkpoint (c) VEREDICTO opción A): `agrupacionId` agrupa documentos dentro de la misma
+// entidad — en Pacientes, la actividad/dirección. `listByEntity` sin `agrupacionId` devuelve SOLO
+// los documentos que no tienen ninguna agrupación (bloque "General", no todos los documentos de la
+// entidad); con `agrupacionId`, devuelve solo los de esa agrupación puntual.
+
+describe('mockDocumentoRepository — agrupacionId en listByEntity/upload (tasks.md 2.3/2.4)', () => {
+  it('upload() guarda el agrupacionId recibido en el DocumentoAdjunto creado', async () => {
+    const entidadId = entidadIdUnico('paciente-agrupacion-guarda');
+
+    const doc = await mockDocumentoRepository.upload(
+      'paciente',
+      entidadId,
+      'item-rhc',
+      archivo('rhc.pdf'),
+      undefined,
+      'direccion-1',
+    );
+
+    expect(doc.agrupacionId).toBe('direccion-1');
+  });
+
+  it('upload() sin agrupacionId lo deja undefined (comportamiento heredado, sin regresión)', async () => {
+    const entidadId = entidadIdUnico('paciente-agrupacion-sin-pasar');
+
+    const doc = await mockDocumentoRepository.upload('paciente', entidadId, 'item-rhc', archivo('rhc.pdf'));
+
+    expect(doc.agrupacionId).toBeUndefined();
+  });
+
+  it('listByEntity() con agrupacionId devuelve solo los documentos de esa agrupación', async () => {
+    const entidadId = entidadIdUnico('paciente-agrupacion-filtra');
+
+    await mockDocumentoRepository.upload(
+      'paciente',
+      entidadId,
+      'item-rhc',
+      archivo('escuela.pdf'),
+      undefined,
+      'direccion-escuela',
+    );
+    const terapia = await mockDocumentoRepository.upload(
+      'paciente',
+      entidadId,
+      'item-rhc',
+      archivo('terapia.pdf'),
+      undefined,
+      'direccion-terapia',
+    );
+
+    const documentos = await mockDocumentoRepository.listByEntity('paciente', entidadId, 'direccion-terapia');
+
+    expect(documentos).toEqual([terapia]);
+  });
+
+  it('listByEntity() sin agrupacionId devuelve solo los que no tienen ninguna agrupación — no todos los de la entidad (Checkpoint (c))', async () => {
+    const entidadId = entidadIdUnico('paciente-agrupacion-general');
+
+    const general = await mockDocumentoRepository.upload('paciente', entidadId, 'item-dni', archivo('dni.pdf'));
+    await mockDocumentoRepository.upload(
+      'paciente',
+      entidadId,
+      'item-rhc',
+      archivo('terapia.pdf'),
+      undefined,
+      'direccion-terapia',
+    );
+
+    const documentos = await mockDocumentoRepository.listByEntity('paciente', entidadId);
+
+    expect(documentos).toEqual([general]);
+  });
+
+  // Caso cruzado obligatorio (tasks.md 2.5, spec: "Los documentos de una actividad no se filtran a
+  // otra"): dos agrupaciones distintas de la MISMA entidad, con el MISMO itemId — ninguna ve los
+  // documentos de la otra.
+  it('dos agrupaciones distintas de la misma entidad con el mismo itemId no se filtran entre sí (TRIANGULATE, tasks.md 2.5)', async () => {
+    const entidadId = entidadIdUnico('paciente-agrupacion-cruzada');
+
+    const kinesiologa = await mockDocumentoRepository.upload(
+      'paciente',
+      entidadId,
+      'item-presupuesto',
+      archivo('presupuesto-kine.pdf'),
+      undefined,
+      'direccion-kinesiologa',
+    );
+    const fonoaudiologa = await mockDocumentoRepository.upload(
+      'paciente',
+      entidadId,
+      'item-presupuesto',
+      archivo('presupuesto-fono.pdf'),
+      undefined,
+      'direccion-fonoaudiologa',
+    );
+
+    const documentosKine = await mockDocumentoRepository.listByEntity('paciente', entidadId, 'direccion-kinesiologa');
+    const documentosFono = await mockDocumentoRepository.listByEntity('paciente', entidadId, 'direccion-fonoaudiologa');
+
+    expect(documentosKine).toEqual([kinesiologa]);
+    expect(documentosFono).toEqual([fonoaudiologa]);
   });
 });
 

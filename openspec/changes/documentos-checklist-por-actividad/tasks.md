@@ -137,24 +137,38 @@
 > §3. Si (b) = opción C (agrupación dentro de `DocumentChecklist`), esta sección no existe y el trabajo
 > se mueve a §4.
 
-- [ ] 2.1 (RED→GREEN) `shared/types/documento.ts`: agregar el campo de agrupación **opcional** con el
+- [x] 2.1 (RED→GREEN) `shared/types/documento.ts`: agregar el campo de agrupación **opcional** con el
       nombre confirmado en 0.1, documentado en el propio tipo (por qué es opcional, qué significa
       `undefined`, qué dominios lo usan).
-- [ ] 2.2 (RED→GREEN) `shared/lib/documentos/DocumentoRepository.ts`: `listByEntity` y `upload` aceptan
+      **Hecho (2026-08-06)**: `agrupacionId?: string` en `DocumentoAdjunto`.
+- [x] 2.2 (RED→GREEN) `shared/lib/documentos/DocumentoRepository.ts`: `listByEntity` y `upload` aceptan
       la agrupación como parámetro **opcional**. `remove` y `resolverPrevisualizacion` **no cambian**
       (ya apuntan a un `documentoId` puntual, que es único dentro de la entidad sin importar la
       agrupación) — verificarlo explícitamente, no asumirlo.
-- [ ] 2.3 (RED) Tests de `mockDocumentoRepository`: `listByEntity` con agrupación devuelve **solo** los
+      **Hecho (2026-08-06)**: agregado como último parámetro en ambos (después de `vigenciaDesde` en
+      `upload`, para no reordenar callers posicionales). `remove`/`resolverPrevisualizacion` sin
+      cambios, verificado con comparación de tipos `Parameters<...>` en
+      `DocumentoRepository.agrupacion.types.test.ts`.
+- [x] 2.3 (RED) Tests de `mockDocumentoRepository`: `listByEntity` con agrupación devuelve **solo** los
       documentos de esa agrupación; sin agrupación devuelve los que no tienen ninguna (o todos, según
       el veredicto de (c) — el test debe reflejar el veredicto, no la intuición de quien lo escribe).
-- [ ] 2.4 (GREEN) Implementar en `mockDocumentoRepository.ts`. **Sin `SCHEMA_VERSION`** (D3 de
+      **Hecho**: refleja el veredicto (c) — sin agrupación devuelve solo los sin ninguna, no todos.
+- [x] 2.4 (GREEN) Implementar en `mockDocumentoRepository.ts`. **Sin `SCHEMA_VERSION`** (D3 de
       `design.md`: el mock es memoria de sesión, no `localStorage`).
-- [ ] 2.5 (TRIANGULATE) Caso cruzado obligatorio: dos agrupaciones distintas de la **misma** entidad,
+      **Hecho.**
+- [x] 2.5 (TRIANGULATE) Caso cruzado obligatorio: dos agrupaciones distintas de la **misma** entidad,
       con el **mismo** `itemId` — ninguna ve los documentos de la otra (spec: "Los documentos de una
       actividad no se filtran a otra").
-- [ ] 2.6 (RED→GREEN) `useDocumentChecklist.ts`: acepta la agrupación y la pasa al repository en
+      **Hecho.**
+- [x] 2.6 (RED→GREEN) `useDocumentChecklist.ts`: acepta la agrupación y la pasa al repository en
       `listByEntity`/`upload`; el estado local sigue acumulando (no filtra por `itemId`, comportamiento
       heredado de `pacientes-documentos-multiples`).
+      **Hecho (2026-08-06)**: 5.º parámetro opcional `agrupacionId?: string`. Nota técnica: llama al
+      repository con aridad condicional (2/4 args sin agrupación, 3/6 con) en vez de pasar siempre
+      `agrupacionId` — a propósito, para no romper los `toHaveBeenCalledWith` de aridad exacta que
+      hoy tienen `VehiculoDocumentos.test.tsx`/`ConductorDocumentos.test.tsx`/
+      `FacturaDocumentos.test.tsx`, fuera de alcance de esta fase (eso es §7.1). Es deuda menor —
+      cuando §7 toque esos tres tests, se puede simplificar a pasar `agrupacionId` siempre.
 
 ## 3. Pantalla de Pacientes — N checklists por composición (D1 de `design.md`)
 

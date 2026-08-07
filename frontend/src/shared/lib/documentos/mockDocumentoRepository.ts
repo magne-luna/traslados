@@ -34,8 +34,16 @@ function withLatency<T>(value: T, ms = 350): Promise<T> {
 // Cumple DocumentoRepository al pie de la letra para que el día que exista Storage real
 // (C-03) el reemplazo sea mecánico.
 export const mockDocumentoRepository: DocumentoRepository = {
-  async listByEntity(entidad, entidadId) {
-    return withLatency([...(store.get(keyOf(entidad, entidadId)) ?? [])]);
+  // documentos-checklist-por-actividad (tasks.md 2.4, design.md Checkpoint (b) VEREDICTO opción B,
+  // Checkpoint (c) VEREDICTO opción A): con `agrupacionId`, filtra a solo esa agrupación puntual —
+  // ningún documento de una agrupación se ve desde otra (tasks.md 2.5, caso cruzado). Sin
+  // `agrupacionId`, filtra a solo los documentos que NO tienen ninguna agrupación (el bloque
+  // "General"), NO todos los documentos de la entidad — evita que "General" muestre también los
+  // documentos de cada actividad.
+  async listByEntity(entidad, entidadId, agrupacionId) {
+    const documentos = store.get(keyOf(entidad, entidadId)) ?? [];
+    const filtrados = documentos.filter((doc) => doc.agrupacionId === agrupacionId);
+    return withLatency([...filtrados]);
   },
 
   // pacientes-documentos-multiples: acumula en vez de reemplazar — ya no filtra por itemId antes
@@ -45,7 +53,10 @@ export const mockDocumentoRepository: DocumentoRepository = {
   // forma pública de DocumentoAdjunto no cambia más allá de `tipoMime` (D1): el `File` no viaja en
   // el modelo, vive solo en el store interno de contenido. **No crea el ObjectURL acá** (ver
   // corrección arriba) — eso pasa recién bajo demanda, en `resolverPrevisualizacion()`.
-  async upload(entidad, entidadId, itemId, file, vigenciaDesde) {
+  // documentos-checklist-por-actividad (tasks.md 2.4): guarda el `agrupacionId` recibido tal cual
+  // en el `DocumentoAdjunto` creado — `undefined` si no se proporciona (comportamiento heredado, sin
+  // regresión para Vehículos/Conductores/Facturas ni para la documentación general del paciente).
+  async upload(entidad, entidadId, itemId, file, vigenciaDesde, agrupacionId) {
     const k = keyOf(entidad, entidadId);
     const existing = store.get(k) ?? [];
     const nuevo: DocumentoAdjunto = {
@@ -55,6 +66,7 @@ export const mockDocumentoRepository: DocumentoRepository = {
       subidoEn: new Date().toISOString(),
       vigenciaDesde,
       tipoMime: file.type || undefined,
+      agrupacionId,
     };
     store.set(k, [...existing, nuevo]);
     archivoPorDocumentoId.set(nuevo.id, file);

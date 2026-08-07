@@ -28,4 +28,11 @@ export interface DocumentoAdjunto {
    * `documentos-previsualizacion`, design.md D1. Opcional a propósito: los documentos cargados antes
    * de ese change no lo tienen. */
   tipoMime?: string;
+  /** Agrupa documentos dentro de una misma entidad — en Pacientes, la actividad/dirección a la que
+   * pertenece este documento (documentos-checklist-por-actividad, design.md Checkpoint (b),
+   * VEREDICTO opción B). `undefined` = sin agrupación: el caso de Vehículos/Conductores/Facturas
+   * (nunca lo usan) y el de la documentación general del paciente que no es de ninguna actividad
+   * (Checkpoint (c)). Opcional a propósito: los documentos cargados antes de este change no la
+   * tienen. */
+  agrupacionId?: string;
 }
