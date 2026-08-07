@@ -471,7 +471,7 @@ Chain strategy: pending
       en una obra social real un checklist de al menos 2 ítems (uno requerido, uno opcional) y asignar
       esa obra social a un paciente de prueba. Sin esto el checklist renderiza vacío y no hay nada que
       verificar.
-- [ ] 8.3 Con una cuenta con `pacientes: write`: abrir la ficha del paciente de `8.2`, subir un PDF y
+- [x] 8.3 Con una cuenta con `pacientes: write`: abrir la ficha del paciente de `8.2`, subir un PDF y
       una imagen, **recargar la pantalla** y confirmar que los dos siguen ahí con su nombre original
       (con acentos y espacios, si el archivo los tenía) y su fecha. Confirmar en el dashboard de
       Storage que los objetos existen bajo `documentos-pacientes/{pacienteId}/{itemId}/…`.
@@ -480,8 +480,8 @@ Chain strategy: pending
       `design.md` §D6 "TERCER HALLAZGO"): `tipoMime` nunca viajaba desde las tablas reales y
       `DocumentChecklist` depende de él para elegir cómo previsualizar. Arreglado con
       `inferirTipoMime()` (deriva el tipo de la extensión de `nombreArchivo`, sin columna nueva) en
-      `documentoMapping.ts`, TDD estricto, sin regresiones. **Falta re-confirmar en pantalla que "Ver"
-      ya muestra el PDF/imagen correctamente con el fix aplicado** antes de tildar esta tarea.
+      `documentoMapping.ts`, TDD estricto, sin regresiones. **CONFIRMADO (2026-08-07): la usuaria
+      re-probó con el fix aplicado, "Ver" ya muestra el PDF correctamente.**
 - [ ] 8.4 Reemplazar uno de los dos documentos por otro archivo y confirmar: la fila apunta al archivo
       nuevo, el nombre mostrado cambia, y **el objeto viejo ya no está** en el bucket (paso 5 de D4).
 - [ ] 8.5 Quitar un documento y confirmar que desaparecen la fila **y** el objeto.
