@@ -206,14 +206,20 @@
 
 ## 4. Componente compartido `DocumentChecklist` — no cambia (verificación explícita)
 
-- [ ] 4.1 Verificar por test que `DocumentChecklist.tsx` **no cambió de contrato ni de
+- [x] 4.1 Verificar por test que `DocumentChecklist.tsx` **no cambió de contrato ni de
       comportamiento** — es el objetivo de diseño de D1, así que se prueba, no se asume. Si (b) se
       resolvió por la opción C, esta sección se reemplaza por la implementación de la prop de grupos y
       sus tests (con rama con-grupos y sin-grupos).
-- [ ] 4.2 Confirmar que el cálculo de `cargados`/`pendientes`/`pctCargado` por instancia sigue con la
+      **Hecho (2026-08-06)**: (b) fue opción B, no C — confirmado con `git diff`/`git log` que
+      `DocumentChecklist.tsx` tiene cero cambios. Test de tipos
+      (`DocumentChecklist.contract.types.test.ts`) fija las 7 props del contrato; sanity check
+      manual (agregar `grupos?` temporalmente, confirmar que `tsc` falla, revertir) confirmado.
+- [x] 4.2 Confirmar que el cálculo de `cargados`/`pendientes`/`pctCargado` por instancia sigue con la
       misma fórmula (a nivel ítem, "cargado" = al menos un documento) y que la marca de documento
       vigente sigue funcionando dentro de cada instancia — sin regresión respecto de
       `pacientes-documentos-multiples` ni de `documentos-previsualizacion`.
+      **Hecho**: cobertura preexistente sigue en verde sin tocarla; agregado un test puntual de dos
+      instancias montadas en paralelo con progreso aislado (ángulo nuevo que introduce §3).
 
 ## 5. Progreso agregado (condicional al Checkpoint (f))
 

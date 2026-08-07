@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ChecklistItem, DocumentoAdjunto } from '../types/documento';
 import { DocumentChecklist } from './DocumentChecklist';
 
@@ -227,6 +227,50 @@ describe('DocumentChecklist — progreso a nivel ítem sin cambio de fórmula (t
     // por tener 2 documentos; el ítem RHC sigue sin cargar.
     expect(screen.getByText(/1 de 2 documentos cargados/i)).toBeInTheDocument();
     expect(screen.getByText(/1 pendiente/i)).toBeInTheDocument();
+  });
+});
+
+describe('DocumentChecklist — dos instancias montadas en paralelo calculan su progreso de forma aislada (tasks.md §4.2, design.md D1)', () => {
+  // Escenario nuevo que introduce `documentos-checklist-por-actividad` §3: N `DocumentChecklist`
+  // montados en simultáneo en la misma pantalla (uno "General" + uno por actividad). El escenario
+  // central de la agrupación por `agrupacionId` ya está cubierto por `PacienteDocumentos.test.tsx`
+  // (tasks.md 3.7, no se duplica acá) a nivel de integración. Lo que ese test NO afirma
+  // explícitamente es el contador agregado (`cargados`/`pctCargado`) de cada bloque — solo el chip
+  // "Falta" por ítem. Este test cierra ese ángulo puntual a nivel de UNIDAD de `DocumentChecklist`
+  // en sí (sin pasar por Pacientes/`useDocumentChecklist`): confirma que el componente compartido no
+  // tiene ningún estado global/módulo compartido entre instancias — cada `cargados`/`pendientes`/
+  // `pctCargado` se deriva únicamente de los `items`/`documentos` que esa instancia puntual recibió.
+  it('cargar documentos en una instancia no afecta el contador "X de Y documentos cargados" de la otra instancia montada al lado', () => {
+    const itemsA: ChecklistItem[] = [
+      { id: 'item-a1', nombre: 'Item A1', requerido: true },
+      { id: 'item-a2', nombre: 'Item A2', requerido: true },
+    ];
+    const itemsB: ChecklistItem[] = [{ id: 'item-b1', nombre: 'Item B1', requerido: true }];
+    const docA: DocumentoAdjunto = {
+      id: 'doc-a',
+      itemId: 'item-a1',
+      nombreArchivo: 'a.pdf',
+      subidoEn: '2026-01-01T00:00:00.000Z',
+    };
+
+    render(
+      <>
+        <section aria-label="Instancia A">
+          <DocumentChecklist items={itemsA} documentos={[docA]} onUpload={vi.fn()} onRemove={vi.fn()} />
+        </section>
+        <section aria-label="Instancia B">
+          <DocumentChecklist items={itemsB} documentos={[]} onUpload={vi.fn()} onRemove={vi.fn()} />
+        </section>
+      </>,
+    );
+
+    const instanciaA = screen.getByRole('region', { name: 'Instancia A' });
+    const instanciaB = screen.getByRole('region', { name: 'Instancia B' });
+
+    expect(within(instanciaA).getByText(/1 de 2 documentos cargados/i)).toBeInTheDocument();
+    expect(within(instanciaB).getByText(/0 de 1 documentos cargados/i)).toBeInTheDocument();
+    // Triangulación: la instancia sin documentos no hereda el "Cargado" ni el ítem de la otra.
+    expect(within(instanciaB).queryByText(/item a1|item a2/i)).not.toBeInTheDocument();
   });
 });
 
