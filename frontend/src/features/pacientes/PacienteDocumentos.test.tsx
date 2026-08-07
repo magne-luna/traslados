@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { DocumentoAdjunto } from '../../shared/types/documento';
+import type { Direccion } from '../../shared/types/paciente';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PacienteDocumentos } from './PacienteDocumentos';
 
@@ -53,6 +54,7 @@ describe('PacienteDocumentos', () => {
         obraSocialId={null}
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={buildDocumentoRepository()}
+        direcciones={[]}
       />,
     );
 
@@ -70,6 +72,7 @@ describe('PacienteDocumentos', () => {
         obraSocialId="osecac"
         obraSocialRepository={obraSocialRepository}
         documentoRepository={buildDocumentoRepository()}
+        direcciones={[]}
       />,
     );
 
@@ -86,6 +89,7 @@ describe('PacienteDocumentos', () => {
         obraSocialId="osecac"
         obraSocialRepository={obraSocialRepository}
         documentoRepository={buildDocumentoRepository()}
+        direcciones={[]}
       />,
     );
 
@@ -99,6 +103,7 @@ describe('PacienteDocumentos', () => {
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={buildDocumentoRepository()}
+        direcciones={[]}
       />,
     );
 
@@ -116,6 +121,7 @@ describe('PacienteDocumentos', () => {
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={documentoRepository}
+        direcciones={[]}
       />,
     );
 
@@ -151,6 +157,7 @@ describe('PacienteDocumentos', () => {
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={documentoRepository}
+        direcciones={[]}
       />,
     );
 
@@ -176,6 +183,7 @@ describe('PacienteDocumentos — gateo de escritura', () => {
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={documentoRepository}
+        direcciones={[]}
       />,
     );
 
@@ -199,6 +207,7 @@ describe('PacienteDocumentos — gateo de escritura', () => {
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={documentoRepository}
+        direcciones={[]}
       />,
     );
 
@@ -222,6 +231,7 @@ describe('PacienteDocumentos — rol admin sin filas de permisos', () => {
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={buildDocumentoRepository()}
+        direcciones={[]}
       />,
     );
 
@@ -229,5 +239,145 @@ describe('PacienteDocumentos — rol admin sin filas de permisos', () => {
     for (const boton of screen.getAllByRole('button', { name: /^subir$/i })) {
       expect(boton).toBeEnabled();
     }
+  });
+});
+
+// documentos-checklist-por-actividad (tasks.md §3, design.md D1/Checkpoint (c) VEREDICTO): N
+// checklists por composición, uno por actividad del paciente, más un bloque "General" que
+// convive con ellos para la documentación que no pertenece a ninguna actividad puntual.
+//
+// Repository "de verdad" para estos tests (no un stub que ignore `agrupacionId`): replica
+// exactamente la regla de `mockDocumentoRepository.listByEntity` (§2, ya implementado) —
+// `agrupacionId === undefined` devuelve solo los documentos sin agrupación (bloque "General"),
+// nunca todos los documentos de la entidad.
+function buildRepositorioConAgrupacion(seed: DocumentoAdjunto[] = []): DocumentoRepository {
+  return {
+    listByEntity: vi.fn((_entidad, _entidadId, agrupacionId) =>
+      Promise.resolve(seed.filter((doc) => doc.agrupacionId === agrupacionId)),
+    ),
+    upload: vi.fn(),
+    remove: vi.fn(),
+    resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+  };
+}
+
+describe('PacienteDocumentos — checklist por actividad', () => {
+  it('sin actividades registradas: muestra un estado vacío explícito que invita a cargar una dirección, nunca N=0 bloques sin explicación (tasks.md 3.4)', async () => {
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={buildDocumentoRepository()}
+        direcciones={[]}
+      />,
+    );
+
+    // El bloque "General" sigue existiendo siempre (tasks.md 3.5), aunque no haya actividades.
+    expect(await screen.findByRole('group', { name: /documentación general/i })).toBeInTheDocument();
+    expect(
+      screen.getByText(/no tiene actividades registradas|cargá una dirección/i),
+    ).toBeInTheDocument();
+  });
+
+  it('un domicilio solo (sin actividades no-domicilio) también cae en el estado vacío de actividades (triangulación de 3.4)', async () => {
+    const domicilio: Direccion = { id: 'dir-casa', tipo: 'domicilio', calle: 'Mi Casa 123', localidad: 'CABA' };
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={buildDocumentoRepository()}
+        direcciones={[domicilio]}
+      />,
+    );
+
+    expect(await screen.findByText(/no tiene actividades registradas|cargá una dirección/i)).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /^domicilio/i })).not.toBeInTheDocument();
+  });
+
+  it('el bloque "General" se renderiza primero, antes de los bloques por actividad (tasks.md 3.5)', async () => {
+    const escuela: Direccion = { id: 'dir-escuela', tipo: 'escuela', calle: 'Calle Escuela 1', localidad: 'CABA' };
+    const terapia: Direccion = {
+      id: 'dir-terapia',
+      tipo: 'terapia',
+      calle: 'Calle Terapia 1',
+      localidad: 'CABA',
+      descripcion: 'Kinesióloga',
+    };
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={buildDocumentoRepository()}
+        direcciones={[escuela, terapia]}
+      />,
+    );
+
+    const encabezados = (await screen.findAllByRole('heading', { level: 3 })).map((h) => h.textContent);
+    expect(encabezados).toEqual(['Documentación general', 'Escuela', 'Terapia — Kinesióloga']);
+  });
+
+  // Escenario central del change (tasks.md 3.7, spec: "Los documentos de una actividad no se
+  // filtran a otra"). Paciente con escuela + dos terapias distinguibles por descripción: subir un
+  // documento en la primera terapia no debe aparecer en la segunda, ni en la escuela, ni en el
+  // bloque "General".
+  it('un documento cargado en una terapia no aparece en la otra terapia, ni en la escuela, ni en "General" (triangulación central, tasks.md 3.7)', async () => {
+    const escuela: Direccion = { id: 'dir-escuela', tipo: 'escuela', calle: 'Calle Escuela 1', localidad: 'CABA' };
+    const kinesiologa: Direccion = {
+      id: 'dir-kine',
+      tipo: 'terapia',
+      calle: 'Calle Terapia 1',
+      localidad: 'CABA',
+      descripcion: 'Kinesióloga',
+    };
+    const fonoaudiologa: Direccion = {
+      id: 'dir-fono',
+      tipo: 'terapia',
+      calle: 'Calle Terapia 2',
+      localidad: 'CABA',
+      descripcion: 'Fonoaudióloga',
+    };
+
+    const docEnKinesiologa: DocumentoAdjunto = {
+      id: 'doc-kine-1',
+      itemId: 'item-1',
+      nombreArchivo: 'presupuesto-kinesiologa.pdf',
+      subidoEn: '2026-07-01',
+      agrupacionId: 'dir-kine',
+    };
+    const documentoRepository = buildRepositorioConAgrupacion([docEnKinesiologa]);
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        direcciones={[escuela, kinesiologa, fonoaudiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    const bloqueFono = screen.getByRole('group', { name: /terapia — fonoaudióloga/i });
+    const bloqueEscuela = screen.getByRole('group', { name: /^escuela$/i });
+    const bloqueGeneral = screen.getByRole('group', { name: /documentación general/i });
+
+    // Espera a que el documento cargue en su bloque antes de afirmar ausencia en los demás — las
+    // N instancias resuelven su propia promesa de forma independiente (useDocumentChecklist),
+    // `findByText` espera a que termine, en vez de asumir que ya resolvió por haber esperado el
+    // `group` de arriba.
+    expect(await within(bloqueKine).findByText(/presupuesto-kinesiologa\.pdf/i)).toBeInTheDocument();
+    expect(within(bloqueFono).queryByText(/presupuesto-kinesiologa\.pdf/i)).not.toBeInTheDocument();
+    expect(within(bloqueEscuela).queryByText(/presupuesto-kinesiologa\.pdf/i)).not.toBeInTheDocument();
+    expect(within(bloqueGeneral).queryByText(/presupuesto-kinesiologa\.pdf/i)).not.toBeInTheDocument();
+
+    // El ítem correspondiente sigue figurando como no cargado en las otras actividades (spec:
+    // "el ítem correspondiente de la segunda actividad sigue figurando como no cargado").
+    expect(within(bloqueFono).getByText('RHC')).toBeInTheDocument();
+    expect(within(bloqueFono).getAllByText(/^falta$/i).length).toBeGreaterThan(0);
   });
 });

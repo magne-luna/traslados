@@ -219,6 +219,7 @@ export function PacienteDetail({
               obraSocialId={paciente.obraSocialId}
               obraSocialRepository={obraSocialRepository}
               documentoRepository={documentoRepository}
+              direcciones={paciente.direcciones}
             />
           </Section>
         </>

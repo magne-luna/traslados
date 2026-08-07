@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
+import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
 import { PacienteDetail } from './PacienteDetail';
 
@@ -458,5 +459,52 @@ describe('PacienteDetail', () => {
       'paciente-martina',
       { direcciones: [expect.objectContaining({ calle: 'Av. Rivadavia 4500', localidad: 'CABA' })] },
     );
+  });
+
+  // documentos-checklist-por-actividad (tasks.md 3.2, design.md D1): la Section "Checklist
+  // documental" pasa a recibir las actividades del paciente — antes de este change
+  // PacienteDocumentos solo recibía pacienteId/obraSocialId, sin de dónde sacar la lista de
+  // actividades para el checklist por actividad de la §3.
+  it('pasa las direcciones del paciente a la sección de documentación, habilitando un checklist por actividad', async () => {
+    const osecac: ObraSocial = {
+      id: 'osecac',
+      nombre: 'OSECAC',
+      cuit: '30-54155200-6',
+      modalidadFacturacion: 'por-prestacion',
+      admitePagosParciales: false,
+      formatoAfiliado: 'numero-documento',
+      checklist: [{ id: 'item-1', nombre: 'RHC', requerido: true }],
+      plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
+    };
+    const pacienteConActividad: Paciente = {
+      ...basePaciente,
+      obraSocialId: 'osecac',
+      direcciones: [
+        { id: 'dir-1', tipo: 'terapia', calle: 'Calle Falsa 123', localidad: 'CABA', descripcion: 'Kinesióloga' },
+      ],
+    };
+    const obraSocialRepository = buildFakeObraSocialRepository();
+    obraSocialRepository.getById = vi.fn().mockResolvedValue(osecac);
+
+    render(
+      <PacienteDetail
+        paciente={pacienteConActividad}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={obraSocialRepository}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    // Scoped al `<section>` de "Checklist documental" — "Terapia — Kinesióloga" también aparece
+    // en la sección "Direcciones" (DireccionesEditor), así que una búsqueda sin acotar da un falso
+    // verde aunque PacienteDocumentos nunca haya recibido las direcciones.
+    const tituloDocumentacion = await screen.findByRole('heading', { name: /checklist documental/i });
+    const seccionDocumentacion = tituloDocumentacion.closest('section');
+    if (!seccionDocumentacion) throw new Error('No se encontró la <section> de "Checklist documental"');
+    expect(await within(seccionDocumentacion).findByText(/terapia — kinesióloga/i)).toBeInTheDocument();
   });
 });

@@ -172,26 +172,37 @@
 
 ## 3. Pantalla de Pacientes — N checklists por composición (D1 de `design.md`)
 
-- [ ] 3.1 Safety net dirigido (`cd frontend && npx vitest run src/features/pacientes`) y registro del
+- [x] 3.1 Safety net dirigido (`cd frontend && npx vitest run src/features/pacientes`) y registro del
       baseline antes de tocar estos archivos.
-- [ ] 3.2 (RED→GREEN) `PacienteDetail.tsx`: la `Section` "Checklist documental" pasa a recibir las
+      **Hecho (2026-08-06)**: baseline 164/165 (1 flaky conocido, `PacientesRoute.test.tsx`).
+- [x] 3.2 (RED→GREEN) `PacienteDetail.tsx`: la `Section` "Checklist documental" pasa a recibir las
       actividades del paciente (hoy solo recibe `paciente.id`). Sin cambio de layout de la `Section`
       en sí.
-- [ ] 3.3 (RED→GREEN) `PacienteDocumentos.tsx`: además de resolver la obra social (comportamiento
+      **Hecho**: `direcciones={paciente.direcciones}` agregado a `<PacienteDocumentos>`.
+- [x] 3.3 (RED→GREEN) `PacienteDocumentos.tsx`: además de resolver la obra social (comportamiento
       actual, sin cambios: estados `sin-obra-social` / `cargando` / `sin-checklist` / `listo`), monta
       **N** `PacienteDocumentosChecklist`, uno por actividad, cada uno con su etiqueta legible.
       Mantener los cuatro estados explícitos existentes — ninguno puede degradarse a pantalla en blanco
       ni loading infinito.
-- [ ] 3.4 (RED→GREEN) Caso "paciente sin actividades registradas": estado vacío explícito que invite a
+      **Hecho**: en el estado `listo`, arma bloque "General" + N bloques por actividad (via
+      `obtenerActividadesConChecklist`/`etiquetaActividad` de §1). Los otros 3 estados sin cambios.
+- [x] 3.4 (RED→GREEN) Caso "paciente sin actividades registradas": estado vacío explícito que invite a
       cargar una dirección, nunca una pantalla en blanco ni N=0 bloques sin explicación.
-- [ ] 3.5 (RED→GREEN) Bloque de documentación **sin actividad**, según el veredicto de (c): si es
+      **Hecho**: mensaje explícito invitando a cargar una dirección en "Traslados › Direcciones".
+- [x] 3.5 (RED→GREEN) Bloque de documentación **sin actividad**, según el veredicto de (c): si es
       opción A, se renderiza primero, etiquetado como general.
-- [ ] 3.6 (RED→GREEN) `PacienteDocumentosChecklist.tsx`: pasa la agrupación al hook. `readOnly={!
+      **Hecho**: bloque "Documentación general" siempre primero, con test explícito de orden.
+- [x] 3.6 (RED→GREEN) `PacienteDocumentosChecklist.tsx`: pasa la agrupación al hook. `readOnly={!
       puedeEscribir}` se mantiene idéntico en las N instancias — **ningún permiso por actividad**
       (D2 de `design.md`).
-- [ ] 3.7 (TRIANGULATE) Test del escenario central del change: paciente con escuela + dos terapias
+      **Hecho**: props `agrupacionId?`/`label?` nuevas, `readOnly` sin cambios. Heading reusa
+      `FieldGroupHeading` del design system, bloque envuelto en `role="group"`/`aria-label`.
+- [x] 3.7 (TRIANGULATE) Test del escenario central del change: paciente con escuela + dos terapias
       distinguibles por descripción; subir un documento en la primera terapia **no** lo hace aparecer
       en la segunda ni en la escuela.
+      **Hecho**: test contra `mockDocumentoRepository` real, con sanity check de que falla si se
+      revierte el wiring de `agrupacionId` (no es tautológico). Suite dirigida final: 169/170 (mismo
+      único flaky conocido), `tsc -b --noEmit` limpio.
 
 ## 4. Componente compartido `DocumentChecklist` — no cambia (verificación explícita)
 

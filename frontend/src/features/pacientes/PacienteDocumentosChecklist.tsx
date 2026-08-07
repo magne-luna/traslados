@@ -1,3 +1,4 @@
+import { FieldGroupHeading } from '../../design-system/components';
 import { DocumentChecklist } from '../../shared/components/DocumentChecklist';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { useDocumentChecklist } from '../../shared/lib/documentos/useDocumentChecklist';
@@ -8,36 +9,48 @@ interface PacienteDocumentosChecklistProps {
   pacienteId: string;
   items: ChecklistItem[];
   repository: DocumentoRepository;
+  /** documentos-checklist-por-actividad (tasks.md 3.6, design.md Checkpoint (b) VEREDICTO opción
+   * B): agrupa este checklist dentro de una actividad puntual del paciente (`Direccion.id`).
+   * `undefined` = bloque "General" — documentos sin actividad (Checkpoint (c)). Se reenvía tal
+   * cual al hook, que a su vez lo reenvía al repository (§2, ya implementado). */
+  agrupacionId?: string;
+  /** Encabezado visible de este bloque — qué actividad es (o la etiqueta del bloque "General").
+   * Sin `label`, no se renderiza ningún encabezado propio (compatibilidad hacia atrás), aunque
+   * hoy todo caller de este componente (PacienteDocumentos.tsx §3) pasa uno. */
+  label?: string;
 }
 
-// Wrapper delgado que llama a useDocumentChecklist con entidad 'paciente' (tasks.md 9.1),
-// mismo patrón que VehiculoDocumentos (FE-2). Separado de PacienteDocumentos.tsx para que el
-// hook (que dispara su propio fetch por entidad) solo se monte una vez resuelto el checklist de
-// la obra social — nunca con `items` vacío por estar aún cargando.
-//
-// gateo-pacientes (design.md D3, tasks.md 5.1/5.2): solo la carga/baja se gatea, vía la prop
-// `readOnly` que `DocumentChecklist` ya expone (ChecklistEditor de obras-sociales-ui la usa para
-// su vista previa) — se reutiliza tal cual, sin tocar el componente compartido. La consulta de
-// `items`/`documentos` no pasa por acá, así que sigue disponible con solo `read`: el gateo del
-// cliente nunca debe ser más restrictivo que la RLS del servidor, que ya autoriza esa lectura.
-export function PacienteDocumentosChecklist({ pacienteId, items, repository }: PacienteDocumentosChecklistProps) {
+export function PacienteDocumentosChecklist({
+  pacienteId,
+  items,
+  repository,
+  agrupacionId,
+  label,
+}: PacienteDocumentosChecklistProps) {
   const { documentos, upload, remove, resolverPrevisualizacion, revocarPrevisualizacion } = useDocumentChecklist(
-    'paciente',
-    pacienteId,
-    items,
-    repository,
+    'paciente', pacienteId, items, repository, agrupacionId,
   );
+  // documentos-checklist-por-actividad (tasks.md 3.6, design.md D2): `readOnly={!puedeEscribir}`
+  // se mantiene idéntico en las N instancias — ningún permiso por actividad, mismo criterio que
+  // ya usaban gateo-pacientes/pacientes-documentos-multiples.
   const puedeEscribir = usePuedeEscribir();
 
+  // role="group" + aria-label (en vez de un <div> plano): agrupa el encabezado y el checklist
+  // como una unidad accesible con nombre — útil para lectores de pantalla con N bloques en la
+  // misma pantalla, y da a los tests un ancla semántica estable para escopar cada bloque
+  // (`getByRole('group', { name: label })`) sin depender de estructura de DOM incidental.
   return (
-    <DocumentChecklist
-      items={items}
-      documentos={documentos}
-      onUpload={upload}
-      onRemove={remove}
-      readOnly={!puedeEscribir}
-      onResolverPrevisualizacion={resolverPrevisualizacion}
-      onRevocarPrevisualizacion={revocarPrevisualizacion}
-    />
+    <div role="group" aria-label={label}>
+      {label && <FieldGroupHeading>{label}</FieldGroupHeading>}
+      <DocumentChecklist
+        items={items}
+        documentos={documentos}
+        onUpload={upload}
+        onRemove={remove}
+        readOnly={!puedeEscribir}
+        onResolverPrevisualizacion={resolverPrevisualizacion}
+        onRevocarPrevisualizacion={revocarPrevisualizacion}
+      />
+    </div>
   );
 }
