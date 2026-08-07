@@ -57,8 +57,9 @@ Organizadas por épica (= módulo del DRF) y luego por historia de usuario (US-N
 - [ ] Los documentos se organizan por paciente.
 - [ ] Se puede marcar si la cobertura está respaldada por un amparo judicial, con campo de aclaración.
 - [x] El checklist documental admite múltiples documentos por tipo (sin tope), sin sobrescribir el anterior al cargar uno nuevo — el vigente se distingue del resto (RN-FA-09, `pacientes-documentos-multiples`, 2026-08-06).
+- [x] El checklist documental se instancia por actividad del paciente (escuela, terapia(s), club — no el domicilio), no una sola vez por paciente; los documentos de una actividad no se filtran a otra, y la documentación sin actividad asociada se conserva en un bloque general aparte (RN-FA-10, `documentos-checklist-por-actividad`, 2026-08-07).
 
-**Reglas relacionadas**: RF-112, RF-114, RN-FA-04, RN-FA-09
+**Reglas relacionadas**: RF-112, RF-114, RN-FA-04, RN-FA-09, RN-FA-10
 
 ## Épica 3: Presupuestos y autorizaciones
 

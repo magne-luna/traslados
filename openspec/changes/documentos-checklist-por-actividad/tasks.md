@@ -305,30 +305,48 @@
 
 ## 8. Documentación y cierre
 
-- [ ] 8.1 `openspec/changes/documentos-checklist-por-actividad/specs/paciente-documentos/spec.md`:
+- [x] 8.1 `openspec/changes/documentos-checklist-por-actividad/specs/paciente-documentos/spec.md`:
       revisar el delta contra los veredictos reales de §0 y **quitar las notas "depende del
       Checkpoint"** de los requisitos ya resueltos, dejando el texto definitivo. Si (e) exigió tocar el
       editor de direcciones, agregar el delta sobre `paciente-direcciones`.
-- [ ] 8.2 `knowledge-base/05_reglas_de_negocio.md`: agregar la RN nueva (numeración siguiente a
+      **Hecho (2026-08-07)**: reemplazadas las 4 notas "Depende del Checkpoint" (a/c/e/f) por texto
+      definitivo con el veredicto real de cada una (opción A/A/A/A respectivamente). El delta sobre
+      `paciente-direcciones` ya existía de §6, confirmado consistente con el veredicto (e) — no
+      duplicado.
+- [x] 8.2 `knowledge-base/05_reglas_de_negocio.md`: agregar la RN nueva (numeración siguiente a
       **RN-FA-09**, que fue la que introdujo `pacientes-documentos-multiples`) que codifique "el
       checklist documental del paciente se instancia por actividad, no una vez por paciente".
-- [ ] 8.3 `knowledge-base/06_funcionalidades.md` US-102: nota de la dimensión nueva.
-- [ ] 8.4 `knowledge-base/04_modelo_de_datos.md` §Paciente y §Discrepancias: registrar que la
+      **Hecho (2026-08-07)**: `RN-FA-10` agregada.
+- [x] 8.3 `knowledge-base/06_funcionalidades.md` US-102: nota de la dimensión nueva.
+      **Hecho (2026-08-07)**: criterio de aceptación nuevo tildado, `RN-FA-10` sumada a "Reglas
+      relacionadas".
+- [x] 8.4 `knowledge-base/04_modelo_de_datos.md` §Paciente y §Discrepancias: registrar que la
       documentación del paciente pasa a colgar de la actividad, y que `pacientes.documentos` **no tiene
       hoy** columna para esa dimensión (a diferencia de la cardinalidad múltiple, que la base ya
       soportaba) — con la guía del Checkpoint (h) y su decisión de `ON DELETE` pendiente para el change
       de integración.
-- [ ] 8.5 `AvisoModeloDatos` en la sección de documentación de `PacienteDetail`: cartel visible de que
+      **Hecho (2026-08-07)**: bullet nuevo en §Paciente (remite a §Discrepancias) y entrada completa
+      nueva en §Discrepancias con la guía de migración de Checkpoint (h) y el `ON DELETE` pendiente.
+- [x] 8.5 `AvisoModeloDatos` en la sección de documentación de `PacienteDetail`: cartel visible de que
       la asociación documento↔actividad todavía no tiene respaldo en el modelo real de la BD — mismo
       mecanismo que ya usan las secciones de Direcciones/CUD/Personas a cargo. Regla dura del proyecto:
       toda discrepancia se documenta en la KB **y** en la pantalla, nunca en un solo lado.
-- [ ] 8.6 `CHANGES.md`: nota bajo `C-03`/`C-05` con fecha y referencia a este change, encadenada a las
+      **Hecho (2026-08-07, RED→GREEN→TRIANGULATE)**: `AvisoModeloDatos` agregado antes de
+      `<PacienteDocumentos>` en `PacienteDetail.tsx`. 2 tests nuevos en `PacienteDetail.test.tsx`
+      (estado "sin obra social" y estado "listo" con actividades) — 24/24 en verde, `tsc -b --noEmit`
+      limpio.
+- [x] 8.6 `CHANGES.md`: nota bajo `C-03`/`C-05` con fecha y referencia a este change, encadenada a las
       dos notas de refinamiento ya existentes (`pacientes-documentos-multiples`,
       `documentos-previsualizacion`).
-- [ ] 8.7 `cd frontend && npx vitest run` completo: cero regresiones contra el baseline de `0.4`.
-- [ ] 8.8 `cd frontend && npx tsc -b --noEmit` limpio (NUNCA `tsc --noEmit` a secas).
-- [ ] 8.9 `cd frontend && npx oxlint` limpio (los warnings preexistentes en archivos no tocados no
+      **Hecho (2026-08-07)**: nota completa bajo `C-03` (después de la de `integracion-documentos`) y
+      nota corta bajo `C-05` remitiendo a la de `C-03`, mismo patrón de las dos notas previas.
+- [x] 8.7 `cd frontend && npx vitest run` completo: cero regresiones contra el baseline de `0.4`.
+      **Hecho (2026-08-07)**: ver resultado y comparación contra baseline en el detalle de la sección.
+- [x] 8.8 `cd frontend && npx tsc -b --noEmit` limpio (NUNCA `tsc --noEmit` a secas).
+      **Hecho (2026-08-07)**: limpio, cero errores.
+- [x] 8.9 `cd frontend && npx oxlint` limpio (los warnings preexistentes en archivos no tocados no
       cuentan como regresión, pero se listan).
+      **Hecho (2026-08-07)**: ver resultado en el detalle de la sección.
 
 ## 9. Verificación manual (bloqueante, a cargo de Enzo/la usuaria)
 

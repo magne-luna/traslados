@@ -1,10 +1,9 @@
 ## ADDED Requirements
 
-> **Nota de estado (propose-only).** Estos requisitos están escritos a nivel de **comportamiento
-> observable**, deliberadamente sin comprometer la forma técnica que todavía depende de los
-> checkpoints de `design.md`. Los que dependen de un veredicto puntual lo declaran explícitamente en
-> su propio texto. Se sincronizan a `openspec/specs/paciente-documentos/spec.md` recién en
-> `/opsx:archive`, siguiendo el patrón ya establecido en el repo.
+> **Nota de estado.** Todos los checkpoints de `design.md` que condicionaban estos requisitos ya
+> tienen veredicto (§0 de `tasks.md`) y fueron incorporados al texto definitivo abajo. Se sincronizan
+> a `openspec/specs/paciente-documentos/spec.md` recién en `/opsx:archive`, siguiendo el patrón ya
+> establecido en el repo.
 
 ### Requirement: Checklist documental instanciado por actividad del paciente
 
@@ -18,9 +17,10 @@ actividades comparten el mismo tipo (por ejemplo, dos terapias distintas).
 Los documentos cargados en una actividad MUST NOT aparecer, contarse ni afectar el estado de ninguna
 otra actividad del mismo paciente.
 
-> **Depende del Checkpoint (a) de `design.md`**: qué entidad del modelo representa una "actividad", y
-> si el domicilio del paciente cuenta como una. El requisito de independencia entre instancias es
-> válido cualquiera sea el veredicto.
+Una "actividad", a los efectos de este requisito, es una `Direccion` del paciente cuyo `tipo` **no**
+es `'domicilio'` (Checkpoint (a) de `design.md`, VEREDICTO: opción A — reusar `Direccion`; el
+domicilio del paciente no lleva checklist propio, su documentación cae en el bloque general de
+"Documentación del paciente no asociada a ninguna actividad").
 
 #### Scenario: Un paciente con varias actividades ve varios checklists
 
@@ -85,9 +85,8 @@ actividad, sin ocultarla ni reasignarla automáticamente a una actividad.
 El sistema MUST NOT reasignar de forma implícita un documento existente a una actividad sin acción
 explícita del usuario.
 
-> **Depende del Checkpoint (c) de `design.md`**: si esa documentación se presenta en un bloque
-> "general" propio (recomendación del propose) o si se exige asignarla a una actividad. La prohibición
-> de reasignar implícitamente es válida cualquiera sea el veredicto.
+Esa documentación SHALL presentarse en un bloque "General" propio, distinto de los bloques por
+actividad y mostrado primero (Checkpoint (c) de `design.md`, VEREDICTO: opción A).
 
 #### Scenario: Documentos cargados antes de la separación por actividad
 
@@ -105,8 +104,8 @@ corresponden).
 El sistema MUST NOT presentar un único indicador de avance que impida saber a qué actividad le falta
 documentación.
 
-> **Depende del Checkpoint (f) de `design.md`**: si además del avance por actividad existe un total
-> agregado del paciente (recomendación del propose).
+Además del avance por actividad, el sistema SHALL mostrar un total agregado del paciente (Checkpoint
+(f) de `design.md`, VEREDICTO: opción A — por actividad + total agregado).
 
 #### Scenario: Una actividad completa y otra incompleta
 
@@ -123,11 +122,8 @@ informarle explícitamente que existe documentación asociada antes de que la el
 El sistema MUST NOT eliminar ni volver inaccesible esa documentación sin una acción confirmada por el
 usuario.
 
-> **Depende del Checkpoint (e) de `design.md`**: si el veredicto es "advertir y confirmar"
-> (recomendación del propose) o "bloquear la eliminación mientras haya documentación". Ambas
-> satisfacen este requisito; "sin protección" no lo satisface. Si el veredicto pide bloqueo o
-> advertencia dentro del editor de direcciones, este change agrega además un delta sobre la capability
-> `paciente-direcciones`.
+Checkpoint (e) de `design.md`, VEREDICTO: opción A — advertir y confirmar. El delta correspondiente
+sobre la capability `paciente-direcciones` ya está agregado (`specs/paciente-direcciones/spec.md`).
 
 #### Scenario: Intento de quitar una actividad con documentos cargados
 

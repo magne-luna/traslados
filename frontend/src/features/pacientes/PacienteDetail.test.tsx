@@ -583,4 +583,78 @@ describe('PacienteDetail', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  // documentos-checklist-por-actividad (tasks.md 8.5, design.md Checkpoint (h)): la asociación
+  // documento↔actividad (agrupacionId, futura columna `direccion_id` sobre `pacientes.documentos`)
+  // todavía no tiene respaldo en el modelo real de la BD — mismo mecanismo (AvisoModeloDatos) que ya
+  // usan las secciones de Direcciones/CUD/Personas a cargo.
+  it('muestra un AvisoModeloDatos en la sección de documentación sobre la asociación documento↔actividad (tasks.md 8.5)', async () => {
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const tituloDocumentacion = await screen.findByRole('heading', { name: /checklist documental/i });
+    const seccionDocumentacion = tituloDocumentacion.closest('section');
+    if (!seccionDocumentacion) throw new Error('No se encontró la <section> de "Checklist documental"');
+    const avisos = within(seccionDocumentacion).getAllByRole('note');
+    const aviso = avisos.find((a) => /actividad/i.test(a.textContent ?? ''));
+    expect(aviso).toBeTruthy();
+    expect(aviso?.textContent ?? '').toMatch(/direccion_id|pacientes\.documentos/i);
+  });
+
+  // Triangulación de 8.5: el aviso no depende del estado de carga de PacienteDocumentos — sigue
+  // presente incluso cuando la obra social ya resolvió y el checklist por actividad está "listo"
+  // (a diferencia del test anterior, que corre en el estado "sin-obra-social").
+  it('el AvisoModeloDatos de documentación sigue presente con obra social y actividades cargadas (triangulación de 8.5)', async () => {
+    const osecac: ObraSocial = {
+      id: 'osecac',
+      nombre: 'OSECAC',
+      cuit: '30-54155200-6',
+      modalidadFacturacion: 'por-prestacion',
+      admitePagosParciales: false,
+      formatoAfiliado: 'numero-documento',
+      checklist: [{ id: 'item-1', nombre: 'RHC', requerido: true }],
+      plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
+    };
+    const pacienteConActividad: Paciente = {
+      ...basePaciente,
+      obraSocialId: 'osecac',
+      direcciones: [
+        { id: 'dir-1', tipo: 'terapia', calle: 'Calle Falsa 123', localidad: 'CABA', descripcion: 'Kinesióloga' },
+      ],
+    };
+    const obraSocialRepository = buildFakeObraSocialRepository();
+    obraSocialRepository.getById = vi.fn().mockResolvedValue(osecac);
+
+    render(
+      <PacienteDetail
+        paciente={pacienteConActividad}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={obraSocialRepository}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const tituloDocumentacion = await screen.findByRole('heading', { name: /checklist documental/i });
+    const seccionDocumentacion = tituloDocumentacion.closest('section');
+    if (!seccionDocumentacion) throw new Error('No se encontró la <section> de "Checklist documental"');
+    // Espera a que resuelva la obra social (estado "listo") antes de verificar el aviso.
+    await within(seccionDocumentacion).findByText(/terapia — kinesióloga/i);
+    const avisos = within(seccionDocumentacion).getAllByRole('note');
+    const aviso = avisos.find((a) => /actividad/i.test(a.textContent ?? ''));
+    expect(aviso).toBeTruthy();
+  });
 });

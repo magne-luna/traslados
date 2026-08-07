@@ -52,6 +52,11 @@ Recorrido N---1 Paciente (por tramo, con dirección de ida y de vuelta independi
 - Atributos: apellido(s), nombre(s), fecha de nacimiento, DNI, CUIL del titular, diagnóstico/condición, accesorio de movilidad (silla plegable/rígida, silla postural, andador, trípode), teléfono alternativo del responsable.
 - Relaciones: N direcciones (domicilio, escuela, terapias, CET — catálogo reutilizable, sin tramo propio), N personas a cargo, 1 obra social, N documentos, N presupuestos.
 - Constraints: el identificador de afiliado varía según obra social (número de documento, alfanumérico, o CUIL del titular con sufijo /01, /02...) — el campo debe adaptarse.
+- ⚠️ **Documentación por actividad, sin respaldo real en la base** (`documentos-checklist-por-actividad`,
+  2026-08-07, ver §Discrepancias): en el frontend, la documentación del paciente pasa a agruparse por
+  actividad (`Direccion` del paciente cuyo `tipo` no es `'domicilio'`: escuela, terapia(s), club), a
+  diferencia de la cardinalidad múltiple por ítem (RN-FA-09), que la base real ya soportaba sin
+  migración. Detalle completo en §Discrepancias.
 
 ### CUD (Certificado Único de Discapacidad)
 - Atributos: número, fecha de emisión, fecha de vencimiento.
@@ -761,6 +766,26 @@ así que queda anotado acá hasta que se construya esa feature.
   subida sigue simulada (`tasks.md` §6). La descarga de documentos (`createSignedUrl`) queda fuera
   de alcance de este change — ver `10_preguntas_abiertas.md`. Verificación manual con cuentas
   reales (`tasks.md` §8) todavía pendiente.
+
+- **Documentación del paciente por actividad — sin columna real** (`documentos-checklist-por-actividad`,
+  propose+apply 2026-08-07): el frontend agrupa el checklist documental del paciente por actividad
+  (`Direccion` del paciente cuyo `tipo` no es `'domicilio'`: escuela, terapia(s), club) vía un campo
+  opcional `agrupacionId?` agregado al contrato compartido `DocumentoAdjunto`/`DocumentoRepository`
+  (usado solo por Pacientes; Vehículos/Conductores/Facturación siguen pasando `undefined`, sin cambio
+  de comportamiento). A diferencia de la cardinalidad múltiple por ítem (`pacientes-documentos-multiples`,
+  RN-FA-09), que la base real ya soportaba sin migración, **esta dimensión NO tiene respaldo real
+  hoy**: la tabla `pacientes.documentos` (real, `C-03`) no tiene ninguna columna de dirección/actividad
+  — solo `paciente_id`, `id_tipo_documento`, `archivo_url`, `created_at`. Guía de migración futura
+  (Checkpoint (h) de `documentos-checklist-por-actividad/design.md`, no vinculante, no aplicada en
+  este change): `ALTER TABLE pacientes.documentos ADD COLUMN direccion_id UUID REFERENCES
+  pacientes.direcciones(id) ON DELETE ...` — aditiva y nullable (`NULL` = documentación general del
+  paciente, coherente con el bloque "General" del frontend). La cláusula `ON DELETE` queda
+  **pendiente de decidir en el futuro change de integración** (`integracion-documentos` o su
+  continuación): `RESTRICT` si se termina bloqueando la eliminación de una dirección con documentos,
+  `SET NULL` si los documentos vuelven al bloque general al quitarla (comportamiento elegido en el
+  frontend de este change, Checkpoint (e) — advertir y confirmar, no bloquear), `CASCADE` descartado
+  explícitamente (borraría documentación clínica en silencio). Señalizado con `AvisoModeloDatos` en la
+  sección de documentación de `PacienteDetail.tsx` (`tasks.md` 8.5).
 
 ### Presupuesto / Autorizacion — policies gateadas por `presupuestos`, no `facturacion`
 

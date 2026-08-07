@@ -247,6 +247,18 @@ export function PacienteDetail({
           </Section>
 
           <Section label="Documentación" title="Checklist documental">
+            {/* documentos-checklist-por-actividad (tasks.md 8.5, design.md Checkpoint (h)): la
+                asociación documento↔actividad (agrupacionId en el frontend) no tiene columna real
+                en pacientes.documentos todavía — ver knowledge-base/04_modelo_de_datos.md
+                §Discrepancias, entrada "Documentación del paciente por actividad — sin columna
+                real". */}
+            <AvisoModeloDatos>
+              La asociación de un documento con una actividad (escuela, terapia, club) todavía no
+              tiene respaldo en el modelo real de la base: <strong>`pacientes.documentos`</strong>{' '}
+              no tiene ninguna columna de dirección/actividad hoy. La futura columna{' '}
+              <strong>`direccion_id`</strong> queda documentada como guía (Checkpoint (h)), a
+              aplicarse en el change de integración documental.
+            </AvisoModeloDatos>
             <PacienteDocumentos
               pacienteId={paciente.id}
               obraSocialId={paciente.obraSocialId}
