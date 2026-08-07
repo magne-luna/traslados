@@ -393,20 +393,29 @@ Chain strategy: pending
 
 ## 5. El swap — composition root
 
-- [ ] 5.1 Correr el safety net dirigido antes de tocar `PacientesRoute.tsx`
+- [x] 5.1 Correr el safety net dirigido antes de tocar `PacientesRoute.tsx`
       (`cd frontend && npx vitest run src/features/pacientes src/shared/lib/documentos`) y registrar la
       línea base exacta acá.
-- [ ] 5.2 (RED→GREEN) `PacientesRoute.tsx`: inyectar `supabaseDocumentoRepository` en lugar de
+      **→ CONFIRMADO (2026-08-07): 274/274 (`NODE_OPTIONS=--no-experimental-webstorage`).**
+- [x] 5.2 (RED→GREEN) `PacientesRoute.tsx`: inyectar `supabaseDocumentoRepository` en lugar de
       `mockDocumentoRepository`. Actualizar el comentario del archivo (hoy dice *"a diferencia de
       Documentos, que sigue en mock porque su propio backend todavía no existe"* — **ese backend ya
       existe**, C-03 verificado en vivo) explicando el corte del Checkpoint 0.
-- [ ] 5.3 Ajustar `PacientesRoute.test.tsx` (ya existe) al doble inyectado, siguiendo su propio patrón
+      **→ IMPLEMENTADO (2026-08-07): import + prop cambiados, comentario actualizado explicando el
+      corte del Checkpoint 0 y por qué los otros 3 roots siguen en mock.**
+- [x] 5.3 Ajustar `PacientesRoute.test.tsx` (ya existe) al doble inyectado, siguiendo su propio patrón
       `vi.hoisted` + `vi.mock` de `../../shared/lib/supabaseClient`: RED con el root viejo → GREEN con
       el swap.
-- [ ] 5.4 Confirmar que `VehiculosRoute.tsx`, `ConductoresRoute.tsx`, `FacturacionRoute.tsx` y
+      **→ IMPLEMENTADO (2026-08-07): comentario y descripción del test actualizados. El
+      `select()` mockeado genérico alcanza porque `documentoRepository.listByEntity` no se invoca en
+      el mount de la lista — recién se usa en `PacienteDetail.tsx`. 1/1 GREEN.**
+- [x] 5.4 Confirmar que `VehiculosRoute.tsx`, `ConductoresRoute.tsx`, `FacturacionRoute.tsx` y
       `DesignSystem.tsx` **siguen inyectando `mockDocumentoRepository`**, y que sus comentarios dicen
       por qué (entidad todavía mock / catálogo del design system). No es una omisión: es la decisión
       del Checkpoint 0, y tiene que estar escrita en cada archivo.
+      **→ CONFIRMADO (2026-08-07): los 4 siguen en mock, con comentario explicando por qué en cada
+      uno. Suite completa post-swap: 2130/2133, los 3 fallos son los preexistentes de siempre
+      (`PermisosMatrizFields`, `ChecklistEditor` ×2) — ninguno relacionado con este change.**
 
 ## 6. `AvisoModeloDatos` — el Checkpoint 0 visible en pantalla
 
