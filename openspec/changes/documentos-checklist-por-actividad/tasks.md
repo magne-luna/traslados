@@ -350,19 +350,37 @@
 
 ## 9. Verificación manual (bloqueante, a cargo de Enzo/la usuaria)
 
-- [ ] 9.1 Con una cuenta con `pacientes: write`: en un paciente con escuela + dos terapias, confirmar
+- [x] 9.1 Con una cuenta con `pacientes: write`: en un paciente con escuela + dos terapias, confirmar
       que aparece un checklist por actividad, correctamente etiquetado, y que dos terapias distintas se
       distinguen sin ambigüedad.
-- [ ] 9.2 Subir un documento en una terapia y confirmar que **no** aparece en la otra ni en la escuela.
-- [ ] 9.3 Confirmar que dentro de una misma actividad sigue funcionando todo lo de los dos changes
+      **Hecho (2026-08-07)**: confirmado por la usuaria — screenshot con "Documentación general" +
+      "Terapia — Kinesiología" + "Escuela — Tarde", cada una en su propio bloque.
+- [x] 9.2 Subir un documento en una terapia y confirmar que **no** aparece en la otra ni en la escuela.
+      **Bug real encontrado en esta verificación (2026-08-07)**: los 3 bloques mostraban y
+      compartían el MISMO documento — `SupabaseDocumentoRepository.ts` ignoraba `agrupacionId` por
+      completo (`listarDocumentos` no filtraba, `subirDocumento` ni siquiera declaraba el
+      parámetro), pese a que el mock y sus tests sí aislaban correctamente. Corregido: nueva
+      columna `pacientes.documentos.direccion_id` (migración
+      `20260807010000_documentos_direccion_id.sql`, `ON DELETE RESTRICT`) + mapeo/filtro real en
+      `documentoMapping.ts`/`SupabaseDocumentoRepository.ts` (commit `9beda7d`). Re-verificado por
+      la usuaria en la app tras el fix: confirma aislación correcta.
+- [x] 9.3 Confirmar que dentro de una misma actividad sigue funcionando todo lo de los dos changes
       hermanos: varios documentos por ítem, marca de vigente, previsualización y "Quitar" por documento
       puntual.
-- [ ] 9.4 Confirmar el comportamiento del bloque de documentación sin actividad, según el veredicto de
+      **Hecho (2026-08-07)**: confirmado por la usuaria, sin regresiones.
+- [x] 9.4 Confirmar el comportamiento del bloque de documentación sin actividad, según el veredicto de
       (c).
-- [ ] 9.5 Confirmar el comportamiento al quitar una actividad con documentación cargada, según el
+      **Hecho (2026-08-07)**: confirmado — bloque "Documentación general" se comporta como
+      documentación sin agrupación (`direccion_id IS NULL`).
+- [x] 9.5 Confirmar el comportamiento al quitar una actividad con documentación cargada, según el
       veredicto de (e).
-- [ ] 9.6 Con una cuenta `pacientes: read`: la pantalla sigue en modo solo lectura sobre las N
+      **Hecho (2026-08-07)**: confirmado — advertencia + confirmación antes de quitar (§6).
+- [x] 9.6 Con una cuenta `pacientes: read`: la pantalla sigue en modo solo lectura sobre las N
       instancias (ningún botón de agregar/quitar activo, "Ver" sí disponible — el gateo de cliente
       nunca es más restrictivo que la RLS del servidor).
-- [ ] 9.7 Smoke test manual de Vehículos, Conductores y Facturas: sus pantallas de documentación siguen
+      **Hecho (2026-08-07)**: confirmado por la usuaria, sin cambios respecto del comportamiento
+      previo (§3.6, D2 — gateo idéntico en las N instancias).
+- [x] 9.7 Smoke test manual de Vehículos, Conductores y Facturas: sus pantallas de documentación siguen
       exactamente igual que antes.
+      **Hecho (2026-08-07)**: confirmado por la usuaria — sin regresión, y verificado también por
+      tests automatizados (§7, `mostrarProgreso` default `true` sin efecto en esos 3 dominios).
