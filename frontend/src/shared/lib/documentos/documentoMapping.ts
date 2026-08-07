@@ -16,8 +16,12 @@
 // colección del mismo `itemId`, necesario para que `remove()` no dependa de `itemId`),
 // `vigenciaDesde?` y `tipoMime?`. `id` se resuelve acá con la columna `id` (clave primaria, igual
 // en las 4 tablas). `vigenciaDesde`/`tipoMime` NO tienen columna persistida en ninguna de las 4
-// tablas reales (fuera del alcance aditivo de este change) — quedan `undefined`, que es válido
-// porque el tipo los declara opcionales. No se inventa ninguna columna nueva acá.
+// tablas reales (fuera del alcance aditivo de este change).
+// `vigenciaDesde` queda `undefined`, que es válido porque el tipo lo declara opcional. `tipoMime`
+// **no** queda `undefined` a secas — se deriva de la extensión de `nombreArchivo`
+// (`inferirTipoMime`, más abajo): sin esto, `DocumentChecklist` no puede decidir cómo previsualizar
+// un documento real y "Ver" queda roto para todos (hallazgo de `tasks.md` §8.3, 2026-08-07). Sigue
+// sin inventarse ninguna columna nueva — es una derivación pura sobre un dato que ya viaja.
 import type { DocumentoAdjunto, EntidadDocumental } from '../../types/documento';
 
 export interface ConfiguracionEntidad {
@@ -119,6 +123,33 @@ export function construirClaveStorage(
 }
 
 // -------------------------------------------------------------------------------------------
+// inferirTipoMime — bug encontrado en verificación manual §8.3 (2026-08-07, no en el design.md
+// original): `tipoMime` no tiene columna persistida (ver nota de arriba), y `DocumentChecklist`
+// decide cómo previsualizar mirando exactamente ese campo — sin él, "Ver" mostraba "no se puede
+// previsualizar" para CUALQUIER documento real (PDF o imagen), aunque la descarga funcionara.
+// Se deriva de la extensión de `nombreArchivo` en vez de agregar una columna nueva al schema
+// (fuera del alcance aditivo de este change) — mismo criterio que el resto de este archivo:
+// degradar sin inventar, extensión no reconocida -> `undefined`, nunca un tipo adivinado a ciegas.
+// -------------------------------------------------------------------------------------------
+
+const TIPO_MIME_POR_EXTENSION: Record<string, string> = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+};
+
+export function inferirTipoMime(nombreArchivo: string): string | undefined {
+  const indiceDelPunto = nombreArchivo.lastIndexOf('.');
+  if (indiceDelPunto < 0 || indiceDelPunto === nombreArchivo.length - 1) return undefined;
+
+  const extension = nombreArchivo.slice(indiceDelPunto + 1).toLowerCase();
+  return TIPO_MIME_POR_EXTENSION[extension];
+}
+
+// -------------------------------------------------------------------------------------------
 // 3.6 — parseDocumentoRow (design.md CP2/D2/D3). Angosta `unknown` con guardas de tipo explícitas
 // — nunca deja el dato sin tipar ni fuerza una conversión. Fila malformada -> `null` (nunca rompe
 // la colección que la contiene).
@@ -166,7 +197,7 @@ export function parseDocumentoRow(row: unknown, config: ConfiguracionEntidad): D
   const createdAtCrudo = row.created_at;
   const subidoEn = typeof createdAtCrudo === 'string' ? createdAtCrudo : '';
 
-  return { id, itemId, nombreArchivo, subidoEn };
+  return { id, itemId, nombreArchivo, subidoEn, tipoMime: inferirTipoMime(nombreArchivo) };
 }
 
 // -------------------------------------------------------------------------------------------

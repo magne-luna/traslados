@@ -276,7 +276,7 @@ describe('supabaseDocumentoRepository.listByEntity (tasks.md 4.2)', () => {
 
     const documentos = await supabaseDocumentoRepository.listByEntity('paciente', 'entidad-1');
 
-    expect(documentos).toEqual([{ id: 'doc-1', itemId: 'item-1', nombreArchivo: 'archivo.pdf', subidoEn: '2026-08-06T12:00:00.000Z' }]);
+    expect(documentos).toEqual([{ id: 'doc-1', itemId: 'item-1', nombreArchivo: 'archivo.pdf', subidoEn: '2026-08-06T12:00:00.000Z', tipoMime: 'application/pdf' }]);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.eq).toEqual([['paciente_id', 'entidad-1']]);
     expect(storageUploadCalls).toHaveLength(0);

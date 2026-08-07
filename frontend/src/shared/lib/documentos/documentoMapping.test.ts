@@ -7,6 +7,7 @@ import {
   CONFIG_ENTIDAD,
   construirClaveStorage,
   ensamblarDocumentos,
+  inferirTipoMime,
   nombreArchivoSeguro,
   parseDocumentoRow,
   toInsertPayload,
@@ -121,6 +122,38 @@ describe('construirClaveStorage (3.5)', () => {
 });
 
 // -------------------------------------------------------------------------------------------
+// inferirTipoMime — bug encontrado en verificación manual §8.3 (2026-08-07): `tipoMime` nunca
+// tuvo columna persistida (documentado en el header del archivo), y `DocumentChecklist` decide
+// cómo previsualizar mirando exactamente ese campo — el resultado real era que "Ver" mostraba
+// "no se puede previsualizar" para CUALQUIER documento real, PDF o imagen incluidos, aunque la
+// descarga funcionara. Se deriva de la extensión de `nombreArchivo` en vez de agregar columna.
+// -------------------------------------------------------------------------------------------
+
+describe('inferirTipoMime', () => {
+  it('.pdf -> application/pdf', () => {
+    expect(inferirTipoMime('certificado.pdf')).toBe('application/pdf');
+  });
+
+  it('.PDF en mayúsculas -> application/pdf (case-insensitive, triangulación)', () => {
+    expect(inferirTipoMime('CERTIFICADO.PDF')).toBe('application/pdf');
+  });
+
+  it('.png/.jpg/.jpeg/.gif/.webp -> image/*', () => {
+    expect(inferirTipoMime('foto.png')).toBe('image/png');
+    expect(inferirTipoMime('foto.jpg')).toBe('image/jpeg');
+    expect(inferirTipoMime('foto.jpeg')).toBe('image/jpeg');
+    expect(inferirTipoMime('foto.gif')).toBe('image/gif');
+    expect(inferirTipoMime('foto.webp')).toBe('image/webp');
+  });
+
+  it('extensión no reconocida o ausente -> undefined (no inventa un tipo)', () => {
+    expect(inferirTipoMime('documento.docx')).toBeUndefined();
+    expect(inferirTipoMime('sin-extension')).toBeUndefined();
+    expect(inferirTipoMime('')).toBeUndefined();
+  });
+});
+
+// -------------------------------------------------------------------------------------------
 // 3.6 — parseDocumentoRow: type guards explícitos sobre unknown, nunca any/as. itemId ausente o
 // mal tipado -> null; nombre_archivo null -> degrada al último segmento de archivo_url (CP2);
 // created_at ausente -> degrada sin lanzar.
@@ -144,6 +177,7 @@ describe('parseDocumentoRow (3.6)', () => {
       itemId: 'tipo-1',
       nombreArchivo: 'Certificado médico.pdf',
       subidoEn: '2026-08-06T10:00:00.000Z',
+      tipoMime: 'application/pdf',
     });
   });
 
@@ -161,6 +195,7 @@ describe('parseDocumentoRow (3.6)', () => {
       itemId: 'vehiculo-doc-vtv',
       nombreArchivo: 'VTV.pdf',
       subidoEn: '2026-08-06T11:00:00.000Z',
+      tipoMime: 'application/pdf',
     });
   });
 
@@ -198,6 +233,19 @@ describe('parseDocumentoRow (3.6)', () => {
     };
     const resultado = parseDocumentoRow(row, configPaciente);
     expect(resultado?.nombreArchivo).toBe('3e5a1c9d-certificado-medico.pdf');
+    expect(resultado?.tipoMime).toBe('application/pdf');
+  });
+
+  it('nombre_archivo de imagen -> tipoMime image/* (triangulación sobre PDF)', () => {
+    const row = {
+      id: 'doc-3',
+      paciente_id: 'pac-1',
+      id_tipo_documento: 'tipo-1',
+      archivo_url: 'pac-1/tipo-1/uuid-foto.jpg',
+      nombre_archivo: 'Foto carnet.jpg',
+      created_at: '2026-08-06T10:00:00.000Z',
+    };
+    expect(parseDocumentoRow(row, configPaciente)?.tipoMime).toBe('image/jpeg');
   });
 
   it('created_at ausente -> degrada sin lanzar (subidoEn queda en string vacío)', () => {

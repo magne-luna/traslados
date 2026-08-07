@@ -511,6 +511,22 @@ cumplido.
 > escrito en los dos lugares (regla dura del proyecto sobre discrepancias): `Pacientes` es hoy la
 > única entidad de las 4 que algún día usará agrupación real; Vehículos/Conductores/Facturas nunca
 > la pasan y no se ven afectados.
+>
+> **⚠️ TERCER HALLAZGO (2026-08-07, verificación manual `tasks.md` §8.3): "aceptado por firma, no
+> persistido" para `tipoMime` tenía una consecuencia funcional que nadie conectó hasta probarlo con
+> un archivo real.** `DocumentChecklist.tsx` (`ContenidoPreview`) decide cómo renderizar la acción
+> "Ver" mirando exactamente `documento.tipoMime` (`=== 'application/pdf'` para el visor de PDF,
+> `?.startsWith('image/')` para imagen). Con `tipoMime` siempre `undefined` para cualquier documento
+> real (ninguna de las 4 tablas lo persiste), la rama que se ejecuta **siempre** es la de "Este tipo
+> de archivo no se puede previsualizar acá" — para un PDF válido, para una foto, para lo que sea —
+> aunque la URL resuelta sea correcta y "Descargar" funcione. No es un bug de Storage ni de RLS: es
+> que el dato que decide la rama de UI nunca viaja. **Arreglo aplicado**: `inferirTipoMime()` nueva
+> en `documentoMapping.ts`, función pura que deriva el tipo MIME de la extensión de `nombreArchivo`
+> (`.pdf`/`.png`/`.jpg`/`.jpeg`/`.gif`/`.webp`; cualquier otra extensión o ninguna -> `undefined`, no
+> se inventa un tipo) y se cablea en `parseDocumentoRow`. Sigue sin agregarse ninguna columna al
+> schema — es una derivación sobre un dato que ya viaja (`nombreArchivo`), mismo criterio que el
+> resto de este archivo. Aplica a las 4 entidades por igual (todas pasan por el mismo
+> `parseDocumentoRow`), no solo a Pacientes.
 
 ### D7 — Seguridad: nada se relaja, y el gateo de cliente no se mueve
 
