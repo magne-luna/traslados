@@ -30,7 +30,7 @@
 
 ## 0. Checkpoint de diseño (bloqueante, antes de escribir código) — GOVERNANCE recomendado CRÍTICO
 
-- [ ] 0.1 Presentar a Enzo/la clienta los **siete** checkpoints de `design.md` con su trade-off escrito
+- [x] 0.1 Presentar a Enzo/la clienta los **siete** checkpoints de `design.md` con su trade-off escrito
       y registrar el veredicto de cada uno **en este archivo** antes de continuar. Ninguna tarea de la
       §1 en adelante arranca con un checkpoint sin veredicto:
       - **Checkpoint (a) — ¿qué es una "actividad"?** ¿Reusar `Direccion` (recomendado por el
@@ -75,7 +75,7 @@
       - **Checkpoint (g) — gobernanza.** ¿CRÍTICO (recomendado, por precedente de los dos hermanos y
         por el riesgo de pérdida documental del Checkpoint (e)) o ALTO?
         **→ VEREDICTO (2026-08-06, usuaria): CRÍTICO, como recomendado.**
-- [ ] 0.2 Confirmar el alcance con Enzo por escrito: **este change cubre solo el punto 2** del PDF de
+- [x] 0.2 Confirmar el alcance con Enzo por escrito: **este change cubre solo el punto 2** del PDF de
       feedback. El **punto 3** (vincular la actividad seleccionada con su documentación; exportar o
       transferir documentación a otro domicilio) queda fuera hasta que llegue el video prometido por el
       cliente. Registrar acá si ese video llegó antes del apply — si llegó, **conviene re-leer el
@@ -83,13 +83,14 @@
       literalmente "cambiarle la agrupación a un documento" y podría condicionar la forma elegida.
       **→ Estado (2026-08-06, usuaria): confirmado, alcance solo punto 2. El video del punto 3 todavía
       no llegó.**
-- [ ] 0.3 Confirmar contra el filesystem del repo (no contra la memoria de la sesión) que sigue sin
+- [x] 0.3 Confirmar contra el filesystem del repo (no contra la memoria de la sesión) que sigue sin
       existir ningún `SupabaseDocumentoRepository.ts` y que `openspec/changes/integracion-documentos/`
       sigue sin aplicarse. Si para el apply ya aterrizó la integración documental real, este propose
       necesita revisión: el Checkpoint (b) asume que el único implementador del contrato es el mock, y
       el Checkpoint (h) asume que la columna de actividad todavía no existe.
-      **→ Estado: _pendiente_**
-- [ ] 0.4 Correr `cd frontend && npx vitest run` y registrar el baseline exacto (archivos en verde,
+      **→ Estado (2026-08-06): verificado, sigue sin existir `SupabaseDocumentoRepository.ts` y
+      `integracion-documentos/` sigue sin aplicarse.**
+- [x] 0.4 Correr `cd frontend && npx vitest run` y registrar el baseline exacto (archivos en verde,
       tests passing/failing) antes de tocar cualquier archivo existente. Nota conocida del proyecto:
       `router.*.test.tsx`, `PermisosMatrizFields.test.tsx` y `ChecklistEditor.test.tsx` son flakies por
       contención de máquina — registrarlos como tales, no "arreglarlos" dentro de este change.
@@ -112,17 +113,23 @@
 
 ## 1. Modelo del dominio "actividad" (condicional al Checkpoint (a))
 
-- [ ] 1.1 Si (a) = reusar `Direccion`: definir en `frontend/src/features/pacientes/` el criterio único
+- [x] 1.1 Si (a) = reusar `Direccion`: definir en `frontend/src/features/pacientes/` el criterio único
       de "qué direcciones son actividades con checklist" (todas, o todas menos `tipo: 'domicilio'`,
       según la sub-pregunta de 0.1) como una función pura testeable — nunca un `filter` inline
       repetido en dos componentes. (RED→GREEN, más el caso de lista vacía.)
-- [ ] 1.2 Si (a) = entidad nueva `Actividad`: **detener el apply y re-proponer.** Crear una entidad de
+      **Hecho (2026-08-06)**: `obtenerActividadesConChecklist()` en
+      `frontend/src/features/pacientes/actividadDocumental.ts`.
+- [x] 1.2 Si (a) = entidad nueva `Actividad`: **detener el apply y re-proponer.** Crear una entidad de
       dominio nueva excede lo que este `tasks.md` planificó (toca tipos, mock de pacientes, formulario,
       persistencia y probablemente el docx) — no se improvisa dentro de este change.
-- [ ] 1.3 Definir la etiqueta legible de cada actividad (tipo + descripción, reusando
+      **No aplica (2026-08-06)**: veredicto de (a) fue reusar `Direccion`, no entidad nueva.
+- [x] 1.3 Definir la etiqueta legible de cada actividad (tipo + descripción, reusando
       `TIPO_DIRECCION_LABELS` de `direccionOptions.ts`) como función pura con test — es lo que
       identifica cada bloque y lo que hace distinguibles dos terapias (spec: "Dos actividades del mismo
       tipo son distinguibles entre sí").
+      **Hecho (2026-08-06)**: `etiquetaActividad()` en el mismo archivo, 8 tests entre ambas
+      funciones (`actividadDocumental.test.ts`). `npx tsc -b --noEmit` limpio, cero regresiones en
+      `src/features/pacientes`.
 
 ## 2. Contrato documental (condicional al Checkpoint (b))
 
