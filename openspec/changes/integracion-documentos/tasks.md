@@ -459,9 +459,14 @@ Chain strategy: pending
 
 ## 8. Verificación manual (bloqueante, a cargo de la usuaria/Enzo)
 
-- [ ] 8.1 Aplicar la migración de §2 al proyecto real (`supabase db push`; requiere Docker o
+- [x] 8.1 Aplicar la migración de §2 al proyecto real (`supabase db push`; requiere Docker o
       credenciales — **no lo corre el agente**). Sin `nombre_archivo` en la base, el primer upload real
       responde `PGRST204`.
+      **→ CONFIRMADO (2026-08-07): `20260806190000` figura `local == remote` en `supabase migration
+      list --linked`, y verificado además contra `information_schema.columns` (no solo la tabla de
+      migraciones, mismo cuidado que el incidente de la migración de geocoding) — `nombre_archivo`
+      existe hoy en las 4 tablas (`pacientes.documentos`, `conductores.documentacion_vehiculo`,
+      `conductores.documentacion_conductores`, `facturacion.documento_factura`).**
 - [ ] 8.2 **Precondición de datos (Checkpoint 4)**: con el `ChecklistEditor` que ya existe, configurar
       en una obra social real un checklist de al menos 2 ítems (uno requerido, uno opcional) y asignar
       esa obra social a un paciente de prueba. Sin esto el checklist renderiza vacío y no hay nada que
