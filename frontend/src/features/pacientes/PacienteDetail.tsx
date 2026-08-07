@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AvisoModeloDatos, Chip, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
@@ -51,6 +51,35 @@ export function PacienteDetail({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [sectionError, setSectionError] = useState<string | null>(null);
+  // documentos-checklist-por-actividad (tasks.md 6.1, design.md Checkpoint (e) VEREDICTO opción
+  // A): cantidad de documentos por dirección (`Direccion.id` → cantidad), calculada acá —no en
+  // `DireccionesEditor`, que solo la recibe por prop— para advertir antes de quitar una actividad
+  // con documentación cargada. `PacienteDocumentos`/`PacienteDocumentosChecklist` (§3/§5) ya
+  // calculan un progreso por actividad, pero a nivel de ÍTEMS con al menos un documento, no de
+  // cantidad de documentos crudos — acá se necesita el conteo real de `DocumentoAdjunto` que se
+  // perderían, así que se resuelve con su propio `listByEntity` por dirección.
+  const [documentosPorDireccion, setDocumentosPorDireccion] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (paciente === null) {
+      setDocumentosPorDireccion({});
+      return;
+    }
+    let active = true;
+    Promise.all(
+      paciente.direcciones.map((direccion) =>
+        documentoRepository
+          .listByEntity('paciente', paciente.id, direccion.id)
+          .then((documentos) => [direccion.id, documentos.length] as const),
+      ),
+    ).then((entradas) => {
+      if (!active) return;
+      setDocumentosPorDireccion(Object.fromEntries(entradas));
+    });
+    return () => {
+      active = false;
+    };
+  }, [paciente, documentoRepository]);
 
   async function handleSubmitGeneral(values: PacienteFormValues) {
     setSubmitting(true);
@@ -210,7 +239,11 @@ export function PacienteDetail({
               directo de la usuaria para diferenciar dos direcciones del mismo tipo (ej. dos
               "Terapia").
             </AvisoModeloDatos>
-            <DireccionesEditor direcciones={paciente.direcciones} onChange={handleDireccionesChange} />
+            <DireccionesEditor
+              direcciones={paciente.direcciones}
+              onChange={handleDireccionesChange}
+              documentosPorDireccion={documentosPorDireccion}
+            />
           </Section>
 
           <Section label="Documentación" title="Checklist documental">

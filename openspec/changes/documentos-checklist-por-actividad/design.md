@@ -251,7 +251,11 @@ producción.
 | C. Sin protección (comportamiento actual) | Quitar la dirección deja los documentos huérfanos o los borra en cascada | Cero trabajo | Pérdida silenciosa de documentación de salud con un click. Inaceptable para el nivel de gobernanza de este dominio |
 
 **Recomendación: A.** Además hay que decidir el correlato en base de datos para el futuro
-(`ON DELETE RESTRICT` vs `SET NULL` sobre `direccion_id`) — ver Checkpoint (h). **Sin veredicto.**
+(`ON DELETE RESTRICT` vs `SET NULL` sobre `direccion_id`) — ver Checkpoint (h).
+
+**VEREDICTO (2026-08-07): opción A.** Advertencia explícita antes de quitar una actividad con
+documentos cargados, con confirmación. `DireccionesEditor.tsx` recibe la cantidad de documentos por
+dirección como prop (no fetch propio).
 
 **Editar** una dirección (cambiar calle o tipo) **no** afecta la relación: el `id` no cambia, los
 documentos siguen colgando de la misma actividad. No hace falta decisión ahí.

@@ -244,15 +244,36 @@
 
 ## 6. Protección al quitar una actividad (condicional al Checkpoint (e))
 
-- [ ] 6.1 (RED→GREEN) Si (e) = advertir/bloquear: `DireccionesEditor.tsx` necesita saber cuántos
+- [x] 6.1 (RED→GREEN) Si (e) = advertir/bloquear: `DireccionesEditor.tsx` necesita saber cuántos
       documentos tiene cada dirección — dato que hoy **no recibe**. Definir cómo llega (prop desde
       `PacienteDetail`, no un fetch propio del editor) y testearlo.
-- [ ] 6.2 (RED→GREEN) Quitar una dirección **con** documentos: advertencia explícita con la cantidad y
+      **Hecho (2026-08-07)**: nueva prop opcional `documentosPorDireccion?: Record<string, number>`
+      en `DireccionesEditor`. `PacienteDetail.tsx` la calcula con su propio `useEffect` que llama
+      `documentoRepository.listByEntity('paciente', paciente.id, direccion.id)` por cada dirección
+      (conteo real de `DocumentoAdjunto`, no de ítems con ≥1 documento — deliberadamente no
+      reutiliza el `progresos` de `PacienteDocumentos.tsx`/§5, que cuenta ítems cargados, no
+      documentos crudos, y viviría en el componente equivocado para pasarlo a este editor). Sin
+      entrada para un `id` (o sin la prop entera), se asume 0 — mismo comportamiento que antes del
+      change. Test de integración en `PacienteDetail.test.tsx` verifica el `listByEntity` con el
+      `agrupacionId` correcto.
+- [x] 6.2 (RED→GREEN) Quitar una dirección **con** documentos: advertencia explícita con la cantidad y
       confirmación (o bloqueo, según veredicto). Reusar `Alert`/`Overlay` del design system.
-- [ ] 6.3 (RED→GREEN) Quitar una dirección **sin** documentos: comportamiento idéntico al actual, sin
+      **Hecho (2026-08-07)**: `Overlay` (título "Quitar {tipo}") con un `Alert tone="warning"`
+      mostrando la cantidad ("N documento(s) cargado(s)... vas a perder el acceso a esa
+      documentación") y dos botones (`Button variant="secondary"` Cancelar / `variant="danger"`
+      "Quitar de todas formas"). El `onChange` original solo se dispara al confirmar. 3 tests en
+      `DireccionesEditor.test.tsx` (abre diálogo con la cantidad, confirmar quita, cancelar no
+      quita y preserva la dirección en pantalla).
+- [x] 6.3 (RED→GREEN) Quitar una dirección **sin** documentos: comportamiento idéntico al actual, sin
       pasos adicionales (spec: "Quitar una actividad sin documentación").
-- [ ] 6.4 Si (e) = sin protección: registrar el veredicto acá y **eliminar el requisito
+      **Hecho (2026-08-07)**: `documentosPorDireccion[id] === 0` (o `undefined`/prop ausente) sigue
+      llamando a `onChange` directo, sin abrir el `Overlay` — 2 tests (con la prop explícita en 0 y
+      sin pasar la prop en absoluto, no regresión sobre los tests de §8.1/8.2 preexistentes).
+- [x] 6.4 Si (e) = sin protección: registrar el veredicto acá y **eliminar el requisito
       correspondiente del delta spec** — no dejar un spec que el código no cumple.
+      **No aplica (2026-08-07)**: veredicto de (e) fue opción A (advertir y confirmar), no "sin
+      protección" — el requisito "Quitar una actividad no destruye su documentación en silencio" de
+      `specs/paciente-documentos/spec.md` queda vigente tal cual, satisfecho por 6.1-6.3.
 
 ## 7. Los otros tres dominios documentales — sin cambio de comportamiento
 

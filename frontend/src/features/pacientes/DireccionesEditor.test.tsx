@@ -192,3 +192,101 @@ describe('DireccionesEditor — gateo de escritura', () => {
     expect(screen.getByLabelText(/calle y número/i)).toBeEnabled();
   });
 });
+
+// documentos-checklist-por-actividad (tasks.md 6.1/6.2/6.3, design.md Checkpoint (e) VEREDICTO
+// opción A): quitar una actividad con documentación cargada exige advertencia + confirmación
+// explícita — sin protección adicional cuando no tiene documentos. La cantidad llega por prop
+// (`documentosPorDireccion`, calculada en `PacienteDetail`), este editor nunca hace su propio
+// fetch de documentos.
+describe('DireccionesEditor — protección al quitar una actividad con documentación (Checkpoint (e))', () => {
+  const escuela: Direccion = { id: 'dir-2', tipo: 'escuela', calle: 'Bulnes 1200', localidad: 'CABA' };
+
+  it('6.1/6.2 quitar una dirección con documentos abre un diálogo de advertencia con la cantidad, sin llamar a onChange todavía', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(
+      <DireccionesEditor
+        direcciones={[domicilio, escuela]}
+        onChange={onChange}
+        documentosPorDireccion={{ 'dir-2': 3 }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /quitar escuela/i }));
+
+    expect(onChange).not.toHaveBeenCalled();
+    const dialogo = screen.getByRole('dialog');
+    expect(dialogo).toHaveTextContent('3');
+    expect(dialogo).toHaveTextContent(/documento/i);
+  });
+
+  it('6.2 confirmar el diálogo de advertencia quita la dirección', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(
+      <DireccionesEditor
+        direcciones={[domicilio, escuela]}
+        onChange={onChange}
+        documentosPorDireccion={{ 'dir-2': 3 }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /quitar escuela/i }));
+    await user.click(screen.getByRole('button', { name: /quitar de todas formas/i }));
+
+    expect(onChange).toHaveBeenCalledWith([domicilio]);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('6.2 cancelar el diálogo de advertencia no quita la dirección (triangulación con confirmar)', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(
+      <DireccionesEditor
+        direcciones={[domicilio, escuela]}
+        onChange={onChange}
+        documentosPorDireccion={{ 'dir-2': 3 }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /quitar escuela/i }));
+    await user.click(screen.getByRole('button', { name: /^cancelar$/i }));
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText(/bulnes 1200/i)).toBeInTheDocument();
+  });
+
+  it('6.3 quitar una dirección sin documentos no pide confirmación (comportamiento actual, sin pasos adicionales)', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(
+      <DireccionesEditor
+        direcciones={[domicilio]}
+        onChange={onChange}
+        documentosPorDireccion={{ 'dir-1': 0 }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /quitar domicilio/i }));
+
+    expect(onChange).toHaveBeenCalledWith([]);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('6.3 sin prop `documentosPorDireccion` (default), quitar sigue sin pedir confirmación (no regresión)', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+
+    render(<DireccionesEditor direcciones={[domicilio]} onChange={onChange} />);
+
+    await user.click(screen.getByRole('button', { name: /quitar domicilio/i }));
+
+    expect(onChange).toHaveBeenCalledWith([]);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});

@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
-import { AvisoModeloDatos, Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
+import { AvisoModeloDatos, Button, CamposSoloLectura, InlineIcon, Overlay } from '../../design-system/components';
+import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { Card } from '../../design-system/layout';
 import type { Direccion, TipoDireccion } from '../../shared/types/paciente';
@@ -8,6 +9,11 @@ import { TIPO_DIRECCION_ICON, TIPO_DIRECCION_LABELS, TIPO_DIRECCION_OPTIONS } fr
 interface DireccionesEditorProps {
   direcciones: Direccion[];
   onChange: (direcciones: Direccion[]) => void;
+  /** documentos-checklist-por-actividad (tasks.md 6.1, design.md Checkpoint (e) VEREDICTO opción
+   * A): cantidad de documentos cargados por dirección (`Direccion.id` → cantidad), calculada por
+   * `PacienteDetail` (este editor nunca hace su propio fetch de documentos). Sin entrada para un
+   * `id`, o sin la prop entera, se asume 0 — mismo comportamiento que antes de este change. */
+  documentosPorDireccion?: Record<string, number>;
 }
 
 // Editor de direcciones múltiples (tasks.md 8.1/8.2, RF-113): catálogo de lugares del paciente,
@@ -23,12 +29,16 @@ interface DireccionesEditorProps {
 // soporta `flex flex-col` con padding uniforme en su base, así que NO se migra a Card acá (mismo
 // límite ya visto en AsignacionSemanalTabla.tsx, sección 11.2). Excepción permanente confirmada
 // por el usuario: queda como `<li>` nativo, sin ampliar Card por un solo caso.
-export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorProps) {
+export function DireccionesEditor({ direcciones, onChange, documentosPorDireccion }: DireccionesEditorProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tipo, setTipo] = useState<TipoDireccion>('domicilio');
   const [calle, setCalle] = useState('');
   const [localidad, setLocalidad] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  // documentos-checklist-por-actividad (tasks.md 6.2, design.md Checkpoint (e) VEREDICTO opción
+  // A): dirección pendiente de confirmación de borrado — no-null solo mientras tiene ≥1 documento
+  // cargado y el usuario todavía no confirmó ni canceló.
+  const [confirmandoQuitar, setConfirmandoQuitar] = useState<Direccion | null>(null);
   const formId = useId();
 
   function limpiarForm() {
@@ -63,6 +73,26 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
     onChange(direcciones.filter((direccion) => direccion.id !== id));
     if (editingId === id) limpiarForm();
   }
+
+  // tasks.md 6.2/6.3: si la actividad tiene ≥1 documento cargado, no se quita directo — se abre el
+  // diálogo de advertencia y la baja queda a cargo de "Quitar de todas formas". Sin documentos
+  // (o sin la prop `documentosPorDireccion`), comportamiento idéntico al de antes de este change.
+  function handleRemoveClick(direccion: Direccion) {
+    const cantidadDocumentos = documentosPorDireccion?.[direccion.id] ?? 0;
+    if (cantidadDocumentos > 0) {
+      setConfirmandoQuitar(direccion);
+      return;
+    }
+    handleRemove(direccion.id);
+  }
+
+  function confirmarQuitar() {
+    if (!confirmandoQuitar) return;
+    handleRemove(confirmandoQuitar.id);
+    setConfirmandoQuitar(null);
+  }
+
+  const cantidadAQuitar = confirmandoQuitar ? (documentosPorDireccion?.[confirmandoQuitar.id] ?? 0) : 0;
 
   return (
     <>
@@ -125,7 +155,7 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleRemove(direccion.id)}
+                  onClick={() => handleRemoveClick(direccion)}
                   aria-label={`Quitar ${TIPO_DIRECCION_LABELS[direccion.tipo]} (${direccion.calle})`}
                   className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-danger"
                 >
@@ -211,6 +241,30 @@ export function DireccionesEditor({ direcciones, onChange }: DireccionesEditorPr
       </div>
       </CamposSoloLectura>
     </Card>
+
+    {/* tasks.md 6.2, design.md Checkpoint (e) VEREDICTO opción A: diálogo de solo lectura (sin
+        inputs, permitido por Overlay) que advierte cuántos documentos se pierden y exige
+        confirmación explícita antes de concretar el "Quitar". */}
+    {confirmandoQuitar && (
+      <Overlay
+        open
+        onClose={() => setConfirmandoQuitar(null)}
+        title={`Quitar ${TIPO_DIRECCION_LABELS[confirmandoQuitar.tipo]}`}
+      >
+        <Alert tone="warning" role="alert">
+          Esta dirección tiene {cantidadAQuitar} {cantidadAQuitar === 1 ? 'documento cargado' : 'documentos cargados'}.
+          Si la quitás, vas a perder el acceso a esa documentación.
+        </Alert>
+        <div className="flex justify-end gap-sm">
+          <Button variant="secondary" onClick={() => setConfirmandoQuitar(null)}>
+            Cancelar
+          </Button>
+          <Button variant="danger" onClick={confirmarQuitar}>
+            Quitar de todas formas
+          </Button>
+        </div>
+      </Overlay>
+    )}
     </>
   );
 }

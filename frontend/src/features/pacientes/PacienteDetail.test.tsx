@@ -507,4 +507,80 @@ describe('PacienteDetail', () => {
     if (!seccionDocumentacion) throw new Error('No se encontró la <section> de "Checklist documental"');
     expect(await within(seccionDocumentacion).findByText(/terapia — kinesióloga/i)).toBeInTheDocument();
   });
+
+  // documentos-checklist-por-actividad (tasks.md 6.1, design.md Checkpoint (e) VEREDICTO opción
+  // A): PacienteDetail —no el editor— consulta cuántos documentos tiene cada dirección (vía
+  // documentoRepository) y se lo pasa al editor de direcciones, que lo usa para advertir antes de
+  // quitar una actividad con documentación cargada.
+  it('calcula la cantidad de documentos por dirección y la pasa al editor de direcciones para advertir al quitar (tasks.md 6.1)', async () => {
+    const user = userEvent.setup();
+    const documentoRepository = buildFakeDocumentoRepository();
+    documentoRepository.listByEntity = vi.fn().mockImplementation((_entidad: string, _entidadId: string, agrupacionId?: string) => {
+      if (agrupacionId === 'dir-1') {
+        return Promise.resolve([
+          { id: 'doc-1', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01' },
+          { id: 'doc-2', itemId: 'item-1', nombreArchivo: 'rhc-2.pdf', subidoEn: '2026-07-02' },
+        ]);
+      }
+      return Promise.resolve([]);
+    });
+    const pacienteConActividad: Paciente = {
+      ...basePaciente,
+      direcciones: [
+        { id: 'dir-1', tipo: 'terapia', calle: 'Calle Falsa 123', localidad: 'CABA', descripcion: 'Kinesióloga' },
+      ],
+    };
+
+    render(
+      <PacienteDetail
+        paciente={pacienteConActividad}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    await vi.waitFor(() => expect(documentoRepository.listByEntity).toHaveBeenCalledWith('paciente', 'paciente-martina', 'dir-1'));
+
+    await user.click(await screen.findByRole('button', { name: /quitar terapia/i }));
+
+    const dialogo = await screen.findByRole('dialog');
+    expect(dialogo).toHaveTextContent('2');
+  });
+
+  // Triangulación de 6.1/6.3: una dirección sin documentos cargados no dispara ningún diálogo,
+  // aunque el cálculo de PacienteDetail sí haya corrido.
+  it('una dirección sin documentos no pide confirmación al quitarla (triangulación de 6.1, comportamiento actual)', async () => {
+    const user = userEvent.setup();
+    const documentoRepository = buildFakeDocumentoRepository();
+    const pacienteConActividad: Paciente = {
+      ...basePaciente,
+      direcciones: [
+        { id: 'dir-1', tipo: 'terapia', calle: 'Calle Falsa 123', localidad: 'CABA', descripcion: 'Kinesióloga' },
+      ],
+    };
+
+    render(
+      <PacienteDetail
+        paciente={pacienteConActividad}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    await vi.waitFor(() => expect(documentoRepository.listByEntity).toHaveBeenCalledWith('paciente', 'paciente-martina', 'dir-1'));
+
+    await user.click(screen.getByRole('button', { name: /quitar terapia/i }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
 });
