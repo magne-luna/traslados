@@ -1,18 +1,30 @@
-import { beforeEach, describe, expect, it } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { VehiculosRoute } from './VehiculosRoute';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 
-// Smoke test de integración: confirma que el composition root real (con mockVehiculoRepository
-// y mockDocumentoRepository, no fakes de test) queda correctamente inyectado end-to-end y que
-// el fixture de flota aparece precargado en el primer arranque.
+// `VehiculosRoute` inyecta `supabaseVehiculoRepository` (real, integracion-conductores-vehiculos
+// §5.9 "CORTE REAL 1"). Mismo criterio que `PacientesRoute.test.tsx`: mockea
+// `shared/lib/supabaseClient` para que el smoke test corra contra un doble, nunca contra Supabase
+// real, sin depender de red ni de `SUPABASE_URL`/`SUPABASE_ANON_KEY` en el entorno de test.
+// `functions.invoke` resuelve una lista vacía — alcanza para verificar el cableado (que la
+// pantalla monta y termina de cargar), no el contenido de un fixture (eso ya no existe: Vehículo
+// dejó de ser mock, no hay más `localStorage` que limpiar entre tests).
+vi.mock('../../shared/lib/supabaseClient', () => ({
+  supabase: {
+    functions: { invoke: vi.fn().mockResolvedValue({ data: [], error: null }) },
+  },
+}));
+
+const { VehiculosRoute } = await import('./VehiculosRoute');
+
 describe('VehiculosRoute', () => {
   beforeEach(() => {
     localStorage.clear();
   });
 
-  it('monta la feature con el mock real inyectado y muestra el fixture precargado', async () => {
+  it('monta la feature con supabaseVehiculoRepository (mockeado) y termina de cargar', async () => {
     render(<VehiculosRoute />);
 
-    expect(await screen.findByText('AC123DE')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
+    expect(screen.getByRole('heading', { name: 'Vehículos' })).toBeInTheDocument();
   });
 });

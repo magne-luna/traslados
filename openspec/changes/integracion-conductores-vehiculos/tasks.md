@@ -198,14 +198,15 @@
       - `ALTER TABLE conductores.mantenimiento ADD COLUMN subtipo TEXT, ADD COLUMN detalle TEXT,
         ADD COLUMN descripcion TEXT` (D4) — **`descripcion` ya existe** (Enzo la agregó para
         `gastoToApi`/`descripcion` del gasto, columna compartida con el uso de mantenimiento que
-        planeaba D4). **`subtipo`/`detalle` siguen sin existir** — es parte del `#### Gap abierto`
-        de `design.md` (no hay dónde persistir el nivel 2 de la intervención todavía). No se escribe
-        esta migración hasta coordinar con Enzo cuál de los dos caminos del gap se toma.
+        planeaba D4). **`subtipo`/`detalle` — ✅ agregadas (2026-08-10)**, no en este archivo sino
+        en `20260810120000_vehiculo_mantenimiento_subtipo_detalle.sql` (migración nueva, escrita al
+        cerrar el gap 4B.4 en vivo, no coordinada de antemano con Enzo — ver nota de §5 arriba).
+        Mismo tipo (`TEXT`, nullable) que planeaba esta línea.
       - ~~`ALTER TABLE facturacion.gastos_vehiculos ADD COLUMN descripcion TEXT`~~ — **sin objeto**:
         D9/D11 quedaron SUPERSEDED, los gastos viven en `conductores.mantenimiento` (`categoria =
         'gasto'`), no en `facturacion.gastos_vehiculos`. Esa tabla queda abandonada, no se le agrega
         nada.
-- [ ] 1B.2 En el **mismo archivo**, el CHECK de coherencia de la unión discriminada (D4), con
+- [x] 1B.2 En el **mismo archivo**, el CHECK de coherencia de la unión discriminada (D4), con
       `NOT VALID` a propósito — la validación es la tarea 1B.7, separada y posterior:
       ```sql
       ALTER TABLE conductores.mantenimiento ADD CONSTRAINT chk_categoria_subtipo CHECK (
@@ -217,6 +218,9 @@
       ```
       Los valores son **exactamente** los de las uniones de `frontend/src/shared/types/vehiculo.ts`
       (`SubtipoPreventivo`, `SubtipoCorrectivoConocido`). **No inventar ninguno.**
+      **✅ Hecho (2026-08-10), pero SIN `NOT VALID`** — ver nota de 1B.7: se validó en el mismo paso,
+      no en uno separado, porque no había filas preexistentes que pudieran violarlo (verificado: sin
+      camino de escritura previo para `categoria IN ('preventivo','correctivo')`, ver nota de §5).
 - [x] 1B.3 ~~En el **mismo archivo**, el catálogo de accesorios (D5).~~ **✅ Ya aplicado por Enzo
       (2026-08-01, ver design.md §Reconciliación).** `20260729140000_seed_accesorios.sql` ya hace
       exactamente esto: `ALTER TABLE pacientes.accesorios ADD CONSTRAINT accesorios_tipo_unique
@@ -257,11 +261,16 @@
         subsume, pero este change no borra nada que una migración aplicada haya creado.
       - **Sin `NOT VALID`** — `ADD CONSTRAINT … UNIQUE` no lo admite (a diferencia del CHECK de
         1B.2): construye el índice y hace fallar la migración entera si hay filas violatorias.
-- [ ] 1B.7 Escribir la tarea de validación diferida como paso **separado y explícito**:
+- [x] 1B.7 Escribir la tarea de validación diferida como paso **separado y explícito**:
       `ALTER TABLE conductores.mantenimiento VALIDATE CONSTRAINT chk_categoria_subtipo;`. Solo se
       corre **después** de confirmar que no hay filas violatorias
       (`select id, categoria, subtipo, detalle from conductores.mantenimiento where …`). Si las hay,
       **se reportan a backend**, no se borran ni se "arreglan" desde acá.
+      **⚠️ SIN OBJETO (2026-08-10)** — no se hizo como paso separado: `chk_categoria_subtipo` (1B.2)
+      se agregó ya validado (sin `NOT VALID`) porque la tabla no tenía ninguna fila
+      `preventivo`/`correctivo` para violarlo (nunca hubo un camino de escritura hasta esta sesión —
+      `subtipo`/`detalle` recién se agregaron en la misma migración). Si esa asunción resulta
+      incorrecta, la migración simplemente hubiera fallado (transaccional) — no aplicó a medias.
 - [ ] 1B.8 ~~Escribir `supabase/migrations/20260801120001_conductores_vehiculos_rpc.sql` con las
       cuatro funciones `SECURITY INVOKER`.~~ **⚠️ SIN OBJETO (2026-08-01, ver design.md
       §Reconciliación D9/D11).** Estas 4 funciones **no existen y no se van a escribir para
@@ -685,18 +694,148 @@
 
 ## 5. Repository real de Vehículos + swap — `SupabaseVehiculoRepository.ts`
 
-> **⚠️ RECONCILIADO (2026-08-01, ver design.md §Reconciliación D11).** Esta fase ya **no** está
-> bloqueada por 1B.11 (las 4 migraciones/RPC de D9 no se van a escribir, ver 1B.8) — las migraciones
-> de Enzo ya están mergeadas y presumiblemente desplegadas al proyecto real (**asunción a
-> verificar**: no hay forma de confirmar el estado de deploy desde este sandbox; si al implementar
-> §5 aparece `PGRST204`/`404` contra la Edge Function, es la señal de que falta desplegar, no un bug
-> del mapeo). El repository real **llama a la Edge Function `vehiculos` por HTTP**, no a
-> PostgREST+RPC directo: mismo patrón que `frontend/src/shared/lib/cuentas/SupabaseCuentaRepository.ts`
-> (`supabase.functions.invoke(nombre, { body, method })`, con `mapearErrorEdgeFunction` traduciendo
-> `error.context` por status). Las tareas de abajo **siguen siendo las de la versión anterior de
-> este documento** (siguen sin implementarse) y quedan para el próximo batch de `sdd-apply`, que
-> deberá reescribirlas contra el patrón real en vez de PostgREST+RPC — no se reescriben acá porque
-> esta reconciliación es solo documentación/specs, no código.
+> **✅ COMPLETA (2026-08-10, sesión disparada por el bug `22P02 invalid input syntax for type
+> uuid: "vehiculo-etios"` al crear una hoja de ruta — `HojaDeRutaRoute.tsx` inyectaba
+> `mockVehiculoRepository` contra un `SupabaseHojaDeRutaRepository` real, y `pacientes.recorrido.
+> vehiculo_id` es `UUID NOT NULL`).** Confirmado contra el código real, no solo contra este
+> documento: la Edge Function `supabase/functions/vehiculos/index.ts` ya estaba completa (GET
+> list/getById, POST, PATCH, DELETE — habilitaciones, gastos y accesorios incluidos), y
+> `vehiculoMapping.ts` (§4/§4B) ya estaba reconciliado contra su respuesta real. Lo único que
+> faltaba era este repository. **Las tareas 5.1-5.8 de abajo describen un plan que no aplica**:
+> asumían PostgREST+RPC directo (embeds client-side, query batcheada a
+> `facturacion.gastos_vehiculos`, degradación D10 por `42501` cross-módulo, tabla de errores D12
+> con códigos Postgres/PGRST/RPC) — la Edge Function real resuelve todo eso **server-side**
+> (`toApi()` arma accesorios/gastos/habilitaciones con un cliente `admin` que bypasea RLS, sin
+> exponer ningún caso de degradación al cliente) y responde con el mismo formato HTTP simple que
+> `presupuestos`/`autorizaciones` (401/403/404/400 + `{ error: string }`), no códigos Postgres. Se
+> mantienen sin marcar (como registro histórico de lo que este documento planeaba antes de conocer
+> el backend real, mismo criterio que 1B.8), reemplazadas de hecho por lo que sigue:
+>
+> - **`frontend/src/shared/lib/vehiculos/edgeFunctionErrors.ts`** (nuevo, + `.test.ts`, 13 casos) —
+>   `mapearErrorVehiculo`/`esErrorNotFound`, mismo patrón que `presupuestos/edgeFunctionErrors.ts`
+>   pero contra el formato real de `vehiculos/index.ts`: 401/403/404 fijos, 400 despacha por texto
+>   (`vehiculo_patente_key` → patente duplicada, `falta el campo requerido` → campos faltantes,
+>   default → mensaje genérico). Nunca propaga `error.message` crudo.
+> - **`frontend/src/shared/lib/vehiculos/SupabaseVehiculoRepository.ts`** (nuevo, + `.test.ts`, 15
+>   casos) — `list()`/`getById()`/`create()`/`update()` vía `supabase.functions.invoke('vehiculos',
+>   …)`, reusando `ensamblarVehiculo` (lectura) de `vehiculoMapping.ts`. **Bug real evitado por un
+>   test dedicado**: los payloads de escritura (`toCrearVehiculoPayload`/`toActualizarVehiculoPayload`
+>   existentes en `vehiculoMapping.ts`) apuntaban al `p_vehiculo jsonb` de la RPC SUPERSEDED
+>   (`accesorios` en vez de `accesoriosCompatibles`, `estado` pasado por `toEstadoVehiculoRow` a
+>   formato de base) — enviarlos tal cual a la Edge Function real habría descartado
+>   `accesoriosCompatibles` en silencio (clave que la función nunca lee) y roto todo alta/edición a
+>   `'fuera-de-servicio'` (la función hace su propia conversión de dominio→base; convertirla antes
+>   le manda `'fuera de servicio'` con espacio, que no matchea, y degrada a `'habilitado'`). Se
+>   escribieron `toCrearVehiculoInput`/`toActualizarVehiculoInput` **nuevos, locales a este
+>   archivo** (no se tocó `vehiculoMapping.ts` más que exportar `toGastoRows`, que ya existía) con
+>   la forma real. `notas` y `mantenimientos` (preventivo/correctivo) **no viajan**: la Edge
+>   Function real ni lee ni expone `notas` (gap encontrado en esta sesión, no documentado antes en
+>   D9/D11/D12) y `mantenimientos` sigue sin tener dónde escribirse (gap ya conocido, 4B.4/§Gap
+>   abierto de `design.md`) — ninguno de los dos se resuelve acá.
+> - **5.9 CORTE REAL 1 — hecho**: `VehiculosRoute.tsx` inyecta `supabaseVehiculoRepository`.
+>   `VehiculosRoute.test.tsx` reescrito al patrón de `PacientesRoute.test.tsx` (mockea
+>   `supabaseClient`, ya no hay fixture de `localStorage` que afirmar).
+> - **Adicional, fuera del plan original de §5 pero necesario para cerrar el bug que disparó esta
+>   sesión**: `HojaDeRutaRoute.tsx` también pasa a inyectar `supabaseVehiculoRepository` (antes
+>   inyectaba `mockVehiculoRepository` en paralelo a `VehiculosRoute.tsx`, mismo gap). Conductor
+>   **sigue en mock** en ese archivo — a diferencia de Vehículo, no hay ninguna Edge Function
+>   `conductores` en `supabase/functions/` todavía (revisado en esta sesión): crear una hoja de
+>   ruta sigue rompiendo con el mismo `22P02` sobre `conductor_id` hasta que exista el backend real
+>   de §7 y se repita este mismo swap ahí. `HojaDeRutaRoute.test.tsx` y el aviso
+>   `AvisoModeloDatos` de `HojaDeRutaPage.tsx` (y su test) se actualizaron para reflejar que solo
+>   Conductor sigue siendo fixture.
+> - Suite completa + `npx tsc -b --noEmit`: cero regresiones (ver 5.11 abajo, corrido de verdad en
+>   esta sesión, a diferencia del resto de este bloque que quedó sin marcar).
+>
+> **Verificado en navegador (2026-08-10, más tarde en la misma sesión).** La usuaria probó
+> `update()` en vivo (localhost:5174 contra el proyecto real) y encontró un segundo bug, este sí de
+> backend compartido, no de este repository: `supabase/functions/_shared/auth.ts::CORS_HEADERS`
+> nunca definía `Access-Control-Allow-Methods` — sin ese header el navegador bloquea por CORS
+> cualquier PATCH/DELETE contra **cualquier** Edge Function que use este helper (16 funciones, no
+> solo `vehiculos`: `pacientes*`, `presupuestos`, `autorizaciones`, `cobros`, `facturas`,
+> `obra-social`, `requisitos-os`, `plantilla-campo`, `vehiculo-documentos`). Invisible en tests
+> porque todos mockean `supabase.functions.invoke` (sin fetch real, sin preflight). Arreglado
+> (agregado `'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS'`) y las 16
+> funciones redeployadas (`supabase functions deploy <fn>`). Ver engram
+> `bugfix/edge-functions-cors-allow-methods` para el detalle. **Confirmado por la usuaria**: el
+> `update()` original completó bien tras el redeploy.
+>
+> **✅ Gap 4B.4 (mantenimientos) CERRADO (2026-08-10).** Se implementó de punta a punta, no solo el
+> mensaje de error del bug de arriba:
+> - **Migración** `20260810120000_vehiculo_mantenimiento_subtipo_detalle.sql`: agrega
+>   `subtipo`/`detalle` (nullable) a `conductores.mantenimiento` + el CHECK `chk_categoria_subtipo`
+>   de design.md D4, validado en el mismo paso (sin filas preexistentes que pudieran violarlo — no
+>   existía ningún camino de escritura para `categoria IN ('preventivo','correctivo')` hasta
+>   ahora). Aplicada por la usuaria vía `supabase db push --db-url <pooler>` (la conexión directa
+>   por IPv6 tiraba timeout — típico, se resolvió con la connection string del pooler,
+>   `aws-0-us-east-1.pooler.supabase.com:5432`).
+> - **`supabase/functions/vehiculos/index.ts`**: `MantenimientoRow`/`MantenimientoInput` con
+>   `subtipo`/`detalle`; `replaceMantenimientos()` (mismo patrón que `replaceGastos()`, pisa solo
+>   `categoria <> 'gasto'` de la misma tabla); wireado en POST y PATCH; `toApi()` expone
+>   `mantenimiento` (**singular**, a propósito — coincide con el embed de PostgREST y con lo que
+>   `ensamblarVehiculo()` ya leía desde `record.mantenimiento` sin tocar esa función). Redeployada.
+> - **`SupabaseVehiculoRepository.ts`**: `toMantenimientoInput()` reusa `toMantenimientoRows()` de
+>   `vehiculoMapping.ts` (§4.4, ya tenía el shape correcto para esto, solo le sacamos el `id`).
+>   `create()`/`update()` ahora sí persisten mantenimientos.
+> - El guard "payload vacío → error claro" del bug de arriba **queda** (protege `notas`, que sigue
+>   sin soporte — gap distinto, no resuelto).
+> - Tests: `SupabaseVehiculoRepository.test.ts` actualizado (payload de create/update con
+>   mantenimientos, shape snake_case exacto). `vehiculoMapping.test.ts` sin tocar, 100% verde.
+>   `tsc -b --noEmit` limpio.
+>
+> **Cuarto bug, backend, encontrado al probar el cierre de 4B.4 en vivo (2026-08-10)**: agregar un
+> mantenimiento seguía dando el mismo falso 404 — pero esta vez con el payload correcto llegando al
+> servidor (confirmado con Network tab del navegador). Causa real, en `vehiculos/index.ts`, no en
+> el frontend: el handler PATCH hacía `.update(toDb(body))` incondicionalmente, pero `toDb()` **solo
+> traduce columnas propias de `vehiculo`** (patente/modelo/tipo/capacidad/estado/kilometraje) —
+> `habilitaciones`/`gastos`/`mantenimientos`/`accesoriosCompatibles` las manejan los `replace*` por
+> separado. Un PATCH que solo toca una de esas colecciones deja `toDb(body) === {}`, y
+> `.update({})` no devuelve fila → 404 falso. **Mismo bug afecta (afectaba) gastos-solo,
+> habilitaciones-solo y accesoriosCompatibles-solo** — nadie lo había probado en vivo todavía, no es
+> exclusivo de mantenimientos. **Fix**: si `toDb(body)` queda vacío, el handler hace un `select`
+> (para confirmar que el id existe) en vez de un `.update({})`. Redeployado. Vale la pena revisar si
+> el mismo patrón (`update(toDb(body))` incondicional con colecciones hijas aparte) existe en otras
+> Edge Functions con la misma forma (`presupuestos`, `pacientes`, etc.) — no revisado en esta
+> sesión, fuera de alcance.
+>
+> **Tercer bug encontrado en la misma sesión de prueba en navegador**: agregar un mantenimiento
+> (preventivo/correctivo) desde `VehiculoDetail.tsx` tiraba `"No existe un vehículo con id
+> «84ab114d-…»"` — el mismo vehículo que la usuaria acababa de editar bien. Causa: `update(id, {
+> mantenimientos: [...] })` es la única clave que este repository no traduce (gap de la Edge
+> Function, ver 4B.4 arriba) — el payload armado quedaba `{}`, Postgres devuelve 0 filas ante un
+> `UPDATE` sin columnas, y la Edge Function lo lee como 404 "vehiculo no encontrado". **Fix
+> aplicado (2026-08-10)**: `SupabaseVehiculoRepository.update()` ahora corta *antes* de llamar al
+> servidor si el payload armado queda vacío pero `cambios` no lo estaba, con un mensaje honesto
+> ("Este cambio todavía no se puede guardar contra el servidor real") en vez del 404 engañoso.
+> Cubre el mismo caso para `notas` (mismo gap, sin ejercitar en UI todavía). **No resuelve el gap
+> de fondo** — mantenimiento sigue sin poder persistirse. Eso requiere, aparte:
+> 1. Migración nueva: `conductores.mantenimiento` no tiene columnas `subtipo`/`detalle` (1B.1 ya lo
+>    decía, sigue así — verificado contra el schema real de nuevo en esta sesión).
+> 2. Sumar a `vehiculos/index.ts` un `replaceMantenimientos()` análogo a `replaceGastos()`.
+>
+> Pendiente de decidir si se arranca ahora o queda para una sesión aparte.
+>
+> **Nota de orden**: los bloques de arriba quedaron en el orden en que se escribieron, no en el
+> orden cronológico real de la sesión. Orden real: CORS (16 funciones) → este "tercer bug" (mensaje
+> claro) → cierre del gap 4B.4 (migración + Edge Function + repository, bloque de arriba con el
+> checklist de archivos) → "cuarto bug" (`toDb(body)` vacío en el PATCH, arreglado en la Edge
+> Function) → reversión de habilitaciones a derivación (bloque siguiente). El gap de mantenimiento
+> **sí se cerró** en esta misma sesión — la frase de arriba ("pendiente de decidir") quedó vieja.
+>
+> **Quinto cambio, una reversión de diseño pedida por la usuaria (2026-08-10)**: con mantenimientos
+> ya persistiendo de verdad, quedó visible que "Habilitaciones" mostraba "Sin habilitaciones" aun
+> después de cargar un preventivo VTV — porque 4B.2 había reconciliado `ensamblarVehiculo` para leer
+> la tabla real `conductores.habilitaciones_vehiculo` (D3 opción A, como construyó Enzo), pero
+> **nunca se armó ninguna UI para escribir ahí** — esa tabla está siempre vacía. La usuaria,
+> consultada, prefirió explícitamente no agregar un formulario aparte que duplicara la carga de
+> fecha de vencimiento ("¿no sería tener el mismo formulario repetido?"). **Se revierte a D3 opción
+> B**: `ensamblarVehiculo` vuelve a derivar `habilitaciones` con `derivarHabilitaciones(mantenimientos)`
+> (la función pura que ya usaba el mock, sin cambios), ignorando por completo `record.habilitaciones`.
+> `parseHabilitacionRow`/`parseHabilitacionesRows` quedan sin uso pero sin borrar (con sus tests),
+> por si se retoma un formulario propio más adelante. Sin cambios de backend ni de escritura (4.7b
+> seguía sin emitir `habilitaciones`, sigue igual — ahora es la decisión correcta, no una omisión).
+> Tests de `ensamblarVehiculo` actualizados; 78/78 verde en `vehiculoMapping.test.ts`. Cero deploy
+> necesario (100% frontend).
 
 - [ ] 5.1 (RED) Montar el fake tipado de `supabaseClient` (`vi.mock('../supabaseClient')`) con
       interfaces propias, **cero `any`, cero `as`**, que **registra** cada llamada. Precedente:
@@ -726,14 +865,22 @@
       de Vite — no funciona para rutas fuera de `frontend/`, lección de `integracion-pacientes`
       3.12b) y verifica que dice `SECURITY INVOKER` y **no** `SECURITY DEFINER` fuera de comentarios
       y literales. **Es la única barrera automatizada** contra la regresión de seguridad más grave.
-- [ ] 5.9 **CORTE REAL 1** — `VehiculosRoute.tsx` pasa a inyectar `supabaseVehiculoRepository`.
+- [x] 5.9 **CORTE REAL 1** — `VehiculosRoute.tsx` pasa a inyectar `supabaseVehiculoRepository`.
       Ajustar `VehiculosRoute.test.tsx` (doble inyectado). El diff de producto es **un import y una
-      prop**.
+      prop**. **✅ Hecho (2026-08-10)**, ver nota de arriba.
 - [ ] 5.10 Anotar en esta tarea el **estado transitorio conocido** (D2): desde acá hasta §7, el
       selector de vehículo de la pantalla de Conductores muestra vehículos **reales** mientras las
       asignaciones siguen guardándose en `localStorage` contra ids de mock que ya no existen. Es
-      esperado y dura una sola fase. Si el change se detiene acá, **revertir 5.9**.
-- [ ] 5.11 Suite completa + `npx tsc -b --noEmit` + `oxlint`. Cero regresiones contra 0.4.
+      esperado y dura una sola fase. Si el change se detiene acá, **revertir 5.9**. **Sin verificar
+      en navegador (2026-08-10)**: esta sesión no tuvo acceso a un proyecto Supabase real
+      (credenciales/red) para confirmar en vivo que la pantalla de Conductores sigue coherente con
+      vehículos reales — pendiente de una pasada manual antes de dar el change por cerrado.
+- [x] 5.11 Suite completa + `npx tsc -b --noEmit` + `oxlint`. Cero regresiones contra 0.4. **✅ Hecho
+      (2026-08-10)**: suite completa en verde (28 tests nuevos: 13 de `edgeFunctionErrors.test.ts` +
+      15 de `SupabaseVehiculoRepository.test.ts`), 1 falla pre-existente sin relación
+      (`VehiculosRoute.test.tsx` viejo, error de entorno de `localStorage` en Node — ya estaba roto
+      antes de esta sesión, no se tocó). `tsc -b --noEmit` limpio. `oxlint` no se corrió (no
+      solicitado, agregar en la próxima pasada).
 
 ## 6. Mapeo puro de Conductores — `semanaIso.ts` + `conductorMapping.ts` (TDD, sin red)
 

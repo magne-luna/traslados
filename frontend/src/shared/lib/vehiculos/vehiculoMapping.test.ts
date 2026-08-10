@@ -439,7 +439,7 @@ describe('parseGastoRow — 4B.1 RECONCILIADO: conductores.mantenimiento (catego
   );
 });
 
-describe('parseHabilitacionRow / parseHabilitacionesRows — 4B.2 RECONCILIADO (design.md §Reconciliación D3): ya no se derivan de mantenimientos, vienen resueltas por la Edge Function desde conductores.habilitaciones_vehiculo', () => {
+describe('parseHabilitacionRow / parseHabilitacionesRows — REVERTIDO (2026-08-10, feedback de usuario): `ensamblarVehiculo` ya no llama a estas dos, volvió a derivar de mantenimientos (ver su propio comentario). Se mantienen sin tocar, con sus tests, por si se retoma un formulario propio de habilitaciones más adelante — parsean el shape de `conductores.habilitaciones_vehiculo`, que la Edge Function sigue exponiendo aunque nadie lo lea hoy', () => {
   it('mapea una habilitación válida (vtv) tal cual la resuelve habilitacionToApi() — sin id', () => {
     const value = { tipo: 'vtv', fechaEmision: '2026-06-01', fechaVencimiento: '2026-12-01' };
     expect(parseHabilitacionRow(value)).toEqual({ tipo: 'vtv', fechaEmision: '2026-06-01', fechaVencimiento: '2026-12-01' });
@@ -510,18 +510,44 @@ describe('ensamblarVehiculo — 4B RECONCILIADO: consume la respuesta JSON de to
     };
   }
 
-  it('4B.2: las habilitaciones ya resueltas por la Edge Function (tabla real) llegan tal cual a `Vehiculo.habilitaciones`, sin derivar nada', () => {
+  it('REVERTIDO (2026-08-10): `habilitaciones` se deriva de `mantenimiento` (preventivo + subtipo vtv/rto + próximo vencimiento) — ignora por completo la clave `habilitaciones` de la respuesta', () => {
     const row = filaVehiculoCompleta({
-      habilitaciones: [{ tipo: 'vtv', fechaEmision: '2026-06-01', fechaVencimiento: '2026-12-01' }],
+      // Presente en la respuesta pero debe ignorarse: ya no se lee `record.habilitaciones`.
+      habilitaciones: [{ tipo: 'rto', fechaEmision: '2020-01-01', fechaVencimiento: '2020-06-01' }],
+      mantenimiento: [
+        {
+          id: 'm-vtv',
+          categoria: 'preventivo',
+          subtipo: 'vtv',
+          detalle: null,
+          descripcion: null,
+          fecha: '2026-06-01',
+          fecha_proximo_vencimiento: '2026-12-01',
+          km_actual: 40000,
+          km_proximo_vencimiento: null,
+        },
+      ],
     });
 
     const vehiculo = ensamblarVehiculo(row);
     expect(vehiculo?.habilitaciones).toEqual([{ tipo: 'vtv', fechaEmision: '2026-06-01', fechaVencimiento: '2026-12-01' }]);
   });
 
-  it('4B.2: una habilitación con `tipo` inválido se descarta sin romper el vehículo, independiente de mantenimientos', () => {
+  it('REVERTIDO (2026-08-10): un preventivo vtv/rto SIN próximo vencimiento no genera habilitación (mismo criterio que `derivarHabilitaciones`, nunca inventa una fecha)', () => {
     const row = filaVehiculoCompleta({
-      habilitaciones: [{ tipo: 'seguro-inventado', fechaEmision: '2026-01-01', fechaVencimiento: '2026-07-01' }],
+      mantenimiento: [
+        {
+          id: 'm-vtv',
+          categoria: 'preventivo',
+          subtipo: 'vtv',
+          detalle: null,
+          descripcion: null,
+          fecha: '2026-06-01',
+          fecha_proximo_vencimiento: null,
+          km_actual: 40000,
+          km_proximo_vencimiento: null,
+        },
+      ],
     });
 
     const vehiculo = ensamblarVehiculo(row);

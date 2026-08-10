@@ -118,18 +118,16 @@ describe('HojaDeRutaPage', () => {
     expect(notas.some((texto) => /conductorId/.test(texto) && /Traslados-Modelo-Datos/.test(texto))).toBe(true);
   });
 
-  // tasks.md 5.1, spec hoja-de-ruta-avisos-modelo-datos (Checkpoint 0 opción A): los selectores
-  // de vehículo/conductor siguen leyendo de los repositories mock hasta que
-  // `integracion-conductores-vehiculos` aterrice — el aviso complementa el cartel de la
+  // tasks.md 5.1, spec hoja-de-ruta-avisos-modelo-datos (Checkpoint 0 opción A), actualizado tras
+  // `integracion-conductores-vehiculos` §5.9 "CORTE REAL 1": Vehículo pasó a repository real, solo
+  // el selector de conductor sigue leyendo del mock — el aviso complementa el cartel de la
   // discrepancia `conductorId` sin repetir su texto.
-  it('explica que los selectores de vehículo y conductor siguen mostrando datos fixture (Checkpoint 0)', async () => {
+  it('explica que el selector de conductor sigue mostrando datos fixture (Checkpoint 0)', async () => {
     renderPage(buildFakeHojaRepo());
 
     expect(await screen.findByRole('heading', { name: /hoja de ruta del día/i })).toBeInTheDocument();
     const notas = screen.getAllByRole('note').map((nota) => nota.textContent ?? '');
-    expect(
-      notas.some((texto) => /veh[ií]culo y conductor/i.test(texto) && /fixture|mock/i.test(texto)),
-    ).toBe(true);
+    expect(notas.some((texto) => /conductor/i.test(texto) && /fixture|mock/i.test(texto))).toBe(true);
   });
 
   // tasks.md 5.2, spec hoja-de-ruta-avisos-modelo-datos (Checkpoint 2 opción A): con la hoja que

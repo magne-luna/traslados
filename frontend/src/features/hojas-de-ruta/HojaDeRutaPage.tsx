@@ -113,17 +113,18 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
         Discrepancias 1 y 2).
       </AvisoModeloDatos>
 
-      {/* Checkpoint 0 opción A (tasks.md 5.1, spec hoja-de-ruta-avisos-modelo-datos): el swap
-          parcial dejó Hoja de Ruta y Paciente reales, pero Vehículo/Conductor siguen en mock
-          hasta que `integracion-conductores-vehiculos` aterrice. Los selectores muestran flota
-          fixture transitoria — se explica acá para que no se lea como un bug. Complementa el
-          cartel de `conductorId` de arriba (Discrepancias 1/2) sin repetir su texto. */}
+      {/* Checkpoint 0 opción A (tasks.md 5.1, spec hoja-de-ruta-avisos-modelo-datos), actualizado
+          tras `integracion-conductores-vehiculos` §5.9 "CORTE REAL 1": Vehículo pasó a
+          `supabaseVehiculoRepository` (la Edge Function `vehiculos` ya está completa) — el
+          selector de vehículo ya muestra la flota real. Conductor sigue en mock: no existe
+          ninguna Edge Function `conductores` en el backend todavía (sin backend real que cablear,
+          distinto del caso de Vehículo). Complementa el cartel de `conductorId` de arriba
+          (Discrepancias 1/2) sin repetir su texto. */}
       <AvisoModeloDatos>
-        Los selectores de vehículo y conductor siguen leyendo de los repositories de prueba (
-        <code>mockVehiculoRepository</code> y <code>mockConductorRepository</code>): la flota
-        mostrada es un fixture transitorio hasta que <code>integracion-conductores-vehiculos</code>{' '}
-        aterrice sus repositories reales (design.md Checkpoint 0, opción A). No es el catálogo
-        final de flota.
+        El selector de conductor sigue leyendo del repository de prueba (
+        <code>mockConductorRepository</code>): la lista mostrada es un fixture transitorio hasta
+        que el backend de Conductores aterrice (design.md Checkpoint 0). No es el catálogo final
+        de conductores.
       </AvisoModeloDatos>
 
       <div className="flex flex-wrap items-end gap-md">

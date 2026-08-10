@@ -10,9 +10,16 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// Bug fix (2026-08-10, encontrado probando `vehiculos` PATCH en vivo desde el navegador): sin
+// `Access-Control-Allow-Methods` explícito, el preflight solo deja pasar los métodos "simples"
+// del spec de CORS (GET/POST/HEAD) — cualquier PATCH/DELETE contra CUALQUIER Edge Function que use
+// este helper quedaba bloqueado por el navegador antes de llegar siquiera a `requirePermiso()`. Los
+// tests nunca lo detectaron porque mockean `supabase.functions.invoke` (sin fetch real, sin
+// preflight). Afecta a todas las funciones que importan `CORS_HEADERS`, no solo `vehiculos`.
 export const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
 };
 
 export function jsonResponse(status: number, body: unknown): Response {

@@ -4,11 +4,19 @@
 // el docx unifica Vehiculo/Accesorios/Documentacion/Mantenimiento bajo un unico modulo
 // 'conductores', sin 'vehiculos' propio).
 //
-// `habilitaciones` (VTV/RTO) y `gastos` viajan embebidos en el body, igual que `asistencias` en
+// `habilitaciones`, `gastos` y `mantenimientos` (agregado 2026-08-10, cierra el gap "4B.4" de
+// integracion-conductores-vehiculos) viajan embebidos en el body, igual que `asistencias` en
 // facturas/index.ts -- reemplazo completo (delete+insert) en cada POST/PATCH que los incluya.
-// `gastos` vive en `conductores.mantenimiento` con `categoria = 'gasto'` (decision confirmada:
-// una unica tabla de intervenciones, no una tabla de gastos aparte) -- preventivo/correctivo se
-// gestionan por separado en supabase/functions/mantenimiento/index.ts.
+// `gastos` y `mantenimientos` viven en la MISMA tabla `conductores.mantenimiento`
+// (decision confirmada: una unica tabla de intervenciones, discriminada por `categoria`) --
+// `gasto` para uno, `preventivo`/`correctivo` para el otro; `replaceGastos`/`replaceMantenimientos`
+// se pisan solo su propio subconjunto de filas (`categoria = 'gasto'` vs `categoria <> 'gasto'`),
+// nunca el ajeno. El shape de `MantenimientoInput` es snake_case (columnas de la tabla tal cual),
+// NO camelCase como el resto de esta API -- deliberado: coincide con `toMantenimientoRows()` de
+// `frontend/src/shared/lib/vehiculos/vehiculoMapping.ts` (§4.4, ya escrito y testeado contra el
+// plan original de RPC, cuyo jsonb ya usaba este mismo shape) y con el embed crudo que
+// `ensamblarVehiculo()` (§4.7-4.8) ya sabe leer desde `record.mantenimiento` -- reusar esos dos
+// evita reescribir codigo ya probado en ambas puntas.
 // `accesoriosCompatibles` resuelve contra el catalogo compartido `pacientes.accesorios` (mismo
 // catalogo que usa pacientes-accesorios/index.ts) via 2 consultas (find, nunca create -- el
 // catalogo es un conjunto cerrado de 5 valores, seedeado en 20260729140000_seed_accesorios.sql),
@@ -61,12 +69,29 @@ interface MantenimientoRow {
   monto: number | null;
   descripcion: string | null;
   categoria_gasto: CategoriaGasto | null;
+  subtipo: string | null;
+  detalle: string | null;
 }
 interface GastoInput {
   fecha?: string;
   monto?: number;
   descripcion?: string;
   categoria?: CategoriaGasto;
+}
+
+// Shape snake_case a propósito, ver cabecera del archivo: coincide con
+// `MantenimientoRowInput`/`toMantenimientoRows()` de `vehiculoMapping.ts`. `categoria` solo admite
+// 'preventivo'/'correctivo' acá (nunca 'gasto' -- eso es `GastoInput`, tabla compartida pero
+// colección separada del lado del dominio).
+interface MantenimientoInput {
+  categoria?: 'preventivo' | 'correctivo';
+  subtipo?: string | null;
+  detalle?: string | null;
+  descripcion?: string | null;
+  fecha?: string;
+  km_actual?: number | null;
+  fecha_proximo_vencimiento?: string | null;
+  km_proximo_vencimiento?: number | null;
 }
 
 interface VehiculoRow {
@@ -91,6 +116,7 @@ interface VehiculoInput {
   accesoriosCompatibles?: AccesorioMovilidad[];
   habilitaciones?: HabilitacionInput[];
   gastos?: GastoInput[];
+  mantenimientos?: MantenimientoInput[];
 }
 
 const SELECT_COLUMNS = '*, habilitaciones_vehiculo(*), mantenimiento(*)';
@@ -151,6 +177,12 @@ async function toApi(admin: SupabaseClient, userClient: SupabaseClient, row: Veh
     fechaUltimoService: ultimoService?.fecha ?? '',
     habilitaciones: (row.habilitaciones_vehiculo ?? []).map(habilitacionToApi),
     gastos: (row.mantenimiento ?? []).filter((m) => m.categoria === 'gasto').map(gastoToApi),
+    // Clave singular `mantenimiento` (no `mantenimientos`), a propósito: coincide con el nombre
+    // del embed de PostgREST y con lo que `ensamblarVehiculo()`/`parseMantenimientoRow()` de
+    // `vehiculoMapping.ts` ya leen desde `record.mantenimiento` -- filas crudas (snake_case), sin
+    // traducir a camelCase como el resto de esta respuesta (mismo motivo que `MantenimientoInput`
+    // en la escritura, ver cabecera del archivo).
+    mantenimiento: (row.mantenimiento ?? []).filter((m) => m.categoria !== 'gasto'),
   };
 }
 
@@ -198,6 +230,33 @@ async function replaceGastos(userClient: SupabaseClient, vehiculoId: string, gas
     monto: g.monto,
     descripcion: g.descripcion,
     categoria_gasto: g.categoria,
+  }));
+  const { error: insertError } = await userClient.schema('conductores').from('mantenimiento').insert(rows);
+  return insertError ? insertError.message : null;
+}
+
+// `.neq('categoria', 'gasto')` en el delete (simétrico al `.eq('categoria', 'gasto')` de
+// `replaceGastos`): cada función pisa solo su propio subconjunto de filas de la misma tabla,
+// nunca el ajeno.
+async function replaceMantenimientos(userClient: SupabaseClient, vehiculoId: string, mantenimientos: MantenimientoInput[]): Promise<string | null> {
+  const { error: deleteError } = await userClient
+    .schema('conductores')
+    .from('mantenimiento')
+    .delete()
+    .eq('vehiculo_id', vehiculoId)
+    .neq('categoria', 'gasto');
+  if (deleteError) return deleteError.message;
+  if (mantenimientos.length === 0) return null;
+  const rows = mantenimientos.map((m) => ({
+    vehiculo_id: vehiculoId,
+    categoria: m.categoria,
+    subtipo: m.subtipo ?? null,
+    detalle: m.detalle ?? null,
+    descripcion: m.descripcion ?? null,
+    fecha: m.fecha,
+    km_actual: m.km_actual ?? null,
+    fecha_proximo_vencimiento: m.fecha_proximo_vencimiento ?? null,
+    km_proximo_vencimiento: m.km_proximo_vencimiento ?? null,
   }));
   const { error: insertError } = await userClient.schema('conductores').from('mantenimiento').insert(rows);
   return insertError ? insertError.message : null;
@@ -274,6 +333,10 @@ Deno.serve(async (req) => {
       const err = await replaceGastos(userClient, vehiculo.id, body.gastos);
       if (err) return jsonResponse(400, { error: err });
     }
+    if (body.mantenimientos !== undefined) {
+      const err = await replaceMantenimientos(userClient, vehiculo.id, body.mantenimientos);
+      if (err) return jsonResponse(400, { error: err });
+    }
     if (body.accesoriosCompatibles !== undefined) {
       const err = await replaceAccesorios(admin, userClient, vehiculo.id, body.accesoriosCompatibles);
       if (err) return jsonResponse(400, { error: err });
@@ -292,7 +355,20 @@ Deno.serve(async (req) => {
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    const { data, error } = await userClient.schema('conductores').from('vehiculo').update(toDb(body)).eq('id', id).select('*').maybeSingle();
+    // Bug real encontrado en vivo (2026-08-10): `toDb(body)` solo traduce columnas propias de
+    // `vehiculo` (patente/modelo/tipo/capacidad/estado/kilometraje) -- `habilitaciones`, `gastos`,
+    // `mantenimientos` y `accesoriosCompatibles` viven en otras tablas y las manejan los `replace*`
+    // de abajo, nunca `toDb()`. Un PATCH que solo toca una de esas colecciones (ej. agregar un
+    // mantenimiento) produce `toDb(body) === {}` -- Postgres, ante un `.update({})`, no devuelve
+    // ninguna fila, y eso se leía como "vehiculo no encontrado" (404) para un vehículo que existía
+    // perfecto. Si no hay columnas propias que tocar, alcanza con un `select` para confirmar que el
+    // id existe -- nunca se manda un `.update({})` vacío.
+    const camposPropios = toDb(body);
+    const consultaBase =
+      Object.keys(camposPropios).length > 0
+        ? userClient.schema('conductores').from('vehiculo').update(camposPropios).eq('id', id).select('*').maybeSingle()
+        : userClient.schema('conductores').from('vehiculo').select('*').eq('id', id).maybeSingle();
+    const { data, error } = await consultaBase;
     if (error) return jsonResponse(400, { error: error.message });
     if (!data) return jsonResponse(404, { error: 'vehiculo no encontrado' });
 
@@ -302,6 +378,10 @@ Deno.serve(async (req) => {
     }
     if (body.gastos !== undefined) {
       const err = await replaceGastos(userClient, id, body.gastos);
+      if (err) return jsonResponse(400, { error: err });
+    }
+    if (body.mantenimientos !== undefined) {
+      const err = await replaceMantenimientos(userClient, id, body.mantenimientos);
       if (err) return jsonResponse(400, { error: err });
     }
     if (body.accesoriosCompatibles !== undefined) {

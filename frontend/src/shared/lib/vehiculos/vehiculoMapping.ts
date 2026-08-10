@@ -35,6 +35,7 @@ import type {
   SubtipoPreventivo,
   Vehiculo,
 } from '../../types/vehiculo';
+import { derivarHabilitaciones } from '../mantenimiento/derivarHabilitaciones';
 
 // -------------------------------------------------------------------------------------------
 // 4.10 (REFACTOR) — type guards compartidos
@@ -443,7 +444,10 @@ export function ensamblarVehiculo(row: unknown): Vehiculo | null {
 
   const accesoriosCompatibles = parseAccesoriosRows(record.accesoriosCompatibles);
 
-  // 4B.4 — bloqueado, sin tocar (ver nota de la sección).
+  // 4B.4 — cerrado (2026-08-10): la Edge Function ya expone `mantenimiento` en cada respuesta
+  // (`replaceMantenimientos`/`toApi()` de `vehiculos/index.ts`). El `Array.isArray` de acá queda
+  // como degradación defensiva de siempre (mismo criterio que `gastos`/`accesoriosCompatibles`),
+  // ya no por un gap conocido.
   const mantenimientosRaw = Array.isArray(record.mantenimiento) ? record.mantenimiento : [];
   const mantenimientos = ordenarPorFechaDescYId(
     mantenimientosRaw
@@ -456,7 +460,17 @@ export function ensamblarVehiculo(row: unknown): Vehiculo | null {
     gastosRawList.map((fila) => parseGastoRow(fila)).filter((gasto): gasto is GastoVehiculo => gasto !== null),
   );
 
-  const habilitaciones: RegistroHabilitacion[] = parseHabilitacionesRows(record.habilitaciones);
+  // REVERTIDO (2026-08-10, feedback de usuario): 4B.2 había reconciliado esto contra la tabla real
+  // `conductores.habilitaciones_vehiculo` (opción A) porque Enzo la había construido — pero nunca
+  // se armó ninguna UI para escribir en ella, y la usuaria prefirió explícitamente NO tener un
+  // formulario aparte que duplique la misma fecha de vencimiento que ya se carga en un mantenimiento
+  // preventivo VTV/RTO. Vuelve a D3 opción B: `habilitaciones` se deriva de `mantenimientos`
+  // (`derivarHabilitaciones`, la misma función pura que ya usaba el mock) en vez de leerse de
+  // `record.habilitaciones`. La tabla real y `parseHabilitacionRow`/`parseHabilitacionesRows` (que
+  // la parsean) quedan sin uso acá — no se borran, por si se retoma un formulario propio más
+  // adelante — pero la Edge Function nunca recibe nada en `habilitaciones` desde este repository
+  // (4.7b, sin cambios: ese payload sigue sin emitir la clave).
+  const habilitaciones: RegistroHabilitacion[] = derivarHabilitaciones(mantenimientos);
 
   return {
     id: base.id,
@@ -499,7 +513,7 @@ export interface GastoRowInput {
   descripcion: string | null;
 }
 
-function toGastoRows(gastos: GastoVehiculo[]): GastoRowInput[] {
+export function toGastoRows(gastos: GastoVehiculo[]): GastoRowInput[] {
   return gastos.map((gasto) => ({
     monto: gasto.monto,
     fecha: gasto.fecha,
