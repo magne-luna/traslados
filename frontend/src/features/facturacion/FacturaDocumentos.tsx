@@ -52,6 +52,10 @@ export function FacturaDocumentos({ facturaId, items, repository }: FacturaDocum
         readOnly={!puedeEscribir}
         onResolverPrevisualizacion={resolverPrevisualizacion}
         onRevocarPrevisualizacion={revocarPrevisualizacion}
+        // checklist-documental-progreso-visual (skill `prototype`, variante "Progreso visual"
+        // elegida 2026-08-10 para Pacientes, extendida 2026-08-10 a los 4 dominios documentales
+        // para consistencia — puramente visual, ver DocumentChecklist.tsx).
+        variant="ring"
       />
     </div>
   );

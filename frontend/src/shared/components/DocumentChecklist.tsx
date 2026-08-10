@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { buttonClassName, Chip, chipColors, InlineIcon, Overlay, ProgressBar } from '../../design-system/components';
+import { buttonClassName, Chip, chipColors, InlineIcon, Overlay, ProgressBar, RingProgress } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
-import { iconDocumento } from '../../design-system/icons';
+import { iconCheck, iconDocumento } from '../../design-system/icons';
 import type { ChecklistItem, DocumentoAdjunto } from '../types/documento';
 import { PdfPreview } from './PdfPreview';
 
@@ -35,6 +35,53 @@ interface DocumentChecklistProps {
    * siendo la única fuente de progreso y no se les pasa este prop — cero cambio de comportamiento
    * para esos tres dominios. */
   mostrarProgreso?: boolean;
+  /** checklist-documental-progreso-visual (skill `prototype`, variante "Progreso visual" elegida
+   * 2026-08-10): `'ring'` cambia solo el marcador visual de estado de cada ítem — un círculo con
+   * check en vez del ícono de documento + Chip — nunca el contrato funcional (Subir/Agregar otro/
+   * Quitar, readOnly, Ver, colección de N documentos siguen idénticos, ver DocumentChecklist.test.tsx).
+   * Default `'default'` a propósito: Vehículos/Conductores/Facturas no pidieron este look, solo
+   * Pacientes lo pasa (PacienteDocumentosChecklist.tsx) — cero cambio visual para los otros tres
+   * dominios. */
+  variant?: 'default' | 'ring';
+}
+
+// checklist-documental-progreso-visual: círculo de estado del variant "ring" — lleno con check si
+// está cargado, contorno de advertencia con "!" si falta un requerido, contorno tenue con "–" si
+// es opcional sin cargar. `data-testid` es solo para test (no afecta el árbol de accesibilidad);
+// el ícono es `aria-hidden` porque el texto de estado que lo acompaña (Cargado/Falta/Sin cargar,
+// sin cambios) ya lo anuncia — duplicarlo en un aria-label sería ruido para el lector de pantalla.
+function EstadoBadge({ cargado, requerido }: { cargado: boolean; requerido: boolean }) {
+  if (cargado) {
+    return (
+      <span
+        data-testid="ring-item-badge"
+        aria-hidden="true"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-pill bg-success text-white"
+      >
+        <InlineIcon size={13}>{iconCheck}</InlineIcon>
+      </span>
+    );
+  }
+  if (requerido) {
+    return (
+      <span
+        data-testid="ring-item-badge"
+        aria-hidden="true"
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-pill border-2 border-warning font-body text-[10px] font-bold text-warning"
+      >
+        !
+      </span>
+    );
+  }
+  return (
+    <span
+      data-testid="ring-item-badge"
+      aria-hidden="true"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-pill border-2 border-border-strong font-body text-[10px] font-bold text-faint"
+    >
+      –
+    </span>
+  );
 }
 
 // documentos-previsualizacion (tasks.md 5.3, design.md D3): el documento que se está mostrando
@@ -184,6 +231,7 @@ export function DocumentChecklist({
   onResolverPrevisualizacion,
   onRevocarPrevisualizacion,
   mostrarProgreso = true,
+  variant = 'default',
 }: DocumentChecklistProps) {
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -249,7 +297,26 @@ export function DocumentChecklist({
 
   return (
     <div className="flex flex-col gap-md">
-      {mostrarProgreso && items.length > 0 && (
+      {mostrarProgreso && items.length > 0 && (variant === 'ring' ? (
+        <div
+          data-testid="ring-progreso-header"
+          className="flex items-center gap-lg rounded-md border border-border bg-surface p-lg"
+        >
+          <RingProgress pct={pctCargado} kind="success" size="lg">
+            <span className="font-heading text-[17px] font-bold text-ink">{Math.round(pctCargado)}%</span>
+          </RingProgress>
+          <div className="flex flex-1 flex-wrap items-center justify-between gap-sm font-body text-[13px] text-text">
+            <span>
+              {cargados} de {items.length} documentos cargados
+            </span>
+            {pendientes > 0 && (
+              <Chip kind="warning">
+                {pendientes} pendiente{pendientes === 1 ? '' : 's'}
+              </Chip>
+            )}
+          </div>
+        </div>
+      ) : (
         <div className="flex flex-col gap-xs rounded-md border border-border bg-surface p-lg">
           <div className="flex flex-wrap items-center justify-between gap-sm font-body text-[13px] text-text">
             <span>
@@ -264,7 +331,7 @@ export function DocumentChecklist({
           </div>
           <ProgressBar pct={pctCargado} kind="success" />
         </div>
-      )}
+      ))}
 
       <div className={dosColumnas ? 'grid grid-cols-1 gap-sm sm:grid-cols-2' : 'flex flex-col gap-sm'}>
       {items.map((item) => {
@@ -276,16 +343,26 @@ export function DocumentChecklist({
         const vigente = elegirVigente(docsItem);
         const docsOrdenados = ordenarParaMostrar(docsItem, vigente);
 
+        const esRing = variant === 'ring';
+
         return (
           <div
             key={item.id}
-            className={`flex flex-col gap-sm rounded-md border border-border ${chipColors[estadoKind].borderLeft} border-l-4 bg-surface px-md py-sm`}
+            className={
+              esRing
+                ? 'flex flex-col gap-sm rounded-md bg-surface-soft px-lg py-md'
+                : `flex flex-col gap-sm rounded-md border border-border ${chipColors[estadoKind].borderLeft} border-l-4 bg-surface px-md py-sm`
+            }
           >
             <div className="flex flex-wrap items-center justify-between gap-sm">
               <div className="flex items-center gap-sm">
-                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-pill ${chipColors[estadoKind].bg} ${chipColors[estadoKind].fg}`}>
-                  <InlineIcon>{iconDocumento}</InlineIcon>
-                </span>
+                {esRing ? (
+                  <EstadoBadge cargado={cargado} requerido={item.requerido} />
+                ) : (
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-pill ${chipColors[estadoKind].bg} ${chipColors[estadoKind].fg}`}>
+                    <InlineIcon>{iconDocumento}</InlineIcon>
+                  </span>
+                )}
 
                 <div className="flex flex-col">
                   <span className="font-body text-[13px] font-semibold text-ink">{item.nombre}</span>
@@ -296,7 +373,11 @@ export function DocumentChecklist({
               </div>
 
               <div className="flex items-center gap-sm">
-                {cargado ? (
+                {esRing ? (
+                  <span className="font-body text-[12px] text-muted">
+                    {cargado ? 'Cargado' : item.requerido ? 'Falta' : 'Sin cargar'}
+                  </span>
+                ) : cargado ? (
                   <Chip kind="success">Cargado</Chip>
                 ) : (
                   <Chip kind={item.requerido ? 'warning' : 'secondary'}>{item.requerido ? 'Falta' : 'Sin cargar'}</Chip>
@@ -305,7 +386,11 @@ export function DocumentChecklist({
                   type="button"
                   disabled={readOnly}
                   onClick={() => fileInputs.current[item.id]?.click()}
-                  className="cursor-pointer rounded-sm border border-border-strong bg-surface px-md py-xs font-body text-xs font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                  className={
+                    esRing
+                      ? `${buttonClassName('secondary', 'sm')} disabled:cursor-not-allowed disabled:opacity-40`
+                      : 'cursor-pointer rounded-sm border border-border-strong bg-surface px-md py-xs font-body text-xs font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40'
+                  }
                 >
                   {cargado ? 'Agregar otro' : 'Subir'}
                 </button>
@@ -313,7 +398,7 @@ export function DocumentChecklist({
             </div>
 
             {docsOrdenados.length > 0 && (
-              <div className="flex flex-col gap-xs pl-11">
+              <div className={esRing ? 'flex flex-col gap-xs pl-9' : 'flex flex-col gap-xs pl-11'}>
                 {docsOrdenados.map((doc) => (
                   // documentos-previsualizacion (feedback de layout, 2026-08-06 — "más intuitivo
                   // si aprieto la fila" / "Quitar afuera del hover" / "Ver adentro de la caja con

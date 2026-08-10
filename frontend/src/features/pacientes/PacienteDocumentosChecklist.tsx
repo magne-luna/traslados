@@ -94,6 +94,10 @@ export function PacienteDocumentosChecklist({
       // suprimida en las N, no solo en las actividades, para no repetir la misma información N+1
       // veces en una sola pantalla.
       mostrarProgreso={false}
+      // checklist-documental-progreso-visual (skill `prototype`, variante "Progreso visual"
+      // elegida 2026-08-10, solo Pacientes por ahora): círculo de check por ítem en vez de ícono +
+      // Chip — puramente visual, ver DocumentChecklist.tsx.
+      variant="ring"
     />
   );
 

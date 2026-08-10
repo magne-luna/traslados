@@ -144,7 +144,7 @@ export function ChecklistEditor({ items, onChange }: ChecklistEditorProps) {
           <p className="font-body text-sm text-muted">Agregá ítems en Configuración para ver la vista previa.</p>
         ) : (
           <>
-            <DocumentChecklist items={items} documentos={[]} onUpload={noop} onRemove={noop} readOnly />
+            <DocumentChecklist items={items} documentos={[]} onUpload={noop} onRemove={noop} readOnly variant="ring" />
             <p className="m-0 text-center font-body text-xs text-faint">Solo lectura — no se puede editar desde acá</p>
           </>
         )}

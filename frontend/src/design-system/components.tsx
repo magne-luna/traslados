@@ -693,3 +693,58 @@ export function ProgressBar({ pct, kind = 'success' }: { pct: number; kind?: 'su
     </div>
   );
 }
+
+// Anillo de progreso circular — alternativa a ProgressBar para pantallas donde el avance es el
+// dato protagonista (checklist documental de Pacientes, skill `prototype`, variante "Progreso
+// visual" elegida 2026-08-10). Tres tamaños fijos sobre la escala de spacing existente (h-10/14/20
+// = 40/56/80px), nunca un `size` numérico libre — mismo criterio de "lookup contra clases
+// estáticas" que PROGRESS_WIDTH_CLASSES/PROGRESS_BG_CLASSES de arriba.
+const RING_SIZES: Record<'sm' | 'md' | 'lg', { px: number; stroke: number; className: string }> = {
+  sm: { px: 40, stroke: 4, className: 'h-10 w-10' },
+  md: { px: 56, stroke: 5, className: 'h-14 w-14' },
+  lg: { px: 80, stroke: 7, className: 'h-20 w-20' },
+};
+
+const RING_STROKE_CLASSES: Record<'success' | 'warning' | 'danger' | 'info', string> = {
+  success: 'stroke-success',
+  warning: 'stroke-warning',
+  danger: 'stroke-danger',
+  info: 'stroke-info',
+};
+
+export function RingProgress({
+  pct,
+  kind = 'success',
+  size = 'md',
+  children,
+}: {
+  pct: number;
+  kind?: 'success' | 'warning' | 'danger' | 'info';
+  size?: 'sm' | 'md' | 'lg';
+  children?: ReactNode;
+}) {
+  const { px, stroke, className } = RING_SIZES[size];
+  const radius = (px - stroke) / 2;
+  const circunferencia = 2 * Math.PI * radius;
+  const offset = circunferencia * (1 - Math.min(100, Math.max(0, pct)) / 100);
+
+  return (
+    <div className={`relative shrink-0 ${className}`}>
+      <svg width={px} height={px} viewBox={`0 0 ${px} ${px}`} className="-rotate-90">
+        <circle cx={px / 2} cy={px / 2} r={radius} fill="none" strokeWidth={stroke} className="stroke-surface-soft" />
+        <circle
+          cx={px / 2}
+          cy={px / 2}
+          r={radius}
+          fill="none"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circunferencia}
+          strokeDashoffset={offset}
+          className={`${RING_STROKE_CLASSES[kind]} transition-[stroke-dashoffset] duration-300 ease-out`}
+        />
+      </svg>
+      {children && <div className="absolute inset-0 flex items-center justify-center">{children}</div>}
+    </div>
+  );
+}

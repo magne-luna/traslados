@@ -11,9 +11,13 @@ import { DocumentChecklist } from './DocumentChecklist';
 // de la usuaria tras verificación manual): el prop opcional `mostrarProgreso` — la barra "X de Y
 // cargados" propia de cada instancia dejó de mostrarse en Pacientes (queda solo el total agregado
 // de `PacienteDocumentos.tsx`), sin tocar el comportamiento por default (`true`) que siguen usando
-// Vehículos/Conductores/Facturas. Este archivo deja constancia explícita de que ese es el ÚNICO
-// cambio de contrato: ningún prop `agrupacion`/`grupos` (la rama "opción C" que este change nunca
-// tomó), ninguno de los 7 props originales cambió de tipo/opcionalidad.
+// Vehículos/Conductores/Facturas. Segundo cambio de contrato (checklist-documental-progreso-visual,
+// skill `prototype`, 2026-08-10): el prop opcional `variant` (`'default' | 'ring'`) — puramente
+// visual (ver DocumentChecklist.tsx), default `'default'` sin cambio de comportamiento para
+// Vehículos/Conductores/Facturas; solo Pacientes pasa `'ring'`. Este archivo deja constancia
+// explícita de que esos son los ÚNICOS cambios de contrato: ningún prop `agrupacion`/`grupos` (la
+// rama "opción C" que este change nunca tomó), ninguno de los 7 props originales cambió de tipo/
+// opcionalidad.
 //
 // Mismo patrón que `DocumentoRepository.agrupacion.types.test.ts` (§2): un componente/objeto puede
 // compilar igual con MENOS props de las que declara su interfaz si son opcionales, así que la única
@@ -35,6 +39,7 @@ type PropsEsperadas = {
   onResolverPrevisualizacion?: (documentoId: string) => Promise<string | null>;
   onRevocarPrevisualizacion?: (url: string) => void;
   mostrarProgreso?: boolean;
+  variant?: 'default' | 'ring';
 };
 
 type PropsReales = ComponentProps<typeof DocumentChecklist>;

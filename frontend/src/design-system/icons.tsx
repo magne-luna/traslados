@@ -113,6 +113,8 @@ export const iconFlechaArriba: ReactNode = <polyline points="18 15 12 9 6 15" st
 
 export const iconFlechaAbajo: ReactNode = <polyline points="6 9 12 15 18 9" strokeLinecap="round" strokeLinejoin="round" />;
 
+export const iconCheck: ReactNode = <polyline points="20 6 9 17 4 12" strokeLinecap="round" strokeLinejoin="round" />;
+
 export const iconVelocimetro: ReactNode = (
   <>
     <circle cx={12} cy={12} r={9} />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Chip, ProgressBar } from '../../design-system/components';
+import { Chip, RingProgress } from '../../design-system/components';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { ChecklistItem } from '../../shared/types/documento';
@@ -103,12 +103,17 @@ export function PacienteDocumentos({ pacienteId, obraSocialId, obraSocialReposit
         <div
           role="group"
           aria-label="Progreso total de documentación"
-          className="flex flex-col gap-xs rounded-md border border-border bg-surface p-lg"
+          className="flex items-center gap-lg rounded-md border border-border bg-surface p-lg"
         >
-          <div className="flex flex-wrap items-center justify-between gap-sm font-body text-[13px] text-text">
+          {/* checklist-documental-progreso-visual (skill `prototype`, variante "Progreso visual"
+              elegida 2026-08-10): anillo en vez de barra lineal para el total agregado — el
+              único cambio visual acá, mismo texto/aria-label/Chip que antes. */}
+          <RingProgress pct={agregado.pct} kind="success" size="lg">
+            <span className="font-heading text-[17px] font-bold text-ink">{Math.round(agregado.pct)}%</span>
+          </RingProgress>
+          <div className="flex flex-1 flex-wrap items-center justify-between gap-sm font-body text-[13px] text-text">
             <span>
-              {agregado.cargados} de {agregado.total} documentos cargados en total ·{' '}
-              <span className="font-semibold text-success">{Math.round(agregado.pct)}%</span>
+              {agregado.cargados} de {agregado.total} documentos cargados en total
             </span>
             {pendientesTotal > 0 && (
               <Chip kind="warning">
@@ -116,7 +121,6 @@ export function PacienteDocumentos({ pacienteId, obraSocialId, obraSocialReposit
               </Chip>
             )}
           </div>
-          <ProgressBar pct={agregado.pct} kind="success" />
         </div>
       )}
 

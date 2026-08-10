@@ -763,3 +763,97 @@ describe('DocumentChecklist — cerrar el overlay no recarga ni pierde progreso 
     expect(onRevocar).toHaveBeenCalledWith('blob:y');
   });
 });
+
+// checklist-documental-progreso-visual (skill `prototype`, variante "Progreso visual" elegida
+// 2026-08-10, solo Pacientes por ahora): `variant="ring"` es puramente visual — cambia el marcador
+// de estado de cada ítem (círculo con check en vez de ícono + Chip), nunca el contrato funcional
+// ya cubierto por el resto de este archivo (Subir/Agregar otro/Quitar, readOnly, Ver, colección de
+// N documentos). Sin `variant`, el comportamiento por defecto (Vehículos/Conductores/Facturas)
+// queda exactamente igual — ningún test de arriba se tocó.
+describe('DocumentChecklist — variant="ring" (checklist-documental-progreso-visual)', () => {
+  it('renderiza un círculo de estado por ítem (data-testid="ring-item-badge", ausente en el variant por defecto) con "Cargado"/"Falta" en texto', () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+
+    const { rerender } = render(<DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={vi.fn()} />);
+    expect(screen.queryAllByTestId('ring-item-badge')).toHaveLength(0);
+
+    rerender(<DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={vi.fn()} variant="ring" />);
+
+    expect(screen.getAllByTestId('ring-item-badge')).toHaveLength(2);
+    expect(screen.getByText('Presupuesto')).toBeInTheDocument();
+    expect(screen.getByText('Cargado')).toBeInTheDocument();
+    expect(screen.getByText('RHC')).toBeInTheDocument();
+    expect(screen.getByText('Falta')).toBeInTheDocument();
+  });
+
+  it('un ítem opcional sin cargar muestra "Sin cargar" (triangulación del estado de texto)', () => {
+    const itemsConOpcional: ChecklistItem[] = [...items, { id: 'item-cuil', nombre: 'Constancia de CUIL', requerido: false }];
+
+    render(<DocumentChecklist items={itemsConOpcional} documentos={[]} onUpload={vi.fn()} onRemove={vi.fn()} variant="ring" />);
+
+    expect(screen.getAllByTestId('ring-item-badge')).toHaveLength(3);
+    expect(screen.getByText('Sin cargar')).toBeInTheDocument();
+  });
+
+  it('"Subir"/"Agregar otro" y "Quitar" siguen llamando a los mismos callbacks que el variant por defecto', () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+    const onRemove = vi.fn();
+
+    render(<DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={onRemove} variant="ring" />);
+
+    expect(screen.getByRole('button', { name: /agregar otro/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^subir$/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /quitar presupuesto/i }));
+    expect(onRemove).toHaveBeenCalledWith('doc-1');
+  });
+
+  it('readOnly deshabilita "Agregar otro" y "Quitar" igual que el variant por defecto (tasks.md 4.6)', () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+
+    render(
+      <DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={vi.fn()} readOnly variant="ring" />,
+    );
+
+    expect(screen.getByRole('button', { name: /agregar otro/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /quitar presupuesto/i })).toBeDisabled();
+  });
+
+  // checklist-documental-progreso-visual (ampliación 2026-08-10, "dejar todo consistente"):
+  // Vehículos/Conductores/Facturas no suprimen `mostrarProgreso` (a diferencia de Pacientes) — su
+  // resumen "X de Y cargados" es la ÚNICA fuente de progreso que tienen, así que también pasa a
+  // usar el anillo en vez de la barra lineal cuando `variant="ring"`, mismo texto/Chip que antes.
+  it('con mostrarProgreso (default true) y variant="ring", el resumen usa el anillo en vez de la barra lineal, con el mismo texto', () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+
+    const { rerender } = render(<DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={vi.fn()} />);
+    expect(screen.queryByTestId('ring-progreso-header')).not.toBeInTheDocument();
+    expect(screen.getByText(/1 de 2 documentos cargados/i)).toBeInTheDocument();
+
+    rerender(<DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={vi.fn()} variant="ring" />);
+
+    expect(screen.getByTestId('ring-progreso-header')).toBeInTheDocument();
+    expect(screen.getByText(/1 de 2 documentos cargados/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 pendiente/i)).toBeInTheDocument();
+  });
+});
