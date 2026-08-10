@@ -198,9 +198,17 @@ async function resolverPrevisualizacionDocumento(
   const clave = claveStorageDeFila(data);
   if (!clave) return null;
 
+  // `download` (fix "Descargar lleva a otra página", 2026-08-10): sin esta opción, la URL firmada
+  // apunta a otro origen que el frontend (bucket de Storage), y el atributo `download` del <a> del
+  // checklist solo lo respeta el navegador en URLs same-origin — contra un origen cruzado lo
+  // ignora y navega. Pasar `download` acá hace que Storage responda con `Content-Disposition:
+  // attachment`, que SÍ fuerza la descarga sin importar el origen (decisión del servidor, no del
+  // atributo del <a>). No afecta la previsualización: `<img src>` y el fetch interno de pdf.js
+  // cargan el recurso como subrecurso, no como navegación, así que ese header no les aplica.
+  const nombreArchivo = parseDocumentoRow(data, config)?.nombreArchivo;
   const { data: firmada, error: errorFirma } = await supabase.storage
     .from(config.bucket)
-    .createSignedUrl(clave, EXPIRACION_URL_FIRMADA_SEGUNDOS);
+    .createSignedUrl(clave, EXPIRACION_URL_FIRMADA_SEGUNDOS, { download: nombreArchivo ?? true });
 
   if (errorFirma) throw mapearErrorDocumento(errorFirma, { operacion: 'previsualizar', entidad });
   return firmada?.signedUrl ?? null;
