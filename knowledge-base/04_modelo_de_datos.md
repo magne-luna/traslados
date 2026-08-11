@@ -787,6 +787,72 @@ así que queda anotado acá hasta que se construya esa feature.
   explícitamente (borraría documentación clínica en silencio). Señalizado con `AvisoModeloDatos` en la
   sección de documentación de `PacienteDetail.tsx` (`tasks.md` 8.5).
 
+  **Nota de estado (2026-08-10/11, hallazgo de `documentos-transferencia-actividad`, tasks.md 1.5)**:
+  la columna **ya existe**. `20260807010000_documentos_direccion_id.sql` la agregó (`direccion_id
+  UUID REFERENCES pacientes.direcciones(id) ON DELETE RESTRICT`, nullable) — verificado contra la
+  migración real, no asumido. Esta entrada y el `AvisoModeloDatos` de `PacienteDetail.tsx` (línea
+  ~250, "todavía no tiene respaldo en el modelo real... no tiene ninguna columna de
+  dirección/actividad hoy") quedaron **desactualizados** por ese `apply` posterior: ya no reflejan
+  el estado real de la base. Corregirlos (reescribir o retirar el bullet de arriba y el
+  `AvisoModeloDatos` correspondiente) es una edición de un artefacto de OTRO change ya archivado —
+  **no se resuelve en este apply**, se deja anotado para quien lo toque después. `ON DELETE` quedó
+  en `RESTRICT` (no `SET NULL` como preveía la guía de arriba, ni `CASCADE`).
+
+- **Vinculación actividad → documentación, exportación y transferencia — requerimiento incompleto,
+  no discrepancia de modelo** (`documentos-transferencia-actividad`, propose 2026-08-10, apply
+  parcial 2026-08-10/11): punto 3 de la Ronda 2 de feedback de la clienta (Andrea Pastor,
+  `docs/cambios/cambios2-requerimientos.pdf`). El texto original cierra con *"el cliente enviará un
+  video mostrando este flujo"* — el video **no llegó** (verificado también contra
+  `TODO-video-revision.txt`). Governance CRÍTICO (mismo dominio que sus tres predecesores
+  archivados; primera operación del proyecto que muta la ubicación de un documento clínico ya
+  cargado).
+
+  **Qué se implementó en esta pasada (veredicto confirmado por la usuaria, 2026-08-10,
+  `tasks.md` §0.2 — no provisorio, no pendiente del video)**:
+  - **Exportar** (3.b): originalmente una vista imprimible (PDF vía Ctrl+P) de la documentación de
+    una actividad puntual, distinguiendo ítems cargados de faltantes; después ganó en paralelo un
+    `.zip` con los archivos reales. **Revertido (2026-08-11)**: la usuaria sacó por completo la
+    vista imprimible ("siento que no tiene utilidad") — "Exportar" arma únicamente el `.zip` con
+    los archivos reales de la actividad. Ver `tasks.md` §0.2/§2/§11/§13/§14 del change.
+  - **Transferir** (3.c): reasignación de un documento ya cargado entre actividades del mismo
+    paciente (o el bloque "General"), quinto método `transferirAgrupacion` en `DocumentoRepository`,
+    `UPDATE` de `direccion_id` sin tocar Storage. La transferencia queda registrada en
+    `auditoria.logs` (origen/destino en `datos_viejos`/`datos_nuevos`, quién en `usuario_id`, cuándo
+    en `created_at`) por el trigger `trg_audit_documentos` **ya existente** sobre
+    `pacientes.documentos` (`20260724100004_schema_pacientes.sql:169`) — no hizo falta ninguna
+    migración nueva para esto, el trigger es genérico y ya cubría cualquier `UPDATE`.
+
+  **Qué sigue abierto, bloqueado por el video (Checkpoint (a), `design.md`)**: la navegación
+  propiamente dicha — que "marcar una actividad" (identificada por su domicilio) lleve a su bloque
+  de documentación (3.a). El texto admite tres lecturas incompatibles (acción explícita por fila /
+  selección persistente que filtra / deep-link desde Hojas de Ruta) y **no se elige ninguna
+  adivinando**: esta pasada de apply deja 3.a explícitamente sin implementar (`tasks.md` §3/§4 sin
+  marcar), declarado en pantalla vía `AvisoPendienteCliente` en la sección de documentación de
+  `PacienteDetail.tsx`. Se retoma cuando el video llegue.
+
+  **Qué se evidencia para cerrar (a)**: el video prometido por la clienta, mostrando el flujo real
+  de "marcar una actividad" → documentación. Sin él, no se elige entre las tres lecturas.
+
+  **Deuda detectada, no resuelta en este apply**: el requisito vigente de
+  `openspec/specs/documento-contract/spec.md` *"El contrato `DocumentoRepository` pasa a tener dos
+  implementaciones"* quedó desactualizado — habla de *"las mismas **tres** firmas"* (hoy son
+  **cinco**, contando `resolverPrevisualizacion` y este mismo `transferirAgrupacion`) y de *"la misma
+  semántica de **reemplazo**"* con el escenario *"existe exactamente **un** `DocumentoAdjunto` para
+  ese `itemId`"*, que el sistema **ya no cumple ni debe cumplir** desde `pacientes-documentos-
+  multiples` (acumulación real, sin reemplazo). Corregirlo es una edición del spec principal, no un
+  delta de `documentos-transferencia-actividad` — se deja anotado, no se arregla acá.
+
+  **Herencia hacia `openspec/changes/documentos-checklist-items-por-actividad/`** (change en curso
+  de otra línea de trabajo, propuesto y sin aplicar al momento de escribir esto — **no se edita ni
+  se coordina acá**): ese change hace que el contenido del checklist dependa del tipo de actividad.
+  Hoy transferir un documento entre actividades es seguro porque **todos** los bloques reciben los
+  mismos ítems (los de la obra social) — cualquier `itemId` válido en el origen lo es en el destino.
+  Cuando ese change se aplique, transferir de una terapia a una escuela puede aterrizar en un
+  `itemId` que la escuela no tiene. `design.md` Checkpoint (e) de este change ya lo previó y quedó
+  sin resolver a propósito (VEREDICTO opción C — "no hacer nada ahora", con opción B — "permitir y
+  marcar el ítem como no aplicable" — anotada como forma futura): **el punto de decisión es de quien
+  aplique `documentos-checklist-items-por-actividad` en segundo lugar**, no de este apply.
+
 ### Presupuesto / Autorizacion — policies gateadas por `presupuestos`, no `facturacion`
 
 **Confirmado leyendo `pg_policies` directamente** (`integracion-presupuestos`, 2026-08-02 y

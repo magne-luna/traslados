@@ -16,6 +16,16 @@ Fuente: grabación Fathom (resumen transcripto acá, no el video en sí)
       vencimiento del CUD, edad, estado de amparo.
 - [ ] Reubicar documentos de pacientes/presupuestos (revisar con Andrea dónde
       los quiere ver — no queda claro el detalle en el resumen, preguntar).
+- [ ] VIDEO PENDIENTE (Ronda 2, punto 3, `docs/cambios/cambios2-requerimientos.pdf`): Andrea
+      prometió un video mostrando el flujo de "marcar una actividad (por su domicilio) lleva a
+      su documentación" — todavía no llegó. Esta reunión (2026-08-04) tampoco lo menciona.
+      `documentos-transferencia-actividad` implementó exportar y transferir documentos entre
+      actividades con default confirmado (sin esperar el video), pero la NAVEGACIÓN en sí
+      (marcar → ir a la documentación) queda sin implementar hasta que el video llegue y
+      confirme cuál de las tres lecturas posibles es la correcta (acción explícita por fila /
+      selección persistente que filtra / deep-link desde Hojas de Ruta). Ver
+      `knowledge-base/04_modelo_de_datos.md` §Discrepancias y `design.md` Checkpoint (a) de ese
+      change.
 
 ## Facturación
 
