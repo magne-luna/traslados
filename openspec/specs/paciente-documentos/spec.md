@@ -269,3 +269,50 @@ La documentación de Vehículos, Conductores y Facturas MUST NOT quedar dividida
 - **GIVEN** un vehículo, un conductor o una factura con su checklist documental
 - **WHEN** el usuario abre su pantalla de documentación
 - **THEN** se muestra un único checklist, sin bloques por actividad y sin pasos adicionales respecto del comportamiento anterior a este change
+
+### Requirement: La documentación de una actividad se puede exportar desde su propio bloque
+
+Cada bloque documental de actividad SHALL ofrecer la exportación de **su** documentación, acotada a esa
+actividad, sin abarcar las demás.
+
+El comportamiento y el contenido de esa exportación se especifican en la capacidad
+`paciente-documentos-exportacion`.
+
+#### Scenario: Exportar desde el bloque de una actividad
+
+- **GIVEN** un paciente con varias actividades documentadas
+- **WHEN** el usuario usa la acción de exportar del bloque de una de ellas
+- **THEN** obtiene la exportación de esa actividad, y no de las demás
+
+### Requirement: Un documento cargado se puede reasignar desde su propio bloque
+
+Cada documento cargado SHALL ofrecer, dentro del bloque documental donde figura, la acción de
+reasignarlo a otra actividad del mismo paciente o al bloque general.
+
+El comportamiento de esa reasignación se especifica en la capacidad
+`paciente-documentos-transferencia`.
+
+#### Scenario: Reasignar desde el listado de documentos de un ítem
+
+- **GIVEN** un ítem del checklist de una actividad con un documento cargado
+- **WHEN** el usuario usa la acción de reasignar de ese documento
+- **THEN** puede elegir a qué otra actividad del paciente —o al bloque general— moverlo
+
+### Requirement: El estado provisorio de este flujo es visible en la pantalla
+
+Mientras el flujo pedido por la clienta no esté confirmado —el requerimiento de origen quedó
+explícitamente abierto a la espera de un video que la clienta enviaría—, la pantalla de documentación
+del paciente SHALL exhibir un aviso visible que declare que la navegación directa desde una actividad
+hacia su documentación **no está implementada todavía**, y que la exportación y la reasignación de
+documentos entre actividades sí lo están, sobre la lectura literal del requerimiento y sujetas a
+cambiar cuando llegue el video.
+
+El aviso MUST distinguirse de los avisos de discrepancia con el modelo de datos: acá no hay divergencia
+con el modelo, hay un requerimiento incompleto pendiente de confirmación del cliente.
+
+#### Scenario: El aviso está visible mientras el checkpoint sigue abierto
+
+- **GIVEN** que el video de la clienta no llegó y el flujo sigue sin confirmarse
+- **WHEN** un usuario abre la sección de documentación de un paciente
+- **THEN** ve un aviso que indica que este flujo es provisorio y está pendiente de confirmación de la
+  clienta
