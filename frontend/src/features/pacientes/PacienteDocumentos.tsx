@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Chip, RingProgress } from '../../design-system/components';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
+import type { RequisitosActividadRepository, RequisitosPorTipo, TipoActividad } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
 import type { ChecklistItem, DocumentoAdjunto } from '../../shared/types/documento';
 import type { Direccion } from '../../shared/types/paciente';
-import { etiquetaActividad, obtenerActividadesConChecklist } from './actividadDocumental';
+import { combinarItemsDeActividad, etiquetaActividad, obtenerActividadesConChecklist } from './actividadDocumental';
 import { PacienteDocumentosChecklist } from './PacienteDocumentosChecklist';
 import { agregarProgreso, type ProgresoInstancia } from './progresoDocumental';
 import { TransferenciaDocumentoDialog, type DestinoTransferencia } from './TransferenciaDocumentoDialog';
@@ -22,6 +23,13 @@ interface PacienteDocumentosProps {
    * legible del paciente, reenviado tal cual a cada bloque de actividad para identificar sin
    * ambigüedad lo exportado. Opcional (compatibilidad hacia atrás con callers que no exportan). */
   pacienteNombre?: string;
+  /** documentos-checklist-items-por-actividad (tasks.md §6, design.md D1/D2): configuración de
+   * ítems propios por tipo de actividad — se combina (§2, `combinarItemsDeActividad`) con los
+   * ítems de la obra social en cada bloque de actividad, NUNCA en el bloque "General" (Checkpoint
+   * (c) VEREDICTO 1.4). Opcional a propósito, mismo criterio que `pacienteNombre`: sin este prop
+   * (o mientras no resuelve, o si falla), el comportamiento es EXACTAMENTE el actual — el default
+   * documentado (design.md D2), no un caso especial. */
+  requisitosActividadRepository?: RequisitosActividadRepository;
 }
 
 type Resolucion =
@@ -48,10 +56,24 @@ interface TransferenciaEnCurso {
   origenLabel: string;
 }
 
-export function PacienteDocumentos({ pacienteId, obraSocialId, obraSocialRepository, documentoRepository, direcciones, pacienteNombre }: PacienteDocumentosProps) {
+export function PacienteDocumentos({
+  pacienteId,
+  obraSocialId,
+  obraSocialRepository,
+  documentoRepository,
+  direcciones,
+  pacienteNombre,
+  requisitosActividadRepository,
+}: PacienteDocumentosProps) {
   const [resolucion, setResolucion] = useState<Resolucion>(
     obraSocialId === null ? { status: 'sin-obra-social' } : { status: 'cargando' },
   );
+  // documentos-checklist-items-por-actividad (tasks.md 6.5, design.md D2): `{}` es tanto el estado
+  // inicial (todavía no resolvió) COMO el estado degradado (falló, o no se pasó el repository) —
+  // en los dos casos, `combinarItemsDeActividad(base, [])` devuelve `base` sin cambios (nunca una
+  // lista a medias ni un parpadeo: antes de resolver, cada bloque ya muestra su estado FINAL para
+  // ese instante — "solo obra social" — y pasa a "combinado" recién cuando la config resolvió).
+  const [itemsPorTipo, setItemsPorTipo] = useState<RequisitosPorTipo>({});
   // documentos-checklist-por-actividad (tasks.md 5.1, design.md Checkpoint (f) VEREDICTO opción
   // A): progreso por instancia (General + cada actividad), reportado desde cada
   // `PacienteDocumentosChecklist` vía `onProgreso` — este componente solo agrega, no vuelve a
@@ -91,6 +113,27 @@ export function PacienteDocumentos({ pacienteId, obraSocialId, obraSocialReposit
       });
     return () => { active = false; };
   }, [obraSocialId, obraSocialRepository]);
+
+  // documentos-checklist-items-por-actividad (tasks.md 6.5, design.md D2/Risks): fuente de
+  // configuración independiente de `obraSocialRepository` — un fallo acá NUNCA rompe la pantalla,
+  // degrada a `{}` (equivalente a "sin configurar", el comportamiento actual). Es documentación de
+  // salud: degradar, nunca vaciar el resto de la pantalla por este dato accesorio.
+  useEffect(() => {
+    if (!requisitosActividadRepository) {
+      setItemsPorTipo({});
+      return;
+    }
+    let active = true;
+    requisitosActividadRepository
+      .listAll()
+      .then((porTipo) => {
+        if (active) setItemsPorTipo(porTipo);
+      })
+      .catch(() => {
+        if (active) setItemsPorTipo({});
+      });
+    return () => { active = false; };
+  }, [requisitosActividadRepository]);
 
   if (resolucion.status === 'sin-obra-social') {
     return <p className={emptyStateClasses}>Este paciente no tiene una obra social asignada todavía.</p>;
@@ -218,21 +261,38 @@ export function PacienteDocumentos({ pacienteId, obraSocialId, obraSocialReposit
           una dirección en la sección de Direcciones para que aparezca su propio checklist acá.
         </p>
       ) : (
-        actividades.map((direccion) => (
-          <PacienteDocumentosChecklist
-            key={direccion.id}
-            pacienteId={pacienteId}
-            items={resolucion.items}
-            repository={documentoRepository}
-            agrupacionId={direccion.id}
-            label={etiquetaActividad(direccion)}
-            direccion={direccion}
-            pacienteNombre={pacienteNombre}
-            onProgreso={(progreso) => reportarProgreso(direccion.id, progreso)}
-            onIniciarTransferencia={(documento) => iniciarTransferencia(direccion.id, etiquetaActividad(direccion), documento)}
-            refreshToken={refreshTokens[direccion.id]}
-          />
-        ))
+        actividades.map((direccion) => {
+          // documentos-checklist-items-por-actividad (tasks.md 6.4, design.md D1): la línea 127
+          // (bloque General, arriba) NO llama a `combinarItemsDeActividad` — sigue usando
+          // `resolucion.items` tal cual, protegida por construcción (design.md D1). Solo los
+          // bloques de actividad combinan. `itemsPorTipo[direccion.tipo] ?? []` es el default
+          // documentado (design.md D2): sin configuración para ese tipo, el resultado es
+          // idéntico a `resolucion.items`.
+          // `actividades` (obtenerActividadesConChecklist) ya excluyó `tipo: 'domicilio'` — el cast
+          // es seguro en runtime, TS no puede inferirlo desde `.filter()`. `TipoActividad` es
+          // exactamente `Exclude<TipoDireccion, 'domicilio'>` (RequisitosActividadRepository.ts).
+          const itemsCombinados = combinarItemsDeActividad(resolucion.items, itemsPorTipo[direccion.tipo as TipoActividad] ?? []);
+          // tasks.md 6.7, design.md Checkpoint (c): cuántos ítems de la lista combinada son
+          // GENUINAMENTE nuevos respecto de la obra social (no cuenta los que dedup absorbió) —
+          // es la procedencia comunicada a nivel de bloque, sin tocar DocumentChecklist.tsx.
+          const itemsPropiosDeActividad = itemsCombinados.length - resolucion.items.length;
+          return (
+            <PacienteDocumentosChecklist
+              key={direccion.id}
+              pacienteId={pacienteId}
+              items={itemsCombinados}
+              repository={documentoRepository}
+              agrupacionId={direccion.id}
+              label={etiquetaActividad(direccion)}
+              direccion={direccion}
+              pacienteNombre={pacienteNombre}
+              itemsPropiosDeActividad={itemsPropiosDeActividad}
+              onProgreso={(progreso) => reportarProgreso(direccion.id, progreso)}
+              onIniciarTransferencia={(documento) => iniciarTransferencia(direccion.id, etiquetaActividad(direccion), documento)}
+              refreshToken={refreshTokens[direccion.id]}
+            />
+          );
+        })
       )}
 
       {transferencia && (

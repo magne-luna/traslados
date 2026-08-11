@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
+import type { RequisitosActividadRepository } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
 import { PacienteDetail } from './PacienteDetail';
@@ -23,6 +24,15 @@ function buildFakeDocumentoRepository(): DocumentoRepository {
     remove: vi.fn(),
     resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
     transferirAgrupacion: vi.fn(),
+  };
+}
+
+// documentos-checklist-items-por-actividad (tasks.md §6): repository opcional — `listAll` resuelve
+// `{}` por default, mismo criterio que los otros dos fakes de este archivo.
+function buildFakeRequisitosActividadRepository(): RequisitosActividadRepository {
+  return {
+    listAll: vi.fn().mockResolvedValue({}),
+    actualizar: vi.fn(),
   };
 }
 
@@ -698,5 +708,82 @@ describe('PacienteDetail — aviso del checkpoint pendiente del video (tasks.md 
     expect(texto).toMatch(/marcar una actividad|navegaci[oó]n/i);
     expect(texto).not.toMatch(/exportar/i);
     expect(texto).not.toMatch(/transferir/i);
+  });
+});
+
+// documentos-checklist-items-por-actividad (tasks.md §6, "Cableado en Pacientes → Documentos"):
+// `PacienteDetail` es un eslabón del cableado hacia `PacienteDocumentos.tsx` — este test confirma
+// que el prop llega, no vuelve a probar la lógica de combinación (eso ya está cubierto exhaustivamente
+// en `PacienteDocumentos.test.tsx`).
+describe('PacienteDetail — reenvía requisitosActividadRepository a PacienteDocumentos (tasks.md §6)', () => {
+  it('con requisitosActividadRepository provisto, PacienteDocumentos lo usa para resolver la configuración por tipo de actividad', async () => {
+    const requisitosActividadRepository = buildFakeRequisitosActividadRepository();
+
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        requisitosActividadRepository={requisitosActividadRepository}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(requisitosActividadRepository.listAll).toHaveBeenCalled());
+  });
+
+  it('sin requisitosActividadRepository (prop opcional): no se rompe, PacienteDocumentos se comporta igual que antes', async () => {
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: /checklist documental/i })).toBeInTheDocument();
+  });
+});
+
+// documentos-checklist-items-por-actividad (tasks.md 8.4, design.md Checkpoint (f)): supuesto
+// pendiente de confirmar, un tema distinto del AvisoModeloDatos ya existente de arriba (ese habla
+// de la columna `direccion_id`; este habla de si el CONTENIDO del checklist varía por tipo de
+// actividad) — no reemplaza ni repite el texto de ninguno de los dos avisos que ya conviven en esta
+// sección (tasks.md 8.4: "nunca dos carteles que repitan el mismo texto").
+describe('PacienteDetail — aviso sobre el supuesto de ítems por tipo de actividad sin confirmar (tasks.md 8.4)', () => {
+  it('muestra un aviso en la sección de documentación señalando que la configuración por tipo de actividad es un supuesto del equipo, sin confirmar con la clienta', async () => {
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const tituloDocumentacion = await screen.findByRole('heading', { name: /checklist documental/i });
+    const seccionDocumentacion = tituloDocumentacion.closest('section');
+    if (!seccionDocumentacion) throw new Error('No se encontró la <section> de "Checklist documental"');
+
+    const avisos = within(seccionDocumentacion).getAllByRole('note');
+    const avisoSupuesto = avisos.find((a) => /tipo de actividad/i.test(a.textContent ?? ''));
+    expect(avisoSupuesto).toBeTruthy();
+    expect(avisoSupuesto?.textContent ?? '').toMatch(/sin confirmar|no confirmad/i);
+
+    // No repite el texto del AvisoModeloDatos ya existente (direccion_id) — distinto tema.
+    expect(avisoSupuesto?.textContent ?? '').not.toMatch(/direccion_id/);
   });
 });

@@ -71,4 +71,15 @@ export const iconPaths: Record<IconKey, ReactNode> = {
       strokeLinejoin="round"
     />
   ),
+  // documentos-checklist-items-por-actividad (tasks.md 5.2): checklist/clipboard — distinto del
+  // ícono de `obrasSociales` (que es un edificio) para que las dos entradas de "Administración" no
+  // se confundan a simple vista aunque compartan módulo de permisos.
+  documentacionActividad: (
+    <>
+      <rect x={5} y={3} width={14} height={18} rx={2} />
+      <path d="M9 3h6v2H9z" />
+      <polyline points="8.5 11 10.5 13 15 8.5" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1={8} y1={17} x2={16} y2={17} strokeLinecap="round" />
+    </>
+  ),
 };

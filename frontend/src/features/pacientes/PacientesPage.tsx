@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AvisoSoloLectura } from '../../design-system/components';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
+import type { RequisitosActividadRepository } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
 import type { Paciente } from '../../shared/types/paciente';
 import { useObrasSociales } from '../obras-sociales/useObrasSociales';
 import { PacienteDetail } from './PacienteDetail';
@@ -16,12 +17,15 @@ interface PacientesPageProps {
    * el select de PacienteForm, sin que ninguna pantalla de esta feature importe el mock directamente. */
   obraSocialRepository: ObraSocialRepository;
   documentoRepository: DocumentoRepository;
+  /** documentos-checklist-items-por-actividad (tasks.md §6): reenviado tal cual a `PacienteDetail`
+   * → `PacienteDocumentos` — opcional, mismo criterio que las otras dos dependencias de arriba. */
+  requisitosActividadRepository?: RequisitosActividadRepository;
 }
 
 // Composición raíz de la feature (tasks.md 4.2, 10.1): resuelve el PacienteRepository del
 // context, wire de usePacientes, y decide qué pantalla mostrar (listado o detalle). No hay
 // router anidado — mismo patrón que ObraSocialesPage/VehiculosPage (FE-2).
-export function PacientesPage({ obraSocialRepository, documentoRepository }: PacientesPageProps) {
+export function PacientesPage({ obraSocialRepository, documentoRepository, requisitosActividadRepository }: PacientesPageProps) {
   const pacienteRepository = usePacienteRepository();
   const { pacientes, loading, error, crear, actualizar } = usePacientes(pacienteRepository);
   const { obrasSociales } = useObrasSociales(obraSocialRepository);
@@ -46,6 +50,7 @@ export function PacientesPage({ obraSocialRepository, documentoRepository }: Pac
           obrasSociales={obrasSociales}
           obraSocialRepository={obraSocialRepository}
           documentoRepository={documentoRepository}
+          requisitosActividadRepository={requisitosActividadRepository}
           onCreated={(creado) => setView({ kind: 'detail', pacienteId: creado.id })}
           onBack={() => setView({ kind: 'list' })}
         />

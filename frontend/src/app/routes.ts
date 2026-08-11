@@ -25,7 +25,8 @@ export type IconKey =
   | 'presupuestos'
   | 'hojasDeRuta'
   | 'facturacion'
-  | 'cuentas';
+  | 'cuentas'
+  | 'documentacionActividad';
 
 export type NavSection = 'General' | 'Operación' | 'Administración';
 
@@ -90,6 +91,19 @@ export const APP_ROUTES: readonly AppRoute[] = [
     modulo: 'presupuestos',
   },
   { path: '/facturacion', label: 'Facturación', icon: 'facturacion', section: 'Administración', modulo: 'facturacion' },
+  {
+    // documentos-checklist-items-por-actividad (tasks.md 5.2, design.md Checkpoint (a) sub-pregunta
+    // /(d), veredictos 1.2/1.6): pantalla propia de administración, gateada por el módulo
+    // `obra_social` (mismo módulo que gatea `requisitos_os`/`/obras-sociales` hoy) — NO por
+    // `pacientes`, aunque la use la pantalla de Pacientes: quien administra checklists documentales
+    // es el módulo obra_social, decidido explícitamente (no por descarte, precedente de
+    // `integracion-documentos`: bucket `documentos-vehiculos` gateado por el módulo equivocado).
+    path: '/documentacion-por-actividad',
+    label: 'Documentación por Actividad',
+    icon: 'documentacionActividad',
+    section: 'Administración',
+    modulo: 'obra_social',
+  },
 ] as const;
 
 // Rutas transversales que no forman parte de la navegación de módulos (no aparecen en el

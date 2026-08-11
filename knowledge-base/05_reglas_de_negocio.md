@@ -23,8 +23,23 @@ Cada regla tiene un código único `RN-{DOMINIO}-{NN}` para trazabilidad. Extra�
 - **RN-FA-06**: Los ajustes de valores de facturas ya emitidas no son retroactivos: se cobra al valor vigente a la fecha de facturación (fuera de alcance Fase 1).
 - **RN-FA-07**: El tipo de comprobante (A, B o C) depende de la obra social/empresa receptora.
 - **RN-FA-08**: El checklist de documentación requerido para facturar es configurable por obra social (no es una lista única fija); el orden y los ítems deben respetarse en la interfaz tal como los exige cada obra social.
+  - ⚠️ **Discrepancia sin confirmar (`documentos-checklist-items-por-actividad`, 2026-08-10/11)**: esta
+    RN describe UN eje de configuración (por obra social). El frontend agrega, además, un eje **por
+    tipo de actividad** (global, no por obra social — `obra_social.requisitos_actividad`), que se
+    combina de forma aditiva con lo que describe esta regla. Es un supuesto del **equipo**, no
+    feedback textual de Andrea Pastor — ver `04_modelo_de_datos.md` §Discrepancias. Esta RN sigue
+    siendo verdad tal como está escrita (el eje por obra social no cambió); **no se reescribe** hasta
+    que haya veredicto real, en cuyo caso se agrega RN-FA-11 en vez de tocar esta.
 - **RN-FA-09**: El checklist documental admite múltiples documentos por tipo/ítem — no se sobrescribe al cargar uno nuevo, se acumula, sin tope de cantidad. Cuando conviven varios documentos del mismo tipo (ej. autorizaciones con vigencia agosto-julio que se renuevan y se solapan durante la transición), se distingue cuál es el vigente del resto (feedback real de la clienta, `pacientes-documentos-multiples`, 2026-08-06).
 - **RN-FA-10**: El checklist documental del paciente se instancia **por actividad** (cada dirección del paciente que no sea el domicilio: escuela, terapia, club), no una sola vez por paciente — dos actividades del mismo tipo (ej. dos terapias) tienen checklists independientes y distinguibles por descripción, y un documento cargado en una no aparece ni afecta a las demás. La documentación que no corresponde a ninguna actividad (ej. CUD, DNI) se conserva en un bloque general separado (feedback real de la clienta, `documentos-checklist-por-actividad`, 2026-08-07).
+  - ⚠️ **Discrepancia sin confirmar (`documentos-checklist-items-por-actividad`, 2026-08-10/11)**: esta
+    RN dice que cada actividad instancia el MISMO checklist (feedback real de la clienta) — no dice
+    nada sobre que el CONTENIDO del checklist varíe según el tipo de actividad. El frontend ahora
+    permite configurar ítems propios por tipo (escuela/terapia/CET/otro), que se suman al checklist de
+    la obra social en cada bloque; el default es vacío (comportamiento idéntico al de hoy). Es un
+    supuesto del **equipo**, sin veredicto textual de Andrea Pastor — ver `04_modelo_de_datos.md`
+    §Discrepancias. Esta RN sigue siendo verdad; **no se reescribe** hasta que haya veredicto real, en
+    cuyo caso se agrega RN-FA-11 en vez de tocar esta.
 
 ## Dominio: Vehículos y mantenimiento (RN-VE)
 

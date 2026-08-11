@@ -853,6 +853,35 @@ así que queda anotado acá hasta que se construya esa feature.
   marcar el ítem como no aplicable" — anotada como forma futura): **el punto de decisión es de quien
   aplique `documentos-checklist-items-por-actividad` en segundo lugar**, no de este apply.
 
+- ⚠️ **Ítems de checklist propios por tipo de actividad — supuesto del EQUIPO, no feedback textual de
+  la clienta** (`documentos-checklist-items-por-actividad`, propose+apply 2026-08-10/11): tabla nueva
+  `obra_social.requisitos_actividad (id, tipo_lugar pacientes.tipo_direccion, tipo_documento_id FK →
+  obra_social.tipos_documento, requerido BOOL, orden INT, UNIQUE(tipo_lugar, tipo_documento_id))`,
+  **global por tipo de actividad** (sin `obra_social_id` — 5 listas en total, una por valor de
+  `pacientes.tipo_direccion` distinto de `domicilio`), gateada por el mismo módulo `obra_social` que
+  `requisitos_os`. En cada bloque de actividad de `PacienteDocumentos.tsx`, sus ítems se combinan
+  (`combinarItemsDeActividad`, `actividadDocumental.ts`) con los de la obra social: dedup por
+  `tipo_documento_id` compartido, el más estricto gana en `requerido`, el nombre de la obra social
+  gana ante conflicto. **Origen**: hipótesis de la usuaria (Delfina) — *"yo creería que cada actividad
+  define los suyos… conviven, es un complemento"* — **NO** transcripción textual de Andrea Pastor, a
+  diferencia de los tres refinamientos hermanos anteriores de esta misma pantalla
+  (`pacientes-documentos-multiples`, `documentos-previsualizacion`, `documentos-checklist-por-
+  actividad`), que sí lo son. **Default**: configuración vacía en las 5 listas — mientras nadie cargue
+  nada desde `/documentacion-por-actividad`, el comportamiento es **bit a bit idéntico** al de antes
+  de este change (verificación manual pendiente, `tasks.md` §9.1). **Estado de la confirmación**: sin
+  veredicto textual de Andrea al momento de aplicar — ver la nota `⚠️` sobre RN-FA-08/RN-FA-10 en
+  `05_reglas_de_negocio.md` y el `AvisoModeloDatos` de `PacienteDetail.tsx`. Con veredicto afirmativo
+  futuro: se agrega **RN-FA-11** (no se reescribe la 08, que sigue siendo verdad para el eje "por obra
+  social") y esta nota se cierra (`tasks.md` 8.5).
+
+  **Interacción con `documentos-transferencia-actividad` (cierra el "Herencia hacia..." de arriba)**:
+  el riesgo que esa nota anticipó (transferir un documento a una actividad cuyo checklist combinado no
+  incluye su `itemId`) quedó resuelto **del lado de `DocumentChecklist.tsx`, no de este change**: ese
+  componente compartido ya muestra cualquier documento cuyo `itemId` no matchea ningún ítem vigente en
+  una sección aparte ("Otros documentos"), sin ocultarlo ni bloquear la pantalla — la opción B que
+  `design.md` Checkpoint (e) de `documentos-transferencia-actividad` había dejado anotada como forma
+  futura, implementada antes de archivar ese change.
+
 ### Presupuesto / Autorizacion — policies gateadas por `presupuestos`, no `facturacion`
 
 **Confirmado leyendo `pg_policies` directamente** (`integracion-presupuestos`, 2026-08-02 y

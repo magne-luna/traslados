@@ -9,6 +9,7 @@ import { DashboardRoute } from '../features/dashboard/DashboardRoute';
 import { FacturacionRoute } from '../features/facturacion/FacturacionRoute';
 import { HojaDeRutaRoute } from '../features/hojas-de-ruta/HojaDeRutaRoute';
 import { ObraSocialesRoute } from '../features/obras-sociales/ObraSocialesRoute';
+import { RequisitosActividadRoute } from '../features/obras-sociales/RequisitosActividadRoute';
 import { PacientesRoute } from '../features/pacientes/PacientesRoute';
 import { PresupuestosRoute } from '../features/presupuestos/PresupuestosRoute';
 import { VehiculosRoute } from '../features/vehiculos/VehiculosRoute';
@@ -54,6 +55,9 @@ import DesignSystem from '../design-system/DesignSystem';
 const ROUTE_ELEMENTS: Partial<Record<string, () => ReactElement>> = {
   '/': () => <DashboardRoute />,
   '/obras-sociales': () => <ObraSocialesRoute />,
+  // documentos-checklist-items-por-actividad (tasks.md 5.2): pantalla propia, mismo criterio de
+  // composición que el resto — inyecta supabaseRequisitosActividadRepository en su propio Route.
+  '/documentacion-por-actividad': () => <RequisitosActividadRoute />,
   '/vehiculos': () => <VehiculosRoute />,
   '/pacientes': () => <PacientesRoute />,
   '/conductores': () => <ConductoresRoute />,

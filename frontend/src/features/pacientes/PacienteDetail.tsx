@@ -3,6 +3,7 @@ import { AvisoModeloDatos, AvisoPendienteCliente, Chip, Section, VolverAlListado
 import { Alert } from '../../design-system/feedback';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
+import type { RequisitosActividadRepository } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ActualizacionPaciente, Cud, Direccion, NuevoPaciente, Paciente, PersonaACargo } from '../../shared/types/paciente';
 import { CUD_CHIP_KIND, CUD_CHIP_LABEL } from '../../shared/lib/pacientes/cudCopy';
@@ -22,6 +23,10 @@ interface PacienteDetailProps {
   obrasSociales: ObraSocial[];
   obraSocialRepository: ObraSocialRepository;
   documentoRepository: DocumentoRepository;
+  /** documentos-checklist-items-por-actividad (tasks.md §6, "Cableado en Pacientes → Documentos"):
+   * reenviado tal cual a `PacienteDocumentos` — opcional, mismo criterio que las otras dos
+   * dependencias de esa sección (`design.md` D2: sin este prop, comportamiento actual sin cambios). */
+  requisitosActividadRepository?: RequisitosActividadRepository;
   onCreated: (paciente: Paciente) => void;
   onBack: () => void;
 }
@@ -43,6 +48,7 @@ export function PacienteDetail({
   obrasSociales,
   obraSocialRepository,
   documentoRepository,
+  requisitosActividadRepository,
   onCreated,
   onBack,
 }: PacienteDetailProps) {
@@ -274,12 +280,30 @@ export function PacienteDetail({
               botón "Ver documentación" por actividad es la lectura más literal del pedido, pero
               el video puede mostrar algo distinto) y este aviso se retira.
             </AvisoPendienteCliente>
+            {/* documentos-checklist-items-por-actividad (tasks.md 8.4, design.md Checkpoint (f)
+                VEREDICTO opción A): distinto del AvisoModeloDatos de arriba (ese habla de la
+                columna `direccion_id`) — este habla de si el CONTENIDO del checklist varía según
+                el tipo de actividad, que es un supuesto del EQUIPO (hipótesis de la usuaria), no
+                feedback textual de Andrea Pastor, a diferencia de los otros refinamientos de esta
+                pantalla. Se retira (o se reescribe como confirmado) recién con veredicto real —
+                tasks.md 8.5. */}
+            <AvisoModeloDatos>
+              Cada bloque de actividad puede sumar, además de los ítems de la obra social, ítems
+              propios de su <strong>tipo de actividad</strong> (escuela, escuela especial, terapia,
+              CET, otro — configurables en "Documentación por Actividad"). Que la documentación
+              exigida varíe según el tipo de actividad es un <strong>supuesto del equipo</strong>,{' '}
+              <strong>sin confirmar</strong> todavía con la clienta con una respuesta textual — ver
+              `knowledge-base/05_reglas_de_negocio.md` (nota sobre RN-FA-08/RN-FA-10). Mientras nadie
+              configure ítems para ningún tipo, esta pantalla se ve y se comporta exactamente igual
+              que antes.
+            </AvisoModeloDatos>
             <PacienteDocumentos
               pacienteId={paciente.id}
               pacienteNombre={nombreCompleto(paciente)}
               obraSocialId={paciente.obraSocialId}
               obraSocialRepository={obraSocialRepository}
               documentoRepository={documentoRepository}
+              requisitosActividadRepository={requisitosActividadRepository}
               direcciones={paciente.direcciones}
             />
           </Section>
