@@ -5,7 +5,7 @@ import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSo
 import type { RequisitosActividadRepository, RequisitosPorTipo, TipoActividad } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
 import type { ChecklistItem, DocumentoAdjunto } from '../../shared/types/documento';
 import type { Direccion } from '../../shared/types/paciente';
-import { combinarItemsDeActividad, etiquetaActividad, obtenerActividadesConChecklist } from './actividadDocumental';
+import { etiquetaActividad, obtenerActividadesConChecklist } from './actividadDocumental';
 import { PacienteDocumentosChecklist } from './PacienteDocumentosChecklist';
 import { agregarProgreso, type ProgresoInstancia } from './progresoDocumental';
 import { TransferenciaDocumentoDialog, type DestinoTransferencia } from './TransferenciaDocumentoDialog';
@@ -23,12 +23,14 @@ interface PacienteDocumentosProps {
    * legible del paciente, reenviado tal cual a cada bloque de actividad para identificar sin
    * ambigüedad lo exportado. Opcional (compatibilidad hacia atrás con callers que no exportan). */
   pacienteNombre?: string;
-  /** documentos-checklist-items-por-actividad (tasks.md §6, design.md D1/D2): configuración de
-   * ítems propios por tipo de actividad — se combina (§2, `combinarItemsDeActividad`) con los
-   * ítems de la obra social en cada bloque de actividad, NUNCA en el bloque "General" (Checkpoint
-   * (c) VEREDICTO 1.4). Opcional a propósito, mismo criterio que `pacienteNombre`: sin este prop
-   * (o mientras no resuelve, o si falla), el comportamiento es EXACTAMENTE el actual — el default
-   * documentado (design.md D2), no un caso especial. */
+  /** documentos-checklist-items-por-actividad (design.md Checkpoint (c) — ⚠️ REVISIÓN 2026-08-11,
+   * durante §9 verificación manual en vivo): configuración de ítems propios por tipo de actividad
+   * — cada bloque de actividad muestra ÚNICAMENTE `itemsPorTipo[direccion.tipo] ?? []`, sin sumar
+   * los ítems de la obra social (el veredicto de merge/dedup original quedó revertido probando la
+   * pantalla real). El bloque "General" nunca usa esta configuración. Opcional a propósito, mismo
+   * criterio que `pacienteNombre`: sin este prop (o mientras no resuelve, o si falla), cada bloque
+   * de actividad queda vacío (0 de 0) — es el default documentado tras la revisión (ya no un
+   * fallback a los ítems de la obra social), no un caso especial ni un error. */
   requisitosActividadRepository?: RequisitosActividadRepository;
 }
 
@@ -68,11 +70,14 @@ export function PacienteDocumentos({
   const [resolucion, setResolucion] = useState<Resolucion>(
     obraSocialId === null ? { status: 'sin-obra-social' } : { status: 'cargando' },
   );
-  // documentos-checklist-items-por-actividad (tasks.md 6.5, design.md D2): `{}` es tanto el estado
-  // inicial (todavía no resolvió) COMO el estado degradado (falló, o no se pasó el repository) —
-  // en los dos casos, `combinarItemsDeActividad(base, [])` devuelve `base` sin cambios (nunca una
-  // lista a medias ni un parpadeo: antes de resolver, cada bloque ya muestra su estado FINAL para
-  // ese instante — "solo obra social" — y pasa a "combinado" recién cuando la config resolvió).
+  // documentos-checklist-items-por-actividad (design.md Checkpoint (c) — ⚠️ REVISIÓN 2026-08-11):
+  // `{}` es tanto el estado inicial (todavía no resolvió) COMO el estado degradado (falló, o no se
+  // pasó el repository) — en los dos casos, `itemsPorTipo[tipo] ?? []` es `[]`, así que cada bloque
+  // de actividad muestra 0 ítems (nunca una lista a medias ni un parpadeo: antes de resolver, cada
+  // bloque ya muestra su estado FINAL para ese instante — "vacío, sin configurar" — y pasa a
+  // mostrar su lista propia recién cuando la config resolvió). Tras la revisión, esto YA NO es
+  // "idéntico al comportamiento actual" (antes caía a los ítems de la obra social) — es el nuevo
+  // default documentado: un tipo sin configurar es un bloque vacío, no un error.
   const [itemsPorTipo, setItemsPorTipo] = useState<RequisitosPorTipo>({});
   // documentos-checklist-por-actividad (tasks.md 5.1, design.md Checkpoint (f) VEREDICTO opción
   // A): progreso por instancia (General + cada actividad), reportado desde cada
@@ -262,31 +267,27 @@ export function PacienteDocumentos({
         </p>
       ) : (
         actividades.map((direccion) => {
-          // documentos-checklist-items-por-actividad (tasks.md 6.4, design.md D1): la línea 127
-          // (bloque General, arriba) NO llama a `combinarItemsDeActividad` — sigue usando
-          // `resolucion.items` tal cual, protegida por construcción (design.md D1). Solo los
-          // bloques de actividad combinan. `itemsPorTipo[direccion.tipo] ?? []` es el default
-          // documentado (design.md D2): sin configuración para ese tipo, el resultado es
-          // idéntico a `resolucion.items`.
+          // documentos-checklist-items-por-actividad (design.md Checkpoint (c) — ⚠️ REVISIÓN
+          // 2026-08-11): el bloque "General" (arriba) sigue usando `resolucion.items` tal cual,
+          // sin cambios. Cada bloque de actividad muestra ÚNICAMENTE los ítems configurados para
+          // su tipo — ya no se combina con `resolucion.items` (el veredicto de merge/dedup
+          // original quedó revertido probando la pantalla real). `itemsPorTipo[tipo] ?? []` es el
+          // nuevo default: un tipo sin configurar es un bloque vacío (0 de 0), no un fallback a
+          // los ítems de la obra social.
           // `actividades` (obtenerActividadesConChecklist) ya excluyó `tipo: 'domicilio'` — el cast
           // es seguro en runtime, TS no puede inferirlo desde `.filter()`. `TipoActividad` es
           // exactamente `Exclude<TipoDireccion, 'domicilio'>` (RequisitosActividadRepository.ts).
-          const itemsCombinados = combinarItemsDeActividad(resolucion.items, itemsPorTipo[direccion.tipo as TipoActividad] ?? []);
-          // tasks.md 6.7, design.md Checkpoint (c): cuántos ítems de la lista combinada son
-          // GENUINAMENTE nuevos respecto de la obra social (no cuenta los que dedup absorbió) —
-          // es la procedencia comunicada a nivel de bloque, sin tocar DocumentChecklist.tsx.
-          const itemsPropiosDeActividad = itemsCombinados.length - resolucion.items.length;
+          const itemsDeLaActividad = itemsPorTipo[direccion.tipo as TipoActividad] ?? [];
           return (
             <PacienteDocumentosChecklist
               key={direccion.id}
               pacienteId={pacienteId}
-              items={itemsCombinados}
+              items={itemsDeLaActividad}
               repository={documentoRepository}
               agrupacionId={direccion.id}
               label={etiquetaActividad(direccion)}
               direccion={direccion}
               pacienteNombre={pacienteNombre}
-              itemsPropiosDeActividad={itemsPropiosDeActividad}
               onProgreso={(progreso) => reportarProgreso(direccion.id, progreso)}
               onIniciarTransferencia={(documento) => iniciarTransferencia(direccion.id, etiquetaActividad(direccion), documento)}
               refreshToken={refreshTokens[direccion.id]}

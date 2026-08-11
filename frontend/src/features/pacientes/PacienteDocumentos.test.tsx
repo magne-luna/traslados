@@ -286,6 +286,27 @@ function buildRequisitosActividadRepository(overrides: Partial<RequisitosActivid
   };
 }
 
+// documentos-checklist-items-por-actividad (design.md Checkpoint (c) — ⚠️ REVISIÓN 2026-08-11):
+// desde la revisión, un bloque de actividad SOLO muestra lo que `RequisitosActividadRepository`
+// tiene configurado para su tipo — ya NO hereda los ítems de la obra social como fallback (ni
+// mientras la config no resolvió, ni si nadie la configuró). Varios describes de MÁS ABAJO fueron
+// escritos ANTES de este change (`documentos-checklist-por-actividad`,
+// `documentos-transferencia-actividad`) y asumen que un bloque de actividad muestra los mismos
+// ítems que la obra social (RHC/Consentimiento informado) — supuesto válido bajo el comportamiento
+// original de esos changes, y también bajo el merge/dedup que este change tuvo antes de la
+// revisión. Esos tests no ejercitan la lógica de combinación (prueban agrupación/progreso/
+// colapso/transferencia); para que sigan probando exactamente el mismo escenario de contenido que
+// antes, se les configura explícitamente `escuela`/`terapia` con los mismos ítems que ya tiene
+// `osecac.checklist` — no se está reintroduciendo ningún merge, es la config de este repository.
+function requisitosActividadRepositoryConItemsDeObraSocial(): RequisitosActividadRepository {
+  return buildRequisitosActividadRepository({
+    listAll: vi.fn().mockResolvedValue({
+      escuela: osecac.checklist,
+      terapia: osecac.checklist,
+    } satisfies RequisitosPorTipo),
+  });
+}
+
 function buildRepositorioConAgrupacion(seed: DocumentoAdjunto[] = []): DocumentoRepository {
   return {
     listByEntity: vi.fn((_entidad, _entidadId, agrupacionId) =>
@@ -394,6 +415,7 @@ describe('PacienteDocumentos — checklist por actividad', () => {
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={documentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[escuela, kinesiologa, fonoaudiologa]}
       />,
     );
@@ -468,6 +490,7 @@ describe('PacienteDocumentos — progreso agregado en el encabezado (tasks.md 5.
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={documentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[kinesiologa]}
       />,
     );
@@ -498,6 +521,7 @@ describe('PacienteDocumentos — progreso agregado en el encabezado (tasks.md 5.
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={documentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[escuela]}
       />,
     );
@@ -537,6 +561,7 @@ describe('PacienteDocumentos — bloques de actividad colapsables (tasks.md 5.2)
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={documentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[kinesiologa]}
       />,
     );
@@ -576,6 +601,7 @@ describe('PacienteDocumentos — bloques de actividad colapsables (tasks.md 5.2)
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={documentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[kinesiologa]}
       />,
     );
@@ -609,6 +635,7 @@ describe('PacienteDocumentos — bloques de actividad colapsables (tasks.md 5.2)
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={documentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[kinesiologa]}
       />,
     );
@@ -857,6 +884,7 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={mockDocumentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[kinesiologa, fonoaudiologa]}
       />,
     );
@@ -896,6 +924,7 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={mockDocumentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[kinesiologa, fonoaudiologa]}
       />,
     );
@@ -929,6 +958,7 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={mockDocumentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[kinesiologa, fonoaudiologa]}
       />,
     );
@@ -958,6 +988,7 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={mockDocumentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[kinesiologa, fonoaudiologa]}
       />,
     );
@@ -1019,6 +1050,7 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
         obraSocialId="osecac"
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={mockDocumentoRepository}
+        requisitosActividadRepository={requisitosActividadRepositoryConItemsDeObraSocial()}
         direcciones={[kinesiologa]}
       />,
     );
@@ -1029,17 +1061,22 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
   });
 });
 
-// documentos-checklist-items-por-actividad (tasks.md §6, design.md D1/D2/Checkpoint (c) VEREDICTO
-// 1.4): cableado de `combinarItemsDeActividad` en cada bloque de actividad. `requisitosActividadRepository`
-// es OPCIONAL a propósito (mismo criterio que `pacienteNombre`): todos los tests de arriba, que no
-// lo pasan, ya son la prueba más fuerte de "el default es la lista vacía, comportamiento actual sin
-// regresión" (design.md D2) — no hace falta un test bespoke para ese caso, ya está cubierto ~30
-// veces.
-describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6)', () => {
+// documentos-checklist-items-por-actividad (design.md Checkpoint (c) — ⚠️ REVISIÓN 2026-08-11,
+// durante §9 verificación manual en vivo): el veredicto original de merge/dedup (tasks.md 1.4/6.2/
+// 6.4/6.6/6.7) quedó REVERTIDO probando la pantalla real. Ya NO hay unión ni dedup entre las dos
+// listas: cada bloque de actividad muestra ÚNICAMENTE los ítems configurados para su
+// `TipoDireccion` (vía `RequisitosActividadRepository`), sin sumar los de la obra social. El bloque
+// "General" no cambia (nunca recibió ítems por tipo). Efecto colateral aceptado explícitamente: un
+// tipo sin ítems configurados muestra un bloque vacío (0 de 0) — ya no hereda los de la obra social
+// como fallback, ni mientras la config no resolvió ni si falla ni si el repository no se pasó.
+// `requisitosActividadRepository` sigue siendo OPCIONAL (mismo criterio que `pacienteNombre`), pero
+// "sin configurar" ya NO es idéntico a "comportamiento actual" en los bloques de actividad — ver el
+// último test de este describe.
+describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6, revisado 2026-08-11)', () => {
   const escuela: Direccion = { id: 'dir-escuela', tipo: 'escuela', calle: 'Calle Escuela 1', localidad: 'CABA' };
   const terapia: Direccion = { id: 'dir-terapia', tipo: 'terapia', calle: 'Calle Terapia 1', localidad: 'CABA' };
 
-  it('con ítems configurados por tipo: el bloque de una actividad de tipo escuela muestra los de la obra social MÁS los de escuela; terapia no los recibe (tasks.md 6.2)', async () => {
+  it('el bloque de una actividad de tipo escuela muestra SOLO los ítems configurados para ese tipo, no los de la obra social', async () => {
     const requisitosActividadRepository = buildRequisitosActividadRepository({
       listAll: vi.fn().mockResolvedValue({
         escuela: [{ id: 'item-escuela-1', nombre: 'Constancia de alumno regular', requerido: true }],
@@ -1059,15 +1096,45 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6)', (
 
     const bloqueEscuela = await screen.findByRole('group', { name: /^escuela$/i });
     expect(await within(bloqueEscuela).findByText('Constancia de alumno regular')).toBeInTheDocument();
-    expect(within(bloqueEscuela).getByText('RHC')).toBeInTheDocument();
-    expect(within(bloqueEscuela).getByText('Consentimiento informado')).toBeInTheDocument();
-
-    const bloqueTerapia = screen.getByRole('group', { name: /^terapia$/i });
-    expect(within(bloqueTerapia).queryByText('Constancia de alumno regular')).not.toBeInTheDocument();
-    expect(within(bloqueTerapia).getByText('RHC')).toBeInTheDocument();
+    // Ya NO aparecen los ítems de la obra social en este bloque — sin merge.
+    expect(within(bloqueEscuela).queryByText('RHC')).not.toBeInTheDocument();
+    expect(within(bloqueEscuela).queryByText('Consentimiento informado')).not.toBeInTheDocument();
   });
 
-  it('con configuración cargada para todos los tipos, el bloque "General" sigue mostrando SOLO los ítems de la obra social (no-regresión, tasks.md 6.3)', async () => {
+  it('un tipo de actividad sin ítems configurados muestra un bloque vacío (0 de 0) — sin heredar los de la obra social, sin romper la pantalla (efecto colateral aceptado)', async () => {
+    const requisitosActividadRepository = buildRequisitosActividadRepository({
+      listAll: vi.fn().mockResolvedValue({
+        escuela: [{ id: 'item-escuela-1', nombre: 'Constancia de alumno regular', requerido: true }],
+        // `terapia` deliberadamente ausente: sin ítems propios configurados todavía.
+      } satisfies RequisitosPorTipo),
+    });
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={buildDocumentoRepository()}
+        requisitosActividadRepository={requisitosActividadRepository}
+        direcciones={[escuela, terapia]}
+      />,
+    );
+
+    // Espera a que el resto de la pantalla haya terminado de resolver antes de afirmar la ausencia.
+    await within(await screen.findByRole('group', { name: /^escuela$/i })).findByText('Constancia de alumno regular');
+
+    const bloqueTerapia = screen.getByRole('group', { name: /^terapia$/i });
+    expect(within(bloqueTerapia).queryByText('RHC')).not.toBeInTheDocument();
+    expect(within(bloqueTerapia).queryByText('Consentimiento informado')).not.toBeInTheDocument();
+    expect(within(bloqueTerapia).queryByText('Constancia de alumno regular')).not.toBeInTheDocument();
+    // Bloque vacío explícito: mensaje que aclara que es "sin configurar", no un checklist en blanco
+    // ni un error (pedido de la usuaria tras probar en vivo, 2026-08-11).
+    expect(within(bloqueTerapia).getByText(/no hay documentación configurada/i)).toBeInTheDocument();
+    // No crashea ni deja la pantalla a medias — el resto sigue operativo.
+    expect(screen.getByRole('group', { name: /documentación general/i })).toBeInTheDocument();
+  });
+
+  it('el bloque "General" sigue mostrando SOLO los ítems de la obra social, con configuración cargada para todos los tipos (no-regresión, tasks.md 6.3)', async () => {
     const requisitosActividadRepository = buildRequisitosActividadRepository({
       listAll: vi.fn().mockResolvedValue({
         escuela: [{ id: 'item-escuela-1', nombre: 'Constancia de alumno regular', requerido: true }],
@@ -1097,11 +1164,11 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6)', (
     expect(within(bloqueGeneral).queryByText('Informe del profesional')).not.toBeInTheDocument();
   });
 
-  it('un ítem del tipo de actividad con el mismo id que uno de la obra social no se duplica — dedup por identidad (tasks.md 6.6, design.md Checkpoint (c) VEREDICTO)', async () => {
+  it('un ítem configurado en el tipo de actividad con el mismo id que uno de la obra social se muestra con los valores propios de la actividad — ya no hay ninguna fusión ni dedup', async () => {
     const requisitosActividadRepository = buildRequisitosActividadRepository({
       listAll: vi.fn().mockResolvedValue({
         escuela: [
-          { id: 'item-1', nombre: 'RHC (versión escuela, ignorada)', requerido: false },
+          { id: 'item-1', nombre: 'RHC (versión escuela)', requerido: false },
           { id: 'item-escuela-extra', nombre: 'Constancia de alumno regular', requerido: true },
         ],
       } satisfies RequisitosPorTipo),
@@ -1119,20 +1186,21 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6)', (
     );
 
     const bloqueEscuela = await screen.findByRole('group', { name: /^escuela$/i });
-    expect(await within(bloqueEscuela).findByText('Constancia de alumno regular')).toBeInTheDocument();
-    // "RHC" aparece UNA sola vez (gana el nombre de la obra social) — nunca "RHC (versión escuela,
-    // ignorada)" ni un segundo "RHC" duplicado.
-    expect(within(bloqueEscuela).getAllByText('RHC')).toHaveLength(1);
-    expect(within(bloqueEscuela).queryByText(/versión escuela/i)).not.toBeInTheDocument();
+    // El bloque muestra EXACTAMENTE la lista propia del tipo, con su propio nombre — nunca el de la
+    // obra social (que ni siquiera aparece en este bloque).
+    expect(await within(bloqueEscuela).findByText('RHC (versión escuela)')).toBeInTheDocument();
+    expect(within(bloqueEscuela).getByText('Constancia de alumno regular')).toBeInTheDocument();
+    expect(within(bloqueEscuela).queryByText('RHC')).not.toBeInTheDocument();
   });
 
-  it('el progreso agregado se calcula sobre la lista combinada y deduplicada, sin contar dos veces un ítem (tasks.md 6.6)', async () => {
+  it('el progreso de cada bloque se calcula sobre su propia lista; el total agregado suma correctamente incluso con bloques vacíos, sin NaN (tasks.md 6.6)', async () => {
     const requisitosActividadRepository = buildRequisitosActividadRepository({
       listAll: vi.fn().mockResolvedValue({
         escuela: [
-          { id: 'item-1', nombre: 'RHC', requerido: true }, // dedup con la obra social, no suma
-          { id: 'item-escuela-extra', nombre: 'Constancia de alumno regular', requerido: true },
+          { id: 'item-escuela-1', nombre: 'Constancia de alumno regular', requerido: true },
+          { id: 'item-escuela-2', nombre: 'Certificado', requerido: true },
         ],
+        // `terapia` sin configurar: contribuye 0/0 al agregado, no debe romper la suma ni dar NaN.
       } satisfies RequisitosPorTipo),
     });
 
@@ -1143,17 +1211,18 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6)', (
         obraSocialRepository={buildObraSocialRepository()}
         documentoRepository={buildDocumentoRepository()}
         requisitosActividadRepository={requisitosActividadRepository}
-        direcciones={[escuela]}
+        direcciones={[escuela, terapia]}
       />,
     );
 
-    // General: 2 ítems (RHC, Consentimiento). Escuela combinada y deduplicada: RHC, Consentimiento,
-    // Constancia = 3 (NO 4 — si no dedupara, el total sería "0 de 6").
+    // General: 2 ítems propios (RHC, Consentimiento). Escuela: 2 ítems propios (Constancia,
+    // Certificado). Terapia: 0 ítems (sin configurar) — total 4, nunca "0 de 0" ni NaN%.
     const bloqueTotal = await screen.findByRole('group', { name: /progreso total de documentación/i });
-    expect(await within(bloqueTotal).findByText(/0 de 5 documentos cargados en total/i)).toBeInTheDocument();
+    expect(await within(bloqueTotal).findByText(/0 de 4 documentos cargados en total/i)).toBeInTheDocument();
+    expect(within(bloqueTotal).queryByText(/nan/i)).not.toBeInTheDocument();
   });
 
-  it('mientras la configuración por tipo no resolvió, los bloques muestran solo los ítems de la obra social — nunca una lista a medias (tasks.md 6.5)', async () => {
+  it('mientras la configuración por tipo no resolvió, el bloque de actividad no muestra ningún ítem todavía — nunca los de la obra social como fallback (tasks.md 6.5, revisado)', async () => {
     const requisitosActividadRepository = buildRequisitosActividadRepository({
       listAll: vi.fn(() => new Promise<RequisitosPorTipo>(() => {})), // nunca resuelve en este test
     });
@@ -1170,11 +1239,13 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6)', (
     );
 
     const bloqueEscuela = await screen.findByRole('group', { name: /^escuela$/i });
-    expect(within(bloqueEscuela).getByText('RHC')).toBeInTheDocument();
-    expect(within(bloqueEscuela).getByText('Consentimiento informado')).toBeInTheDocument();
+    expect(within(bloqueEscuela).queryByText('RHC')).not.toBeInTheDocument();
+    expect(within(bloqueEscuela).queryByText('Consentimiento informado')).not.toBeInTheDocument();
+    // El resto de la pantalla no se ve afectado por una configuración de actividad que nunca resuelve.
+    expect(screen.getByRole('group', { name: /documentación general/i })).toBeInTheDocument();
   });
 
-  it('si la configuración por tipo falla al cargar, degrada al comportamiento actual (solo ítems de la obra social) en vez de romper la pantalla — nunca vaciar (tasks.md 6.5)', async () => {
+  it('si la configuración por tipo falla al cargar, el bloque de actividad queda vacío en vez de romper la pantalla — ya no hereda los ítems de la obra social (tasks.md 6.5, revisado)', async () => {
     const requisitosActividadRepository = buildRequisitosActividadRepository({
       listAll: vi.fn().mockRejectedValue(new Error('No se pudo cargar la configuración por tipo de actividad.')),
     });
@@ -1190,40 +1261,16 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6)', (
       />,
     );
 
-    const bloqueEscuela = await screen.findByRole('group', { name: /^escuela$/i });
-    expect(await within(bloqueEscuela).findByText('RHC')).toBeInTheDocument();
-    expect(within(bloqueEscuela).getByText('Consentimiento informado')).toBeInTheDocument();
-    // La pantalla entera sigue operativa — nada de esto rompe el resto (el General también sigue).
-    expect(screen.getByRole('group', { name: /documentación general/i })).toBeInTheDocument();
+    // El bloque "General" (fuente independiente) sigue operativo pese al fallo del repository nuevo.
+    const bloqueGeneral = await screen.findByRole('group', { name: /documentación general/i });
+    expect(within(bloqueGeneral).getByText('RHC')).toBeInTheDocument();
+
+    const bloqueEscuela = screen.getByRole('group', { name: /^escuela$/i });
+    expect(within(bloqueEscuela).queryByText('RHC')).not.toBeInTheDocument();
+    expect(within(bloqueEscuela).queryByText('Consentimiento informado')).not.toBeInTheDocument();
   });
 
-  it('comunica la procedencia de los ítems extra a nivel de BLOQUE, sin tocar el checklist compartido (tasks.md 6.7, design.md D3)', async () => {
-    const requisitosActividadRepository = buildRequisitosActividadRepository({
-      listAll: vi.fn().mockResolvedValue({
-        escuela: [{ id: 'item-escuela-1', nombre: 'Constancia de alumno regular', requerido: true }],
-      } satisfies RequisitosPorTipo),
-    });
-
-    render(
-      <PacienteDocumentos
-        pacienteId="paciente-1"
-        obraSocialId="osecac"
-        obraSocialRepository={buildObraSocialRepository()}
-        documentoRepository={buildDocumentoRepository()}
-        requisitosActividadRepository={requisitosActividadRepository}
-        direcciones={[escuela]}
-      />,
-    );
-
-    const bloqueEscuela = await screen.findByRole('group', { name: /^escuela$/i });
-    expect(await within(bloqueEscuela).findByText(/\+1 ítem propio de esta actividad/i)).toBeInTheDocument();
-
-    // El bloque "General" nunca recibe ítems por tipo (tasks.md 6.3) — nunca muestra procedencia.
-    const bloqueGeneral = screen.getByRole('group', { name: /documentación general/i });
-    expect(within(bloqueGeneral).queryByText(/ítem propio/i)).not.toBeInTheDocument();
-  });
-
-  it('sin configurar `requisitosActividadRepository` (prop opcional): comportamiento idéntico al actual, sin chip de procedencia (triangulación de compatibilidad hacia atrás)', async () => {
+  it('sin configurar `requisitosActividadRepository` (prop opcional): el bloque de actividad no muestra ítems — ya no hereda los de la obra social —, pero la pantalla no rompe', async () => {
     render(
       <PacienteDocumentos
         pacienteId="paciente-1"
@@ -1234,8 +1281,11 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6)', (
       />,
     );
 
-    const bloqueEscuela = await screen.findByRole('group', { name: /^escuela$/i });
-    expect(within(bloqueEscuela).getByText('RHC')).toBeInTheDocument();
-    expect(within(bloqueEscuela).queryByText(/ítem propio/i)).not.toBeInTheDocument();
+    const bloqueGeneral = await screen.findByRole('group', { name: /documentación general/i });
+    expect(within(bloqueGeneral).getByText('RHC')).toBeInTheDocument();
+
+    const bloqueEscuela = screen.getByRole('group', { name: /^escuela$/i });
+    expect(within(bloqueEscuela).queryByText('RHC')).not.toBeInTheDocument();
+    expect(within(bloqueEscuela).queryByText('Consentimiento informado')).not.toBeInTheDocument();
   });
 });

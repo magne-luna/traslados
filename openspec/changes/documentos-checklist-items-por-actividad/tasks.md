@@ -83,6 +83,11 @@
       **→ VEREDICTO (Delfina, 2026-08-10): opción A — dedup por identidad real (`id`/
       `tipo_documento_id`), el más estricto gana en `requerido`, procedencia comunicada a nivel de
       bloque (no de ítem, `DocumentChecklist.tsx` no se toca). Recomendación aceptada.**
+      **→ REVISADO (Delfina, 2026-08-11, durante §9 verificación manual en vivo): este veredicto
+      quedó REVERTIDO. Ya no hay merge ni dedup — cada bloque de actividad muestra únicamente sus
+      ítems propios del tipo, sin sumar los de la obra social. Ver `design.md` Checkpoint (c),
+      nota "⚠️ REVISIÓN", para el detalle completo y el efecto colateral aceptado (bloque vacío sin
+      configurar). El veredicto original de arriba queda como registro histórico, no se borra.**
 - [x] 1.5 **Checkpoint (e) — ¿global por tipo o por obra social × tipo?** Recomendado: global (5
       listas). Si es por obra social, la pantalla pasa de lista a matriz N×5 y el alcance de §3-§5 se
       multiplica. Depende de 0.1.2.
@@ -374,6 +379,9 @@
       escuela; el de terapia muestra los suyos y no los de escuela.
       **→ HECHO: describe nuevo "PacienteDocumentos — ítems por tipo de actividad (tasks.md §6)",
       8 tests. Confirmado RED (5 fallando) antes de tocar producción.**
+      **→ REVISADO (2026-08-11): este test (y su describe completo) fueron REESCRITOS al revertir
+      el veredicto de merge del Checkpoint (c) — ver la nota en 1.4 y en 6.4. El aserto "obra social
+      MÁS los de escuela" ya no aplica: el bloque de escuela ahora muestra SOLO sus ítems propios.**
 - [x] 6.3 **RED** — test de no-regresión del bloque **General**: con configuración cargada para todos
       los tipos, el bloque General sigue mostrando **solo** los ítems de la obra social (spec: *"El
       bloque general no recibe ítems por tipo de actividad"*).
@@ -390,6 +398,12 @@
       itemsPorTipo[direccion.tipo as TipoActividad] ?? [])` dentro del `.map` de actividades. El
       bloque General (antes línea 127, ahora ~línea 204) sigue usando `resolucion.items` tal cual, sin
       tocar. 5/5 tests antes rojos ahora verdes.**
+      **→ REVISADO (2026-08-11, durante §9 verificación manual en vivo): `combinarItemsDeActividad`
+      se ELIMINÓ de `actividadDocumental.ts`. El `.map` de actividades ahora pasa
+      `items={itemsPorTipo[direccion.tipo as TipoActividad] ?? []}` directamente — sin combinar con
+      `resolucion.items`. Ver `design.md` Checkpoint (c), nota "⚠️ REVISIÓN", y `PacienteDocumentos.tsx`
+      para el estado real del código. Ciclo TDD completo (RED→GREEN→TRIANGULATE) documentado en la
+      sesión de apply que hizo esta revisión (topic engram `sdd/documentos-checklist-items-por-actividad/apply-progress`).**
 - [x] 6.5 **TRIANGULATE** — estados de carga y error de la fuente nueva: mientras la configuración por
       tipo no resolvió, no mostrar listas a medias ni parpadeo; si falla, degradar al comportamiento
       actual (solo ítems de la obra social) en vez de romper la pantalla. Es documentación de salud:
@@ -400,6 +414,11 @@
       rechaza, `catch` vuelve a `{}` — nunca rompe la pantalla ni el resto de los bloques (test
       dedicado: con `listAll` rechazando, el bloque escuela sigue mostrando sus 2 ítems de la obra
       social Y el bloque General sigue montado). 2 tests (pendiente eterno / rechazo) verdes.**
+      **→ REVISADO (2026-08-11): tras el checkpoint (c) revertido (ver 1.4/6.4), "degradar" ya NO
+      significa "solo ítems de la obra social" — significa bloque de actividad VACÍO (0 ítems),
+      igual que el estado "sin configurar". El bloque General (fuente independiente) sigue intacto
+      en los dos casos. Tests reescritos para la nueva expectativa, mismo criterio de "nunca
+      romper la pantalla".**
 - [x] 6.6 Verificar que el **progreso** por actividad y el total agregado se calculan sobre la lista
       combinada, sin contar dos veces un ítem deduplicado (spec: *"El progreso de cada actividad se
       calcula sobre su lista combinada"*).
@@ -410,6 +429,12 @@
       (sí debe sumar) → total agregado "0 de 5" (General 2 + Escuela combinada-deduplicada 3), NO "0
       de 6" (que sería el resultado sin dedup). Test adicional confirma que "RHC" aparece una sola
       vez (`getAllByText('RHC')).toHaveLength(1)`) y gana el nombre de la obra social.**
+      **→ REVISADO (2026-08-11): con el checkpoint (c) revertido, ya no hay dedup que verificar —
+      cada bloque muestra su propia lista tal cual, sin combinar con la de la obra social. El
+      progreso de cada bloque se calcula sobre su propia lista (sin aritmética de dedup); el total
+      agregado sigue sumando cada bloque, incluidos los que quedan en 0/0 sin configurar (verificado
+      que no rompe ni da NaN). Test reescrito: "el progreso de cada bloque se calcula sobre su
+      propia lista; el total agregado suma correctamente incluso con bloques vacíos, sin NaN".**
 - [x] 6.7 Comunicar la procedencia de los ítems a nivel de **bloque** (texto o `Chip` en el encabezado
       del bloque de actividad), sin tocar `DocumentChecklist.tsx` — salvo veredicto 1.4 (ii) en
       contrario.
@@ -424,6 +449,12 @@
       bloque "General" nunca recibe este prop (nunca llama a `combinarItemsDeActividad`) — nunca
       muestra el chip. Test dedicado confirma el texto "+1 ítem propio de esta actividad" en el
       bloque de escuela y su ausencia en "General".**
+      **→ REVISADO (2026-08-11): con el checkpoint (c) revertido, la noción de "procedencia" (ítems
+      "propios" ADEMÁS de los de la obra social) dejó de tener sentido — el bloque entero ES la
+      lista propia del tipo, no hay nada que distinguir dentro de él. El prop
+      `itemsPropiosDeActividad` y el `Chip` de `PacienteDocumentosChecklist.tsx` se ELIMINARON (no
+      se reemplazaron por nada — decisión tomada vía TDD en la sesión de revisión, ver
+      `design.md` Checkpoint (c)). El test dedicado de este chip se eliminó junto con el código.**
 
 ## 7. No-regresión de los otros tres dominios documentales
 

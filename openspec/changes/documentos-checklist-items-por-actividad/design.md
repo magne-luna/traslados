@@ -176,6 +176,28 @@ alternativa sin costo es un texto explicativo a nivel de bloque, en `PacienteDoc
 **Recomendación: A** (dedup por id, orden de la obra social primero, extras del tipo después, el más
 estricto gana en `requerido`), con la procedencia comunicada a nivel de bloque y no de ítem.
 
+**⚠️ REVISIÓN (Delfina, 2026-08-11, durante §9 verificación manual en vivo).** Probando la pantalla
+real (`Escuela — Tarde` mostrando DNI+CUD, `Escuela Especial` mostrando DNI+CUD+Certificado Alumno
+Regular), el veredicto de merge/dedup de arriba **queda revertido**: cada bloque de actividad muestra
+**únicamente** sus ítems propios del tipo — **sin sumar** los de la obra social. El bloque "General"
+no cambia (sigue mostrando solo los de la obra social). Ya no hay unión ni dedup entre las dos
+listas — son dos conjuntos separados, cada bloque consume el suyo. Efecto colateral aceptado
+explícitamente: un tipo de actividad sin ítems propios configurados en
+`RequisitosActividadPage` muestra un bloque **vacío** (0 de 0), hasta que alguien lo configure — ya
+no hereda los ítems de la obra social como fallback. Documentos ya cargados contra un `itemId` que
+sale de la lista del bloque (típicamente ítems de la obra social cargados bajo el viejo
+comportamiento) no se pierden: caen en la sección "Otros documentos" de `DocumentChecklist.tsx`
+(guard de `documentos-transferencia-actividad`, ya en producción). Supera lo escrito en tasks.md
+1.4/6.4/6.6/D1; no se reabre el checkpoint (a)/(e) — solo cambia qué se **muestra** por bloque, no
+dónde vive la config.
+
+**Addendum (Delfina, 2026-08-11):** bloque vacío (`sinConfigurar` en
+`PacienteDocumentosChecklist.tsx`) muestra un mensaje explícito ("Todavía no hay documentación
+configurada para este tipo de actividad...") en vez de un checklist en blanco — para que no se lea
+como un bug. Condición exacta: `total === 0 && documentos.length === 0` — si hay algún documento en
+el bloque (típicamente uno huérfano/transferido, sección "Otros documentos" de
+`DocumentChecklist.tsx`), el checklist se sigue mostrando igual, nunca se esconde con el mensaje.
+
 ---
 
 ## Checkpoint (d) — ¿Dónde se administra esta configuración?

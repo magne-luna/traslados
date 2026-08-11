@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Chip, FieldGroupHeading } from '../../design-system/components';
+import { Button, FieldGroupHeading } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { DocumentChecklist } from '../../shared/components/DocumentChecklist';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
@@ -38,12 +38,6 @@ interface PacienteDocumentosChecklistProps {
    * encabezado de la exportación (`paciente-documentos-exportacion`, requisito "Lo exportado
    * identifica al paciente"). Opcional por el mismo motivo que `direccion`. */
   pacienteNombre?: string;
-  /** documentos-checklist-items-por-actividad (tasks.md 6.7, design.md Checkpoint (c) VEREDICTO
-   * 1.4): cuántos ítems de `items` son propios del tipo de esta actividad (no vinieron de la obra
-   * social) — la procedencia se comunica a nivel de BLOQUE, nunca por ítem (design.md D3 quiere
-   * `DocumentChecklist.tsx` sin tocar). `undefined`/`0` = no se muestra ningún indicio (el bloque
-   * "General" nunca pasa este prop — nunca recibe ítems por tipo, tasks.md 6.3). */
-  itemsPropiosDeActividad?: number;
   /** documentos-checklist-por-actividad (tasks.md 5.1, design.md Checkpoint (f) VEREDICTO opción
    * A): reporta el progreso propio de esta instancia (cargados/total, misma fórmula que
    * `DocumentChecklist.tsx` usa para su barra) al montar/cada vez que cambia — quien decide "hay
@@ -71,7 +65,6 @@ export function PacienteDocumentosChecklist({
   label,
   direccion,
   pacienteNombre,
-  itemsPropiosDeActividad,
   onProgreso,
   onIniciarTransferencia,
   refreshToken,
@@ -104,6 +97,12 @@ export function PacienteDocumentosChecklist({
   // termina de resolver la carga inicial (`decidioColapsoInicial`): si el usuario reabre un bloque
   // completo a mano, no se vuelve a cerrar solo por un cambio posterior de `cargados`/`total`.
   const esActividad = agrupacionId !== undefined;
+  // Sin ítems propios configurados para este tipo de actividad (revisión de checkpoint (c),
+  // 2026-08-11: ya no hereda los de la obra social). Mensaje explícito en vez de un checklist en
+  // blanco, para que no se lea como un bug — pedido de la usuaria tras probar en vivo. Solo aplica
+  // si además no hay ningún documento en este bloque: uno transferido/huérfano (sección "Otros
+  // documentos" de DocumentChecklist.tsx) igual tiene que verse, aunque no haya ítems configurados.
+  const sinConfigurar = esActividad && total === 0 && documentos.length === 0;
   const [abierta, setAbierta] = useState(true);
   const decidioColapsoInicial = useRef(false);
   // documentos-transferencia-actividad (tasks.md §12): estado de carga mientras se resuelve el
@@ -203,26 +202,20 @@ export function PacienteDocumentosChecklist({
             {errorExportacion && <Alert tone="danger">{errorExportacion}</Alert>}
           </div>
         )}
-        {/* documentos-checklist-items-por-actividad (tasks.md 6.7, design.md Checkpoint (c)
-            VEREDICTO 1.4, D3): procedencia a nivel de BLOQUE, siempre visible (abierto o
-            colapsado) — vive AFUERA de `SeccionPlegable` por el mismo motivo que "Exportar"
-            arriba (no admite contenido propio en su encabezado). Nunca aparece en el bloque
-            "General" (no recibe este prop, tasks.md 6.3) ni cuando la config está vacía/sin
-            resolver/degradada (0, design.md D2). */}
-        {itemsPropiosDeActividad !== undefined && itemsPropiosDeActividad > 0 && (
-          <div className="flex justify-end">
-            <Chip kind="info">
-              {`+${itemsPropiosDeActividad} ítem${itemsPropiosDeActividad === 1 ? '' : 's'} propio${itemsPropiosDeActividad === 1 ? '' : 's'} de esta actividad`}
-            </Chip>
-          </div>
-        )}
         <SeccionPlegable
           titulo={label}
           resumen={total > 0 ? `${cargados} de ${total} cargados` : undefined}
           abierta={abierta}
           onToggle={() => setAbierta((prev) => !prev)}
         >
-          {checklist}
+          {sinConfigurar ? (
+            <p className="rounded-sm border border-border bg-surface-soft px-md py-lg font-body text-sm text-muted">
+              Todavía no hay documentación configurada para este tipo de actividad. Se puede cargar
+              desde "Documentación por Actividad".
+            </p>
+          ) : (
+            checklist
+          )}
         </SeccionPlegable>
       </div>
     );
