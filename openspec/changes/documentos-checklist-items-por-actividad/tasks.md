@@ -528,17 +528,37 @@
 
 ## 9. Verificación manual y cierre
 
-- [ ] 9.1 Con la configuración **vacía**: la pantalla se ve y se comporta **idéntica** a antes del
+- [x] 9.1 Con la configuración **vacía**: la pantalla se ve y se comporta **idéntica** a antes del
       change, en un paciente con varias actividades. Es la verificación más importante del change.
-- [ ] 9.2 Con configuración cargada para escuela y terapia: los bloques muestran las listas correctas,
+      **→ SUPERADA por la revisión de checkpoint (c) (2026-08-11, ver `design.md`): ya no aplica tal
+      cual — un tipo sin configurar ahora muestra el mensaje "Todavía no hay documentación
+      configurada...", no el comportamiento previo al change. Verificado en vivo por Delfina
+      (navegador, `/documentacion-por-actividad` + bloques de Escuela/Escuela Especial/Terapia con y
+      sin configuración) en esta sesión.**
+- [x] 9.2 Con configuración cargada para escuela y terapia: los bloques muestran las listas correctas,
       el General no cambia, y dos actividades del mismo tipo comparten ítems pero **no** documentos.
-- [ ] 9.3 Cargar un documento en un ítem que vino de la configuración por tipo, verificar que se
+      **→ VERIFICADO en vivo por Delfina (screenshot real: "Escuela — Tarde" y "Escuela Especial" con
+      listas propias distintas, "Documentación general" sin cambios).**
+- [x] 9.3 Cargar un documento en un ítem que vino de la configuración por tipo, verificar que se
       persiste contra la base real con su `direccion_id`, y que no aparece en ningún otro bloque.
+      **→ VERIFICADO en vivo por Delfina (screenshot real: DNI cargado con archivo
+      "Requerimientos cambios.pdf", "Vigente", persistido contra la base real).**
 - [ ] 9.4 Verificación de permisos con **dos cuentas reales** de módulos distintos: quién puede ver y
       quién puede editar la configuración nueva, contrastado contra el veredicto 1.2. Confirmar que la
       RLS rechaza del lado del servidor, no solo la UI.
-- [ ] 9.5 `cd frontend && npx tsc -b --noEmit` limpio y `cd frontend && npx vitest run` completo verde.
-- [ ] 9.6 Confirmarle a la usuaria, **antes** de configurar ítems en producción, que el porcentaje de
+      **→ PENDIENTE, a propósito. Decisión explícita de Delfina (2026-08-11): archivar igual, dejar
+      esta verificación anotada como deuda antes de dar por buena la RLS de `requisitos_actividad` en
+      producción con usuarios reales de permisos mixtos.**
+- [x] 9.5 `cd frontend && npx tsc -b --noEmit` limpio y `cd frontend && npx vitest run` completo verde.
+      **→ HECHO (2026-08-11): `tsc -b --noEmit` limpio. Suite completa: 118 fallos preexistentes
+      (jsdom/localStorage, mismo baseline de siempre, confirmado que fallan en aislamiento también),
+      2193 passed — sin regresiones nuevas.**
+- [x] 9.6 Confirmarle a la usuaria, **antes** de configurar ítems en producción, que el porcentaje de
       avance de los pacientes ya completos **va a bajar** (más ítems ⇒ mismo cargado sobre más total).
       No es un bug (`design.md` D6).
+      **→ COMUNICADO (2026-08-11), con el efecto amplificado por la revisión de checkpoint (c):
+      documentos ya cargados contra un ítem de la obra social dentro de un bloque de actividad quedan
+      huérfanos (ya no cuentan para el progreso de ese bloque) en cuanto se configuren ítems propios
+      para ese tipo — no es solo dilución, es reclasificación real. Delfina confirmó, decidió archivar
+      igual.**
 - [ ] 9.7 `/opsx:archive` con delta specs sincronizadas y `CHANGES.md` actualizado.
