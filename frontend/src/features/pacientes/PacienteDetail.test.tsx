@@ -22,6 +22,7 @@ function buildFakeDocumentoRepository(): DocumentoRepository {
     upload: vi.fn(),
     remove: vi.fn(),
     resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+    transferirAgrupacion: vi.fn(),
   };
 }
 
@@ -656,5 +657,46 @@ describe('PacienteDetail', () => {
     const avisos = within(seccionDocumentacion).getAllByRole('note');
     const aviso = avisos.find((a) => /actividad/i.test(a.textContent ?? ''));
     expect(aviso).toBeTruthy();
+  });
+});
+
+// documentos-transferencia-actividad (tasks.md §7, design.md D5, `documento-avisos-modelo-datos`
+// spec): checkpoint del video pendiente, declarado EN PANTALLA. Alcance de ESTA pasada (tasks.md
+// §0.2, nota de alcance): exportar (3.b) y transferir (3.c) YA se implementaron con veredicto
+// confirmado por la usuaria — NO son provisorios. Lo único que sigue pendiente del video es la
+// navegación (3.a, "marcar una actividad" lleva a su documentación), bloqueada por el Checkpoint
+// (a). El aviso debe hablar de ESO, no de exportar/transferir.
+describe('PacienteDetail — aviso del checkpoint pendiente del video (tasks.md §7)', () => {
+  it('muestra un AvisoPendienteCliente en la sección de documentación sobre la navegación pendiente (3.a)', async () => {
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const tituloDocumentacion = await screen.findByRole('heading', { name: /checklist documental/i });
+    const seccionDocumentacion = tituloDocumentacion.closest('section');
+    if (!seccionDocumentacion) throw new Error('No se encontró la <section> de "Checklist documental"');
+
+    const avisos = within(seccionDocumentacion).getAllByRole('note');
+    // "Pendiente cliente:" es el título propio de AvisoPendienteCliente — lo distingue del
+    // AvisoModeloDatos ya existente en esta misma sección (ambos son <Alert role="note">).
+    const avisoPendiente = avisos.find((a) => /pendiente cliente/i.test(a.textContent ?? ''));
+    expect(avisoPendiente).toBeTruthy();
+
+    const texto = avisoPendiente?.textContent ?? '';
+    // Dice qué falta (el video) y qué NO entra en este aviso: exportar/transferir ya están
+    // resueltos, no provisorios — el aviso es específicamente sobre "marcar una actividad".
+    expect(texto).toMatch(/video/i);
+    expect(texto).toMatch(/marcar una actividad|navegaci[oó]n/i);
+    expect(texto).not.toMatch(/exportar/i);
+    expect(texto).not.toMatch(/transferir/i);
   });
 });

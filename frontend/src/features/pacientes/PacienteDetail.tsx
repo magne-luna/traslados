@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AvisoModeloDatos, Chip, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
+import { AvisoModeloDatos, AvisoPendienteCliente, Chip, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
@@ -259,8 +259,24 @@ export function PacienteDetail({
               <strong>`direccion_id`</strong> queda documentada como guía (Checkpoint (h)), a
               aplicarse en el change de integración documental.
             </AvisoModeloDatos>
+            {/* documentos-transferencia-actividad (tasks.md §7, design.md D5, `documento-avisos-
+                modelo-datos` spec): la clienta pidió que "marcar una actividad" lleve a su
+                documentación, y prometió un video mostrando el flujo — el video todavía no llegó
+                (Checkpoint (a)). Exportar (3.b) y transferir (3.c) YA se implementaron con el
+                veredicto que la usuaria confirmó — este aviso es SOLO sobre lo que sigue abierto:
+                la navegación. Se retira cuando el video llegue y ese checkpoint se cierre. */}
+            <AvisoPendienteCliente>
+              La clienta pidió que, al marcar una actividad (identificada por su domicilio), el
+              sistema lleve directamente a su documentación — y prometió un video mostrando ese
+              flujo. El video todavía no llegó, así que esa navegación **no está implementada
+              todavía**: por ahora, cada bloque de documentación se consulta desplazándose
+              manualmente por esta sección. Cuando el video llegue, se define la forma exacta (un
+              botón "Ver documentación" por actividad es la lectura más literal del pedido, pero
+              el video puede mostrar algo distinto) y este aviso se retira.
+            </AvisoPendienteCliente>
             <PacienteDocumentos
               pacienteId={paciente.id}
+              pacienteNombre={nombreCompleto(paciente)}
               obraSocialId={paciente.obraSocialId}
               obraSocialRepository={obraSocialRepository}
               documentoRepository={documentoRepository}

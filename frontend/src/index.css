@@ -84,3 +84,13 @@ body {
   margin: 0;
   font-family: 'IBM Plex Sans', sans-serif;
 }
+
+/*
+ * documentos-transferencia-actividad (tasks.md §13): la regla @media print + clase .print-target
+ * que vivía acá se agregó para aislar el resumen imprimible ("Ver resumen"/"Imprimir") del resto
+ * de la pantalla. REVERTIDA (2026-08-11, decisión de la usuaria — "siento que no tiene
+ * utilidad"): el resumen imprimible se sacó por completo (ver tasks.md §2/§11/§13/§14), "Exportar"
+ * (el .zip con los archivos reales, §12) es la única acción de exportación que queda y no imprime
+ * nada — nadie más en el proyecto consumía `.print-target` (verificado con grep antes de borrar),
+ * así que la regla se retira en vez de quedar como infraestructura sin consumidor.
+ */

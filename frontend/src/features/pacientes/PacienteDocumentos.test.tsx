@@ -7,7 +7,29 @@ import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoR
 import type { DocumentoAdjunto } from '../../shared/types/documento';
 import type { Direccion } from '../../shared/types/paciente';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
+import { mockDocumentoRepository } from '../../shared/lib/documentos/mockDocumentoRepository';
 import { PacienteDocumentos } from './PacienteDocumentos';
+import { armarZipDocumentacionActividad } from './exportacionZip';
+
+// documentos-transferencia-actividad (tasks.md §12): mock PARCIAL — por default llama a la
+// implementación real (`importOriginal`), así que la mayoría de los tests de "Exportar" ejercitan
+// el armado del zip de punta a punta. Solo el test de manejo de errores pisa
+// `armarZipDocumentacionActividad` con `mockRejectedValueOnce` para forzar el catch de
+// `PacienteDocumentosChecklist` sin depender de romper `fetch`/JSZip por dentro (que ya están
+// manejados como fallo PARCIAL, no error, por diseño — ver exportacionZip.test.ts).
+vi.mock('./exportacionZip', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./exportacionZip')>();
+  return { ...actual, armarZipDocumentacionActividad: vi.fn(actual.armarZipDocumentacionActividad) };
+});
+
+// documentos-transferencia-actividad (tasks.md §6): el mock persiste en un Map de sesión sin
+// reset entre tests — mismo criterio que `mockDocumentoRepository.test.ts`, cada test usa un
+// pacienteId único para no pisar el store de otro.
+let contadorPacienteTransferencia = 0;
+function pacienteIdUnico(): string {
+  contadorPacienteTransferencia += 1;
+  return `paciente-transferencia-${Date.now()}-${contadorPacienteTransferencia}`;
+}
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
@@ -43,6 +65,7 @@ function buildDocumentoRepository(overrides: Partial<DocumentoRepository> = {}):
     upload: vi.fn(),
     remove: vi.fn(),
     resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+    transferirAgrupacion: vi.fn(),
     ...overrides,
   };
 }
@@ -259,6 +282,7 @@ function buildRepositorioConAgrupacion(seed: DocumentoAdjunto[] = []): Documento
     upload: vi.fn(),
     remove: vi.fn(),
     resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+    transferirAgrupacion: vi.fn(),
   };
 }
 
@@ -591,5 +615,404 @@ describe('PacienteDocumentos — bloques de actividad colapsables (tasks.md 5.2)
     expect(within(bloqueKine).getByText('RHC')).toBeInTheDocument();
     expect(within(bloqueKine).getByText('Consentimiento informado')).toBeInTheDocument();
     expect(documentoRepository.listByEntity).toHaveBeenCalledTimes(2); // 1 vez por instancia (General + Kine), no una vez más por togglear.
+  });
+});
+
+// documentos-transferencia-actividad (tasks.md 2.6, §12): el botón "Exportar" arma un `.zip` con
+// los archivos reales de la actividad (ver el describe de más abajo, "exportar un .zip"). Vive en
+// el encabezado de cada bloque de ACTIVIDAD (no en "General"), sin exigir permiso de escritura
+// (Checkpoint (g): alcanza con lectura). El botón "Ver resumen" (detalle imprimible, §2/§11, con
+// el embebido de §14) que en su momento convivía acá se sacó por completo — REVERTIDO
+// (2026-08-11, decisión de la usuaria: "siento que no tiene utilidad"). Los tres describe blocks
+// que cubrían "Ver resumen"/"Imprimir"/el embebido se borraron junto con el código que probaban.
+// documentos-transferencia-actividad (tasks.md §12): "Exportar" arma un `.zip` (vía
+// `armarZipDocumentacionActividad`) y dispara la descarga en el navegador — es la única acción de
+// exportación que queda tras revertir "Ver resumen"/"Imprimir" (ver comentario arriba).
+describe('PacienteDocumentos — exportar un .zip con los archivos reales de una actividad (tasks.md §12)', () => {
+  const kinesiologa: Direccion = {
+    id: 'dir-kine',
+    tipo: 'terapia',
+    calle: 'Calle 818',
+    localidad: 'CABA',
+    descripcion: 'Kinesióloga',
+  };
+
+  function buildRepositorioConPrevisualizacion(
+    seed: DocumentoAdjunto[],
+    urlPorDocumentoId: Record<string, string | null>,
+  ): DocumentoRepository {
+    return {
+      listByEntity: vi.fn((_entidad, _entidadId, agrupacionId) =>
+        Promise.resolve(seed.filter((doc) => doc.agrupacionId === agrupacionId)),
+      ),
+      upload: vi.fn(),
+      remove: vi.fn(),
+      resolverPrevisualizacion: vi.fn((_entidad, _entidadId, documentoId: string) =>
+        Promise.resolve(urlPorDocumentoId[documentoId] ?? null),
+      ),
+      transferirAgrupacion: vi.fn(),
+    };
+  }
+
+  it('un bloque de actividad ofrece "Exportar"; el bloque "General" no lo ofrece', async () => {
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={buildDocumentoRepository()}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(within(bloqueKine).getByRole('button', { name: /^exportar$/i })).toBeInTheDocument();
+
+    const bloqueGeneral = screen.getByRole('group', { name: /documentación general/i });
+    expect(within(bloqueGeneral).queryByRole('button', { name: /exportar/i })).not.toBeInTheDocument();
+  });
+
+  it('sin permiso de escritura, "Exportar" sigue disponible (Checkpoint (g): alcanza con lectura)', async () => {
+    renderConPermiso(
+      false,
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={buildDocumentoRepository()}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(within(bloqueKine).getByRole('button', { name: /^exportar$/i })).toBeEnabled();
+  });
+
+  it('clickear "Exportar" arma el zip y dispara la descarga en el navegador', async () => {
+    const user = userEvent.setup();
+    const docRhc: DocumentoAdjunto = { id: 'doc-rhc', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01', agrupacionId: 'dir-kine' };
+    const documentoRepository = buildRepositorioConPrevisualizacion([docRhc], { 'doc-rhc': 'blob://rhc' });
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: () => Promise.resolve(new Blob(['contenido-rhc'], { type: 'application/pdf' })),
+    } as Response);
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob://zip-generado');
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+
+    await user.click(within(bloqueKine).getByRole('button', { name: /^exportar$/i }));
+
+    await waitFor(() => expect(clickSpy).toHaveBeenCalledTimes(1));
+    expect(fetchSpy).toHaveBeenCalledWith('blob://rhc');
+    expect(createObjectURLSpy).toHaveBeenCalled();
+    expect(revokeObjectURLSpy).toHaveBeenCalled();
+    // Ningún overlay se abrió — "Exportar" descarga el zip directamente, sin diálogo intermedio.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fetchSpy.mockRestore();
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
+    clickSpy.mockRestore();
+  });
+
+  it('mientras arma el zip, "Exportar" se deshabilita y muestra "Exportando…"; vuelve a habilitarse al terminar', async () => {
+    const user = userEvent.setup();
+    const docRhc: DocumentoAdjunto = { id: 'doc-rhc', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01', agrupacionId: 'dir-kine' };
+
+    let resolverPrevisualizacionPromise!: (value: string | null) => void;
+    const documentoRepository: DocumentoRepository = {
+      listByEntity: vi.fn((_entidad, _entidadId, agrupacionId) =>
+        Promise.resolve([docRhc].filter((doc) => doc.agrupacionId === agrupacionId)),
+      ),
+      upload: vi.fn(),
+      remove: vi.fn(),
+      resolverPrevisualizacion: vi.fn(
+        () => new Promise<string | null>((resolve) => { resolverPrevisualizacionPromise = resolve; }),
+      ),
+      transferirAgrupacion: vi.fn(),
+    };
+    const createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob://zip-generado');
+    const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+
+    const botonExportar = within(bloqueKine).getByRole('button', { name: /^exportar$/i });
+    await user.click(botonExportar);
+
+    // Todavía no se resolvió resolverPrevisualizacion — el botón queda en estado de carga.
+    expect(await within(bloqueKine).findByRole('button', { name: /exportando/i })).toBeDisabled();
+
+    // El documento no está disponible para previsualizar (resuelve null) — el zip se arma igual
+    // (con `_pendientes.txt`), lo que importa acá es solo el ciclo del estado de carga.
+    resolverPrevisualizacionPromise(null);
+
+    await waitFor(() =>
+      expect(within(bloqueKine).getByRole('button', { name: /^exportar$/i })).toBeEnabled(),
+    );
+
+    createObjectURLSpy.mockRestore();
+    revokeObjectURLSpy.mockRestore();
+    clickSpy.mockRestore();
+  });
+
+  it('un fallo al armar el zip muestra un mensaje en castellano vía Alert, sin texto crudo de fetch/Storage', async () => {
+    const user = userEvent.setup();
+    const docRhc: DocumentoAdjunto = { id: 'doc-rhc', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01', agrupacionId: 'dir-kine' };
+    const documentoRepository = buildRepositorioConPrevisualizacion([docRhc], { 'doc-rhc': 'blob://rhc' });
+
+    // `armarZipDocumentacionActividad` maneja el fallo de UN documento como PARCIAL (nunca
+    // lanza) — para ejercitar el catch de `PacienteDocumentosChecklist` (el caso "algo
+    // imprevisto rompió el armado entero") se fuerza un rechazo con `mockRejectedValueOnce` sobre
+    // la función completa, no sobre `fetch`. `TypeError` con texto crudo de red, a propósito —
+    // confirma que la UI NO lo repite tal cual, lo traduce.
+    vi.mocked(armarZipDocumentacionActividad).mockRejectedValueOnce(
+      new TypeError('NetworkError when attempting to fetch resource.'),
+    );
+
+    render(
+      <PacienteDocumentos
+        pacienteId="paciente-1"
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={documentoRepository}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+
+    await user.click(within(bloqueKine).getByRole('button', { name: /^exportar$/i }));
+
+    const alerta = await within(bloqueKine).findByRole('alert');
+    expect(alerta.textContent).not.toMatch(/NetworkError|fetch|Storage/i);
+    expect(alerta.textContent?.toLowerCase()).toContain('no se pudo armar');
+
+    // El botón vuelve a habilitarse — el error no lo deja colgado.
+    expect(within(bloqueKine).getByRole('button', { name: /^exportar$/i })).toBeEnabled();
+  });
+});
+
+// documentos-transferencia-actividad (tasks.md §6, design.md D6, Checkpoint (c)/(d)/(g) VEREDICTO):
+// integración de punta a punta contra el mock REAL (no un stub) — ejercita `transferirAgrupacion`
+// tal como lo llamaría la UI real, y verifica el refresco cruzado entre los dos bloques afectados
+// sin recargar la pantalla (spec `paciente-documentos-transferencia`).
+describe('PacienteDocumentos — transferir un documento entre actividades (tasks.md §6)', () => {
+  const kinesiologa: Direccion = { id: 'dir-kine', tipo: 'terapia', calle: 'Calle 818', localidad: 'CABA', descripcion: 'Kinesióloga' };
+  const fonoaudiologa: Direccion = { id: 'dir-fono', tipo: 'terapia', calle: 'Calle 254', localidad: 'CABA', descripcion: 'Fonoaudióloga' };
+
+  it('transferir de una actividad a otra: el documento deja de figurar en el origen y pasa a figurar en el destino, sin recargar (tasks.md 6.4/6.5/6.7)', async () => {
+    const user = userEvent.setup();
+    const pacienteId = pacienteIdUnico();
+    const doc = await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc.pdf', { type: 'application/pdf' }), undefined, 'dir-kine');
+
+    render(
+      <PacienteDocumentos
+        pacienteId={pacienteId}
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={mockDocumentoRepository}
+        direcciones={[kinesiologa, fonoaudiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+
+    await user.click(within(bloqueKine).getByRole('button', { name: /transferir rhc/i }));
+
+    const dialogo = await screen.findByRole('dialog');
+    // La confirmación identifica documento, origen y destino, distinguiendo actividades del mismo
+    // tipo (spec: "sin ambigüedad entre dos actividades del mismo tipo").
+    expect(within(dialogo).getByText(/rhc\.pdf/i)).toBeInTheDocument();
+    expect(within(dialogo).getByText(/Terapia — Kinesióloga/)).toBeInTheDocument();
+
+    const select = within(dialogo).getByLabelText(/destino|actividad/i);
+    await user.selectOptions(select, fonoaudiologa.id);
+    await user.click(within(dialogo).getByRole('button', { name: /^transferir$/i }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    const bloqueFono = screen.getByRole('group', { name: /terapia — fonoaudióloga/i });
+    expect(await within(bloqueFono).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+    expect(within(bloqueKine).queryByText(/rhc\.pdf/i)).not.toBeInTheDocument();
+    expect(doc.id).toEqual(expect.any(String)); // referencia usada arriba, evita "unused"
+  });
+
+  it('el total agregado del paciente no cambia por una transferencia (tasks.md 6.8)', async () => {
+    const user = userEvent.setup();
+    const pacienteId = pacienteIdUnico();
+    await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc.pdf', { type: 'application/pdf' }), undefined, 'dir-kine');
+
+    render(
+      <PacienteDocumentos
+        pacienteId={pacienteId}
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={mockDocumentoRepository}
+        direcciones={[kinesiologa, fonoaudiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+    const totalAntes = await screen.findByText(/documentos cargados en total/i);
+    // 3 instancias (General + Kinesióloga + Fonoaudióloga) × 2 ítems = 6 en total.
+    expect(totalAntes.textContent).toMatch(/1 de 6/);
+
+    await user.click(within(bloqueKine).getByRole('button', { name: /transferir rhc/i }));
+    const dialogo = await screen.findByRole('dialog');
+    await user.selectOptions(within(dialogo).getByLabelText(/destino|actividad/i), fonoaudiologa.id);
+    await user.click(within(dialogo).getByRole('button', { name: /^transferir$/i }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    const totalDespues = await screen.findByText(/documentos cargados en total/i);
+    expect(totalDespues.textContent).toMatch(/1 de 6/);
+  });
+
+  it('cancelar la transferencia no modifica nada (tasks.md 6.5)', async () => {
+    const user = userEvent.setup();
+    const pacienteId = pacienteIdUnico();
+    await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc.pdf', { type: 'application/pdf' }), undefined, 'dir-kine');
+
+    render(
+      <PacienteDocumentos
+        pacienteId={pacienteId}
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={mockDocumentoRepository}
+        direcciones={[kinesiologa, fonoaudiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+
+    await user.click(within(bloqueKine).getByRole('button', { name: /transferir rhc/i }));
+    const dialogo = await screen.findByRole('dialog');
+    await user.click(within(dialogo).getByRole('button', { name: /cancelar/i }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(within(bloqueKine).getByText(/rhc\.pdf/i)).toBeInTheDocument();
+    const bloqueFono = screen.getByRole('group', { name: /terapia — fonoaudióloga/i });
+    expect(within(bloqueFono).queryByText(/rhc\.pdf/i)).not.toBeInTheDocument();
+  });
+
+  it('los destinos ofrecidos son solo las otras actividades del mismo paciente + General, nunca la actividad de origen (tasks.md 6.3)', async () => {
+    const user = userEvent.setup();
+    const pacienteId = pacienteIdUnico();
+    await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc.pdf', { type: 'application/pdf' }), undefined, 'dir-kine');
+
+    render(
+      <PacienteDocumentos
+        pacienteId={pacienteId}
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={mockDocumentoRepository}
+        direcciones={[kinesiologa, fonoaudiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+    await user.click(within(bloqueKine).getByRole('button', { name: /transferir rhc/i }));
+
+    const dialogo = await screen.findByRole('dialog');
+    const opciones = within(dialogo)
+      .getByLabelText(/destino|actividad/i)
+      .querySelectorAll('option');
+    const textos = Array.from(opciones).map((o) => o.textContent);
+
+    expect(textos).toEqual(expect.arrayContaining(['Terapia — Fonoaudióloga', 'Documentación general']));
+    expect(textos).not.toEqual(expect.arrayContaining(['Terapia — Kinesióloga']));
+  });
+
+  it('transferir desde "General" hacia una actividad (tasks.md 6.3/6.4)', async () => {
+    const user = userEvent.setup();
+    const pacienteId = pacienteIdUnico();
+    await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc-general.pdf', { type: 'application/pdf' }));
+
+    render(
+      <PacienteDocumentos
+        pacienteId={pacienteId}
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={mockDocumentoRepository}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    const bloqueGeneral = await screen.findByRole('group', { name: /documentación general/i });
+    expect(await within(bloqueGeneral).findByText(/rhc-general\.pdf/i)).toBeInTheDocument();
+
+    await user.click(within(bloqueGeneral).getByRole('button', { name: /transferir rhc/i }));
+    const dialogo = await screen.findByRole('dialog');
+    await user.selectOptions(within(dialogo).getByLabelText(/destino|actividad/i), kinesiologa.id);
+    await user.click(within(dialogo).getByRole('button', { name: /^transferir$/i }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    const bloqueKine = screen.getByRole('group', { name: /terapia — kinesióloga/i });
+    expect(await within(bloqueKine).findByText(/rhc-general\.pdf/i)).toBeInTheDocument();
+    expect(within(bloqueGeneral).queryByText(/rhc-general\.pdf/i)).not.toBeInTheDocument();
+  });
+
+  it('sin permiso de escritura, "Transferir" queda deshabilitado (Checkpoint (g), tasks.md 6.6)', async () => {
+    const pacienteId = pacienteIdUnico();
+    await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc.pdf', { type: 'application/pdf' }), undefined, 'dir-kine');
+
+    renderConPermiso(
+      false,
+      <PacienteDocumentos
+        pacienteId={pacienteId}
+        pacienteNombre="Pérez, Juan"
+        obraSocialId="osecac"
+        obraSocialRepository={buildObraSocialRepository()}
+        documentoRepository={mockDocumentoRepository}
+        direcciones={[kinesiologa]}
+      />,
+    );
+
+    const bloqueKine = await screen.findByRole('group', { name: /terapia — kinesióloga/i });
+    expect(await within(bloqueKine).findByText(/rhc\.pdf/i)).toBeInTheDocument();
+    expect(within(bloqueKine).getByRole('button', { name: /transferir rhc/i })).toBeDisabled();
   });
 });
