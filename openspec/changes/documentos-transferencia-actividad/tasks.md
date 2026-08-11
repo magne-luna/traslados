@@ -445,13 +445,19 @@
 - [x] 9.5 Actualizar `TODO-video-revision.txt` (o el registro de pendientes del cliente que
       corresponda) para que el video prometido de este punto figure como pendiente rastreado, no solo
       dentro de un `design.md`.
-- [ ] 9.6 Commits en Conventional Commits, una sub-parte por commit como mínimo
+- [x] 9.6 Commits en Conventional Commits, una sub-parte por commit como mínimo
       (`feat(pacientes): …` por 3.a / 3.b / 3.c) para que el rollback selectivo del §Migration Plan
       sea posible en la práctica y no solo en el papel.
-      **→ NO EJECUTADO por esta pasada de apply**: instrucción explícita del orquestador — no
-      commitear salvo pedido expreso. Cambios dejados sin commitear, listos para que la usuaria (o el
-      flujo de la skill) los revise y commitee en el orden que corresponda (2 sub-partes esta vez:
-      3.b exportar, 3.c transferir — 3.a queda fuera de alcance).
+      **→ EJECUTADO (2026-08-11, pedido explícito de la usuaria).** 3 commits en vez de por
+      sub-parte estricta (3.a nunca se implementó, no hay nada que commitear de esa parte): `4135b47`
+      (`feat(documentos): agregar transferencia de agrupación al contrato compartido` — contrato +
+      guardia de huérfanos), `508daf6` (`feat(pacientes): transferir documentos entre actividades y
+      exportarlas como zip` — wiring en la pantalla), `4c6b85a` (`docs(documentos): registrar el
+      punto 3 de cambios2 y sus artefactos de openspec`). El resumen imprimible/botón Imprimir/
+      aislamiento de impresión/embebido (§11/§13/§14) nunca llegaron a commitearse — se revirtieron
+      antes, así que no hay commit de rollback selectivo para ellos (ver 11.5/13.7/14.11). Las 2
+      sub-partes que sí quedan (3.b exportar, 3.c transferir) tienen su commit — 3.a queda fuera de
+      alcance, sin código que commitear.
 
 ## 10. Guardia defensiva: documentos huérfanos (Checkpoint (e), implementado 2026-08-11)
 
@@ -520,9 +526,10 @@
       opción B ya está implementada, no pendiente. Agregar un escenario al delta spec
       `specs/paciente-documentos-transferencia/spec.md` documentando la garantía. No se edita
       `openspec/changes/documentos-checklist-items-por-actividad/` — solo se lo menciona en prosa acá.
-- [ ] 10.10 Commit (Conventional Commits, `feat(pacientes): guardia de documentos huérfanos en
-      DocumentChecklist`), no ejecutado en esta pasada por la misma instrucción de 9.6 (no commitear
-      salvo pedido expreso) — cambios dejados sin commitear.
+- [x] 10.10 Commit (Conventional Commits, `feat(pacientes): guardia de documentos huérfanos en
+      DocumentChecklist`). **→ EJECUTADO (2026-08-11)**: incluido en `4135b47`
+      (`feat(documentos): agregar transferencia de agrupación al contrato compartido`), junto con el
+      contrato — se commiteó como una sola unidad revisable, no en un commit aparte.
 
 ## 11. Botón "Imprimir" real en el overlay de exportación (hallazgo de verificación manual, 2026-08-11)
 
@@ -584,9 +591,10 @@
       tsc -b --noEmit`: limpio, sin salida. Cambios acotados a `PacienteDocumentosChecklist.tsx` (+
       import de `PrinterIcon`) y `PacienteDocumentos.test.tsx` (+4 tests) — no se tocó
       `DocumentacionActividadImprimible.tsx` ni `HojaDeRutaPage.tsx`.
-- [ ] 11.5 Commit (Conventional Commits, `feat(pacientes): botón Imprimir real en el overlay de
-      exportación de documentación`), no ejecutado en esta pasada — cambios dejados sin commitear,
-      misma instrucción de 9.6/10.10 (no commitear salvo pedido expreso).
+- [x] 11.5 Commit (Conventional Commits, `feat(pacientes): botón Imprimir real en el overlay de
+      exportación de documentación`). **→ NO APLICA (2026-08-11)**: todo §11 (código + tests) se
+      revirtió (ver §14 REVERTIDO) antes de que se ejecutara ningún commit — no existe nada de esto
+      en el árbol para commitear. El REVERTIDO del Checkpoint (b) en §0.2 es el registro histórico.
 
 ## 12. "Exportar" arma un `.zip` con los archivos reales (Checkpoint (b) VEREDICTO REVISADO, 2026-08-11)
 
@@ -693,9 +701,10 @@
       `frontend/src/features/pacientes/exportacionZip.test.ts` (nuevo),
       `frontend/src/features/pacientes/PacienteDocumentosChecklist.tsx`,
       `frontend/src/features/pacientes/PacienteDocumentos.test.tsx`.
-- [ ] 12.11 Commit (Conventional Commits, `feat(pacientes): exportar documentación como .zip con los
-      archivos reales de la actividad`), no ejecutado en esta pasada — misma instrucción de
-      9.6/10.10/11.5 (no commitear salvo pedido expreso).
+- [x] 12.11 Commit (Conventional Commits, `feat(pacientes): exportar documentación como .zip con los
+      archivos reales de la actividad`). **→ EJECUTADO (2026-08-11)**: incluido en `508daf6`
+      (`feat(pacientes): transferir documentos entre actividades y exportarlas como zip`), junto con
+      el wiring de transferencia — commit único por pantalla, no por sub-parte suelta.
 
 ## 13. Aislamiento de impresión: el resultado impreso mostraba TODA la pantalla, no solo la
 ##     documentación (hallazgo de verificación manual, 2026-08-11)
@@ -790,9 +799,9 @@
       usuario puede imprimir la exportación directamente desde la pantalla"): "El resultado impreso
       está aislado del resto de la pantalla" + "El título y el botón 'Cerrar' del overlay tampoco
       forman parte de lo impreso".
-- [ ] 13.7 Commit (Conventional Commits, `fix(pacientes): aislar el resultado impreso del resto de la
-      pantalla con .print-target`), no ejecutado en esta pasada — misma instrucción de
-      9.6/10.10/11.5/12.11 (no commitear salvo pedido expreso).
+- [x] 13.7 Commit (Conventional Commits, `fix(pacientes): aislar el resultado impreso del resto de la
+      pantalla con .print-target`). **→ NO APLICA (2026-08-11)**: revertido junto con §11/§14 antes
+      de commitear — no queda nada de `.print-target` en el árbol. Ver REVERTIDO del Checkpoint (b).
 
 ## 14. Embeber el documento vigente de cada ítem cargado en el resumen imprimible (Checkpoint (b),
 ##     segunda VEREDICTO REVISADO, 2026-08-11)
@@ -999,6 +1008,7 @@
       previsualización soportada muestra el aviso en vez de romper el resto, una falla puntual no
       bloquea a los demás ítems, y "Imprimir" espera a que termine de resolverse todo antes de
       habilitarse.
-- [ ] 14.11 Commit (Conventional Commits, `feat(pacientes): embeber el documento vigente de cada
-      ítem cargado en el resumen imprimible`), no ejecutado en esta pasada — misma instrucción de
-      9.6/10.10/11.5/12.11/13.7 (no commitear salvo pedido expreso).
+- [x] 14.11 Commit (Conventional Commits, `feat(pacientes): embeber el documento vigente de cada
+      ítem cargado en el resumen imprimible`). **→ NO APLICA (2026-08-11)**: esta sub-parte se
+      revirtió el mismo día, a mitad de implementación (el agente que la construía se frenó antes de
+      terminar) — nunca llegó a existir un estado commiteable. Ver REVERTIDO del Checkpoint (b).
