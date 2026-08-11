@@ -194,7 +194,9 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 - **Refinamiento posterior (`integracion-documentos`, 2026-08-07)**: swap parcial, mismo criterio de alcance que `C-05`/`C-04`/`C-06` (corte por entidad con `entidadId` real). `PacientesRoute.tsx` inyecta `SupabaseDocumentoRepository` real (`documentoMapping.ts` + repository, 61 tests) contra los 4 buckets de Storage + las 4 tablas reales de este change; Vehículos/Conductores/Facturación siguen con `mockDocumentoRepository` — muestran `AvisoModeloDatos` explicando que la subida sigue simulada hasta `integracion-conductores-vehiculos`/`integracion-facturacion`. Cinco checkpoints de diseño resueltos con veredicto de la usuaria (2026-08-05), incluido uno CRÍTICO (bucket `documentos-vehiculos` gateado por el módulo equivocado, ver corrección arriba). Hallazgo de la verificación manual §8.3: `tipoMime` nunca viajaba desde las tablas reales, así que "Ver" no podía previsualizar ningún documento real — arreglado con `inferirTipoMime()` (deriva el tipo de la extensión del nombre, sin columna nueva), aplica a las 4 entidades. Detalle completo en `knowledge-base/04_modelo_de_datos.md` §Discrepancias, bullet "Documentos vs. esquema real de `C-03`". Governance ALTO. ✅ **Archivado (2026-08-07)**, `tasks.md` §0-§8 completas (8/8), verificación manual con cuentas reales confirmada por la usuaria. Delta specs sincronizadas: capabilities nuevas `documento-contract`, `documento-repository-supabase`, `documento-avisos-modelo-datos` en `openspec/specs/`; nota actualizada en `openspec/specs/paciente-documentos/spec.md`. Detalle en `openspec/changes/archive/2026-08-07-integracion-documentos/`.
 - **Refinamiento posterior (`documentos-checklist-por-actividad`, 2026-08-07)**: el checklist documental del paciente (dueño del tipo/componente/repository compartido que se modificó, este change) pasa a instanciarse **por actividad** (`Direccion` del paciente que no es el domicilio: escuela, terapia(s), club) en vez de una sola vez por paciente — feedback real de la clienta (Andrea Pastor), tercera vuelta sobre el mismo mock/contrato tras `pacientes-documentos-multiples` y `documentos-previsualizacion` de arriba. Contrato compartido gana un campo opcional `agrupacionId?: string` en `DocumentoAdjunto`/`DocumentoRepository.listByEntity`/`.upload` (Checkpoint (b), VEREDICTO: opción B); Vehículos/Conductores/Facturación pasan `undefined` y no cambian de comportamiento (verificado con tests dedicados, `tasks.md` §7). `DocumentChecklist.tsx` no cambia de contrato — la UI de N bloques por actividad se resuelve por composición en `PacienteDocumentos.tsx` (D1 de `design.md`). Además: bloque "General" para documentación sin actividad (Checkpoint (c)), progreso por actividad + total agregado (Checkpoint (f)), y advertencia/confirmación al quitar una dirección con documentación cargada (Checkpoint (e), delta nuevo sobre `paciente-direcciones`). A diferencia de `pacientes-documentos-multiples`, esta dimensión **no** tiene respaldo real en la base todavía — `pacientes.documentos` no tiene columna de dirección/actividad, ver `knowledge-base/04_modelo_de_datos.md` §Discrepancias, bullet "Documentación del paciente por actividad — sin columna real", y cartel `AvisoModeloDatos` en la sección de documentación de `PacienteDetail.tsx`. Governance CRÍTICO (mismo criterio que los dos refinamientos anteriores). ✅ **Archivado (2026-08-07)**, tasks 9/9 — todas las 9 secciones de `tasks.md` completas con verificación manual confirmada por la usuaria. **Bug real encontrado y corregido durante verificación (§9.2)**: `SupabaseDocumentoRepository.ts` ignoraba `agrupacionId` completamente (`listarDocumentos` no filtraba, `subirDocumento` ni siquiera aceptaba el parámetro), pese a que el mock sí aislaba. Arreglado con migración `20260807010000_documentos_direccion_id.sql` (columna `direccion_id`, `ON DELETE RESTRICT`) + mapeo real en `documentoMapping.ts`/`SupabaseDocumentoRepository.ts` (commit `9beda7d`). Además, feedback directo de la usuaria: se sacó la barra de progreso individual de cada instancia en Pacientes (nuevo prop `DocumentChecklist.mostrarProgreso`, default `true`, sin efecto en los otros 3 dominios) — solo queda el total agregado del encabezado. Detalle en `openspec/changes/archive/2026-08-07-documentos-checklist-por-actividad/`.
 - **Refinamiento posterior (`documentos-transferencia-actividad`, propose 2026-08-10, apply parcial
-  2026-08-10/11)**: punto 3 de la Ronda 2 de feedback de la clienta (Andrea Pastor) — vincular la
+  2026-08-10/11)**: ✅ **Archivado (2026-08-11)**, 91/103 tasks (§3/§4 — navegación 3.a —
+  intencionalmente sin marcar, ver más abajo). Punto 3 de la Ronda 2 de feedback de la clienta
+  (Andrea Pastor) — vincular la
   actividad seleccionada con su documentación, exportarla y transferir documentos entre
   actividades. **Contrato compartido gana un quinto método** `transferirAgrupacion(entidad,
   entidadId, documentoId, agrupacionDestino: string | undefined)` en `DocumentoRepository` — `UPDATE`
@@ -219,8 +221,40 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   — primera operación del proyecto que muta la ubicación de un documento clínico ya cargado. Detalle
   completo, incluida la deuda detectada sobre el spec principal de `documento-contract` (desactualizado
   respecto del código desde `pacientes-documentos-multiples`), en
-  `knowledge-base/04_modelo_de_datos.md` §Discrepancias. Detalle en
-  `openspec/changes/documentos-transferencia-actividad/`.
+  `knowledge-base/04_modelo_de_datos.md` §Discrepancias. **Delta specs sincronizadas** (2026-08-11):
+  capacidades nuevas `paciente-documentos-exportacion`/`paciente-documentos-transferencia`, más
+  requisitos agregados en `documento-contract`/`paciente-documentos`/`documento-avisos-modelo-datos`
+  en `openspec/specs/` — corregidos antes de fusionar (el delta spec de propose describía también la
+  navegación 3.a como si estuviera implementada; se sacó esa parte de `paciente-documentos` y el
+  requisito entero de `paciente-direcciones` no llegó a fusionarse, para no dejar un spec principal
+  mintiendo sobre una funcionalidad que no existe). Detalle en
+  `openspec/changes/archive/2026-08-11-documentos-transferencia-actividad/`.
+- **Refinamiento posterior (`documentos-checklist-items-por-actividad`, propose+apply
+  2026-08-10/11)**: el checklist documental del paciente (dueño del tipo/componente/repository
+  compartido que se modificó, este change) gana un segundo eje de configuración, aditivo al de la
+  obra social (RN-FA-08): ítems propios **por tipo de actividad** (escuela, escuela especial,
+  terapia, CET, otro — global, no por obra social). Tabla nueva
+  `obra_social.requisitos_actividad` (RLS + auditoría en la misma migración, FK al catálogo
+  compartido `obra_social.tipos_documento`, mismo criterio de get-or-create normalizado que
+  `requisitos_os`), función pura `combinarItemsDeActividad` (`actividadDocumental.ts`, dedup por
+  id, orden de la obra social primero, el más estricto gana en `requerido`). **`DocumentChecklist.tsx`
+  y el contrato compartido `DocumentoRepository` NO cambian** — a diferencia de
+  `documentos-checklist-por-actividad` (dos refinamientos atrás), esto se resuelve enteramente por
+  composición en `PacienteDocumentos.tsx`; el bloque "General" sigue sin recibir ítems por tipo
+  (protegido por construcción, la función pura simplemente no se llama ahí). Coordinado con
+  `documentos-transferencia-actividad` (bullet de arriba): el riesgo que ese change había dejado
+  anotado (transferir un documento a una actividad cuyo checklist combinado no lo incluye) ya
+  estaba resuelto del lado de `DocumentChecklist.tsx` (sección "Otros documentos" para `itemId`
+  huérfanos) antes de que este change necesitara usarlo. **Origen del supuesto: el EQUIPO
+  (hipótesis de la usuaria), no feedback textual de Andrea Pastor** — a diferencia de los tres
+  refinamientos hermanos anteriores de esta pantalla. Governance CRÍTICO (mismo criterio que los
+  refinamientos anteriores, y este va más lejos: tabla nueva con RLS propia). Detalle completo,
+  incluida la discrepancia sin confirmar, en `knowledge-base/04_modelo_de_datos.md` §Discrepancias
+  y las notas `⚠️` sobre RN-FA-08/RN-FA-10 en `05_reglas_de_negocio.md`. Pantalla de
+  administración propia en `/documentacion-por-actividad` (capability nueva
+  `checklist-por-tipo-actividad`, gateada por el mismo módulo `obra_social` que ya gatea
+  `requisitos_os` — reusa `ChecklistEditor`/`ChecklistItemRow` sin tocarlos). Detalle en
+  `openspec/changes/documentos-checklist-items-por-actividad/`.
 
 ### [C-04] `obras-sociales-prestadores`
 - **Estado**: ✅ `integracion-obra-social` — 69/70 tasks. Migraciones confirmadas aplicadas y
@@ -597,6 +631,21 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   cargado) en paralelo al `.zip` — la usuaria decidió sacarla por completo ("siento que no tiene
   utilidad"), quedando solo el `.zip` como acción de exportación. Detalle de la cadena de
   veredictos en `tasks.md` §0.2/§2/§11/§13/§14 del change. Mismo governance CRÍTICO.
+- **Refinamiento posterior (`documentos-checklist-items-por-actividad`, propose+apply
+  2026-08-10/11)**: la pantalla Pacientes → Documentos (dueña de este change, `C-05`) suma, en cada
+  bloque de actividad, los ítems propios configurados para ese tipo (escuela/escuela
+  especial/terapia/CET/otro) a los de la obra social — nunca en el bloque "General". Cada bloque
+  muestra la procedencia de sus ítems extra a nivel de bloque (`+N ítems propios de esta
+  actividad`), sin cambiar `DocumentChecklist.tsx`. Ver detalle completo (tabla, RLS, función pura,
+  pantalla de administración) en la nota equivalente de `C-03` (dueño del tipo/componente/repository
+  compartido) más arriba. **Sin configurar nada, el comportamiento es idéntico al de antes** (default
+  vacío, design.md D2) — verificación manual confirmando esto sigue pendiente (`tasks.md` §9.1,
+  fuera de este apply). El porcentaje de avance de pacientes ya completos **va a bajar** el día que
+  se configure algún ítem por tipo (más ítems ⇒ mismo cargado sobre más total) — no es un bug,
+  aviso pendiente de dar a la usuaria antes de configurar nada en producción (`tasks.md` 9.6). Mismo
+  governance CRÍTICO que los cuatro refinamientos anteriores de esta pantalla, y el que va más lejos
+  de los cinco: crea tabla nueva con RLS propia sobre documentación de salud, apoyada en una regla
+  de negocio sin confirmar (ver nota `⚠️` en `05_reglas_de_negocio.md` RN-FA-08/RN-FA-10).
 
 ### [C-09] `conductores`
 - **Estado**: `[ ]` pendiente
