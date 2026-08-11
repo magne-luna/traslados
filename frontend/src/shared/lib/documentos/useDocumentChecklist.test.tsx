@@ -19,6 +19,7 @@ function buildFakeRepository(overrides: Partial<DocumentoRepository> = {}): Docu
     // el fake siga siendo asignable a `DocumentoRepository` — sin default, este archivo vuelve a
     // aparecer en la lista de 15 archivos rojos de `npx tsc -b --noEmit` que dejó anotada 1.3.
     resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+    transferirAgrupacion: vi.fn(),
     ...overrides,
   };
 }
@@ -146,6 +147,7 @@ describe('useDocumentChecklist — resolverPrevisualizacion() maneja los tres de
   it('null: no es un error — la promesa resuelve null sin lanzar', async () => {
     const repository = buildFakeRepository({
       resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+      transferirAgrupacion: vi.fn(),
     });
     const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
     await waitFor(() => expect(result.current.loading).toBe(false));

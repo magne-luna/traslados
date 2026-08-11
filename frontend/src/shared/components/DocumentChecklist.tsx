@@ -3,6 +3,7 @@ import { buttonClassName, Chip, chipColors, InlineIcon, Overlay, ProgressBar, Ri
 import { Alert } from '../../design-system/feedback';
 import { iconCheck, iconDocumento } from '../../design-system/icons';
 import type { ChecklistItem, DocumentoAdjunto } from '../types/documento';
+import { elegirVigente, fechaEfectiva } from '../lib/documentos/vigencia';
 import { PdfPreview } from './PdfPreview';
 
 interface DocumentChecklistProps {
@@ -26,6 +27,13 @@ interface DocumentChecklistProps {
    * ventana o al desmontar `DocumentChecklist` con la ventana todavía abierta. El hook no la
    * revoca solo — es este componente el que sabe cuándo terminó de usarla (D3). */
   onRevocarPrevisualizacion?: (url: string) => void;
+  /** documentos-transferencia-actividad (design.md Checkpoint (c) VEREDICTO opción A, tasks.md
+   * 6.1): reasigna un documento ya cargado a otra agrupación (o a "General") sin volver a
+   * subirlo. Prop opcional a propósito — mismo mecanismo opt-in que `mostrarProgreso`: mientras
+   * Vehículos/Conductores/Facturas no la pasen, "Transferir" no se renderiza en vez de mostrar un
+   * botón sin capacidad real detrás. Solo Pacientes la habilita
+   * (`PacienteDocumentosChecklist.tsx`) — los otros 3 dominios no tienen agrupaciones. */
+  onTransferir?: (documentoId: string) => void;
   /** documentos-checklist-por-actividad (feedback directo de la usuaria, 2026-08-07): con N
    * instancias montadas (Pacientes, una por actividad), la barra "X de Y cargados" propia de CADA
    * instancia dejó de tener sentido — ya existe un total agregado en `PacienteDocumentos.tsx`
@@ -102,26 +110,13 @@ type EstadoPrevisualizacion =
   | { status: 'sin-contenido' }
   | { status: 'error' };
 
-// pacientes-documentos-multiples (design.md Checkpoint (b) / D2): "vigente" se deriva como el
-// documento con `vigenciaDesde` más reciente que no sea futuro (fallback a `subidoEn` si no se
-// cargó `vigenciaDesde`) — lógica de presentación, no se persiste como flag aparte para no tener
-// dos fuentes de verdad.
-function fechaEfectiva(doc: DocumentoAdjunto): string {
-  return doc.vigenciaDesde ?? doc.subidoEn;
-}
-
-function esFechaFutura(fecha: string, ahora: Date): boolean {
-  const parsed = new Date(fecha);
-  return !Number.isNaN(parsed.getTime()) && parsed.getTime() > ahora.getTime();
-}
-
-function elegirVigente(docs: DocumentoAdjunto[]): DocumentoAdjunto | undefined {
-  if (docs.length === 0) return undefined;
-  const ahora = new Date();
-  const noFuturos = docs.filter((doc) => !esFechaFutura(fechaEfectiva(doc), ahora));
-  const candidatos = noFuturos.length > 0 ? noFuturos : docs;
-  return [...candidatos].sort((a, b) => fechaEfectiva(b).localeCompare(fechaEfectiva(a)))[0];
-}
+// documentos-transferencia-actividad (tasks.md §14): `fechaEfectiva`/`elegirVigente` se movieron a
+// `shared/lib/documentos/vigencia.ts` — exportarlas directamente desde este archivo (en su momento
+// para que `DocumentacionActividadImprimible.tsx`, el resumen imprimible, las reusara) disparaba
+// la advertencia de oxlint `react(only-export-components)` (un archivo de componente que además
+// exporta funciones sueltas rompe Fast Refresh). Mudanza tal cual, sin cambiar la lógica. El
+// resumen imprimible se REVIRTIÓ por completo el 2026-08-11, pero este archivo se quedó movido —
+// `vigencia.ts` sigue siendo la fuente para este componente, sin relación con lo revertido.
 
 // El vigente va primero; el resto se muestra como historial/continuidad, ordenado por la misma
 // fecha (más reciente primero).
@@ -230,6 +225,7 @@ export function DocumentChecklist({
   readOnly = false,
   onResolverPrevisualizacion,
   onRevocarPrevisualizacion,
+  onTransferir,
   mostrarProgreso = true,
   variant = 'default',
 }: DocumentChecklistProps) {
@@ -294,6 +290,116 @@ export function DocumentChecklist({
   // A partir de 6 ítems, dos columnas para aprovechar el ancho disponible en vez de una lista
   // angosta y muy larga.
   const dosColumnas = items.length > 5;
+
+  // documentos-transferencia-actividad (design.md Checkpoint (e), VEREDICTO revisado 2026-08-11:
+  // opción B implementada antes de archivar en vez de quedar como forma futura): documentos cuyo
+  // `itemId` no matchea NINGÚN `item.id` de la lista vigente. Guardia GENÉRICA del componente
+  // compartido, no específica de Pacientes ni de transferencia — sin esto, el `items.map()` de
+  // abajo simplemente nunca itera sobre ellos y el documento desaparece de la vista sin ningún
+  // error, aunque siga intacto en la base. Protege contra cualquier drift futuro entre el
+  // `itemId` de un documento y la lista de `items` vigente: un ítem borrado del checklist de una
+  // obra social con documentos ya cargados contra él, o —cuando
+  // `documentos-checklist-items-por-actividad` cablee `combinarItemsDeActividad()`— un documento
+  // transferido (`onTransferir`, más abajo) a una actividad cuyo checklist combinado no lo
+  // incluye. No cuenta para `cargados`/`pendientes` de arriba: el progreso sigue siendo por ítem
+  // vigente, esto es una vía de visibilidad, no una redefinición del progreso.
+  const huerfanos = documentos.filter((doc) => !items.some((item) => item.id === doc.itemId));
+  const huerfanoItemIds = Array.from(new Set(huerfanos.map((doc) => doc.itemId)));
+  const vigentePorHuerfano = new Map<string, boolean>();
+  const huerfanosOrdenados: DocumentoAdjunto[] = huerfanoItemIds.flatMap((itemId) => {
+    const docsGrupo = huerfanos.filter((doc) => doc.itemId === itemId);
+    const vigenteGrupo = elegirVigente(docsGrupo);
+    const ordenados = ordenarParaMostrar(docsGrupo, vigenteGrupo);
+    ordenados.forEach((doc) => vigentePorHuerfano.set(doc.id, vigenteGrupo?.id === doc.id));
+    return ordenados;
+  });
+
+  // Fila de un documento puntual (nombre + fecha + "Vigente" + Ver/Transferir/Quitar). Extraída
+  // para reusarse tal cual tanto dentro de cada tarjeta de ítem (abajo) como en la sección "Otros
+  // documentos" de huérfanos — mismo markup, sin duplicar el patrón visual existente.
+  function renderDocumentoRow(doc: DocumentoAdjunto, itemNombre: string, esVigente: boolean) {
+    return (
+      // documentos-previsualizacion (feedback de layout, 2026-08-06 — "más intuitivo si aprieto
+      // la fila" / "Quitar afuera del hover" / "Ver adentro de la caja con fondo, a la derecha"):
+      // la caja con `hover:bg-surface-soft` + click-para-abrir (mismo patrón que las Card
+      // clickeables de PacientesList.tsx: `onClick` directo, sin role="button"/tabIndex,
+      // mouse-only por diseño) ocupa todo el ancho disponible y usa `justify-between` PARA SÍ
+      // MISMA — nombre/Vigente a la izquierda, "Ver" a la derecha DENTRO de esa misma caja
+      // (oculto por opacidad, `group-hover` lo revela). "Quitar" queda afuera de la caja, como
+      // hermano, sin fondo ni click-to-abrir — la naturaleza de esa acción es distinta (destruir,
+      // no ver).
+      <div key={doc.id} className="group flex flex-wrap items-center justify-between gap-sm">
+        <div
+          onClick={onResolverPrevisualizacion ? () => abrirPreview(doc, itemNombre) : undefined}
+          className={`flex flex-1 items-center justify-between gap-sm rounded-sm px-3 py-1.5 ${
+            onResolverPrevisualizacion ? 'cursor-pointer transition-colors hover:bg-surface-soft' : ''
+          }`}
+        >
+          <span className="font-body text-[11px] text-muted">
+            {doc.nombreArchivo} · {new Date(doc.subidoEn).toLocaleDateString('es-AR')}
+            {esVigente && (
+              // documentos-previsualizacion (feedback "Vigente como texto, sin pill",
+              // 2026-08-06): mismo color que tenía el Chip (`chipColors.info.fg`, text-info)
+              // pero sin fondo/borde — solo texto.
+              <span className={`ml-xs font-body text-[11px] font-semibold ${chipColors.info.fg}`}>
+                Vigente
+              </span>
+            )}
+          </span>
+          {onResolverPrevisualizacion && (
+            // documentos-previsualizacion (tasks.md 5.6, design.md Checkpoint (c)): "Ver" NUNCA
+            // se deshabilita con `readOnly` a propósito — `readOnly` gatea ESCRITURA (Subir/
+            // Agregar otro/Quitar), y el principio ya escrito en los wrappers de dominio dice
+            // que el gateo de cliente nunca debe ser más restrictivo que la RLS del servidor:
+            // quien tiene permiso de lectura del módulo puede previsualizar, aunque no pueda
+            // cargar ni quitar. Mismo criterio para huérfanos (Checkpoint (e)): siguen siendo
+            // documentación real del paciente, solo cambió a qué ítem apuntan.
+            <button
+              type="button"
+              aria-label={`Ver ${itemNombre} - ${doc.nombreArchivo}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                abrirPreview(doc, itemNombre);
+              }}
+              className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-primary underline-offset-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:underline"
+            >
+              Ver
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-sm">
+          {onTransferir && (
+            // documentos-transferencia-actividad (tasks.md 6.1, Checkpoint (g)): exige el mismo
+            // `readOnly` que "Quitar" — transferir es una escritura. Nunca dispara la
+            // previsualización (stopPropagation, mismo criterio que "Quitar"). Un huérfano
+            // (Checkpoint (e)) también puede transferirse — es justamente la vía de escape para
+            // corregirlo: moverlo a una actividad cuya lista sí lo contenga, o a "General".
+            <button
+              type="button"
+              aria-label={`Transferir ${itemNombre} - ${doc.nombreArchivo}`}
+              disabled={readOnly}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTransferir(doc.id);
+              }}
+              className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-primary underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-40"
+            >
+              Transferir
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label={`Quitar ${itemNombre} - ${doc.nombreArchivo}`}
+            disabled={readOnly}
+            onClick={() => onRemove(doc.id)}
+            className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-danger underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-40"
+          >
+            Quitar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-md">
@@ -399,66 +505,7 @@ export function DocumentChecklist({
 
             {docsOrdenados.length > 0 && (
               <div className={esRing ? 'flex flex-col gap-xs pl-9' : 'flex flex-col gap-xs pl-11'}>
-                {docsOrdenados.map((doc) => (
-                  // documentos-previsualizacion (feedback de layout, 2026-08-06 — "más intuitivo
-                  // si aprieto la fila" / "Quitar afuera del hover" / "Ver adentro de la caja con
-                  // fondo, a la derecha"): la caja con `hover:bg-surface-soft` + click-para-abrir
-                  // (mismo patrón que las Card clickeables de PacientesList.tsx: `onClick`
-                  // directo, sin role="button"/tabIndex, mouse-only por diseño) ocupa todo el
-                  // ancho disponible y usa `justify-between` PARA SÍ MISMA — nombre/Vigente a la
-                  // izquierda, "Ver" a la derecha DENTRO de esa misma caja (oculto por opacidad,
-                  // `group-hover` lo revela). "Quitar" queda afuera de la caja, como hermano, sin
-                  // fondo ni click-to-abrir — la naturaleza de esa acción es distinta (destruir,
-                  // no ver).
-                  <div key={doc.id} className="group flex flex-wrap items-center justify-between gap-sm">
-                    <div
-                      onClick={onResolverPrevisualizacion ? () => abrirPreview(doc, item.nombre) : undefined}
-                      className={`flex flex-1 items-center justify-between gap-sm rounded-sm px-3 py-1.5 ${
-                        onResolverPrevisualizacion ? 'cursor-pointer transition-colors hover:bg-surface-soft' : ''
-                      }`}
-                    >
-                      <span className="font-body text-[11px] text-muted">
-                        {doc.nombreArchivo} · {new Date(doc.subidoEn).toLocaleDateString('es-AR')}
-                        {vigente?.id === doc.id && (
-                          // documentos-previsualizacion (feedback "Vigente como texto, sin pill",
-                          // 2026-08-06): mismo color que tenía el Chip (`chipColors.info.fg`,
-                          // text-info) pero sin fondo/borde — solo texto.
-                          <span className={`ml-xs font-body text-[11px] font-semibold ${chipColors.info.fg}`}>
-                            Vigente
-                          </span>
-                        )}
-                      </span>
-                      {onResolverPrevisualizacion && (
-                        // documentos-previsualizacion (tasks.md 5.6, design.md Checkpoint (c)):
-                        // "Ver" NUNCA se deshabilita con `readOnly` a propósito — `readOnly` gatea
-                        // ESCRITURA (Subir/Agregar otro/Quitar), y el principio ya escrito en los
-                        // wrappers de dominio dice que el gateo de cliente nunca debe ser más
-                        // restrictivo que la RLS del servidor: quien tiene permiso de lectura del
-                        // módulo puede previsualizar, aunque no pueda cargar ni quitar.
-                        <button
-                          type="button"
-                          aria-label={`Ver ${item.nombre} - ${doc.nombreArchivo}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            abrirPreview(doc, item.nombre);
-                          }}
-                          className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-primary underline-offset-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:underline"
-                        >
-                          Ver
-                        </button>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      aria-label={`Quitar ${item.nombre} - ${doc.nombreArchivo}`}
-                      disabled={readOnly}
-                      onClick={() => onRemove(doc.id)}
-                      className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-danger underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-40"
-                    >
-                      Quitar
-                    </button>
-                  </div>
-                ))}
+                {docsOrdenados.map((doc) => renderDocumentoRow(doc, item.nombre, vigente?.id === doc.id))}
               </div>
             )}
 
@@ -479,6 +526,30 @@ export function DocumentChecklist({
         );
       })}
       </div>
+
+      {huerfanosOrdenados.length > 0 && (
+        // documentos-transferencia-actividad (Checkpoint (e), 2026-08-11): sección aparte para
+        // documentos cuyo `itemId` ya no corresponde a ningún ítem de esta lista — nunca se
+        // ocultan, quedan visibles y corregibles acá. Solo se muestra si hay al menos un
+        // huérfano; nunca "0 documentos" fantasma.
+        <div className="flex flex-col gap-sm rounded-md border border-dashed border-border-strong bg-surface px-md py-sm">
+          <div className="flex items-center gap-sm">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-pill bg-surface-soft text-muted">
+              <InlineIcon>{iconDocumento}</InlineIcon>
+            </span>
+            <div className="flex flex-col">
+              <span className="font-body text-[13px] font-semibold text-ink">Otros documentos</span>
+              <span className="font-body text-[11px] text-muted">
+                Documentos cargados cuyo ítem ya no forma parte de este checklist. Podés verlos, descargarlos o
+                transferirlos para corregirlos.
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-xs pl-11">
+            {huerfanosOrdenados.map((doc) => renderDocumentoRow(doc, 'Otros documentos', vigentePorHuerfano.get(doc.id) ?? false))}
+          </div>
+        </div>
+      )}
 
       <Overlay
         open={enVista !== null}

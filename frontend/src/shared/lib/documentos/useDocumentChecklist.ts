@@ -19,6 +19,14 @@ export function useDocumentChecklist(
   items: ChecklistItem[],
   repository: DocumentoRepository,
   agrupacionId?: string,
+  // documentos-transferencia-actividad (tasks.md 6.7, design.md D6): incluido en las deps del
+  // efecto de carga — subir este número fuerza un refetch de `listByEntity` sin remontar el
+  // componente ni tocar la identidad de `items` (la "trampa" que design.md D6 advierte
+  // explícitamente: cambiar `items` de identidad re-montaría el árbol y re-evaluaría el
+  // auto-colapso de `PacienteDocumentosChecklist`). Quien decide cuándo subirlo es
+  // `PacienteDocumentos.tsx`, tras una transferencia que afecta a ESTE bloque (origen o destino).
+  // Nunca lo pasan los otros 3 dominios (Vehículos/Conductores/Facturas) — `undefined` de sobra.
+  refreshToken?: number,
 ) {
   const [documentos, setDocumentos] = useState<DocumentoAdjunto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +52,7 @@ export function useDocumentChecklist(
     return () => {
       active = false;
     };
-  }, [entidad, entidadId, agrupacionId, repository]);
+  }, [entidad, entidadId, agrupacionId, repository, refreshToken]);
 
   // pacientes-documentos-multiples (tasks.md 3.1): acumula en vez de reemplazar — ya no filtra
   // por itemId antes de agregar el documento nuevo al estado local.

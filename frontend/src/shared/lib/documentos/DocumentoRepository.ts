@@ -53,4 +53,25 @@ export interface DocumentoRepository {
     entidadId: string,
     documentoId: string,
   ): Promise<string | null>;
+  /** Reasigna la agrupación de un documento ya cargado sin volver a subirlo ni mover el archivo en
+   * Storage (documentos-transferencia-actividad, design.md D3/D4). `agrupacionDestino` undefined
+   * = mover al bloque sin agrupación ("General", Checkpoint (d).3). Conserva `id`, `itemId`,
+   * `nombreArchivo`, `subidoEn`, `vigenciaDesde` y `tipoMime` — solo cambia `agrupacionId`. Solo
+   * Pacientes lo usa; los otros 3 dominios documentales no tienen agrupaciones (Checkpoint (c)).
+   *
+   * `agrupacionDestino: string | undefined` explícito, NUNCA opcional (`?`, design.md D4): acá
+   * `undefined` significa "movelo a General", una intención real del usuario — no "no me importa".
+   * Un parámetro opcional haría que olvidarse de pasarlo se lea igual que pedir el traslado a
+   * General. Devuelve el documento actualizado (no `void`, a diferencia de `remove`): la UI
+   * necesita reflejarlo en su bloque nuevo sin un `listByEntity` extra por bloque.
+   *
+   * Nombre `transferirAgrupacion`, no `mover`/`transferir` a secas: "mover" en un contexto de
+   * Storage sugiere mover el archivo, que es exactamente lo que D3 prohíbe — nunca se toca el
+   * objeto en el bucket. */
+  transferirAgrupacion(
+    entidad: EntidadDocumental,
+    entidadId: string,
+    documentoId: string,
+    agrupacionDestino: string | undefined,
+  ): Promise<DocumentoAdjunto>;
 }

@@ -100,6 +100,31 @@ export const mockDocumentoRepository: DocumentoRepository = {
     const file = archivoPorDocumentoId.get(documentoId);
     return withLatency(file ? URL.createObjectURL(file) : null);
   },
+
+  // documentos-transferencia-actividad (tasks.md 5.4, design.md D3/D4): reasigna `agrupacionId`
+  // sin tocar ningún otro campo ni el contenido en `archivoPorDocumentoId` (D3: el archivo no se
+  // mueve nunca). Documento inexistente o de otra entidad -> rechaza con Error en castellano
+  // (mismo criterio de mensaje que `SupabaseDocumentoRepository`, para que la UI no distinga mock
+  // de real) — a diferencia de `remove`, que es idempotente, acá SÍ hace falta que el caller sepa
+  // que la transferencia no ocurrió (spec: "el documento sigue íntegro... el sistema informa el
+  // fallo").
+  async transferirAgrupacion(entidad, entidadId, documentoId, agrupacionDestino) {
+    const k = keyOf(entidad, entidadId);
+    const documentos = store.get(k) ?? [];
+    const indice = documentos.findIndex((doc) => doc.id === documentoId);
+    if (indice === -1) {
+      throw new Error('No se encontró el documento a transferir. Puede que ya se haya movido o eliminado.');
+    }
+    const actual = documentos[indice];
+    if (!actual) {
+      throw new Error('No se encontró el documento a transferir. Puede que ya se haya movido o eliminado.');
+    }
+    const actualizado: DocumentoAdjunto = { ...actual, agrupacionId: agrupacionDestino };
+    const siguientes = [...documentos];
+    siguientes[indice] = actualizado;
+    store.set(k, siguientes);
+    return withLatency(actualizado);
+  },
 };
 
 // documentos-previsualizacion (tasks.md 2.2): solo para tests. Simula el estado de un documento

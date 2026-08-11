@@ -76,6 +76,11 @@ const stubRepository: DocumentoRepository = {
   async resolverPrevisualizacion() {
     return null;
   },
+  // documentos-transferencia-actividad (tasks.md 5.1): 5.º método del contrato, agregado acá para
+  // que este stub siga siendo asignable a `DocumentoRepository` — no es objeto de este test file.
+  async transferirAgrupacion(_entidad, _entidadId, documentoId, agrupacionDestino) {
+    return { id: documentoId, itemId: 'item-stub', nombreArchivo: 'stub.pdf', subidoEn: new Date().toISOString(), agrupacionId: agrupacionDestino };
+  },
 };
 
 describe('DocumentoRepository — agrupacionId opcional en listByEntity/upload (tasks.md 2.2)', () => {

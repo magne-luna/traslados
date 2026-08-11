@@ -215,6 +215,45 @@ async function resolverPrevisualizacionDocumento(
 }
 
 // ---------------------------------------------------------------------------------------------
+// Transferencia (5.º método, sumado por `documentos-transferencia-actividad`, design.md D3/D4):
+// UN SOLO `UPDATE` sobre la columna de agrupación, y nada más — jamás toca Storage (`document-
+// contract` spec: "La reasignación de agrupación no altera el almacenamiento del archivo"). Los
+// tres dominios sin `columnaAgrupacion` (Vehículos/Conductores/Facturas) rechazan explícitamente
+// ANTES de golpear la tabla — nunca llegan a mandar un UPDATE sobre una columna que no existe.
+// ---------------------------------------------------------------------------------------------
+
+async function transferirAgrupacionDocumento(
+  entidad: EntidadDocumental,
+  entidadId: string,
+  documentoId: string,
+  agrupacionDestino: string | undefined,
+): Promise<DocumentoAdjunto> {
+  const config = CONFIG_ENTIDAD[entidad];
+
+  if (config.columnaAgrupacion === undefined) {
+    throw new Error(`${MODULO_CAPITALIZADO[entidad]} no admite reasignar documentos por actividad.`);
+  }
+
+  // `?? null`, nunca `undefined`, en el payload real: Postgrest ignora claves `undefined` (no las
+  // serializa), así que mandar el `agrupacionDestino` tal cual dejaría la columna sin tocar en vez
+  // de vaciarla — acá `undefined` del contrato SIEMPRE significa "poné NULL" (design.md D4).
+  const { data, error } = await supabase
+    .schema(config.schema)
+    .from(config.tabla)
+    .update({ [config.columnaAgrupacion]: agrupacionDestino ?? null })
+    .eq('id', documentoId)
+    .eq(config.columnaEntidad, entidadId)
+    .select()
+    .single();
+
+  if (error) throw mapearErrorDocumento(error, { operacion: 'transferir', entidad });
+
+  const documento = parseDocumentoRow(data, config);
+  if (!documento) throw new Error(MSG_NO_SE_PUDO_GUARDAR);
+  return documento;
+}
+
+// ---------------------------------------------------------------------------------------------
 // Traducción de errores (D5) — dos fuentes de forma distinta: `PostgrestError` (`{ code, message
 // }`) y `StorageError` (`{ name, message }`, sin `code`). Se angostan con type guards, nunca con
 // `as`. Nunca se propaga `error.message` crudo a la UI.
@@ -246,7 +285,7 @@ function esStorageError(error: unknown): error is StorageErrorLike {
   return typeof error.name === 'string' && typeof error.message === 'string';
 }
 
-type OperacionError = 'listar' | 'subir' | 'quitar' | 'previsualizar';
+type OperacionError = 'listar' | 'subir' | 'quitar' | 'previsualizar' | 'transferir';
 
 const NOMBRE_PLURAL: Record<EntidadDocumental, string> = {
   paciente: 'pacientes',
@@ -274,6 +313,11 @@ const MSG_ALMACENAMIENTO_NO_CONFIGURADO = 'El almacenamiento de documentos no es
 const MSG_ARCHIVO_DEMASIADO_GRANDE = 'El archivo es demasiado grande.';
 const MSG_NO_SE_PUDO_GUARDAR = 'No se pudo guardar el documento.';
 const MSG_NO_SE_PUDO_CARGAR = 'No se pudo cargar el documento.';
+// documentos-transferencia-actividad (tasks.md 5.5): `PGRST116` es lo que devuelve `.single()`
+// cuando el UPDATE afectó 0 filas — documentoId inexistente o de otra entidad (el `.eq()` de
+// `columnaEntidad` ya lo excluyó). Mismo criterio de "no informar de más" que `remove`/
+// `resolverPrevisualizacion`: no se distingue "no existe" de "es de otro paciente".
+const MSG_DOCUMENTO_NO_ENCONTRADO = 'No se encontró el documento a transferir. Puede que ya se haya movido o eliminado.';
 
 function msgSinPermisoTabla(entidad: EntidadDocumental): string {
   return `No tenés permiso para subir documentos de ${NOMBRE_PLURAL[entidad]}.`;
@@ -305,6 +349,7 @@ function mapearErrorDocumento(error: unknown, contexto: { operacion: OperacionEr
     if (codigo === '23503') return new Error(msgEntidadInexistente(contexto.entidad));
     if (codigo === 'PGRST204') return new Error(MSG_CARGA_NO_HABILITADA);
     if (codigo === 'PGRST106' || codigo === 'PGRST205') return new Error(msgModuloNoHabilitado(contexto.entidad));
+    if (codigo === 'PGRST116') return new Error(MSG_DOCUMENTO_NO_ENCONTRADO);
     return new Error(mensajeGenerico(contexto.operacion));
   }
 
@@ -327,4 +372,5 @@ export const supabaseDocumentoRepository: DocumentoRepository = {
   upload: subirDocumento,
   remove: quitarDocumento,
   resolverPrevisualizacion: resolverPrevisualizacionDocumento,
+  transferirAgrupacion: transferirAgrupacionDocumento,
 };

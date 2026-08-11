@@ -857,3 +857,262 @@ describe('DocumentChecklist — variant="ring" (checklist-documental-progreso-vi
     expect(screen.getByText(/1 pendiente/i)).toBeInTheDocument();
   });
 });
+
+// documentos-transferencia-actividad (tasks.md 6.1/6.2, design.md Checkpoint (c) VEREDICTO opción
+// A — mismo mecanismo opt-in que `mostrarProgreso`): "Transferir" solo aparece cuando el punto de
+// montaje pasa `onTransferir`. Vehículos/Conductores/Facturas nunca lo pasan (no se tocan sus
+// wrappers en este change) — mismo precedente que el test de `mostrarProgreso` de arriba
+// ("cero regresión para Vehículos/Conductores/Facturas").
+describe('DocumentChecklist — acción "Transferir" por documento (tasks.md 6.1, Checkpoint (c) opción A)', () => {
+  const doc: DocumentoAdjunto = {
+    id: 'doc-1',
+    itemId: 'item-presupuesto',
+    nombreArchivo: 'presupuesto.pdf',
+    subidoEn: '2026-08-01T00:00:00.000Z',
+  };
+
+  it('muestra un botón "Transferir" por documento cuando se provee onTransferir', () => {
+    render(
+      <DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={vi.fn()} onTransferir={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /transferir/i })).toBeInTheDocument();
+  });
+
+  it('sin onTransferir (punto de montaje sin cablear — Vehículos/Conductores/Facturas) no se renderiza ningún botón "Transferir"', () => {
+    render(<DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /transferir/i })).not.toBeInTheDocument();
+  });
+
+  it('clickear "Transferir" llama a onTransferir con el id del documento, no del ítem', async () => {
+    const onTransferir = vi.fn();
+
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[doc]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        onTransferir={onTransferir}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /transferir presupuesto/i }));
+
+    expect(onTransferir).toHaveBeenCalledWith('doc-1');
+    expect(onTransferir).not.toHaveBeenCalledWith('item-presupuesto');
+  });
+
+  it('con readOnly, "Transferir" queda deshabilitado igual que "Quitar" (Checkpoint (g): transferir exige escritura)', () => {
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[doc]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        onTransferir={vi.fn()}
+        readOnly
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /transferir presupuesto/i })).toBeDisabled();
+  });
+
+  it('clickear "Transferir" NO abre la previsualización (stopPropagation, mismo criterio que "Quitar")', () => {
+    const onResolverPrevisualizacion = vi.fn().mockResolvedValue(null);
+
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[doc]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        onTransferir={vi.fn()}
+        onResolverPrevisualizacion={onResolverPrevisualizacion}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /transferir presupuesto/i }));
+
+    expect(onResolverPrevisualizacion).not.toHaveBeenCalled();
+  });
+});
+
+// documentos-transferencia-actividad (Checkpoint (e) de design.md, VEREDICTO revisado
+// 2026-08-11: opción B implementada antes de archivar, en vez de quedar como forma futura).
+// Hoy el render está manejado por `items` — `items.map(item => documentos.filter(d =>
+// d.itemId === item.id))` — así que un documento cuyo `itemId` no matchea NINGÚN `item.id` de la
+// lista vigente nunca se renderiza: no hay error, no se pierde en la base, pero desaparece de la
+// vista. Es inofensivo hoy porque todos los bloques de un paciente reciben siempre los mismos
+// ítems (los de la obra social), pero dejará de serlo cuando
+// `documentos-checklist-items-por-actividad` cablee `combinarItemsDeActividad()` y las listas de
+// ítems empiecen a variar por actividad — ahí `transferirAgrupacion` (6.1) puede aterrizar un
+// documento en un bloque cuya lista de ítems no lo incluye. Esta es una guardia GENÉRICA del
+// componente compartido, no específica de Pacientes ni de transferencia: protege contra
+// cualquier drift futuro entre el `itemId` de un documento y la lista de `items` vigente
+// (incluido el caso de borrar un ítem del checklist de una obra social con documentos ya
+// cargados contra él).
+describe('DocumentChecklist — documentos huérfanos: itemId sin ítem correspondiente en la lista vigente (Checkpoint (e), 2026-08-11)', () => {
+  const huerfano: DocumentoAdjunto = {
+    id: 'doc-huerfano',
+    itemId: 'item-que-ya-no-existe',
+    nombreArchivo: 'huerfano.pdf',
+    subidoEn: '2026-08-01T00:00:00.000Z',
+  };
+
+  it('RED: un documento con itemId que no matchea ningún ítem de la lista vigente NO desaparece — sigue en el DOM', () => {
+    render(<DocumentChecklist items={items} documentos={[huerfano]} onUpload={vi.fn()} onRemove={vi.fn()} />);
+
+    // Antes de esta guardia, este documento se filtraba silenciosamente afuera de todo `item.map`
+    // y nunca llegaba a renderizarse — este assert es el que reproduce el bug con el código
+    // original (falla en rojo antes de la implementación de la sección "Otros documentos").
+    expect(screen.getByText(/huerfano\.pdf/i)).toBeInTheDocument();
+  });
+
+  it('sin huérfanos, no se muestra ninguna sección "Otros documentos" (nunca "0 documentos" fantasma)', () => {
+    const doc: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+
+    render(<DocumentChecklist items={items} documentos={[doc]} onUpload={vi.fn()} onRemove={vi.fn()} />);
+
+    expect(screen.queryByText(/otros documentos/i)).not.toBeInTheDocument();
+  });
+
+  it('un solo huérfano: aparece bajo la sección "Otros documentos", debajo de los ítems normales', () => {
+    render(<DocumentChecklist items={items} documentos={[huerfano]} onUpload={vi.fn()} onRemove={vi.fn()} />);
+
+    expect(screen.getByText(/otros documentos/i)).toBeInTheDocument();
+    expect(screen.getByText(/huerfano\.pdf/i)).toBeInTheDocument();
+  });
+
+  it('varios huérfanos mezclados con documentos de ítems normales: todos visibles, cada uno en su lugar', () => {
+    const normal: DocumentoAdjunto = {
+      id: 'doc-normal',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+    const huerfano2: DocumentoAdjunto = {
+      id: 'doc-huerfano-2',
+      itemId: 'item-borrado-hace-tiempo',
+      nombreArchivo: 'huerfano-2.pdf',
+      subidoEn: '2026-08-02T00:00:00.000Z',
+    };
+
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[normal, huerfano, huerfano2]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/presupuesto\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByText(/huerfano\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByText(/huerfano-2\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByText(/otros documentos/i)).toBeInTheDocument();
+  });
+
+  it('el huérfano NO cuenta para el progreso "cargados/total" (el progreso sigue siendo por ítem vigente)', () => {
+    const normal: DocumentoAdjunto = {
+      id: 'doc-normal',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+
+    // Sin huérfano: 1 de 2 cargados. Con huérfano agregado, el total y el cargado de `items` no
+    // deben moverse — el huérfano no es ninguno de los dos ítems vigentes.
+    render(
+      <DocumentChecklist items={items} documentos={[normal, huerfano]} onUpload={vi.fn()} onRemove={vi.fn()} />,
+    );
+
+    expect(screen.getByText(/1 de 2 documentos cargados/i)).toBeInTheDocument();
+    expect(screen.queryByText(/2 de 2 documentos cargados/i)).not.toBeInTheDocument();
+  });
+
+  it('un huérfano se puede previsualizar/descargar aunque esté en readOnly (mismo criterio que "Ver" para ítems normales)', () => {
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[huerfano]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        onResolverPrevisualizacion={vi.fn().mockResolvedValue(null)}
+        readOnly
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /ver.*huerfano\.pdf/i })).toBeEnabled();
+  });
+
+  it('un huérfano en readOnly NO se puede transferir ni quitar (mismo gate de usePuedeEscribir que el resto del componente)', () => {
+    render(
+      <DocumentChecklist
+        items={items}
+        documentos={[huerfano]}
+        onUpload={vi.fn()}
+        onRemove={vi.fn()}
+        onTransferir={vi.fn()}
+        readOnly
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /quitar.*huerfano\.pdf/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /transferir.*huerfano\.pdf/i })).toBeDisabled();
+  });
+
+  it('si el punto de montaje habilita transferencia (onTransferir), un huérfano también se puede transferir — es la vía de escape para corregirlo', () => {
+    const onTransferir = vi.fn();
+
+    render(
+      <DocumentChecklist items={items} documentos={[huerfano]} onUpload={vi.fn()} onRemove={vi.fn()} onTransferir={onTransferir} />,
+    );
+
+    const boton = screen.getByRole('button', { name: /transferir.*huerfano\.pdf/i });
+    expect(boton).toBeEnabled();
+
+    fireEvent.click(boton);
+
+    expect(onTransferir).toHaveBeenCalledWith('doc-huerfano');
+  });
+
+  it('sin onTransferir, un huérfano tampoco muestra botón "Transferir" (mismo opt-in que el resto del componente)', () => {
+    render(<DocumentChecklist items={items} documentos={[huerfano]} onUpload={vi.fn()} onRemove={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: /transferir/i })).not.toBeInTheDocument();
+  });
+
+  // No-regresión cruzada (mismo patrón que los tests de arriba, "cero regresión para
+  // Vehículos/Conductores/Facturas"): esos tres dominios nunca tienen huérfanos hoy — cada
+  // documento que cargan siempre corresponde a un ítem de su propio checklist. Con esa forma de
+  // uso real (todo `documentos` matchea algún `items`), el render debe quedar IDÉNTICO a antes de
+  // esta guardia: ninguna sección "Otros documentos", mismo texto de progreso, mismos botones.
+  it('no-regresión: con todos los documentos matcheando algún ítem (uso real de Vehículos/Conductores/Facturas), el render queda idéntico — sin sección "Otros documentos"', () => {
+    const doc1: DocumentoAdjunto = {
+      id: 'doc-1',
+      itemId: 'item-presupuesto',
+      nombreArchivo: 'presupuesto.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+    const doc2: DocumentoAdjunto = {
+      id: 'doc-2',
+      itemId: 'item-rhc',
+      nombreArchivo: 'rhc.pdf',
+      subidoEn: '2026-08-01T00:00:00.000Z',
+    };
+
+    render(<DocumentChecklist items={items} documentos={[doc1, doc2]} onUpload={vi.fn()} onRemove={vi.fn()} />);
+
+    expect(screen.queryByText(/otros documentos/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/2 de 2 documentos cargados/i)).toBeInTheDocument();
+    expect(screen.getByText(/presupuesto\.pdf/i)).toBeInTheDocument();
+    expect(screen.getByText(/rhc\.pdf/i)).toBeInTheDocument();
+  });
+});

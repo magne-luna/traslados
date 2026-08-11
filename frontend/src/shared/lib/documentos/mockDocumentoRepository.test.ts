@@ -347,3 +347,84 @@ describe('mockDocumentoRepository — remove() (tasks.md 2.3)', () => {
     expect(url).toBeNull();
   });
 });
+
+// documentos-transferencia-actividad (tasks.md 5.4, design.md D3/D4, `paciente-documentos-
+// transferencia`/`documento-contract` specs): 5.º método — reasigna la agrupación de un documento
+// ya cargado sin volver a subirlo. Conserva id/itemId/nombreArchivo/subidoEn/vigenciaDesde/
+// tipoMime; solo cambia `agrupacionId`.
+describe('mockDocumentoRepository.transferirAgrupacion (tasks.md 5.4)', () => {
+  it('actividad → actividad: el documento pasa a figurar en la nueva agrupación y deja de figurar en la vieja', async () => {
+    const entidadId = entidadIdUnico('paciente-transferir-actividad-actividad');
+    const doc = await mockDocumentoRepository.upload('paciente', entidadId, 'item-rhc', archivo('rhc.pdf'), undefined, 'dir-origen');
+
+    const actualizado = await mockDocumentoRepository.transferirAgrupacion('paciente', entidadId, doc.id, 'dir-destino');
+
+    expect(actualizado.agrupacionId).toBe('dir-destino');
+    const enOrigen = await mockDocumentoRepository.listByEntity('paciente', entidadId, 'dir-origen');
+    const enDestino = await mockDocumentoRepository.listByEntity('paciente', entidadId, 'dir-destino');
+    expect(enOrigen).toHaveLength(0);
+    expect(enDestino).toHaveLength(1);
+    expect(enDestino[0]?.id).toBe(doc.id);
+  });
+
+  it('actividad → General: agrupacionDestino undefined mueve el documento al bloque sin agrupación', async () => {
+    const entidadId = entidadIdUnico('paciente-transferir-actividad-general');
+    const doc = await mockDocumentoRepository.upload('paciente', entidadId, 'item-rhc', archivo('rhc.pdf'), undefined, 'dir-origen');
+
+    const actualizado = await mockDocumentoRepository.transferirAgrupacion('paciente', entidadId, doc.id, undefined);
+
+    expect(actualizado.agrupacionId).toBeUndefined();
+    const enGeneral = await mockDocumentoRepository.listByEntity('paciente', entidadId);
+    expect(enGeneral.map((d) => d.id)).toContain(doc.id);
+  });
+
+  it('General → actividad: un documento sin agrupación se puede reasignar a una actividad (triangulación)', async () => {
+    const entidadId = entidadIdUnico('paciente-transferir-general-actividad');
+    const doc = await mockDocumentoRepository.upload('paciente', entidadId, 'item-rhc', archivo('rhc.pdf'));
+
+    const actualizado = await mockDocumentoRepository.transferirAgrupacion('paciente', entidadId, doc.id, 'dir-destino');
+
+    expect(actualizado.agrupacionId).toBe('dir-destino');
+    const enDestino = await mockDocumentoRepository.listByEntity('paciente', entidadId, 'dir-destino');
+    expect(enDestino.map((d) => d.id)).toContain(doc.id);
+  });
+
+  it('conserva id, itemId, nombreArchivo, subidoEn, vigenciaDesde y tipoMime — solo cambia agrupacionId', async () => {
+    const entidadId = entidadIdUnico('paciente-transferir-conserva-identidad');
+    const doc = await mockDocumentoRepository.upload(
+      'paciente',
+      entidadId,
+      'item-rhc',
+      archivo('rhc.pdf'),
+      '2026-08-01',
+      'dir-origen',
+    );
+
+    const actualizado = await mockDocumentoRepository.transferirAgrupacion('paciente', entidadId, doc.id, 'dir-destino');
+
+    expect(actualizado).toEqual({ ...doc, agrupacionId: 'dir-destino' });
+  });
+
+  it('documento inexistente: rechaza con un Error explícito, en castellano', async () => {
+    const entidadId = entidadIdUnico('paciente-transferir-inexistente');
+
+    await expect(
+      mockDocumentoRepository.transferirAgrupacion('paciente', entidadId, 'doc-que-no-existe', 'dir-destino'),
+    ).rejects.toThrow(/no se encontr/i);
+  });
+
+  it('documento de otra entidad: no se transfiere un documento ajeno (aislamiento)', async () => {
+    const entidadPropia = entidadIdUnico('paciente-transferir-propia');
+    const entidadAjena = entidadIdUnico('paciente-transferir-ajena');
+    const doc = await mockDocumentoRepository.upload('paciente', entidadAjena, 'item-rhc', archivo('rhc.pdf'));
+
+    await expect(
+      mockDocumentoRepository.transferirAgrupacion('paciente', entidadPropia, doc.id, 'dir-destino'),
+    ).rejects.toThrow(/no se encontr/i);
+
+    // El documento sigue intacto en su entidad original (spec: "un fallo... deja el documento
+    // intacto" — acá el "fallo" es no encontrarlo donde no está, mismo criterio de integridad).
+    const enEntidadAjena = await mockDocumentoRepository.listByEntity('paciente', entidadAjena);
+    expect(enEntidadAjena.map((d) => d.id)).toContain(doc.id);
+  });
+});

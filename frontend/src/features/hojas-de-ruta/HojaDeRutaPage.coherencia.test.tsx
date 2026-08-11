@@ -100,6 +100,7 @@ function buildFakeDocumentoRepo(): DocumentoRepository {
     upload: vi.fn(),
     remove: vi.fn(),
     resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+    transferirAgrupacion: vi.fn(),
   };
 }
 

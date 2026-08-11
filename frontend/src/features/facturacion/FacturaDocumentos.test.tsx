@@ -21,6 +21,7 @@ function buildFakeRepository(documentos: DocumentoAdjunto[] = []): DocumentoRepo
     upload: vi.fn(),
     remove: vi.fn(),
     resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+    transferirAgrupacion: vi.fn(),
   };
 }
 

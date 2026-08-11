@@ -11,6 +11,7 @@ function buildFakeRepository(overrides: Partial<DocumentoRepository> = {}): Docu
     upload: vi.fn(),
     remove: vi.fn(),
     resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
+    transferirAgrupacion: vi.fn(),
     ...overrides,
   };
 }

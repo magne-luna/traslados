@@ -14,9 +14,12 @@ import { DocumentChecklist } from './DocumentChecklist';
 // Vehículos/Conductores/Facturas. Segundo cambio de contrato (checklist-documental-progreso-visual,
 // skill `prototype`, 2026-08-10): el prop opcional `variant` (`'default' | 'ring'`) — puramente
 // visual (ver DocumentChecklist.tsx), default `'default'` sin cambio de comportamiento para
-// Vehículos/Conductores/Facturas; solo Pacientes pasa `'ring'`. Este archivo deja constancia
+// Vehículos/Conductores/Facturas; solo Pacientes pasa `'ring'`. Tercer cambio de contrato
+// (documentos-transferencia-actividad, tasks.md 6.1, design.md Checkpoint (c) VEREDICTO opción A):
+// el prop opcional `onTransferir` — mismo mecanismo opt-in que `mostrarProgreso`, sin cambio de
+// comportamiento para Vehículos/Conductores/Facturas (nunca lo pasan). Este archivo deja constancia
 // explícita de que esos son los ÚNICOS cambios de contrato: ningún prop `agrupacion`/`grupos` (la
-// rama "opción C" que este change nunca tomó), ninguno de los 7 props originales cambió de tipo/
+// rama "opción C" que ese change nunca tomó), ninguno de los 7 props originales cambió de tipo/
 // opcionalidad.
 //
 // Mismo patrón que `DocumentoRepository.agrupacion.types.test.ts` (§2): un componente/objeto puede
@@ -29,7 +32,8 @@ type Equal<X, Y> = (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ?
 type Expect<T extends true> = T;
 
 // El contrato actual: los 7 props originales (heredados de `pacientes-documentos-multiples` +
-// `documentos-previsualizacion`) más `mostrarProgreso?` (2026-08-07, ver comentario de arriba).
+// `documentos-previsualizacion`) más `mostrarProgreso?` (2026-08-07) y `variant?` (2026-08-10) y
+// `onTransferir?` (documentos-transferencia-actividad, ver comentario de arriba).
 type PropsEsperadas = {
   items: ChecklistItem[];
   documentos: DocumentoAdjunto[];
@@ -38,14 +42,15 @@ type PropsEsperadas = {
   readOnly?: boolean;
   onResolverPrevisualizacion?: (documentoId: string) => Promise<string | null>;
   onRevocarPrevisualizacion?: (url: string) => void;
+  onTransferir?: (documentoId: string) => void;
   mostrarProgreso?: boolean;
   variant?: 'default' | 'ring';
 };
 
 type PropsReales = ComponentProps<typeof DocumentChecklist>;
 
-// Si `DocumentChecklist` ganara un prop `agrupacion`/`grupos` (la rama "opción C" que este change
-// explícitamente NO tomó) o alguno de los 8 props actuales perdiera/mutara su tipo/opcionalidad,
+// Si `DocumentChecklist` ganara un prop `agrupacion`/`grupos` (la rama "opción C" que ese change
+// explícitamente NO tomó) o alguno de los 9 props actuales perdiera/mutara su tipo/opcionalidad,
 // esta línea deja de compilar — es la señal dura de regresión de contrato.
 export type _CheckContratoSinCambios = Expect<Equal<PropsReales, PropsEsperadas>>;
 

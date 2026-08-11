@@ -28,7 +28,7 @@ interface FakeResult {
   error: FakeError | null;
 }
 
-type FakeOp = 'select' | 'insert' | 'delete';
+type FakeOp = 'select' | 'insert' | 'delete' | 'update';
 
 interface RecordedCall {
   op: FakeOp;
@@ -176,6 +176,35 @@ class FakeDeleteBuilder implements PromiseLike<FakeResult> {
   }
 }
 
+// documentos-transferencia-actividad (tasks.md 5.5): fake de `.update(payload).eq().eq().select().single()`
+// — mismo patrón que FakeInsertBuilder (`select().single()` al final), con `eq()` encadenable
+// como FakeSelectBuilder/FakeDeleteBuilder (transferirAgrupacion filtra por `id` Y por
+// `columnaEntidad`, dos `.eq()`).
+class FakeUpdateBuilder {
+  private readonly call: RecordedCall;
+
+  constructor(call: RecordedCall) {
+    this.call = call;
+  }
+
+  eq(column: string, value: unknown): FakeUpdateBuilder {
+    this.call.eq.push([column, value]);
+    return this;
+  }
+
+  select(_columns?: string): FakeUpdateBuilder {
+    return this;
+  }
+
+  single(): Promise<FakeResult> {
+    calls.push(this.call);
+    ordenLlamadas.push(`update:${this.call.schema}.${this.call.table}`);
+    const result = resolver(this.call);
+    const row = Array.isArray(result.data) ? (result.data[0] ?? null) : result.data;
+    return Promise.resolve({ data: row, error: result.error });
+  }
+}
+
 class FakeInsertBuilder {
   private readonly call: RecordedCall;
 
@@ -207,6 +236,9 @@ function crearFakeSupabase() {
             },
             insert(payload: unknown) {
               return new FakeInsertBuilder({ op: 'insert', schema: schemaName, table, eq: [], is: [], payload });
+            },
+            update(payload: unknown) {
+              return new FakeUpdateBuilder({ op: 'update', schema: schemaName, table, eq: [], is: [], payload });
             },
             delete() {
               return new FakeDeleteBuilder({ op: 'delete', schema: schemaName, table, eq: [], is: [] });
@@ -502,6 +534,76 @@ describe('supabaseDocumentoRepository.remove (tasks.md 4.4)', () => {
 });
 
 // -------------------------------------------------------------------------------------------
+// 5.5 — transferirAgrupacion(entidad, entidadId, documentoId, agrupacionDestino): el 5.º método.
+// design.md D3: SOLO un UPDATE de la columna de agrupación — jamás toca Storage. `documento-
+// contract` spec: "La reasignación de agrupación no altera el almacenamiento del archivo".
+// -------------------------------------------------------------------------------------------
+
+describe('supabaseDocumentoRepository.transferirAgrupacion (tasks.md 5.5)', () => {
+  it('hace un UPDATE de la columna de agrupación, filtrando por id y por columnaEntidad, y NO toca Storage', async () => {
+    configurar('pacientes', 'documentos', 'update', () => ok([filaDocumento(configPaciente, { direccion_id: 'dir-2' })]));
+
+    const documento = await supabaseDocumentoRepository.transferirAgrupacion('paciente', 'entidad-1', 'doc-1', 'dir-2');
+
+    expect(documento.agrupacionId).toBe('dir-2');
+    const llamadaUpdate = calls.find((c) => c.op === 'update');
+    expect(llamadaUpdate?.payload).toEqual({ direccion_id: 'dir-2' });
+    expect(llamadaUpdate?.eq).toEqual([['id', 'doc-1'], ['paciente_id', 'entidad-1']]);
+    expect(storageUploadCalls).toHaveLength(0);
+    expect(storageRemoveCalls).toHaveLength(0);
+    expect(storageSignedUrlCalls).toHaveLength(0);
+  });
+
+  it('agrupacionDestino undefined -> el UPDATE manda NULL explícito en la columna (destino: General)', async () => {
+    configurar('pacientes', 'documentos', 'update', () => ok([filaDocumento(configPaciente, { direccion_id: null })]));
+
+    const documento = await supabaseDocumentoRepository.transferirAgrupacion('paciente', 'entidad-1', 'doc-1', undefined);
+
+    expect(documento.agrupacionId).toBeUndefined();
+    const llamadaUpdate = calls.find((c) => c.op === 'update');
+    expect(llamadaUpdate?.payload).toEqual({ direccion_id: null });
+  });
+
+  it('la clave de Storage del documento es idéntica antes y después de transferir (design.md D3)', async () => {
+    configurar('pacientes', 'documentos', 'update', () =>
+      ok([filaDocumento(configPaciente, { direccion_id: 'dir-2', archivo_url: 'entidad-1/item-1/uuid-1-archivo.pdf' })]),
+    );
+
+    const documento = await supabaseDocumentoRepository.transferirAgrupacion('paciente', 'entidad-1', 'doc-1', 'dir-2');
+
+    // `DocumentoAdjunto` público no expone la clave cruda, pero el nombre de archivo (derivado del
+    // último segmento de esa clave cuando `nombre_archivo` falta) sigue intacto — señal indirecta
+    // de que la clave no cambió. El propio UPDATE, además, nunca toca `archivo_url` (no está en el
+    // payload de arriba) — esa es la garantía real.
+    expect(documento.nombreArchivo).toBe('archivo.pdf');
+  });
+
+  it('vehículo (sin columnaAgrupacion en su config): rechaza con mensaje explícito, sin llegar a golpear la tabla', async () => {
+    await expect(
+      supabaseDocumentoRepository.transferirAgrupacion('vehiculo', 'entidad-1', 'doc-1', 'lo-que-sea'),
+    ).rejects.toThrow(/no admite/i);
+
+    expect(calls.filter((c) => c.op === 'update')).toHaveLength(0);
+  });
+
+  it('documento inexistente o de otra entidad (0 filas afectadas, PGRST116 de .single()) -> mensaje explícito, no crudo', async () => {
+    configurar('pacientes', 'documentos', 'update', () => fail({ code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' }));
+
+    await expect(
+      supabaseDocumentoRepository.transferirAgrupacion('paciente', 'entidad-1', 'doc-inexistente', 'dir-2'),
+    ).rejects.toThrow(/no se encontr/i);
+  });
+
+  it('fallo de RLS en el UPDATE -> mensaje de permiso sobre la tabla, documento-contract: error en castellano sin texto crudo', async () => {
+    configurar('pacientes', 'documentos', 'update', () => fail({ code: '42501', message: 'new row violates row-level security policy' }));
+
+    await expect(
+      supabaseDocumentoRepository.transferirAgrupacion('paciente', 'entidad-1', 'doc-1', 'dir-2'),
+    ).rejects.toThrow(/no tenés permiso/i);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
 // 4.4b — resolverPrevisualizacion(entidad, entidadId, documentoId): el 4º método de la interfaz.
 // -------------------------------------------------------------------------------------------
 
@@ -664,15 +766,17 @@ describe('supabaseDocumentoRepository — traducción de errores (tasks.md 4.5, 
 
 // -------------------------------------------------------------------------------------------
 // 4.7 — El objeto exportado tipa como DocumentoRepository sin casts (verificación de compilación,
-// `tsc -b --noEmit`); acá solo se confirma en runtime que las 4 firmas existen.
+// `tsc -b --noEmit`); acá solo se confirma en runtime que las 5 firmas existen (documentos-
+// transferencia-actividad, tasks.md 5.5: quinto método `transferirAgrupacion`).
 // -------------------------------------------------------------------------------------------
 
-describe('supabaseDocumentoRepository — forma del objeto exportado (tasks.md 4.7)', () => {
-  it('expone las 4 firmas de DocumentoRepository', () => {
+describe('supabaseDocumentoRepository — forma del objeto exportado (tasks.md 4.7, 5.5)', () => {
+  it('expone las 5 firmas de DocumentoRepository', () => {
     expect(typeof supabaseDocumentoRepository.listByEntity).toBe('function');
     expect(typeof supabaseDocumentoRepository.upload).toBe('function');
     expect(typeof supabaseDocumentoRepository.remove).toBe('function');
     expect(typeof supabaseDocumentoRepository.resolverPrevisualizacion).toBe('function');
+    expect(typeof supabaseDocumentoRepository.transferirAgrupacion).toBe('function');
   });
 });
 
