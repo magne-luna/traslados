@@ -168,13 +168,6 @@ export function ConductorDetail({ conductor, crear, actualizar, documentoReposit
         )}
       </Section>
 
-      <AvisoModeloDatos>
-        "Restricciones" es acá un catálogo cerrado; en Traslados-Modelo-Datos.docx es texto libre
-        dentro de un único campo "Notas" junto con las observaciones — a coordinar con Enzo
-        (backend) antes de cerrar C-09: si se mantiene estructurado o se funde en un campo de
-        texto. (Domicilio, CUIL y Estado ya se sumaron al frontend — resuelto.)
-      </AvisoModeloDatos>
-
       {conductor && (
         <>
           {sectionError && <Alert tone="danger">{sectionError}</Alert>}

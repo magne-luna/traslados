@@ -88,8 +88,7 @@
       (`src/shared/lib/pacientes`, `src/shared/lib/hojas-de-ruta`,
       `src/shared/lib/__tests__/googleMapsClient.test.ts`, `src/features/hojas-de-ruta`,
       `src/features/pacientes`) en verde.
-- [ ] 6.3 **Pendiente de Enzo**: aplicar `20260805140000_direcciones_geocoding.sql` con
-      `supabase db push`; conseguir una API key de Google Maps con la Geocoding API habilitada;
-      cargar `VITE_GOOGLE_MAPS_API_KEY` en su propio `frontend/.env.local` (nunca committeada).
-      Sin estos tres pasos, el código queda funcionando en modo degradado (compila, testea en
-      verde, geocodifica `undefined` en cada intento real) pero no geocodifica nada de verdad.
+- [x] 6.3 **✅ Completa (2026-08-11).** `20260805140000_direcciones_geocoding.sql` ya estaba
+      aplicada en remoto (confirmado con `supabase migration list`, `local == remote`). API key de
+      Google Maps con la Geocoding API habilitada cargada en `frontend/.env.local` como
+      `VITE_GOOGLE_MAPS_API_KEY` (archivo cubierto por `*.local` en `.gitignore`, no se commitea).

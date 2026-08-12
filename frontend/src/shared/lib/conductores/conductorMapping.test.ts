@@ -7,8 +7,9 @@ import {
   toAsignacionRows,
   ensamblarConductor,
   toActualizarConductorPayload,
+  toCrearConductorPayload,
 } from './conductorMapping';
-import type { ActualizacionConductor } from '../../types/conductor';
+import type { ActualizacionConductor, NuevoConductor } from '../../types/conductor';
 
 // conductorMapping.ts: mapeo puro fila<->dominio para Conductores (tasks.md §6, design.md
 // D6/D7/D10/D12/D13 del change `integracion-conductores-vehiculos`). Sin red, sin mocks, sin `any`.
@@ -381,5 +382,82 @@ describe('toEstadoConductorRow (D13)', () => {
 
   it("'operando' -> 'operando'", () => {
     expect(toEstadoConductorRow('operando')).toBe('operando');
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// 7.4 — toCrearConductorPayload: argumento `p_conductor jsonb` de `crear_conductor_completo`.
+// A diferencia del payload de actualización, TODOS los campos van siempre presentes (alta, no
+// edición parcial).
+// -------------------------------------------------------------------------------------------
+
+describe('toCrearConductorPayload', () => {
+  function nuevoConductorBase(overrides: Partial<NuevoConductor> = {}): NuevoConductor {
+    return {
+      apellido: 'Pérez',
+      nombre: 'Marta',
+      documento: '30111222',
+      domicilio: 'Av. Siempre Viva 742',
+      cuil: '27-30111222-4',
+      estado: 'operando',
+      asignaciones: [],
+      ...overrides,
+    };
+  }
+
+  it('mapea todos los campos base con los renombres de columna (dni, notas)', () => {
+    const payload = toCrearConductorPayload(
+      nuevoConductorBase({ telefono: '11-2222-3333', fechaNacimiento: '1990-01-01', observaciones: 'Alergia al polen' }),
+    );
+
+    expect(payload).toEqual({
+      apellido: 'Pérez',
+      nombre: 'Marta',
+      dni: '30111222',
+      telefono: '11-2222-3333',
+      fecha_nacimiento: '1990-01-01',
+      domicilio: 'Av. Siempre Viva 742',
+      cuil: '27-30111222-4',
+      estado: 'operando',
+      notas: 'Alergia al polen',
+      asignaciones: [],
+    });
+  });
+
+  it('estado se traduce al formato de la base (D13)', () => {
+    const payload = toCrearConductorPayload(nuevoConductorBase({ estado: 'fuera-de-servicio' }));
+    expect(payload.estado).toBe('fuera de servicio');
+  });
+
+  it('campos opcionales ausentes -> undefined/null explícito, nunca inventados', () => {
+    const payload = toCrearConductorPayload(nuevoConductorBase());
+    expect(payload.telefono).toBeUndefined();
+    expect(payload.fecha_nacimiento).toBeNull();
+    expect(payload.notas).toBeNull();
+  });
+
+  it("observaciones: '' -> notas: null (vaciar el campo, no guardar un string vacío)", () => {
+    const payload = toCrearConductorPayload(nuevoConductorBase({ observaciones: '' }));
+    expect(payload.notas).toBeNull();
+  });
+
+  it('no contiene ninguna clave restricciones ni permitirMultiple (D6-B / D7 §Colisión)', () => {
+    const payload = toCrearConductorPayload(nuevoConductorBase());
+    expect('restricciones' in payload).toBe(false);
+    expect('permitirMultiple' in payload).toBe(false);
+  });
+
+  it('asignaciones se traduce con toAsignacionRows (fecha_init/fecha_fin_semana)', () => {
+    const payload = toCrearConductorPayload(
+      nuevoConductorBase({ asignaciones: [{ id: 'asig-1', vehiculoId: 'v-1', semana: '2026-W30' }] }),
+    );
+    expect(payload.asignaciones).toEqual([
+      { id: 'asig-1', vehiculo_id: 'v-1', fecha_init: '2026-07-20', fecha_fin_semana: '2026-07-26' },
+    ]);
+  });
+
+  it('asignaciones vacío explícito -> [] (siempre viaja, no hay semántica parcial en el alta)', () => {
+    const payload = toCrearConductorPayload(nuevoConductorBase());
+    expect(payload.asignaciones).toEqual([]);
   });
 });

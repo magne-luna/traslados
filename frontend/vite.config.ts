@@ -9,5 +9,11 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Nunca heredar `VITE_GOOGLE_MAPS_API_KEY` (u otras VITE_*) de `.env.local` del desarrollador:
+    // los tests que afirman "sin key" (`googleMapsClient.test.ts`) dependen de que arranque vacía,
+    // `vi.stubEnv`/`vi.unstubAllEnvs` la pisan por test según haga falta.
+    env: {
+      VITE_GOOGLE_MAPS_API_KEY: '',
+    },
   },
 })

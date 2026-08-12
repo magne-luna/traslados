@@ -113,20 +113,6 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
         Discrepancias 1 y 2).
       </AvisoModeloDatos>
 
-      {/* Checkpoint 0 opción A (tasks.md 5.1, spec hoja-de-ruta-avisos-modelo-datos), actualizado
-          tras `integracion-conductores-vehiculos` §5.9 "CORTE REAL 1": Vehículo pasó a
-          `supabaseVehiculoRepository` (la Edge Function `vehiculos` ya está completa) — el
-          selector de vehículo ya muestra la flota real. Conductor sigue en mock: no existe
-          ninguna Edge Function `conductores` en el backend todavía (sin backend real que cablear,
-          distinto del caso de Vehículo). Complementa el cartel de `conductorId` de arriba
-          (Discrepancias 1/2) sin repetir su texto. */}
-      <AvisoModeloDatos>
-        El selector de conductor sigue leyendo del repository de prueba (
-        <code>mockConductorRepository</code>): la lista mostrada es un fixture transitorio hasta
-        que el backend de Conductores aterrice (design.md Checkpoint 0). No es el catálogo final
-        de conductores.
-      </AvisoModeloDatos>
-
       <div className="flex flex-wrap items-end gap-md">
         <div className="flex flex-col gap-xs">
           <label htmlFor={`${formId}-fecha`} className="font-body text-[12px] font-semibold text-muted">

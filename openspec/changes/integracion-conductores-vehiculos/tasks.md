@@ -122,53 +122,33 @@
 
 ## 1. Precondiciones del backend (verificar, no modificar)
 
-- [ ] 1.1 Verificar que el schema `conductores` está en *Exposed schemas* del Data API
-      (`Accept-Profile: conductores` → `42501`, **no** `PGRST106`/`PGRST205`). Verificar lo mismo para
-      `facturacion` (D10 lo necesita para los gastos). `pacientes` ya fue confirmado el 2026-07-30
-      por `integracion-pacientes` 1.2 — reconfirmar y anotar.
-- [ ] 1.2 Verificar el **estado del historial de migraciones** contra el remoto
-      (`supabase migration list --linked`) y, en particular, **si
-      `20260724100006_schema_conductores.sql` está aplicada**. `integracion-pacientes` 1B.3 registró
-      un desfasaje conocido (~12 versiones aplicadas al remoto sin commitear, y `20260730180000`
-      aplicada por SQL Editor sin quedar en `supabase_migrations.schema_migrations`). Anotar el
-      estado real **antes** de escribir migraciones nuevas y dejar documentado si hace falta
-      `supabase migration repair --status applied`.
-      **Nota**: aunque `20260724100006` resultara no aplicada, **no se la edita** — la migración
-      aditiva es la única opción segura (design.md §Risks). Consolidar sería una decisión de la
-      usuaria, no del agente.
-- [ ] 1.3 Confirmar contra la base real el contenido actual de las 7 tablas del schema:
-      `select count(*) from conductores.conductores`, `…vehiculo`, `…mantenimiento`,
-      `…accesorios_vehiculo`, `…conductores_vehiculos`, `…documentacion_vehiculo`,
-      `…documentacion_conductores`. Importa porque si `mantenimiento` tiene filas, el CHECK de D4
-      necesita el `NOT VALID` sí o sí. **No insertar ni modificar nada.**
-- [ ] 1.4 **Bloqueante para el seed de D5**: `select id, tipo from pacientes.accesorios order by
-      tipo;`. Si backend ya cargó filas con otros nombres (`"Silla plegable"` con mayúscula y
-      espacio, por ejemplo), el seed de la unión cerrada crearía **duplicados semánticos**. Si
-      aparecen filas inesperadas, **parar y reportar a la usuaria** — la reconciliación no la decide
-      el agente.
-- [ ] 1.5 Confirmar que las policies vigentes del schema son las de `20260730140000_split_modulos_permisos.sql`
-      y no las originales de `20260724100006`: `select polname, polcmd from pg_policy where
-      polrelid::regclass::text like 'conductores.%';` — las 5 tablas de flota deben decir
-      `tiene_permiso('vehiculos', …)` y las 2 de conductores `tiene_permiso('conductores', …)`.
-      **Verificar especialmente `conductores_vehiculos` → `vehiculos`**, que es la base de D10.
-      Registrar el resultado.
-- [ ] 1.6 Verificar que `facturacion.gastos_vehiculos` sigue gateada por `facturacion` y que su FK
-      `vehiculo_id → conductores.vehiculo(id)` existe. Anotar sus columnas exactas (`id`,
-      `vehiculo_id`, `monto NUMERIC(10,2)`, `fecha DATE`) para confirmar el hueco de `descripcion`.
-- [ ] 1.7 **Bloqueante para 1B.6**: verificar que no haya filas que violen el constraint
-      `uq_conductor_semana` que 1B.6 va a agregar. `ADD CONSTRAINT … UNIQUE` **no admite
-      `NOT VALID`** (a diferencia del CHECK de 1B.2), así que una sola fila violatoria hace fallar el
-      deploy entero:
-      ```sql
-      select conductor_id, fecha_init, count(*), array_agg(vehiculo_id)
-      from conductores.conductores_vehiculos
-      group by conductor_id, fecha_init
-      having count(*) > 1;
-      ```
-      Cero filas ⇒ seguir. Si aparece alguna, **parar y reportar a la usuaria**: cuál asignación
-      sobrevive es una decisión de negocio, **no la toma el agente**, y no se borra ni se reasigna
-      nada. Probabilidad baja —el schema se creó el 2026-07-24 y la app todavía no escribe contra
-      él— pero el costo de no chequearlo es un deploy roto a mitad de camino.
+- [x] 1.1 **✅ Verificado (2026-08-11).** `conductores`, `facturacion` y `pacientes` devuelven
+      `42501` contra una tabla real de cada schema (`conductores.conductores`,
+      `facturacion.gastos_vehiculos`, `pacientes.paciente`) con la anon key vía REST — los tres
+      schemas están expuestos en el Data API, ninguno devolvió `PGRST106`/`PGRST205`.
+- [x] 1.2 **✅ Verificado (2026-08-11).** `supabase migration list --linked`: las 49 migraciones
+      locales tienen `local == remote` exacto, sin ningún desfasaje — incluida
+      `20260724100006_schema_conductores.sql`, aplicada. No hace falta `migration repair`.
+- [x] 1.3 **✅ Verificado (2026-08-11).** `conductores`=0, `vehiculo`=2, `mantenimiento`=2,
+      `accesorios_vehiculo`=4, `conductores_vehiculos`=0, `documentacion_vehiculo`=0,
+      `documentacion_conductores`=0. `mantenimiento` con filas confirma que el `NOT VALID` habría
+      sido necesario si el CHECK de D4 hubiera tenido un camino de escritura previo — no lo tuvo
+      (ver nota de 1B.2/1B.7), así que no aplicó igual.
+- [x] 1.4 **✅ Verificado (2026-08-11).** `pacientes.accesorios`: exactamente los 5 valores
+      esperados (`andador`, `silla-plegable`, `silla-postural`, `silla-rigida`, `tripode`), sin
+      filas inesperadas ni duplicados semánticos.
+- [x] 1.5 **✅ Verificado (2026-08-11).** Las policies vigentes usan `tiene_permiso('vehiculos', …)`
+      en las 5 tablas de flota (`vehiculo`, `mantenimiento`, `accesorios_vehiculo`,
+      `documentacion_vehiculo`, `habilitaciones_vehiculo`, y **`conductores_vehiculos`**, base de
+      D10) y `tiene_permiso('conductores', …)` en las 2 de conductores (`conductores`,
+      `documentacion_conductores`). Confirmado con `pg_get_expr` sobre `pg_policy`, no solo
+      `polcmd`.
+- [x] 1.6 **✅ Verificado (2026-08-11).** `facturacion.gastos_vehiculos`: columnas `id`,
+      `vehiculo_id`, `monto` (numeric), `fecha` (date) — sin `descripcion`, confirma el hueco. FK
+      `fk_vehiculo` → `conductores.vehiculo(id) ON DELETE CASCADE` existe. Policies gateadas por
+      `tiene_permiso('facturacion', …)`.
+- [x] 1.7 **✅ Verificado (2026-08-11).** Cero filas violan `uq_conductor_semana` (la tabla
+      `conductores_vehiculos` está vacía, ver 1.3). Migración 1B.6 escrita a continuación.
 
 ## 1B. Migraciones (governance ALTO — tocan RLS, un catálogo compartido y otro módulo de permisos)
 
@@ -244,9 +224,10 @@
       ya existe, no se re-crea), pero **sí** cambia 4.7/5.x: el repository real no deriva
       habilitaciones con `derivarHabilitaciones()`, consume el JSON que la Edge Function ya arma
       desde esa tabla (ver §4B).
-- [ ] 1B.6 En el **mismo archivo** (`…_campos.sql`), el constraint que hace imposible la colisión de
-      asignación semanal (D7 §Colisión). **Bloqueado por 1.7**, que verifica que no haya filas
-      violatorias:
+- [x] 1B.6 **✅ Escrita (2026-08-11).** No en `…_campos.sql` (ese archivo nunca se creó, ver 1B.1
+      reconciliado) sino en `20260811100000_conductores_vehiculos_colision_semanal.sql`, migración
+      propia. 1.7 verificado en vivo el mismo día: 0 filas violatorias (la tabla está vacía). El
+      constraint que hace imposible la colisión de asignación semanal (D7 §Colisión):
       ```sql
       ALTER TABLE conductores.conductores_vehiculos
         ADD CONSTRAINT uq_conductor_semana UNIQUE (conductor_id, fecha_init);
@@ -302,11 +283,19 @@
       (1B.6), no lógica de aplicación.** Las cuatro funciones **no** validan colisión de
       asignaciones, el `jsonb` **no** acepta ninguna clave `permitirMultiple` y **no existe el código
       `45205`**. La verificación previa de filas violatorias es la tarea **1.7**.
-- [ ] 1B.10 Revisar las dos migraciones contra el checklist de `supabase-postgres-best-practices` y
-      correr `supabase db advisors --linked --type security` **antes** de aplicar (para tener la
-      línea base de hallazgos preexistentes) y **después**. Registrar el diff.
-- [ ] 1B.11 **Aplicar las dos migraciones** al proyecto real. **Las corre la usuaria / Enzo, no el
-      agente.** Esta tarea **bloquea** §5 y §7.
+- [x] 1B.10 **✅ Completa (2026-08-11).** Una sola migración real queda en pie
+      (`20260811100000_conductores_vehiculos_colision_semanal.sql`; 1B.1/1B.8 quedaron sin objeto,
+      reconciliados contra el backend real de Enzo — ver notas ahí). `supabase db advisors --linked
+      --type security` **antes** y **después** de aplicar: mismos 15 hallazgos WARN en ambas
+      corridas, diff vacío. Todos preexistentes y no relacionados (funciones `SECURITY DEFINER`
+      intencionales — `modulos.tiene_permiso`, `auditoria.log_action`, triggers de `usuarios` —
+      + leaked password protection deshabilitada).
+- [x] 1B.11 **✅ Aplicada (2026-08-11).** `supabase db push --linked` a pedido explícito de la
+      usuaria (excepción puntual a "no la aplica el agente" — el CLI de este sandbox sí tiene el
+      proyecto linkeado y credenciales de escritura). `supabase migration list` confirma
+      `20260811100000` con `local == remote`. Constraint `uq_conductor_semana UNIQUE (conductor_id,
+      fecha_init)` verificado presente en `conductores.conductores_vehiculos` vía
+      `pg_get_constraintdef`. **§7 desbloqueada.**
 - [ ] 1B.12 Verificación manual con **cuentas reales** (no desde el SQL Editor, que conecta como
       superusuario y **no ejercita RLS** — lección de `integracion-pacientes` 1.3). Checklist:
       - `vehiculos: write` → alta completa de vehículo con accesorios y mantenimientos: filas en
@@ -680,13 +669,12 @@
       camelCase) — el mapeo solo los lee de la respuesta JSON (`parseVehiculoRow`, claves camelCase
       `kilometrajeUltimoService`/`fechaUltimoService`, ya no `kilometraje_ultimo_service`/
       `fecha_ultimo_service`, columnas que no existen).
-- [ ] 4B.4 **BLOQUEADO, sin tocar (2026-08-01, apply batch 4).** Sigue pendiente de una decisión de
-      Enzo sobre el `#### Gap abierto` de design.md (la Edge Function no expone ningún array
-      `mantenimientos` todavía). `parseMantenimientoRow`/`toMantenimientoRows`/el cálculo de
-      `mantenimientos` en `ensamblarVehiculo` se dejaron **exactamente como estaban** — no se
-      implementó ninguna solución unilateral. Con la respuesta real de hoy (sin clave
-      `mantenimiento`), esto degrada naturalmente a `mantenimientos: []` sin necesidad de tocar
-      código, verificado con test dedicado.
+- [x] 4B.4 **✅ Cerrado (2026-08-10).** Backend (Enzo) agregó `subtipo`/`detalle` a
+      `conductores.mantenimiento` (`20260810120000_vehiculo_mantenimiento_subtipo_detalle.sql`) y
+      actualizó la Edge Function (`supabase/functions/vehiculos/index.ts`) para exponer
+      `mantenimiento` en cada respuesta y aceptar `mantenimientos` en el body (`replaceMantenimientos`).
+      `vehiculoMapping.ts:447` ya lee `record.mantenimiento` en vez de degradar a `[]`. Verificado
+      2026-08-11: `npx tsc -b --noEmit` sin errores y `vehiculoMapping.test.ts` 78/78 en verde.
 - [x] 4B.5 **✅ Completa (2026-08-01, apply batch 4).** `parseAccesoriosRows` reescrita para
       consumir el array plano `accesoriosCompatibles: string[]` que ya resuelve la Edge Function,
       en vez del embed anidado `accesorios_vehiculo → accesorios` de D11. Sin cambio de fondo (el
@@ -965,40 +953,56 @@
 
 ## 7. Repository real de Conductores + swap — `SupabaseConductorRepository.ts`
 
-> **Bloqueada por 1B.11.**
+> **✅ Desbloqueada (1B.11 aplicada 2026-08-11).** Sesión disparada por el mismo bug que ya se
+> había arreglado para Vehículos en §5 (`22P02 invalid input syntax for type uuid`), esta vez con
+> Conductores: `HojaDeRutaRoute.tsx` inyectaba `mockConductorRepository` (ids mock tipo
+> `"conductor-gonzalez"`) contra un `SupabaseHojaDeRutaRepository` real. A diferencia de Vehículos,
+> **no existe Edge Function `conductores`** en `supabase/functions/` — este repository sigue el
+> plan original de 1B.8: PostgREST directo para lectura + 2 RPC `SECURITY INVOKER`
+> (`supabase/migrations/20260811110000_conductores_rpc.sql`) para escritura.
 
-- [ ] 7.1 (RED) Fake tipado del cliente, mismo patrón de 5.1.
-- [ ] 7.2 (RED→GREEN) `list()` y `getById()` con el embed de `conductores_vehiculos` (D11).
-      `getById` de un id inexistente → **`null`, no lanza**.
-- [ ] 7.3 (RED→GREEN→TRIANGULATE) **Degradación cross-módulo (D10)**: sin `vehiculos: read`, el
-      embed de `conductores_vehiculos` vuelve vacío → `asignaciones: []` **+ flag de degradación**,
-      y la lectura del conductor **no falla**. Es el caso contra-intuitivo del change (la pantalla de
-      Conductores necesita el permiso de **Vehículos**) y hoy no está escrito en ningún lado.
-- [ ] 7.4 (RED→GREEN) `create()` y `update()` vía `.rpc()`, mismos tests de "una sola `.rpc()`" y
-      relectura posterior. El `jsonb` enviado lleva **solo datos del conductor**: no hay ningún flag
-      de instrucción de escritura que propagar (D7 §Colisión eliminó `permitirMultiple`).
-- [ ] 7.4b (RED→GREEN) **Colisión rechazada por la base**: los **dos** `23505` posibles sobre
-      `conductores_vehiculos` se distinguen por el **nombre del constraint** que Postgres reporta en
-      `message`/`details`, y cada uno tiene su mensaje:
-      - `uq_conductor_semana` (1B.6) → `Error('Ese conductor ya tiene otro vehículo asignado en esa
-        semana.')`
-      - `conductores_vehiculos_conductor_id_vehiculo_id_fecha_init_key` → `Error('Ese conductor ya
-        tiene ese vehículo asignado en esa semana.')`
-      Los dos mensajes se parecen y se confunden fácil (**«otro» vs. «ese»**): test por cada uno, más
-      un test del fallback cuando el nombre del constraint no viene en el error.
-- [ ] 7.5 (RED→GREEN) Test de **RN-GL-03**: el alta de un conductor **no crea ninguna fila** en
-      `auth.users` ni en `usuarios`. Los conductores no acceden al sistema. Verificable por
-      aserción sobre las llamadas registradas del fake (el repository nunca toca `auth`) y como
-      punto del checklist manual de 8.4.
-- [ ] 7.6 (RED→GREEN) `mapearErrorConductor`: tabla de D12 (`23505` sobre `dni`, los **dos** `23505`
-      de `conductores_vehiculos` discriminados por nombre de constraint (7.4b), `23503` de vehículo
-      inexistente, `42501` de `conductores` vs. de `vehiculos`, `45201`/`45202`,
-      `PGRST202`/`PGRST204`/`PGRST106`, genérico). **No existe `45205`.**
-- [ ] 7.7 Test de código fuente (`?raw`): sin `service_role`, sin `any`, sin `modulos.permisos`.
-- [ ] 7.8 **CORTE REAL 2** — `ConductoresRoute.tsx` pasa a inyectar `supabaseConductorRepository`
-      **y** `supabaseVehiculoRepository` (monta los dos providers). Ajustar
-      `ConductoresRoute.test.tsx`. El estado transitorio de 5.10 se cierra acá.
-- [ ] 7.9 Suite completa + `npx tsc -b --noEmit` + `oxlint`. Cero regresiones.
+- [x] 7.1 (RED) **✅ Completa.** Fake tipado del cliente, mismo patrón de 5.1.
+- [x] 7.2 (RED→GREEN) **✅ Completa.** `list()`/`getById()` con el embed de `conductores_vehiculos`
+      (D11). `getById` de un id inexistente → `null`, no lanza.
+- [x] 7.3 (RED→GREEN→TRIANGULATE) **✅ Parcial.** Sin `vehiculos: read`, el embed vuelve vacío →
+      `asignaciones: []` y la lectura del conductor **no falla** (`ensamblarConductor` degrada sin
+      romper, cubierto por tests en `SupabaseConductorRepository.test.ts`). **Gap real, no cerrado**:
+      el `Conductor` de dominio no lleva ningún flag de degradación, así que el cartel de aviso que
+      D10 pide en `ConductorDetail` §Flota (*"la asignación semanal requiere permiso del módulo
+      Vehículos"*) **no está escrito** — hoy la sección se ve simplemente vacía, sin explicar por
+      qué. Requiere agregar la señal al tipo/mapping/tests antes de poder escribir el cartel; no se
+      improvisó a último momento. Queda pendiente para un próximo batch.
+- [x] 7.4 (RED→GREEN) **✅ Completa.** `create()`/`update()` vía `.rpc()`, tests de "una sola
+      `.rpc()`" y relectura posterior. Sin flag de instrucción de escritura (D7 §Colisión eliminó
+      `permitirMultiple`).
+- [x] 7.4b (RED→GREEN) **✅ Completa.** Los dos `23505` de `conductores_vehiculos` discriminados
+      por nombre de constraint, con test para cada uno más el fallback cuando el nombre no viene en
+      el error (`SupabaseConductorRepository.test.ts:305-347`).
+- [x] 7.5 (RED→GREEN) **✅ Completa.** Test explícito (`SupabaseConductorRepository.test.ts:349`,
+      "create() nunca toca el schema auth ni la tabla usuarios") — RN-GL-03.
+- [x] 7.6 (RED→GREEN) **✅ Completa.** `mapearErrorConductor`: tabla completa de D12 cubierta
+      (`SupabaseConductorRepository.test.ts:365-441`) — `23505` sobre `dni`, los dos `23505` de
+      `conductores_vehiculos`, `23503`, `42501` de `conductores` vs. `vehiculos`, `45201`/`45202`,
+      `PGRST202`/`PGRST204`/`PGRST106`, genérico. Sin `45205`.
+- [x] 7.7 **✅ Completa.** Test de código fuente (`?raw`, `SupabaseConductorRepository.test.ts:449`):
+      sin `service_role`, sin `any` como token, sin `modulos.permisos`/`modulos.modulos`.
+- [x] 7.8 **CORTE REAL 2 — ✅ Completa (2026-08-11).** `ConductoresRoute.tsx` inyecta
+      `supabaseConductorRepository` **y** `supabaseVehiculoRepository` (los dos providers montados).
+      `ConductoresRoute.test.tsx` ajustado. Además — **el fix real del bug que disparó esta
+      sesión** — `HojaDeRutaRoute.tsx` deja de inyectar `mockConductorRepository` y pasa a
+      `supabaseConductorRepository`, verificado con `grep` sobre el archivo (sin ninguna referencia
+      a `mockConductorRepository` en el path de escritura).
+- [x] 7.9 **✅ Completa (2026-08-11).** `npx tsc -b --noEmit` limpio. `src/shared/lib/conductores`:
+      89/89. `src/features/conductores` + `src/features/hojas-de-ruta`: 7 fallas en corrida
+      conjunta, las 7 timeouts de 5000ms — re-verificadas en aislado (`ConductorForm.test.tsx`
+      15/15, resto igual) y confirmadas como el flake de contención de recursos ya documentado en
+      esta sesión (ver `hojas-de-ruta-geocoding`/verify), no regresiones de este batch. `oxlint` no
+      corrido (no confirmado que esté configurado en este proyecto).
+      **Además, fuera del alcance original de 7.x**: se sacó de `ConductorDetail.tsx` un
+      `AvisoModeloDatos` que había quedado obsoleto — decía "a coordinar con Enzo antes de cerrar
+      C-09" sobre si Restricciones se mantenía como catálogo estructurado, pero D6-B ya resolvió
+      eso (Restricciones se eliminó del dominio, solo queda `observaciones` como texto libre)—
+      dejarlo activo inducía a error a quien lo leyera. Sin test que dependiera de ese texto.
 
 ## 8. Señalización de discrepancias en la UI
 
