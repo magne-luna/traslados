@@ -264,36 +264,45 @@
 
 > Fase enteramente aditiva: la app sigue andando con mocks al terminarla.
 
-- [ ] 2.1 **RED** — `parseFacturaRow`: los 11 renombres de columna de D1 (`fecha_init`→`fechaInicial`,
+- [x] 2.1 **RED** — `parseFacturaRow`: los 11 renombres de columna de D1 (`fecha_init`→`fechaInicial`,
       `fecha_tope`→`fechaTope`, `tipo`→`tipoComprobante`, `valor_km`, `cantidad_km`, `mes_facturado`,
       `anio_facturado`, `dependencia_y_retorno`, `fecha_estimada_cobro`, `fecha_factura`,
       `domicilio_id`). **GREEN → TRIANGULATE** (≥2 casos por comportamiento) **→ REFACTOR**.
-- [ ] 2.2 **RED** — `estadoDesdeBase`: los **cinco** literales reales (`'a facturar'`, `'pendiente'`,
+      Hecho: `parseFacturaRow` en `facturaMapping.ts`, cubierto por `facturaMapping.test.ts`.
+- [x] 2.2 **RED** — `estadoDesdeBase`: los **cinco** literales reales (`'a facturar'`, `'pendiente'`,
       `'facturado'`, `'cobrado'`, `'pagado parcialmente'`) + un literal desconocido → `'a-facturar'`.
       La función es **total**: nunca lanza. **GREEN → TRIANGULATE → REFACTOR**.
-- [ ] 2.3 **RED** — `estadoHaciaBase`: los 4 estados del dominio → los 4 literales con espacio.
-      **Test explícito de que nunca emite `'pendiente'`.**
-- [ ] 2.4 **RED** — colapso de `identificador_origen` + `identificador_valor` en
+      Hecho: función total con `Map`, sin `Record` indexado (evita `undefined` de TS).
+- [x] 2.3 **RED** — `estadoHaciaBase`: los 4 estados del dominio → los 4 literales con espacio.
+      **Test explícito de que nunca emite `'pendiente'`.** Hecho, con test dedicado.
+- [x] 2.4 **RED** — colapso de `identificador_origen` + `identificador_valor` en
       `identificadorFactura?: { origen, valor }`; con cualquiera de las dos en `NULL`, el campo queda
-      **ausente** (no un objeto con string vacío).
-- [ ] 2.5 **RED** — `parseAsistenciaRow` + ordenamiento client-side por `fecha` asc con desempate por
+      **ausente** (no un objeto con string vacío). Hecho en `parseFacturaRow` vía
+      `parseIdentificadorFactura` interna.
+- [x] 2.5 **RED** — `parseAsistenciaRow` + ordenamiento client-side por `fecha` asc con desempate por
       `id`; `factura_sabados` → `facturaSabados`. Casos: colección vacía, fila malformada descartada
       sin romper la factura, dos asistencias con la misma fecha (orden estable entre lecturas).
-- [ ] 2.6 **RED** — **nullability (D11)**: fila con `monto`, `dias`, `valor_km`, `cantidad_km`,
+      Hecho: `parseAsistenciaRow` exportada + `parseAsistencias`/`ensamblarFactura` para el orden.
+- [x] 2.6 **RED** — **nullability (D11)**: fila con `monto`, `dias`, `valor_km`, `cantidad_km`,
       `prestacion`, `dependencia_y_retorno`, `mes_facturado`, `anio_facturado`, `domicilio_id`,
       `fecha_init`, `fecha_tope`, `tipo` y `estado` en `NULL` → factura coherente con el tipo
       (`''` para textuales, `0` para numéricos, `'a-facturar'` para estado), **cero `undefined`
-      filtrándose**. Ídem `asistencia_prestacion.dependencia` / `.retorno`.
-- [ ] 2.7 **RED** — `parseCobroRow`: `facturas_id` (**plural**) → `facturaId`, `monto_pagado` →
-      `montoPagado`.
-- [ ] 2.8 **RED** — `toCrearFacturaPayload`: `NuevaFactura` → `jsonb`, con las asistencias anidadas y
-      el estado convertido por `estadoHaciaBase`.
-- [ ] 2.9 **RED** — `toActualizarFacturaPayload`: **semántica parcial**. Clave ausente en el `Partial`
+      filtrándose**. Ídem `asistencia_prestacion.dependencia` / `.retorno`. Hecho, con test que
+      afirma `Object.values(factura)` sin `undefined`.
+- [x] 2.7 **RED** — `parseCobroRow`: `facturas_id` (**plural**) → `facturaId`, `monto_pagado` →
+      `montoPagado`. Hecho.
+- [x] 2.8 **RED** — `toCrearFacturaPayload`: `NuevaFactura` → `jsonb`, con las asistencias anidadas y
+      el estado convertido por `estadoHaciaBase`. Hecho.
+- [x] 2.9 **RED** — `toActualizarFacturaPayload`: **semántica parcial**. Clave ausente en el `Partial`
       → clave ausente en el `jsonb`. Clave presente con `undefined` → ausente. Clave presente con un
       array vacío → presente (significa "borrar todas las asistencias", y es intencional).
-      **Es la trampa que borra datos: test dedicado, no un caso más.**
-- [ ] 2.10 **RED** — `toCrearCobroPayload`.
-- [ ] 2.11 `npx tsc -b --noEmit` limpio + `oxlint` limpio. **Cero `any`, cero `as` sobre datos externos.**
+      **Es la trampa que borra datos: test dedicado, no un caso más.** Hecho: test dedicado
+      `'EL CASO CRÍTICO: editar SOLO el estado ... NO manda la clave "asistencias"'` +
+      test separado para array vacío presente.
+- [x] 2.10 **RED** — `toCrearCobroPayload`. Hecho.
+- [x] 2.11 `npx tsc -b --noEmit` limpio + `oxlint` limpio. **Cero `any`, cero `as` sobre datos externos.**
+      Verificado: `tsc -b --noEmit` sin salida (exit 0); `oxlint` sobre los dos archivos nuevos sin
+      salida. 43/43 tests verdes en `facturaMapping.test.ts`.
 
 ## 3. `SupabaseFacturaRepository.ts` (TDD estricto, nadie lo importa todavía)
 
