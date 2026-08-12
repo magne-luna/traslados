@@ -81,7 +81,13 @@ function buildFakeVehiculoRepo(): VehiculoRepository {
   return { list: vi.fn().mockResolvedValue([vehiculo]), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
 }
 function buildFakeConductorRepo(): ConductorRepository {
-  return { list: vi.fn().mockResolvedValue([conductor]), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
+  return {
+    list: vi.fn().mockResolvedValue([conductor]),
+    listPage: vi.fn(),
+    getById: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
 }
 function buildFakePacienteRepo(): PacienteRepository {
   return {
@@ -96,7 +102,13 @@ function buildFakePacienteRepo(): PacienteRepository {
   };
 }
 function buildFakeObraSocialRepo(): ObraSocialRepository {
-  return { list: vi.fn().mockResolvedValue([]), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
+  return {
+    list: vi.fn().mockResolvedValue([]),
+    listPage: vi.fn(),
+    getById: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
 }
 function buildFakeDocumentoRepo(): DocumentoRepository {
   return {

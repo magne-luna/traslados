@@ -66,7 +66,13 @@ function buildFakeVehiculoRepo(): VehiculoRepository {
 }
 
 function buildFakeConductorRepo(): ConductorRepository {
-  return { list: vi.fn().mockResolvedValue([conductor]), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
+  return {
+    list: vi.fn().mockResolvedValue([conductor]),
+    listPage: vi.fn(),
+    getById: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
 }
 
 function buildFakePacienteRepo(): PacienteRepository {
