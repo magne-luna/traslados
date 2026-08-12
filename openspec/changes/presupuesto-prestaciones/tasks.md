@@ -289,10 +289,10 @@ verificación final, fuera del alcance de este batch de apply.**
 
 ## 9. Documentación (obligatoria)
 
-- [ ] 9.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: entrada nueva sobre
+- [x] 9.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: entrada nueva sobre
       `presupuesto.prestacion_id` (texto de D5 de `design.md`), citando la #13 sin editarla.
-- [ ] 9.2 `CHANGES.md` §C-06: nota de reapertura post-archivo.
-- [ ] 9.3 `knowledge-base/10_preguntas_abiertas.md`: sumar D8 (`facturas.prestacion` vs. catálogo)
+- [x] 9.2 `CHANGES.md` §C-06: nota de reapertura post-archivo.
+- [x] 9.3 `knowledge-base/10_preguntas_abiertas.md`: sumar D8 (`facturas.prestacion` vs. catálogo)
       y actualizar el conteo acumulado de la pregunta de pgTAP (+2 funciones nuevas).
 
 ## 10. Verificación final
