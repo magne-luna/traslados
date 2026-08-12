@@ -255,7 +255,7 @@ como constante en el frontend — esto lo distingue de sus tres antecesores, tod
 - **Governance: CRÍTICO** — mismo criterio que los tres refinamientos anteriores de este dominio
   (`pacientes-documentos-multiples`, `documentos-previsualizacion`,
   `documentos-checklist-por-actividad`) y que `C-05`: datos de salud de personas con discapacidad,
-  incluidos menores. Además, este change **sí** crea tabla nueva con RLS (los tres anteriores eran
-  frontend puro). Aprobación humana explícita antes de que apply escriba una línea.
+  incluidos menores. Además, este change **sí** crea tabla nueva con RLS propia. Aprobación humana
+  explícita antes de que apply escriba una línea.
 - **Rollback**: revertir los archivos de frontend; la migración se revierte con el `DROP TABLE` de su
   bloque de rollback (aditiva, ninguna tabla existente se altera).

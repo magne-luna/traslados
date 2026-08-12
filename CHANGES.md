@@ -229,23 +229,28 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   requisito entero de `paciente-direcciones` no llegó a fusionarse, para no dejar un spec principal
   mintiendo sobre una funcionalidad que no existe). Detalle en
   `openspec/changes/archive/2026-08-11-documentos-transferencia-actividad/`.
-- **Refinamiento posterior (`documentos-checklist-items-por-actividad`, propose+apply
-  2026-08-10/11)**: el checklist documental del paciente (dueño del tipo/componente/repository
-  compartido que se modificó, este change) gana un segundo eje de configuración, aditivo al de la
-  obra social (RN-FA-08): ítems propios **por tipo de actividad** (escuela, escuela especial,
-  terapia, CET, otro — global, no por obra social). Tabla nueva
-  `obra_social.requisitos_actividad` (RLS + auditoría en la misma migración, FK al catálogo
-  compartido `obra_social.tipos_documento`, mismo criterio de get-or-create normalizado que
-  `requisitos_os`), función pura `combinarItemsDeActividad` (`actividadDocumental.ts`, dedup por
-  id, orden de la obra social primero, el más estricto gana en `requerido`). **`DocumentChecklist.tsx`
-  y el contrato compartido `DocumentoRepository` NO cambian** — a diferencia de
-  `documentos-checklist-por-actividad` (dos refinamientos atrás), esto se resuelve enteramente por
-  composición en `PacienteDocumentos.tsx`; el bloque "General" sigue sin recibir ítems por tipo
-  (protegido por construcción, la función pura simplemente no se llama ahí). Coordinado con
-  `documentos-transferencia-actividad` (bullet de arriba): el riesgo que ese change había dejado
-  anotado (transferir un documento a una actividad cuyo checklist combinado no lo incluye) ya
-  estaba resuelto del lado de `DocumentChecklist.tsx` (sección "Otros documentos" para `itemId`
-  huérfanos) antes de que este change necesitara usarlo. **Origen del supuesto: el EQUIPO
+- **Refinamiento posterior (`documentos-checklist-items-por-actividad`, ✅ Archivado
+  2026-08-11)**: el checklist documental del paciente (dueño del tipo/componente/repository
+  compartido que se modificó, este change) gana un segundo eje de configuración: ítems propios
+  **por tipo de actividad** (escuela, escuela especial, terapia, CET, otro — global, no por obra
+  social). Tabla nueva `obra_social.requisitos_actividad` (RLS + auditoría en la misma migración,
+  FK al catálogo compartido `obra_social.tipos_documento`, mismo criterio de get-or-create
+  normalizado que `requisitos_os`). **`DocumentChecklist.tsx` y el contrato compartido
+  `DocumentoRepository` NO cambian** — se resuelve enteramente por composición en
+  `PacienteDocumentos.tsx`.
+  **Revisión en vivo (2026-08-11, tras probar en el navegador)**: el diseño original (`propose`,
+  2026-08-10) sumaba los ítems de la obra social con los del tipo de actividad, deduplicados
+  (función pura `combinarItemsDeActividad`). Probando la pantalla real, la usuaria pidió lo
+  contrario: cada bloque de actividad muestra **únicamente** sus ítems propios del tipo — **sin
+  fusión** con los de la obra social, que quedan exclusivos del bloque "General".
+  `combinarItemsDeActividad` se eliminó por quedar sin uso. Efecto colateral aceptado: un tipo sin
+  ítems configurados muestra un bloque vacío con mensaje explícito ("Todavía no hay documentación
+  configurada para este tipo de actividad...") en vez de heredar los de la obra social como antes
+  — el comportamiento **ya no** es idéntico al de antes del change cuando no hay nada configurado
+  (a diferencia de lo que decía el diseño original). Documentos ya cargados contra un ítem que
+  salió de la lista de un bloque (típicamente por esta reversión) no se pierden: aparecen en la
+  sección "Otros documentos" de `DocumentChecklist.tsx` (guard de `documentos-transferencia-actividad`,
+  coordinado entre ambos changes, ver bullet de arriba). **Origen del supuesto: el EQUIPO
   (hipótesis de la usuaria), no feedback textual de Andrea Pastor** — a diferencia de los tres
   refinamientos hermanos anteriores de esta pantalla. Governance CRÍTICO (mismo criterio que los
   refinamientos anteriores, y este va más lejos: tabla nueva con RLS propia). Detalle completo,
@@ -253,8 +258,11 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   y las notas `⚠️` sobre RN-FA-08/RN-FA-10 en `05_reglas_de_negocio.md`. Pantalla de
   administración propia en `/documentacion-por-actividad` (capability nueva
   `checklist-por-tipo-actividad`, gateada por el mismo módulo `obra_social` que ya gatea
-  `requisitos_os` — reusa `ChecklistEditor`/`ChecklistItemRow` sin tocarlos). Detalle en
-  `openspec/changes/documentos-checklist-items-por-actividad/`.
+  `requisitos_os` — reusa `ChecklistEditor`/`ChecklistItemRow` sin tocarlos). **Pendiente**: tarea
+  9.4 (verificación de permisos con dos cuentas reales) quedó sin hacer a propósito, anotada como
+  deuda técnica antes de confiar en la RLS de `requisitos_actividad` en producción con usuarios
+  reales de permisos mixtos. Detalle en
+  `openspec/changes/archive/2026-08-11-documentos-checklist-items-por-actividad/`.
 
 ### [C-04] `obras-sociales-prestadores`
 - **Estado**: ✅ `integracion-obra-social` — 69/70 tasks. Migraciones confirmadas aplicadas y
@@ -631,21 +639,26 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   cargado) en paralelo al `.zip` — la usuaria decidió sacarla por completo ("siento que no tiene
   utilidad"), quedando solo el `.zip` como acción de exportación. Detalle de la cadena de
   veredictos en `tasks.md` §0.2/§2/§11/§13/§14 del change. Mismo governance CRÍTICO.
-- **Refinamiento posterior (`documentos-checklist-items-por-actividad`, propose+apply
-  2026-08-10/11)**: la pantalla Pacientes → Documentos (dueña de este change, `C-05`) suma, en cada
-  bloque de actividad, los ítems propios configurados para ese tipo (escuela/escuela
-  especial/terapia/CET/otro) a los de la obra social — nunca en el bloque "General". Cada bloque
-  muestra la procedencia de sus ítems extra a nivel de bloque (`+N ítems propios de esta
-  actividad`), sin cambiar `DocumentChecklist.tsx`. Ver detalle completo (tabla, RLS, función pura,
-  pantalla de administración) en la nota equivalente de `C-03` (dueño del tipo/componente/repository
-  compartido) más arriba. **Sin configurar nada, el comportamiento es idéntico al de antes** (default
-  vacío, design.md D2) — verificación manual confirmando esto sigue pendiente (`tasks.md` §9.1,
-  fuera de este apply). El porcentaje de avance de pacientes ya completos **va a bajar** el día que
-  se configure algún ítem por tipo (más ítems ⇒ mismo cargado sobre más total) — no es un bug,
-  aviso pendiente de dar a la usuaria antes de configurar nada en producción (`tasks.md` 9.6). Mismo
-  governance CRÍTICO que los cuatro refinamientos anteriores de esta pantalla, y el que va más lejos
-  de los cinco: crea tabla nueva con RLS propia sobre documentación de salud, apoyada en una regla
-  de negocio sin confirmar (ver nota `⚠️` en `05_reglas_de_negocio.md` RN-FA-08/RN-FA-10).
+- **Refinamiento posterior (`documentos-checklist-items-por-actividad`, ✅ Archivado
+  2026-08-11)**: la pantalla Pacientes → Documentos (dueña de este change, `C-05`) suma un segundo
+  eje de configuración documental por tipo de actividad. **Revisión en vivo (2026-08-11)**: el
+  diseño original fusionaba, en cada bloque de actividad, los ítems propios del tipo con los de la
+  obra social (`+N ítems propios de esta actividad`); tras probar en el navegador, la usuaria pidió
+  que cada bloque muestre **solo** sus ítems propios, sin fusión — el bloque "General" sigue
+  exclusivo de la obra social, sin cambios. Un tipo sin ítems configurados muestra ahora un mensaje
+  explícito ("Todavía no hay documentación configurada...") en vez de heredar los de la obra social
+  — **ya no** es "idéntico al comportamiento de antes" cuando no hay nada configurado, a diferencia
+  de lo previsto en el diseño original. `DocumentChecklist.tsx` no cambió en ningún momento. Ver
+  detalle completo (tabla, RLS, pantalla de administración, cadena de revisión) en la nota
+  equivalente de `C-03` (dueño del tipo/componente/repository compartido) más arriba. El porcentaje
+  de avance de pacientes ya completos **va a bajar** (y con más fuerza que en el diseño original:
+  documentos ya cargados contra un ítem de la obra social dentro de un bloque de actividad quedan
+  huérfanos, no solo diluidos) el día que se configure algún ítem por tipo — no es un bug, avisado
+  a la usuaria antes de archivar (`tasks.md` 9.6). Mismo governance CRÍTICO que los cuatro
+  refinamientos anteriores de esta pantalla, y el que va más lejos de los cinco: crea tabla nueva
+  con RLS propia sobre documentación de salud, apoyada en una regla de negocio sin confirmar (ver
+  nota `⚠️` en `05_reglas_de_negocio.md` RN-FA-08/RN-FA-10). **Pendiente**: tarea 9.4 (verificación
+  de permisos con dos cuentas reales) sin hacer a propósito, deuda técnica anotada.
 
 ### [C-09] `conductores`
 - **Estado**: `[ ]` pendiente
