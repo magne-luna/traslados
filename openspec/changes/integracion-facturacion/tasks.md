@@ -242,23 +242,30 @@
       El delta real (¿las dos funciones nuevas agregan o no un hallazgo `SECURITY DEFINER`?) se mide
       **después** de que la usuaria/Enzo aplique 1B.7 — queda pendiente como parte de esa tarea, no
       de esta.
-- [ ] 1B.7 **Aplicar las dos migraciones** — **la usuaria / Enzo**. Bloquea la §5.
+- [x] 1B.7 **Aplicar las dos migraciones** — **la usuaria / Enzo**. Bloquea la §5.
+      **Aplicado 2026-08-12** por Enzo vía `supabase db push --linked` (tras traer a esta rama las 3
+      migraciones de `presupuesto-prestaciones` que faltaban localmente — sus PRs no están mergeadas a
+      `main` todavía, así que esta rama no las tenía; commit `398824f`). Push exitoso, ambas
+      migraciones aplicadas sin error.
 - [ ] 1B.8 Verificación manual con la cuenta **Facturación** (`facturacion: write`): alta completa de
       una factura con 3 asistencias vía `POST /rpc/crear_factura_completa` → 1 fila en `facturas` y 3
-      en `asistencia_prestacion`, con sus filas de auditoría.
+      en `asistencia_prestacion`, con sus filas de auditoría. **Pendiente — la hace la usuaria en el
+      navegador** (mismo criterio que `presupuesto-prestaciones`); bloqueada además por
+      `VITE_TEST_ACCOUNTS` ausente de `frontend/.env.local` (ver hallazgo de la sección 1).
 - [ ] 1B.9 Verificación manual con una cuenta con `facturacion: read` **sin** `write`: la misma
-      llamada → `42501` y **cero** filas escritas en ambas tablas. Es la prueba de que `INVOKER` está
-      haciendo su trabajo.
+      llamada → `42501` y **cero** filas escritas en ambas tablas. **Pendiente — la hace la usuaria.**
 - [ ] 1B.10 Verificación manual del caso que borra datos: `actualizar_factura_completa` con
       `{"estado":"facturado"}` (**sin** la clave `asistencias`) → las 3 asistencias **siguen ahí**.
-      Repetir con `{"asistencias":[…2 filas…]}` → quedan exactamente 2.
-- [ ] 1B.11 Verificación manual de la declaración de seguridad en la base:
+      Repetir con `{"asistencias":[…2 filas…]}` → quedan exactamente 2. **Pendiente — la hace la
+      usuaria.**
+- [x] 1B.11 Verificación manual de la declaración de seguridad en la base:
       `select proname, prosecdef from pg_proc where proname in ('crear_factura_completa',
-      'actualizar_factura_completa')` → `false` en ambas.
+      'actualizar_factura_completa')` → **`false` en ambas, confirmado 2026-08-12.**
 - [ ] 1B.12 Verificación manual de la trampa del embed (D5): con la cuenta Facturación, leer una
       factura con el embed de asistencias y confirmar que **no** vuelve con `asistencia_prestacion: []`
       cuando sí hay filas. (Hoy no puede fallar —las dos policies usan el mismo predicado— pero es el
-      modo de falla "0 filas en silencio" que hay que dejar verificado.)
+      modo de falla "0 filas en silencio" que hay que dejar verificado.) **Pendiente — la hace la
+      usuaria.**
 
 ## 2. Mapeo puro — `facturaMapping.ts` (TDD estricto, nadie lo importa todavía)
 
