@@ -7,7 +7,13 @@
 // `restricciones` NO existe en la base ni en el dominio (D6-B): no hay columna, no hay campo, no
 // se mapea nada — el único campo libre del perfil es `notas` <-> `observaciones` (D15 #1).
 
-import type { ActualizacionConductor, AsignacionSemanal, Conductor, EstadoConductor } from '../../types/conductor';
+import type {
+  ActualizacionConductor,
+  AsignacionSemanal,
+  Conductor,
+  EstadoConductor,
+  NuevoConductor,
+} from '../../types/conductor';
 import { desdeHastaASemanaIso, semanaIsoADesdeHasta } from './semanaIso';
 
 // -------------------------------------------------------------------------------------------
@@ -188,6 +194,29 @@ export function ensamblarConductor(row: unknown): Conductor | null {
 // nada que leer de `cambios` para esa clave, ni siquiera por accidente: `ActualizacionConductor`
 // no la declara).
 // -------------------------------------------------------------------------------------------
+
+// -------------------------------------------------------------------------------------------
+// 7.4 — toCrearConductorPayload(nuevo): argumento `p_conductor jsonb` de
+// `conductores.crear_conductor_completo` (D9, §7). A diferencia de `toActualizarConductorPayload`,
+// acá TODOS los campos van siempre presentes (no hay semántica parcial en un alta) — `NuevoConductor`
+// es `Omit<Conductor, 'id'>`, no `Partial<…>`. `restricciones` tampoco existe acá por el mismo
+// motivo que en 6.8/6.4 (D6-B): el tipo del dominio no lo declara.
+// -------------------------------------------------------------------------------------------
+
+export function toCrearConductorPayload(nuevo: NuevoConductor): Record<string, unknown> {
+  return {
+    apellido: nuevo.apellido,
+    nombre: nuevo.nombre,
+    dni: nuevo.documento,
+    telefono: nuevo.telefono,
+    fecha_nacimiento: nuevo.fechaNacimiento || null,
+    domicilio: nuevo.domicilio,
+    cuil: nuevo.cuil,
+    estado: toEstadoConductorRow(nuevo.estado),
+    notas: nuevo.observaciones === '' ? null : (nuevo.observaciones ?? null),
+    asignaciones: toAsignacionRows(nuevo.asignaciones),
+  };
+}
 
 export function toActualizarConductorPayload(cambios: ActualizacionConductor): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
