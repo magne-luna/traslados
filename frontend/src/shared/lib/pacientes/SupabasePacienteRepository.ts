@@ -2,7 +2,8 @@ import { supabase } from '../supabaseClient';
 import type { AccesorioMovilidad } from '../../types/vehiculo';
 import type { ActualizacionPaciente, Direccion, NuevoPaciente, Paciente } from '../../types/paciente';
 import type { Coordenada } from '../../types/hojaDeRuta';
-import type { PacienteRepository } from './PacienteRepository';
+import type { Pagina, RangoPagina } from '../../types/paginacion';
+import type { FiltrosPaciente, PacienteRepository } from './PacienteRepository';
 import {
   direccionesACambiar,
   ensamblarPaciente,
@@ -13,6 +14,8 @@ import {
 } from './pacienteMapping';
 import { geocodificarDireccion } from '../googleMapsClient';
 import { DEFAULT_FORMATO_AFILIADO } from '../../../features/pacientes/formatoAfiliadoOptions';
+import { construirFiltroBusqueda } from '../paginacion/construirFiltroBusqueda';
+import { rangoSupabase } from '../paginacion/rangoSupabase';
 
 // Implementación real de PacienteRepository (design.md del change integracion-pacientes,
 // decisiones D1-D9). Toda la traducción fila<->dominio vive en `pacienteMapping.ts` (D1); acá solo
@@ -71,21 +74,32 @@ async function leerCoberturaParaPaciente(pacienteId: string, obraSocialId: strin
   return Array.isArray(rows) ? (rows[0] ?? null) : null;
 }
 
-/** Versión en lote de la lectura de cobertura para `list()`: UNA sola consulta (sin filtrar por
- * paciente) ordenada por `fecha_desde` desc, agrupada client-side por `paciente_id` — evita volver
- * a introducir N+1 con una consulta de cobertura por fila del listado. Cada paciente se resuelve
- * después contra la fila más reciente cuyo `obra_social_id` coincida con el propio. */
+/** Versión en lote de la lectura de cobertura para `list()`/`listPage()`: UNA sola consulta
+ * ordenada por `fecha_desde` desc, agrupada client-side por `paciente_id` — evita volver a
+ * introducir N+1 con una consulta de cobertura por fila del listado. Cada paciente se resuelve
+ * después contra la fila más reciente cuyo `obra_social_id` coincida con el propio.
+ *
+ * `limitarAIds` (paginacion-listados, tasks.md 12.7): SIN este parámetro (uso de `list()`, sin
+ * cambios de comportamiento) la consulta trae TODA la tabla de coberturas, igual que siempre.
+ * `listPage()` SÍ lo pasa —acota con `.in('paciente_id', ids)` a los pacientes de la página—, si
+ * no la paginación de `paciente` no ahorraría nada en esta segunda consulta. */
 async function leerCoberturasBatch(
   pacientes: Array<{ id: string; obraSocialId: string | null }>,
+  limitarAIds?: string[],
 ): Promise<Map<string, CoberturaRowCruda[]>> {
   const mapa = new Map<string, CoberturaRowCruda[]>();
   if (pacientes.length === 0) return mapa;
 
-  const { data, error } = await supabase
+  let consulta = supabase
     .schema('obra_social')
     .from('coberturas_paciente')
     .select('paciente_id, obra_social_id, num_afiliado')
     .order('fecha_desde', { ascending: false });
+  if (limitarAIds) {
+    consulta = consulta.in('paciente_id', limitarAIds);
+  }
+
+  const { data, error } = await consulta;
 
   if (error) return mapa;
   const rows: unknown = data;
@@ -100,6 +114,24 @@ async function leerCoberturasBatch(
   return mapa;
 }
 
+/** Combina filas crudas de `pacientes.paciente` (D2, ya leídas) con la cobertura en lote
+ * correspondiente (D3) y ensambla cada una a `Paciente` (§D3/12.9 REFACTOR): lo único que
+ * distingue `list()` de `listPage()` es la consulta que arma las filas (sin/ con
+ * `.order().range().count`) y el alcance de `leerCoberturasBatch` — el ensamblado es el mismo. */
+async function ensamblarFilasConCobertura(rows: unknown[], limitarCoberturaAIds?: string[]): Promise<Paciente[]> {
+  const filas = rows.map((row) => ({ row, base: parsePacienteRow(row) }));
+  const coberturas = await leerCoberturasBatch(
+    filas.map(({ base }) => ({ id: base.id, obraSocialId: base.obraSocialId })),
+    limitarCoberturaAIds,
+  );
+
+  return filas.map(({ row, base }) => {
+    const candidatos = coberturas.get(base.id) ?? [];
+    const coberturaRow = candidatos.find((c) => c.obra_social_id === base.obraSocialId) ?? null;
+    return ensamblarPaciente(row, coberturaRow);
+  });
+}
+
 async function listarPacientes(): Promise<Paciente[]> {
   const { data, error } = await supabase.schema('pacientes').from('paciente').select(SELECT_PACIENTE_COMPLETO);
   if (error) throw mapearErrorPaciente(error, { operacion: 'listar' });
@@ -107,14 +139,46 @@ async function listarPacientes(): Promise<Paciente[]> {
   const rows: unknown = data;
   if (!Array.isArray(rows)) return [];
 
-  const filas = rows.map((row) => ({ row, base: parsePacienteRow(row) }));
-  const coberturas = await leerCoberturasBatch(filas.map(({ base }) => ({ id: base.id, obraSocialId: base.obraSocialId })));
+  return ensamblarFilasConCobertura(rows);
+}
 
-  return filas.map(({ row, base }) => {
-    const candidatos = coberturas.get(base.id) ?? [];
-    const coberturaRow = candidatos.find((c) => c.obra_social_id === base.obraSocialId) ?? null;
-    return ensamblarPaciente(row, coberturaRow);
-  });
+// paginacion-listados (design.md §D5/CHECKPOINT 1): mismas columnas de `pacientes.paciente` que
+// tokeniza `construirFiltroBusqueda` en un AND-de-ORs (una llamada `.or()` por token).
+const COLUMNAS_BUSQUEDA_PACIENTE = ['nombre_a', 'nombre_b', 'apellido_a', 'apellido_b', 'dni'] as const;
+
+/** Página server-side con búsqueda (design.md §D3, ADITIVO — `listarPacientes`/`list()` de arriba
+ * no cambia). Orden total determinista con desempate por `id` (§D4): sin él, offset repite o
+ * saltea filas entre páginas. `count: 'exact'` viaja en el mismo `select` (sin segunda consulta) y
+ * se propaga a `Pagina.total`, que es el universo filtrado — nunca `items.length`. */
+async function listarPacientesPagina(query: RangoPagina & { filtros: FiltrosPaciente }): Promise<Pagina<Paciente>> {
+  const { pagina, tamanio, filtros } = query;
+  const { desde, hasta } = rangoSupabase({ pagina, tamanio });
+
+  let consulta = supabase
+    .schema('pacientes')
+    .from('paciente')
+    .select(SELECT_PACIENTE_COMPLETO, { count: 'exact' })
+    .order('apellido_a', { ascending: true })
+    .order('nombre_a', { ascending: true })
+    .order('id', { ascending: true })
+    .range(desde, hasta);
+
+  const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_PACIENTE);
+  if (filtro) {
+    for (const expresion of filtro.expresionesOr) {
+      consulta = consulta.or(expresion);
+    }
+  }
+
+  const { data, error, count } = await consulta;
+  if (error) throw mapearErrorPaciente(error, { operacion: 'listar' });
+
+  const rows: unknown = data;
+  const filasCrudas = Array.isArray(rows) ? rows : [];
+  const idsPagina = filasCrudas.map((row) => parsePacienteRow(row).id);
+  const items = await ensamblarFilasConCobertura(filasCrudas, idsPagina);
+
+  return { items, total: count ?? 0, pagina, tamanio };
 }
 
 async function getPacienteById(id: string): Promise<Paciente | null> {
@@ -499,6 +563,7 @@ async function actualizarPaciente(id: string, data: ActualizacionPaciente): Prom
 
 export const supabasePacienteRepository: PacienteRepository = {
   list: listarPacientes,
+  listPage: listarPacientesPagina,
   getById: getPacienteById,
   create: crearPaciente,
   update: actualizarPaciente,

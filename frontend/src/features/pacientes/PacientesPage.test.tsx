@@ -46,6 +46,7 @@ const martina: Paciente = {
 function buildFakePacienteRepository(): PacienteRepository {
   return {
     list: vi.fn().mockResolvedValue([martina]),
+    listPage: vi.fn().mockResolvedValue({ items: [martina], total: 1, pagina: 1, tamanio: 20 }),
     getById: vi.fn().mockResolvedValue(martina),
     create: vi.fn(),
     update: vi.fn().mockResolvedValue(martina),
@@ -151,6 +152,76 @@ describe('PacientesPage', () => {
 
     const dniInputs = screen.getAllByLabelText(/^dni$/i) as HTMLInputElement[];
     expect(dniInputs.some((input) => input.value === '45123456')).toBe(true);
+  });
+});
+
+// paginacion-listados, Fase 2 (tasks.md 13.2/13.7): PacientesPage cablea `usePacientesPaginado`
+// (listPage) en vez de `usePacientes` (list()) para el listado. La navegación al detalle carga el
+// objeto `Paciente` completo que ya trae el evento (`onSelect`/`onCreated`), NUNCA lo busca con
+// `.find()` sobre `pacientes` — esa lista es ahora solo la página actual, no el padrón completo.
+describe('PacientesPage — paginación server-side (13.x)', () => {
+  it('13.2 usa listPage (no list) para poblar el listado', async () => {
+    const repository = buildFakePacienteRepository();
+    renderPage(repository);
+
+    await screen.findByText(/gómez, martina/i);
+
+    expect(repository.listPage).toHaveBeenCalledWith({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+  });
+
+  it('13.1/13.2 monta el <Paginador> y navegar a la página siguiente vuelve a pedir listPage con esa página', async () => {
+    const user = userEvent.setup();
+    const repository = buildFakePacienteRepository();
+    vi.mocked(repository.listPage).mockResolvedValue({ items: [martina], total: 45, pagina: 1, tamanio: 20 });
+
+    renderPage(repository);
+
+    await screen.findByText(/gómez, martina/i);
+    expect(screen.getByText(/página 1 de 3/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /página siguiente/i }));
+
+    await vi.waitFor(() =>
+      expect(repository.listPage).toHaveBeenCalledWith({ pagina: 2, tamanio: 20, filtros: { busqueda: '' } }),
+    );
+  });
+
+  it('13.4/gotcha del detalle: seleccionar un paciente muestra su ficha completa sin depender de que siga en la página cargada', async () => {
+    const user = userEvent.setup();
+    const repository = buildFakePacienteRepository();
+    renderPage(repository);
+
+    await screen.findByText(/gómez, martina/i);
+    // Tras el click, la página pudo haberse recargado con otro contenido (ej. otra búsqueda) — la
+    // ficha igual debe mostrar los datos de Martina porque viajan en el propio evento de selección,
+    // no se re-derivan buscando el id en `pacientes`.
+    vi.mocked(repository.listPage).mockResolvedValue({ items: [], total: 0, pagina: 1, tamanio: 20 });
+
+    await user.click(screen.getByText(/gómez, martina/i));
+
+    expect(await screen.findByRole('button', { name: /editar datos/i })).toBeInTheDocument();
+  });
+
+  it('13.7 crear un paciente nuevo muestra su ficha aunque no esté en el listado paginado recién recargado', async () => {
+    const user = userEvent.setup();
+    const repository = buildFakePacienteRepository();
+    const creado: Paciente = { ...martina, id: 'paciente-nuevo', apellido: 'Zzz-Nuevo', nombre: 'Recién Creado' };
+    vi.mocked(repository.create).mockResolvedValue(creado);
+
+    renderPage(repository);
+    await screen.findByText(/gómez, martina/i);
+
+    // Tras crear(), `listado.recargar()` vuelve a pedir la página vigente — que puede no incluir
+    // al paciente recién creado (depende del orden alfabético). La ficha debe mostrarlo igual.
+    vi.mocked(repository.listPage).mockResolvedValue({ items: [martina], total: 2, pagina: 1, tamanio: 20 });
+
+    await user.click(screen.getByRole('button', { name: /nuevo paciente/i }));
+    await user.type(screen.getByLabelText(/^apellido$/i), 'Zzz-Nuevo');
+    await user.type(screen.getByLabelText(/^nombre$/i), 'Recién Creado');
+    await user.type(screen.getByLabelText(/^dni$/i), '45123456');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(await screen.findByText(/zzz-nuevo, recién creado/i)).toBeInTheDocument();
   });
 });
 

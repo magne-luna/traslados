@@ -36,6 +36,8 @@ interface FakeError {
 interface FakeResult {
   data: unknown;
   error: FakeError | null;
+  /** paginacion-listados (tasks.md 12.x): eco de `{ count: 'exact' }` de PostgREST. */
+  count?: number | null;
 }
 
 type FakeOp = 'select' | 'update' | 'delete' | 'upsert' | 'insert' | 'rpc';
@@ -45,7 +47,19 @@ interface RecordedCall {
   schema: string;
   table: string;
   eq: Array<[string, unknown]>;
-  order?: { column: string; ascending: boolean };
+  /** paginacion-listados (tasks.md 12.x): un elemento por cada `.order()` encadenado, en orden —
+   * antes era un único `{column,ascending}` porque nada encadenaba más de un `.order()`. */
+  orders?: Array<{ column: string; ascending: boolean }>;
+  /** paginacion-listados (tasks.md 12.6): un elemento por cada `.or(...)` encadenado (N tokens ⇒
+   * N llamadas ⇒ AND de N ORs, ver construirFiltroBusqueda). */
+  orFilters?: string[];
+  /** paginacion-listados (tasks.md 12.1): `.range(desde, hasta)`. */
+  range?: { desde: number; hasta: number };
+  /** paginacion-listados (tasks.md 12.7): `.in(columna, valores)` — usado para acotar
+   * `leerCoberturasBatch` a los pacientes de la página. */
+  in?: Array<[string, readonly unknown[]]>;
+  /** paginacion-listados (tasks.md 12.1): eco de `{ count: 'exact' }` pasado a `.select()`. */
+  count?: 'exact' | 'planned' | 'estimated';
   payload?: unknown;
   onConflict?: string;
 }
@@ -66,6 +80,12 @@ function ok(data: unknown): FakeResult {
 
 function fail(error: FakeError): FakeResult {
   return { data: null, error };
+}
+
+// paginacion-listados (tasks.md 12.1/12.5): variante de `ok` que además hace eco del `count`
+// exacto que PostgREST devuelve junto a `data` cuando se pide `{ count: 'exact' }`.
+function okConCount(data: unknown, count: number | null): FakeResult {
+  return { data, error: null, count };
 }
 
 function configurar(schema: string, table: string, op: FakeOp, handler: Handler): void {
@@ -90,7 +110,8 @@ class FakeSelectBuilder implements PromiseLike<FakeResult> {
     this.call = call;
   }
 
-  select(_columns: string): FakeSelectBuilder {
+  select(_columns: string, options?: { count?: 'exact' | 'planned' | 'estimated' }): FakeSelectBuilder {
+    if (options?.count) this.call.count = options.count;
     return this;
   }
 
@@ -99,8 +120,23 @@ class FakeSelectBuilder implements PromiseLike<FakeResult> {
     return this;
   }
 
+  in(column: string, values: readonly unknown[]): FakeSelectBuilder {
+    this.call.in = [...(this.call.in ?? []), [column, values]];
+    return this;
+  }
+
   order(column: string, options: { ascending: boolean }): FakeSelectBuilder {
-    this.call.order = { column, ascending: options.ascending };
+    this.call.orders = [...(this.call.orders ?? []), { column, ascending: options.ascending }];
+    return this;
+  }
+
+  or(expression: string): FakeSelectBuilder {
+    this.call.orFilters = [...(this.call.orFilters ?? []), expression];
+    return this;
+  }
+
+  range(desde: number, hasta: number): FakeSelectBuilder {
+    this.call.range = { desde, hasta };
     return this;
   }
 
@@ -147,8 +183,8 @@ function crearFakeSupabase() {
       return {
         from(table: string) {
           return {
-            select(columns: string) {
-              return new FakeSelectBuilder({ op: 'select', schema: schemaName, table, eq: [] }).select(columns);
+            select(columns: string, options?: { count?: 'exact' | 'planned' | 'estimated' }) {
+              return new FakeSelectBuilder({ op: 'select', schema: schemaName, table, eq: [] }).select(columns, options);
             },
             update(payload: unknown) {
               return new FakeWriteBuilder({ op: 'update', schema: schemaName, table, eq: [], payload });
@@ -394,7 +430,7 @@ describe('supabasePacienteRepository — cobertura de obra social (3.4)', () => 
     configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente({ obra_social_id: 'os-1' })]));
     configurar('obra_social', 'coberturas_paciente', 'select', (call) => {
       // El repository ordena server-side: el fake solo verifica que se pidió el orden correcto.
-      expect(call.order).toEqual({ column: 'fecha_desde', ascending: false });
+      expect(call.orders).toEqual([{ column: 'fecha_desde', ascending: false }]);
       return ok([{ num_afiliado: 'AF-MAS-RECIENTE' }]);
     });
 
@@ -1506,6 +1542,193 @@ describe('migración 20260805140000_direcciones_geocoding.sql', () => {
 
     expect(codigoActivo).toContain('CREATE OR REPLACE FUNCTION pacientes.crear_paciente_completo(p_paciente jsonb)');
     expect(codigoActivo).toContain('RETURNS uuid');
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// listPage (paginacion-listados, tasks.md 12.x). Aditivo — `list()` (arriba, 3.2) queda
+// intacto: sin `.order()`, sin `.range()`, sin `count`, misma consulta de siempre.
+// -------------------------------------------------------------------------------------------
+
+describe('supabasePacienteRepository.listPage (12.x)', () => {
+  it('12.1 emite .range(0, 19) y pide { count: "exact" } para página 1 tamaño 20', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.range).toEqual({ desde: 0, hasta: 19 });
+    expect(consulta?.count).toBe('exact');
+  });
+
+  it('12.3 encadena order(apellido_a), order(nombre_a) y order(id) como desempate', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.orders).toEqual([
+      { column: 'apellido_a', ascending: true },
+      { column: 'nombre_a', ascending: true },
+      { column: 'id', ascending: true },
+    ]);
+  });
+
+  it('12.4 dos páginas consecutivas piden rangos sin solapamiento sobre un conjunto fijo', async () => {
+    const filas = [filaPaciente({ id: 'p-1' }), filaPaciente({ id: 'p-2', dni: '2' }), filaPaciente({ id: 'p-3', dni: '3' })];
+    configurar('pacientes', 'paciente', 'select', (call) => {
+      const rango = call.range;
+      if (!rango) return okConCount([], 0);
+      return okConCount(filas.slice(rango.desde, rango.hasta + 1), filas.length);
+    });
+
+    const p1 = await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 2, filtros: { busqueda: '' } });
+    const p2 = await supabasePacienteRepository.listPage({ pagina: 2, tamanio: 2, filtros: { busqueda: '' } });
+
+    const idsP1 = new Set(p1.items.map((p) => p.id));
+    const idsP2 = new Set(p2.items.map((p) => p.id));
+    expect([...idsP1].some((id) => idsP2.has(id))).toBe(false);
+    expect(idsP1.size + idsP2.size).toBe(3);
+  });
+
+  it('12.5 propaga el count de PostgREST a Pagina.total (no es items.length)', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([filaPaciente({ id: 'p-1' })], 47));
+
+    const pagina = await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    expect(pagina.total).toBe(47);
+    expect(pagina.items).toHaveLength(1);
+  });
+
+  it('12.5 count null (degradación defensiva) se propaga como 0, nunca NaN/undefined', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], null));
+
+    const pagina = await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    expect(pagina.total).toBe(0);
+  });
+
+  it('12.6 sin término de búsqueda no emite ningún .or(...)', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.orFilters ?? []).toHaveLength(0);
+  });
+
+  it('12.6 un término de una palabra emite un .or(...) sobre nombre_a, nombre_b, apellido_a, apellido_b, dni', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: 'perez' } });
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.orFilters).toHaveLength(1);
+    const expresion = consulta?.orFilters?.[0] ?? '';
+    expect(expresion).toContain('nombre_a.ilike');
+    expect(expresion).toContain('nombre_b.ilike');
+    expect(expresion).toContain('apellido_a.ilike');
+    expect(expresion).toContain('apellido_b.ilike');
+    expect(expresion).toContain('dni.ilike');
+  });
+
+  it('12.6 un término de dos palabras emite dos .or(...) (AND de dos ORs)', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: 'juan perez' } });
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.orFilters).toHaveLength(2);
+  });
+
+  it('12.7 leerCoberturasBatch se acota a los ids de la página con .in(paciente_id, ids)', async () => {
+    const filas = [filaPaciente({ id: 'p-1', obra_social_id: 'os-1' }), filaPaciente({ id: 'p-2', dni: '2', obra_social_id: 'os-1' })];
+    configurar('pacientes', 'paciente', 'select', () => okConCount(filas, 2));
+    configurar('obra_social', 'coberturas_paciente', 'select', () => ok([]));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const consultaCobertura = calls.find((c) => c.schema === 'obra_social' && c.table === 'coberturas_paciente');
+    expect(consultaCobertura?.in).toEqual([['paciente_id', ['p-1', 'p-2']]]);
+  });
+
+  it('12.7 con 0 pacientes en la página no consulta coberturas (corta antes, igual que list())', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    expect(calls.filter((c) => c.table === 'coberturas_paciente')).toHaveLength(0);
+  });
+
+  it('12.7 enriquece numeroAfiliado.valor con la cobertura acotada de la página', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([filaPaciente({ id: 'p-1', obra_social_id: 'os-1' })], 1));
+    configurar('obra_social', 'coberturas_paciente', 'select', () =>
+      ok([{ paciente_id: 'p-1', obra_social_id: 'os-1', num_afiliado: 'AF-PAGINA' }]),
+    );
+
+    const pagina = await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    expect(pagina.items[0]?.numeroAfiliado.valor).toBe('AF-PAGINA');
+  });
+
+  it('12.8 un error de PostgREST se traduce con mapearErrorPaciente (nunca el texto crudo)', async () => {
+    configurar('pacientes', 'paciente', 'select', () => fail({ code: 'PGRST106', message: 'schema not exposed' }));
+
+    await expect(
+      supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } }),
+    ).rejects.toThrow('El módulo de Pacientes no está habilitado en el servidor.');
+  });
+
+  it('12.8 un código desconocido da el mensaje genérico de listar, no el texto crudo de Postgres', async () => {
+    configurar('pacientes', 'paciente', 'select', () =>
+      fail({ code: '55000', message: 'relation "pacientes.paciente" does not exist raw internal text' }),
+    );
+
+    try {
+      await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+      throw new Error('debía lanzar');
+    } catch (error) {
+      const mensaje = error instanceof Error ? error.message : '';
+      expect(mensaje).toBe('No se pudo cargar el paciente.');
+      expect(mensaje).not.toContain('pacientes.paciente');
+    }
+  });
+
+  it('devuelve items vacío (defensivo) si la consulta principal no trae un array', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount(null, 0));
+
+    const pagina = await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    expect(pagina.items).toEqual([]);
+  });
+
+  it('eco de pagina/tamanio pedidos en la Pagina<T> devuelta', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    const pagina = await supabasePacienteRepository.listPage({ pagina: 3, tamanio: 10, filtros: { busqueda: '' } });
+
+    expect(pagina.pagina).toBe(3);
+    expect(pagina.tamanio).toBe(10);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// list() sigue intacto tras agregar listPage (paginacion-listados, tasks.md 12.9 REFACTOR):
+// mismo criterio que el resto de la suite de list() (3.2) — sin .order(), sin .range(), sin
+// count. Regresión explícita: si el refactor que comparte código entre list() y listPage()
+// alguna vez le cuela un .order()/.range() a list(), este test lo detecta.
+// -------------------------------------------------------------------------------------------
+
+describe('supabasePacienteRepository.list — sigue sin paginar tras agregar listPage (12.9)', () => {
+  it('list() no emite .order(), .range() ni pide count', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente({ id: 'p-1' })]));
+
+    await supabasePacienteRepository.list();
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.orders ?? []).toHaveLength(0);
+    expect(consulta?.range).toBeUndefined();
+    expect(consulta?.count).toBeUndefined();
   });
 });
 

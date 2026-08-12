@@ -69,6 +69,7 @@ function buildCobroRepository(): CobroRepository {
 function buildProps() {
   const pacienteRepository: PacienteRepository = {
     list: vi.fn().mockResolvedValue([martina]),
+    listPage: vi.fn(),
     getById: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),

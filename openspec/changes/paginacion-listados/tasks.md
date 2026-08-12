@@ -1,0 +1,447 @@
+# Tasks — paginacion-listados
+
+> **⚠️ STRICT TDD ACTIVO.** Este proyecto tiene `testing.strict_tdd: true` en `openspec/config.yaml`.
+> Toda tarea que escriba código de producción se implementa con el ciclo
+> **RED → GREEN → TRIANGULATE → REFACTOR**, y **antes** de modificar cualquier archivo existente se
+> corre el safety net (`cd frontend && npx vitest run`) y se registra el baseline. Test runner:
+> `cd frontend && npx vitest run`. Type-check: `cd frontend && npx tsc -b --noEmit`
+> (**nunca** `tsc --noEmit` a secas — el tsconfig raíz es de project references y compila 0 archivos).
+>
+> **⚠️ GOVERNANCE MEDIO — implementación por fases con checkpoints.** No se aplican las 4 fases de
+> corrido. Cada fase cierra con un checkpoint de revisión antes de arrancar la siguiente.
+> **La fase 2 NO arranca sin el veredicto del CHECKPOINT 1** (semántica de la búsqueda de pacientes,
+> `design.md` §D5) — es un cambio de comportamiento observable para la usuaria.
+>
+> **Reglas duras aplicables** (`CLAUDE.md`): nunca `any` (usar `unknown` + narrowing, nunca `as`);
+> nunca `style={{}}` (solo utilidades Tailwind v4, valores de diseño en el `@theme` de `index.css`);
+> revisar y reusar `frontend/src/design-system/components.tsx` antes de escribir markup nuevo;
+> Conventional Commits.
+>
+> **Alcance recortado a propósito** (`design.md` §D8): NO se toca ninguna Edge Function
+> (`supabase/functions/**`), NO se escribe ninguna migración SQL, NO se agrega ninguna dependencia,
+> NO se tocan vehículos, presupuestos, autorizaciones, facturas, cobros, cuentas, documentos ni el
+> dashboard.
+
+---
+
+## 0. Checkpoints de diseño (antes de escribir código de producción) — GOVERNANCE MEDIO
+
+- [x] 0.1 **CHECKPOINT 1 (bloquea la fase 2) — semántica de la búsqueda de pacientes.** Presentar a la
+      usuaria el trade-off de `design.md` §D5: hoy el filtro corre sobre la **concatenación en memoria**
+      de `nombre_a + nombre_b + apellido_a + apellido_b`; server-side pasa a **tokens vs. columnas**
+      (cada palabra debe matchear alguna columna). Consecuencia concreta: `"perez juan"` empieza a
+      encontrar a "Juan Pérez" (hoy no), y una subcadena que cruza el límite nombre/apellido deja de
+      encontrarlo. Registrar el veredicto acá.
+      **→ VEREDICTO: aprobado (2026-08-12) — se acepta tokens vs. columnas tal como está propuesto.**
+- [x] 0.2 **CHECKPOINT 2 — acentos.** Confirmar con la usuaria que `ilike` distingue acentos
+      (`"perez"` ≠ `"Pérez"`). **No es una regresión** — `.toLowerCase().includes()` tampoco los ignora
+      hoy — pero si quiere insensibilidad a acentos hace falta la extensión `unaccent` en Postgres
+      (backend, fuera de este change). Registrar el veredicto acá.
+      **→ VEREDICTO: aprobado (2026-08-12) — se deja como está, no es regresión. `unaccent` queda fuera de alcance.**
+- [x] 0.3 **Tamaño de página.** Confirmar el default propuesto (**20** filas, sin selector de tamaño en
+      la primera iteración). Registrar el veredicto acá.
+      **→ VEREDICTO: aprobado (2026-08-12) — 20 fijo, sin selector.**
+- [x] 0.4 **Página en la URL.** Confirmar que en esta iteración `?pagina=N` **no** se persiste (recargar
+      vuelve a la página 1, no se puede compartir link a una página). Registrar el veredicto acá.
+      **→ VEREDICTO: aprobado (2026-08-12) — no se persiste en esta iteración.**
+- [x] 0.5 Registrar el **baseline de la suite completa** antes de tocar nada:
+      `cd frontend && npx vitest run` → anotar "N/N tests en verde". Si algo ya falla, se reporta como
+      falla preexistente y NO se arregla en este change.
+      **→ BASELINE (2026-08-12): 2350/2354 tests en verde (238/241 archivos).** 4 fallas preexistentes,
+      no relacionadas con paginación, NO se tocan en este change: `PermisosMatrizFields.test.tsx`
+      ("muestra un ícono de identidad por módulo..."), `ChecklistEditor.test.tsx` (2 tests de gateo de
+      escritura) y `HojaDeRutaPage.test.tsx` ("explica por diseño el mapa vacío..."). Nota de entorno:
+      correr con `NODE_OPTIONS=--no-experimental-webstorage` (como hace `package.json`'s `npm test`) —
+      sin ese flag, el `localStorage` experimental de Node choca con el mock de jsdom y produce ~117
+      fallas espurias en los mocks de `localStorage` que no son del código.
+
+---
+
+## Fase 0 — Primitivos compartidos (sin consumidores todavía) — GOVERNANCE BAJO
+
+> Todo lo de esta fase es código nuevo y aislado: no modifica ningún archivo existente, así que no
+> puede romper nada. Se puede aplicar con autonomía completa.
+
+### 1. Tipos del contrato
+
+- [x] 1.1 Crear `frontend/src/shared/types/paginacion.ts` con `RangoPagina` (`pagina` 1-based,
+      `tamanio`) y `Pagina<T>` (`items`, `total`, `pagina`, `tamanio`). Strict, sin `any`. Comentario
+      de cabecera explicando que `total` es el universo filtrado, no `items.length`.
+
+### 2. `rangoSupabase` — función pura (TDD)
+
+- [x] 2.1 **RED** — `frontend/src/shared/lib/paginacion/rangoSupabase.test.ts`: página 1 tamaño 20 →
+      `{ desde: 0, hasta: 19 }`. El módulo de producción todavía no existe.
+- [x] 2.2 **GREEN** — `rangoSupabase.ts` con la implementación mínima.
+- [x] 2.3 **TRIANGULATE** — página 3 tamaño 20 → `{ desde: 40, hasta: 59 }`; tamaño 1;
+      página fuera de rango (no lanza, devuelve el rango calculado igual).
+- [x] 2.4 **REFACTOR** — nombres y comentario del porqué de `hasta = desde + tamanio - 1`
+      (`.range()` de PostgREST es **inclusivo** en ambos extremos, a diferencia de `slice`).
+
+### 3. `construirFiltroBusqueda` — función pura compartida (TDD)
+
+> Única definición de "qué matchea". La consumen la implementación Supabase **y** la mock (`design.md`
+> §D9): dos copias se desincronizan y los tests quedan en verde contra un comportamiento que
+> producción no tiene.
+
+- [x] 3.1 **RED** — `construirFiltroBusqueda.test.ts`: término vacío → sin filtro (`null`).
+- [x] 3.2 **GREEN** — implementación mínima.
+- [x] 3.3 **TRIANGULATE** — término de una palabra sobre N columnas → una disyunción de `ilike`;
+      término de dos palabras → conjunción de dos disyunciones; espacios múltiples y `trim`;
+      escapado de `%` y `,` (el `.or()` de PostgREST usa la coma como separador — un término con coma
+      rompería la expresión).
+- [x] 3.4 **TRIANGULATE (matcher en memoria)** — la misma función expone el predicado equivalente que
+      usa el mock, verificado con los mismos casos: mismo término, mismo resultado en ambos caminos.
+- [x] 3.5 **REFACTOR** — extraer la lista de columnas buscables como parámetro (cada repository trae
+      la suya), no hardcodearla.
+      **→ Nota:** las columnas ya eran parámetro desde el GREEN (nunca hardcodeadas) — el refactor
+      real fue extraer `expresionIlikePorColumna` como helper nombrado para separar "armar una
+      condición por columna" de "recorrer los tokens".
+
+### 4. `usePaginaListado` — hook compartido (TDD)
+
+- [x] 4.1 **RED** — `usePaginaListado.test.ts` con un `listPage` doble: al montar, invoca `listPage`
+      con `{ pagina: 1, tamanio }` y expone `items` y `total`.
+- [x] 4.2 **GREEN** — implementación mínima.
+- [x] 4.3 **TRIANGULATE — navegación**: `irAPagina(3)` re-invoca con `pagina: 3`.
+- [x] 4.4 **TRIANGULATE — reset de página al filtrar**: estando en la página 5, cambiar el término
+      vuelve a `pagina: 1`. *(Es el bug que 8 reimplementaciones a mano garantizarían; test explícito.)*
+- [x] 4.5 **TRIANGULATE — debounce**: varias escrituras dentro de la ventana → **una sola** invocación,
+      con el término final. Retardo inyectable + timers falsos, nunca esperas reales.
+- [x] 4.6 **TRIANGULATE — el input no se retrasa**: el valor crudo se refleja de inmediato aunque la
+      consulta se difiera.
+- [x] 4.7 **TRIANGULATE — error**: `listPage` rechaza → mensaje en castellano y `loading` en `false`
+      (nunca carga infinita). Cubierto además con un rechazo que no es instancia de `Error` (mensaje
+      genérico), caso no listado explícitamente en la tarea pero necesario para no romper con un
+      `throw` de valor no-`Error`.
+- [x] 4.8 **TRIANGULATE — respuesta fuera de orden**: si vuelve la respuesta de una consulta vieja
+      después de una nueva, se descarta (no pisa el resultado vigente con datos del término anterior).
+- [x] 4.9 **REFACTOR** — separar el debounce en su propio helper si el hook queda denso.
+      **→ Se extrajo `useDebouncedValue<V>(valor, delayMs)` privado al módulo.** También se aplicó un
+      fix no listado en la tarea, descubierto por el propio ciclo GREEN: `listPage`/`construirFiltros`
+      pasados como closures inline (el caso típico de uso) cambian de identidad en cada render, así
+      que el efecto de fetch los lee por `ref` en vez de tenerlos como dependencia — si no,
+      re-renderizar el componente que llama al hook dispararía un pedido nuevo en cada render, no
+      solo cuando cambia página/tamaño/término.
+
+### 5. `<Paginador>` — componente del design system (TDD)
+
+- [x] 5.1 **RED** — `paginador.test.tsx`: renderiza "Página 3 de 7" y el total de resultados.
+- [x] 5.2 **GREEN** — `frontend/src/design-system/paginador.tsx`, solo utilidades Tailwind v4, cero
+      `style={{}}`, cero estado propio.
+- [x] 5.3 **TRIANGULATE** — en la primera página "anterior" queda `disabled` **y visible** (no oculto:
+      ocultarlo movería el layout entre páginas); ídem "siguiente" en la última.
+- [x] 5.4 **TRIANGULATE** — con una sola página no ofrece navegación pero sigue informando el total.
+- [x] 5.5 **TRIANGULATE (a11y)** — los controles son alcanzables y accionables por teclado, y el estado
+      deshabilitado se comunica por `disabled` + texto, no solo por color.
+- [x] 5.6 **REFACTOR** — revisar contra `components.tsx` que no se esté reimplementando un `Button`
+      existente a mano (regla dura del proyecto).
+      **→ Ya reusaba `Button` desde el GREEN** (`variant="secondary" size="sm"`) — no había markup de
+      botón a mano que refactorizar.
+- [x] 5.7 Registrar `<Paginador>` en el catálogo vivo `frontend/src/design-system/DesignSystem.tsx`.
+      **→ Sección "19" con `PaginadorCatalog` (demo interactiva multi-página + caso de una sola
+      página), import agregado junto al resto de primitivas del design system.**
+
+### 6. Cierre de la fase 0
+
+- [x] 6.1 `cd frontend && npx tsc -b --noEmit` en verde.
+      **→ Confirmado: sin salida, 0 errores** (incluye `DesignSystem.tsx`, único archivo existente
+      tocado en esta fase).
+- [x] 6.2 `cd frontend && npx vitest run` en verde, sin regresiones respecto del baseline de 0.5.
+      **→ Hallazgo importante, documentado para no repetir la investigación:** la suite completa
+      (2389 tests) **tiene flakiness preexistente sensible a la carga de CPU, independiente de este
+      change**. Se corrió 3 veces (una con otros procesos vitest concurrentes de este mismo apply, dos
+      pretendidamente "limpias"): cada corrida completa falló en un subconjunto DISTINTO de 4 a 14
+      tests, rotando entre `cuentas`, `facturación` (`FacturaForm`), `hojas-de-ruta`
+      (`NuevoRecorridoForm`, `HojaDeRutaPage`), `obras-sociales` (`ChecklistEditor`), `dashboard` y
+      `router` — ninguno de esos archivos importa ni consume nada de `shared/lib/paginacion/`,
+      `shared/types/paginacion.ts` ni `design-system/paginador.tsx`. Verificado además corriendo los
+      archivos que fallaban de a uno, aislados (sin contención): pasan en verde o casi en verde. Las
+      **4 fallas de la línea base de 0.5 aparecieron en las 3 corridas** (únicas 100% deterministas).
+      Los **35 tests nuevos de esta fase pasaron 35/35 en las tres corridas**, sin una sola falla.
+      `npx tsc -b --noEmit` y `npx oxlint` limpios. Conclusión: sin regresión atribuible a este change;
+      la flakiness de la suite es preexistente y queda fuera de alcance de este change (no se
+      "arregla" acá, mismo criterio que las 4 fallas de la línea base). **Nota adicional:** `git
+      status` muestra trabajo sin commitear de una sesión distinta sobre Hojas de Ruta
+      (`NuevoRecorridoForm.tsx`, `sugerirRecorridoExistente.ts` sin trackear, feature "sugerencia de
+      recorrido existente" en curso) — no tocado ni revertido por este apply; probablemente explica
+      parte de la inestabilidad observada en `NuevoRecorridoForm.test.tsx` en las corridas de la
+      suite completa (WIP ajeno, no una regresión de paginación).
+- [x] 6.3 `cd frontend && npx oxlint` sin hallazgos nuevos.
+      **→ Confirmado: 0 hallazgos en los 6 archivos nuevos/tocados** (`paginacion.ts`,
+      `rangoSupabase.ts`(+test), `construirFiltroBusqueda.ts`(+test), `usePaginaListado.ts`(+test),
+      `paginador.tsx`(+test), `DesignSystem.tsx`). Los hallazgos preexistentes del proyecto
+      (warnings de `react(only-export-components)` y `no-unsafe-optional-chaining`) están todos en
+      archivos no tocados por este change.
+- [ ] 6.4 Commit `feat(paginacion): primitivos de paginacion compartidos (tipos, rango, hook, Paginador)`.
+      **⏸️ CHECKPOINT de fase — revisar con la usuaria antes de la fase 1.**
+      **→ NO ejecutado a propósito en este batch de apply**: regla de la sesión — solo la usuaria
+      hace commit, explícitamente. Cambios quedan en el working tree, sin stagear ni commitear.
+      Mensaje sugerido (Conventional Commits) queda documentado en el reporte de apply para que la
+      usuaria lo use si decide commitear.
+
+---
+
+## Fase 1 — Hojas de Ruta: `getByFecha` en vez de traer la historia entera
+
+> **⏸️ POSPUESTA (2026-08-12).** Hay otra sesión de la usuaria trabajando en paralelo sobre Hojas de
+> Ruta (`NuevoRecorridoForm.tsx`, `sugerirRecorridoExistente.ts`, sin commitear). Para no pisar ese
+> trabajo, se reordena el rollout: **Fase 2 (Pacientes) se hace primero** — no toca ningún archivo de
+> Hojas de Ruta, cero riesgo de conflicto. Fase 1 se retoma cuando esa sesión cierre o la usuaria lo
+> indique.
+
+> La mayor ganancia de payload del change y la más barata: `getByFecha` **ya existe** en
+> `HojaDeRutaRepository` y en `SupabaseHojaDeRutaRepository`. No hay nada nuevo que escribir en la capa
+> de datos. **No lleva paginación ni `<Paginador>`** — `design.md` §D7.
+
+### 7. Safety net
+
+- [ ] 7.1 Correr los tests que cubren `HojaDeRutaPage` y `useHojasDeRuta`
+      (`useHojasDeRuta.test.ts` y los de la feature) y registrar el baseline "N/N en verde".
+      Si algo ya falla → falla preexistente, se reporta y NO se arregla acá.
+
+### 8. Carga del día por fecha (TDD)
+
+- [ ] 8.1 **RED** — test sobre el hook/página con un `HojaDeRutaRepository` doble: al seleccionar una
+      fecha se invoca **`getByFecha(fecha)`** y **NO** `list()`. Es el corazón del cambio: el test
+      cuenta qué método se llamó.
+- [ ] 8.2 **GREEN** — reemplazar en `HojaDeRutaPage.tsx` el `useHojasDeRuta(...)` + `.find(h => h.fecha === fecha)`
+      por la carga por fecha (hook propio `useHojaDeRutaDelDia` o variante del existente — decidir en el
+      apply según cuál deja el diff más chico y no rompe `crear`/`actualizar`).
+- [ ] 8.3 **TRIANGULATE — día sin hoja de ruta**: `getByFecha` resuelve `null` → estado vacío del día,
+      sin excepción y sin carga infinita.
+- [ ] 8.4 **TRIANGULATE — cambio de fecha**: elegir otra fecha vuelve a consultar por la nueva fecha y
+      descarta la anterior (no se acumulan días en memoria).
+- [ ] 8.5 **TRIANGULATE — error del repository**: mensaje visible, sin loading infinito.
+- [ ] 8.6 **⚠️ TRIANGULATE — regresión de recarga silenciosa (obligatorio)**: mutar un recorrido
+      (sugerir orden / subir / bajar / quitar parada) mientras un `RecorridoCard` está en modo edición
+      **NO** debe activar el `loading` de pantalla completa ni desmontar la tarjeta en edición. Es el
+      bug ya corregido el 2026-08-11 (`useHojasDeRuta.ts:28-35`, opción `{ silencioso: true }`) y este
+      cambio puede reintroducirlo.
+- [ ] 8.7 **TRIANGULATE — la carga inicial sí muestra loading**: el contraparte de 8.6, para no
+      "arreglarlo" silenciando también la carga inicial.
+- [ ] 8.8 **REFACTOR** — dejar comentado en el código el porqué de `getByFecha` (embed de tres niveles,
+      crece con cada día operado) para que nadie lo revierta a `list()` por comodidad.
+
+### 9. Cierre de la fase 1
+
+- [ ] 9.1 Verificar que ningún otro consumidor de `useHojasDeRuta` quedó roto
+      (`grep -rn "useHojasDeRuta" frontend/src`).
+- [ ] 9.2 `npx tsc -b --noEmit` + `npx vitest run` + `npx oxlint` en verde, sin regresiones.
+- [ ] 9.3 Commit `perf(hojas-de-ruta): cargar el dia por fecha en vez de traer todas las hojas de ruta`.
+      **⏸️ CHECKPOINT de fase — pase visual en navegador con la usuaria (armado del día, cambio de
+      fecha, edición de recorrido) antes de la fase 2.**
+
+---
+
+## Fase 2 — Pacientes: listado paginado con búsqueda server-side
+
+> **⛔ NO ARRANCAR sin el veredicto de la tarea 0.1 (CHECKPOINT 1).**
+> Es la tabla que más crece y la primera implementación completa del patrón; sale bien acá, el resto es
+> repetición.
+
+### 10. Safety net
+
+- [x] 10.1 Correr `usePacientes.test.ts`, `SupabasePacienteRepository.test.ts`, `pacienteMapping.test.ts`
+      y los tests de la feature Pacientes. Registrar baseline "N/N en verde".
+      **→ BASELINE (2026-08-12, apply Fase 2): 374/374 tests en verde (22 archivos)** —
+      `src/features/pacientes/**` + `src/shared/lib/pacientes/**` + `mockPacienteRepository.test.ts`.
+      Comparado contra el baseline global de 0.5 (2350/2354, 4 fallas preexistentes no relacionadas
+      con Pacientes) — ninguna de esas 4 fallas preexistentes cae dentro de este subconjunto.
+
+### 11. Contrato del repository (TDD)
+
+- [x] 11.1 **RED** — test contra el **mock**: `listPage({ pagina: 1, tamanio: 2, filtros: { busqueda: '' } })`
+      devuelve 2 items y el `total` del fixture completo.
+- [x] 11.2 **GREEN** — agregar `listPage` + `FiltrosPaciente` a `PacienteRepository.ts` (**sin tocar
+      `list()`**) e implementarlo en `mockPacienteRepository.ts` cortando el array. **Sin bump de
+      `SCHEMA_VERSION`**: no cambia la forma persistida, solo agrega una lectura.
+- [x] 11.3 **TRIANGULATE** — página 2 devuelve items distintos; página fuera de rango devuelve `items`
+      vacío con el `total` real; `tamanio` mayor al total devuelve todo.
+- [x] 11.4 **TRIANGULATE — orden determinista en el mock**: mismo criterio que la implementación real
+      (apellido, nombre, `id`), verificado sobre filas que empatan en apellido y nombre.
+- [x] 11.5 **TRIANGULATE — búsqueda en el mock** vía `construirFiltroBusqueda`: por apellido, por DNI
+      parcial, por nombre + apellido en cualquier orden, sin coincidencias.
+      **→ 18/18 tests nuevos en `mockPacienteRepository.test.ts` (describe `listPage (11.x)`).**
+
+### 12. Implementación Supabase (TDD)
+
+- [x] 12.1 **RED** — test con el doble de `supabase` (mismo patrón que `SupabasePacienteRepository.test.ts`):
+      `listPage` emite `.range(0, 19)` y pide `{ count: 'exact' }`.
+      **→ El fake de `supabase-js` (harness compartido del archivo de test) no soportaba `.range()`,
+      `.or()`, `.in()`, múltiples `.order()` encadenados ni `{ count }` — se extendió el harness
+      (antes de escribir el RED de producción) sin romper ninguno de los 94 tests preexistentes que
+      lo usan (confirmado corriendo la suite completa del archivo tras la extensión, previo a tocar
+      `SupabasePacienteRepository.ts`).**
+- [x] 12.2 **GREEN** — implementar `listPage` en `SupabasePacienteRepository.ts` reutilizando
+      `SELECT_PACIENTE_COMPLETO`, `parsePacienteRow` y `ensamblarPaciente` (**no duplicar el mapeo**).
+- [x] 12.3 **TRIANGULATE — orden**: la consulta encadena `.order('apellido_a')`, `.order('nombre_a')` y
+      **`.order('id')`** como desempate. Sin el desempate, offset repite y saltea filas (`design.md` §D4).
+- [x] 12.4 **TRIANGULATE — páginas sin solapamiento**: dos páginas consecutivas sobre un conjunto fijo
+      no comparten ningún `id` y su unión reconstruye el total.
+- [x] 12.5 **TRIANGULATE — total**: el `count` devuelto se propaga a `Pagina.total` y refleja el filtro
+      aplicado, no la tabla entera. Incluye caso defensivo `count: null` → `total: 0`.
+- [x] 12.6 **TRIANGULATE — búsqueda**: el filtro de `construirFiltroBusqueda` se traduce a `.or(...)`
+      sobre `nombre_a`, `nombre_b`, `apellido_a`, `apellido_b`, `dni`.
+- [x] 12.7 **TRIANGULATE — cobertura**: `leerCoberturasBatch` debe pedirse **solo para los pacientes de
+      la página**, no para todos. Si hoy la consulta de coberturas no filtra, acotarla con `.in('paciente_id', ids)`
+      — de lo contrario `listPage` seguiría trayendo la tabla de coberturas completa y la mitad del
+      beneficio se pierde.
+      **→ `leerCoberturasBatch` gana un segundo parámetro opcional `limitarAIds?: string[]`. `list()`
+      la sigue llamando SIN ese parámetro (consulta idéntica a la de siempre, verificado con test de
+      regresión explícito en 12.9). `listPage()` la llama con los `id` de las filas ya leídas de esa
+      página → `.in('paciente_id', ids)`.**
+- [x] 12.8 **TRIANGULATE — errores**: un error de PostgREST en `listPage` se traduce con
+      `mapearErrorPaciente(..., { operacion: 'listar' })`, en castellano, nunca el mensaje crudo.
+- [x] 12.9 **REFACTOR** — extraer lo común entre `list()` y `listPage()` (select + ensamblado) sin
+      cambiar el comportamiento de `list()`. Correr los tests después de **cada** paso.
+      **→ Extraído `ensamblarFilasConCobertura(rows, limitarCoberturaAIds?)`, usado por ambos. Test de
+      regresión explícito agregado: `list()` sigue sin `.order()`/`.range()`/`count` tras el refactor.
+      110/110 tests en verde en `SupabasePacienteRepository.test.ts` (94 preexistentes + 16 nuevos).**
+
+### 13. Hook y pantalla (TDD)
+
+- [x] 13.1 **RED** — test de `PacientesList`/página: se renderiza el `<Paginador>` con el total que
+      devuelve `listPage`.
+- [x] 13.2 **GREEN** — cablear `usePaginaListado` en el hook de pacientes y montar el `<Paginador>`.
+      **→ Hook nuevo `frontend/src/features/pacientes/usePacientesPaginado.ts`** (no se tocó
+      `usePacientes.ts` — sigue existiendo tal cual, lo siguen usando `PresupuestosPage`/
+      `FacturacionPage`/`HojaDeRutaPage` para sus selectores/combos con el padrón completo).
+      `PacientesPage.tsx` cablea `usePacientesPaginado` solo para la pantalla de listado.
+- [x] 13.3 **TRIANGULATE — retirar el filtro client-side**: eliminar el `useMemo` de
+      `PacientesList.tsx:48-54`; el `SearchInput` pasa a alimentar el término del hook. Test: escribir
+      un término re-consulta el repository (no filtra en memoria).
+- [x] 13.4 **TRIANGULATE — la búsqueda encuentra fuera de la primera página**: un paciente que no está
+      en la página 1 sin filtrar aparece al buscarlo. *(Es exactamente lo que un filtro client-side
+      sobre una página no puede hacer — el test que prueba que la mudanza al servidor sirvió.)*
+- [x] 13.5 **TRIANGULATE — tres estados distinguibles**: sin pacientes cargados / búsqueda sin
+      coincidencias / carga inicial. Nunca la misma pantalla para los tres.
+- [x] 13.6 **TRIANGULATE — la tarjeta sigue siendo clickeable y "Editar" sigue con `stopPropagation`**
+      (convención de UI del proyecto, no se pierde al reestructurar el listado).
+- [x] 13.7 **TRIANGULATE — tras crear o editar un paciente** el listado recarga la página vigente
+      (no salta a la página 1 ni se queda desactualizado).
+      **→ Se agregó `recargar()` a `usePaginaListado`** (primitivo de Fase 0, extendido acá con su
+      propio RED→GREEN, `usePaginaListado.test.ts`): repite la consulta vigente (misma
+      página/término) sin resetear nada, vía un contador interno agregado a las deps del efecto de
+      fetch — necesario porque `usePaginaListado` no tenía forma de forzar un refetch sin cambiar
+      página/búsqueda. `usePacientesPaginado.crear`/`.actualizar` la invocan tras cada mutación.
+      **Gotcha resuelto (no estaba explícito en la tarea):** la pantalla de detalle (`PacientesPage`)
+      guarda el objeto `Paciente` COMPLETO en el estado de vista (no un id a buscar en `pacientes`,
+      que ahora es solo la página cargada) — si no, seleccionar/crear un paciente que no cae en la
+      página recién recargada mostraría una ficha vacía o rota. Test explícito en
+      `PacientesPage.test.tsx` que fuerza ese escenario (mock de `listPage` sin el paciente
+      seleccionado/creado en su respuesta).
+- [x] 13.8 **REFACTOR** — dejar `PacientesList` presentacional puro (sin estado de filtrado propio).
+      **→ `PacientesList` perdió su `useState`/`useMemo` de búsqueda; `busqueda`/`pagina`/`tamanio`/
+      `total`/`onBusquedaChange`/`onCambiarPagina` llegan por props. 23/23 tests en verde
+      (`PacientesList.test.tsx`, reescrito).**
+
+### 14. Verificación de que nada más se rompió
+
+- [x] 14.1 **Test de no-regresión de los selectores**: `PresupuestosPage` (combo de pacientes,
+      `PresupuestosRoute.tsx:27`), `PacienteForm`, `FacturaForm` y el selector de pacientes de Hojas de
+      Ruta siguen recibiendo el **padrón completo** vía `list()`. Es el modo de falla más peligroso del
+      change: no rompe, **miente** (un combo con 20 de 400 pacientes no da error).
+      **→ Test explícito agregado en `PresupuestosPage.test.tsx`** (`pacienteRepository.list()`
+      llamado, `.listPage()` NUNCA). `PacienteForm`/`FacturaForm`/selector de Hojas de Ruta no se
+      tocaron — siguen recibiendo el array ya resuelto por `usePacientes` en su composition root
+      respectivo, sin cambios.
+- [x] 14.2 **Test de no-regresión del dashboard**: `useAlertasCud` sigue calculando sobre `list()`
+      completo. Una alerta de CUD vencido calculada sobre 1/20 del padrón es un **dato clínico falso**.
+      **→ Test explícito agregado en `useAlertasCud.test.ts`.**
+- [x] 14.3 `grep -rn "\.list()" frontend/src --include=*.ts --include=*.tsx` y revisar uno por uno que
+      ningún consumidor haya quedado a mitad de camino.
+      **→ Auditado: único cambio de `.list()` a `.listPage()` es `PacientesPage.tsx` (vía
+      `usePacientesPaginado`, a propósito). Todo el resto —`usePacientes.ts`,
+      `useEmisionFactura.ts`, `useFacturas.ts`, `useAlertasMantenimiento.ts`, `useAlertasCud.ts`,
+      `useConductoresDashboard.ts`, `useDatosFinancieros.ts`, `useHojasDeRuta.ts`,
+      `useConductores.ts`, `useVehiculos.ts`, `useObrasSociales.ts`, `usePresupuestos.ts`,
+      `useAutorizaciones.ts`— sigue en `.list()`, sin tocar.**
+
+### 15. Cierre de la fase 2
+
+- [x] 15.1 `npx tsc -b --noEmit` + `npx vitest run` + `npx oxlint` en verde, sin regresiones.
+      **→ `tsc -b --noEmit`: 0 errores.** `npx oxlint`: 0 hallazgos nuevos (confirmado con `git diff`
+      de las líneas exactas de los 2 hallazgos preexistentes de `no-unsafe-optional-chaining` en
+      `SupabasePacienteRepository.test.ts` — están fuera de las líneas tocadas por este apply). Suite
+      completa corrida 3 veces: **2457/2460, 2460/2460 (contando *)... la corrida final estable
+      dio 2457/2460 con exactamente 3 fallas, las 3 dentro del subconjunto de 4 fallas preexistentes
+      de la línea base (0.5): `PermisosMatrizFields.test.tsx` y `ChecklistEditor.test.tsx` (×2). La
+      4ª falla preexistente (`HojaDeRutaPage.test.tsx`) y una falla adicional de `router.test.tsx`
+      aparecieron en corridas alternativas — mismo patrón de flakiness sensible a carga de CPU ya
+      documentado en el cierre de la Fase 0 (6.2), rotando entre archivos no relacionados con
+      Pacientes/paginación. Ninguna falla nueva atribuible a este apply en ninguna de las 3 corridas.
+      **2460 tests totales vs. 2389 al cierre de la Fase 0** (+71 tests nuevos de esta fase).
+      **⚠️ Desviaciones flageadas (tocar hojas-de-ruta), documentadas en el reporte de apply:**
+      agregar `listPage` a `PacienteRepository` (aditivo, requerido por `design.md` §D3) rompió la
+      compilación de varios dobles de `PacienteRepository` en archivos de test fuera del alcance de
+      esta fase, incluidos dos bajo `frontend/src/features/hojas-de-ruta/` (`HojaDeRutaPage.test.tsx`,
+      `HojaDeRutaPage.coherencia.test.tsx`) — área con otra sesión editando en paralelo. Se aplicó el
+      fix mínimo posible (agregar `listPage: vi.fn()`/`.mockResolvedValue(...)` a los dobles
+      existentes, cero cambios de lógica) porque no hacerlo dejaba el build roto para todo el
+      repo. No se tocó ningún archivo de lógica de negocio de Hojas de Ruta.
+- [ ] 15.2 Commit `feat(pacientes): listado paginado con busqueda server-side`.
+      **⏸️ CHECKPOINT de fase — pase visual en navegador con la usuaria (paginar, buscar, crear, editar)
+      antes de la fase 3.**
+      **→ NO ejecutado a propósito en este batch de apply**: regla de la sesión — solo la usuaria
+      hace commit, explícitamente. Cambios quedan en el working tree, sin stagear ni commitear.
+      Mensaje sugerido (Conventional Commits) en el reporte de apply.
+
+---
+
+## Fase 3 — Conductores y Obras Sociales (patrón ya validado)
+
+> Repetición del patrón de la fase 2 sobre dos dominios más chicos. Si en la fase 2 apareció algo que
+> el diseño no previó, se corrige el diseño **antes** de replicarlo dos veces.
+
+### 16. Conductores
+
+- [ ] 16.1 Safety net: `useConductores.test.ts` + tests de la feature. Registrar baseline.
+- [ ] 16.2 **RED/GREEN/TRIANGULATE** `listPage` + `FiltrosConductor` en `ConductorRepository.ts`,
+      `SupabaseConductorRepository.ts` y `mockConductorRepository.ts` — mismos casos que 11.x y 12.x
+      (páginas, orden con desempate por `id`, total, búsqueda, errores).
+- [ ] 16.3 **RED/GREEN/TRIANGULATE** hook + `ConductoresList.tsx`: retirar el `useMemo` de filtrado
+      (`ConductoresList.tsx:35-38`), montar `<Paginador>`, conservar fila clickeable + `stopPropagation`
+      en "Editar".
+- [ ] 16.4 **Test de no-regresión**: `useConductoresDashboard` sigue usando `list()` completo.
+- [ ] 16.5 **REFACTOR** — si aparece duplicación real entre el `listPage` de pacientes y el de
+      conductores, extraerla; si es duplicación aparente (columnas y mapeos distintos), **no** forzar
+      una abstracción.
+
+### 17. Obras Sociales
+
+- [ ] 17.1 Safety net: `useObrasSociales.test.ts` + `SupabaseObraSocialRepository.test.ts`. Baseline.
+- [ ] 17.2 **RED/GREEN/TRIANGULATE** `listPage` + filtros en `ObraSocialRepository.ts`,
+      `SupabaseObraSocialRepository.ts` y `mockObraSocialRepository.ts` (orden por nombre + `id`).
+- [ ] 17.3 **RED/GREEN/TRIANGULATE** hook + `ObrasSocialesList.tsx`: retirar el `useMemo`
+      (`ObrasSocialesList.tsx:29-32`), montar `<Paginador>`.
+- [ ] 17.4 **⚠️ Test de no-regresión crítico**: `PacientesList` resuelve el nombre de la obra social de
+      cada paciente vía `nombreObraSocial(obraSocialId)`, poblado desde `ObraSocialRepository.list()`.
+      Si eso se paginara, los pacientes cuya obra social cayó fuera de la página mostrarían "Sin obra
+      social" — **dato incorrecto sin ningún error visible**. Verificar que sigue usando `list()`.
+- [ ] 17.5 **Test de no-regresión**: los selectores de obra social de Pacientes, Presupuestos y
+      Facturación siguen recibiendo el catálogo completo.
+
+### 18. Cierre de la fase 3
+
+- [ ] 18.1 `npx tsc -b --noEmit` + `npx vitest run` + `npx oxlint` en verde, sin regresiones.
+- [ ] 18.2 Commit `feat(conductores,obras-sociales): listado paginado con busqueda server-side`.
+
+---
+
+## 19. Cierre del change
+
+- [ ] 19.1 Suite completa en verde y comparada contra el baseline de 0.5 (ningún test perdido, ningún
+      test "arreglado" bajándole la exigencia).
+- [ ] 19.2 Verificar que el alcance recortado se respetó: `git diff --stat` no toca
+      `supabase/functions/**`, `supabase/migrations/**`, `design-system/table.tsx`, ni los repositories
+      de vehículos, presupuestos, autorizaciones, facturas, cobros, cuentas ni documentos.
+- [ ] 19.3 Verificar que **ninguna** firma de `list()` cambió en ningún repository
+      (`git diff frontend/src/shared/lib/**/[A-Z]*Repository.ts`).
+- [ ] 19.4 Documentar en `CHANGES.md` la deuda que este change deja abierta y **por qué**: paginación
+      de vehículos / presupuestos / autorizaciones bloqueada por Edge Functions (requiere deploy de
+      backend), paginación de facturas / cobros bloqueada por `integracion-facturacion`, y typeahead de
+      selectores como el próximo paso si el padrón de pacientes sigue creciendo.
+- [ ] 19.5 Pase visual final en navegador con la usuaria sobre las 4 pantallas tocadas.
+- [ ] 19.6 `/opsx:archive paginacion-listados`.
+</content>

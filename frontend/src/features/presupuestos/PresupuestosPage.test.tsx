@@ -71,6 +71,7 @@ function buildFakeAutorizacionRepository(): AutorizacionRepository {
 function buildFakePacienteRepository(): PacienteRepository {
   return {
     list: vi.fn().mockResolvedValue([martina]),
+    listPage: vi.fn(),
     getById: vi.fn().mockResolvedValue(martina),
     create: vi.fn(),
     update: vi.fn(),
@@ -111,6 +112,29 @@ function renderPageConPermiso(
     </PuedeEscribirContext.Provider>,
   );
 }
+
+// paginacion-listados, Fase 2 (tasks.md 14.1): no-regresión de selectores. El combo de pacientes
+// de Presupuestos necesita el padrón COMPLETO (design.md §D3) — nunca debe pasar a `listPage`, que
+// solo trae una página. Si algún día PresupuestosPage empieza a llamar `listPage` en vez de
+// `list()`, este test lo detecta antes de que el combo muestre "20 de 400 pacientes" sin error.
+describe('PresupuestosPage — no-regresión: el combo de pacientes usa list() completo (14.1)', () => {
+  it('llama a pacienteRepository.list() y nunca a listPage()', async () => {
+    const pacienteRepository = buildFakePacienteRepository();
+
+    render(
+      <PresupuestoRepositoryProvider repository={buildFakePresupuestoRepository()}>
+        <AutorizacionRepositoryProvider repository={buildFakeAutorizacionRepository()}>
+          <PresupuestosPage pacienteRepository={pacienteRepository} obraSocialRepository={buildFakeObraSocialRepository()} />
+        </AutorizacionRepositoryProvider>
+      </PresupuestoRepositoryProvider>,
+    );
+
+    await screen.findByText('Gómez, Martina');
+
+    expect(pacienteRepository.list).toHaveBeenCalled();
+    expect(pacienteRepository.listPage).not.toHaveBeenCalled();
+  });
+});
 
 describe('PresupuestosPage', () => {
   it('carga y muestra el listado con paciente y obra social resueltos', async () => {

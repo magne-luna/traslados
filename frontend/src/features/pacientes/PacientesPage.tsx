@@ -1,16 +1,21 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { AvisoSoloLectura } from '../../design-system/components';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { RequisitosActividadRepository } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
-import type { Paciente } from '../../shared/types/paciente';
+import type { ActualizacionPaciente, Paciente } from '../../shared/types/paciente';
 import { useObrasSociales } from '../obras-sociales/useObrasSociales';
 import { PacienteDetail } from './PacienteDetail';
 import { usePacienteRepository } from './PacienteRepositoryContext';
 import { PacientesList } from './PacientesList';
-import { usePacientes } from './usePacientes';
+import { usePacientesPaginado } from './usePacientesPaginado';
 
-type View = { kind: 'list' } | { kind: 'detail'; pacienteId: string | null };
+// paginacion-listados, Fase 2 (tasks.md 13.2): la vista de detalle guarda el objeto `Paciente`
+// COMPLETO (no solo su id) — llega directo del evento que dispara la navegación (`onSelect` de la
+// lista, `onCreated` del alta). Nunca se re-deriva buscando el id en el listado paginado: esa
+// lista ahora es solo la página vigente, no el padrón completo, y el paciente elegido/creado puede
+// no estar en ella (design.md §D3, gotcha de la Fase 2).
+type View = { kind: 'list' } | { kind: 'detail'; paciente: Paciente | null };
 
 interface PacientesPageProps {
   /** Reutilizado de FE-2 (design.md): resuelve el nombre de la obra social del listado y puebla
@@ -22,12 +27,15 @@ interface PacientesPageProps {
   requisitosActividadRepository?: RequisitosActividadRepository;
 }
 
-// Composición raíz de la feature (tasks.md 4.2, 10.1): resuelve el PacienteRepository del
-// context, wire de usePacientes, y decide qué pantalla mostrar (listado o detalle). No hay
-// router anidado — mismo patrón que ObraSocialesPage/VehiculosPage (FE-2).
+// Composición raíz de la feature (tasks.md 4.2, 10.1; paginacion-listados Fase 2 tasks.md 13.2):
+// resuelve el PacienteRepository del context, wire de `usePacientesPaginado` (listPage, SOLO para
+// esta pantalla), y decide qué pantalla mostrar (listado o detalle). `usePacientes.ts` (list()
+// completo) NO se usa acá — sigue existiendo tal cual para los selectores de otras pantallas
+// (PresupuestosPage/FacturacionPage/HojaDeRutaPage) y el dashboard. No hay router anidado — mismo
+// patrón que ObraSocialesPage/VehiculosPage (FE-2).
 export function PacientesPage({ obraSocialRepository, documentoRepository, requisitosActividadRepository }: PacientesPageProps) {
   const pacienteRepository = usePacienteRepository();
-  const { pacientes, loading, error, crear, actualizar } = usePacientes(pacienteRepository);
+  const listado = usePacientesPaginado(pacienteRepository);
   const { obrasSociales } = useObrasSociales(obraSocialRepository);
   const [view, setView] = useState<View>({ kind: 'list' });
 
@@ -36,22 +44,39 @@ export function PacientesPage({ obraSocialRepository, documentoRepository, requi
     return obrasSociales.find((obraSocial) => obraSocial.id === obraSocialId)?.nombre ?? 'Sin obra social';
   }
 
-  if (view.kind === 'detail') {
-    const paciente: Paciente | null =
-      view.pacienteId === null ? null : (pacientes.find((p) => p.id === view.pacienteId) ?? null);
+  // Tras editar (CUD/personas a cargo/direcciones/datos generales, todos llaman `actualizar`
+  // directo desde `PacienteDetail` sin pasar por esta pantalla) se sincroniza también la ficha
+  // abierta con el resultado fresco de la base — `actualizar` (de `usePacientesPaginado`) ya
+  // recarga la página vigente del listado (13.7), pero la ficha en pantalla no forma parte de esa
+  // página necesariamente. Se destructura de `listado` (en vez de depender de `listado.actualizar`
+  // inline) para que el lint de deps de hooks pueda verificar la dependencia real.
+  const { actualizar } = listado;
+  const actualizarYSincronizarVista = useCallback(
+    async (id: string, data: ActualizacionPaciente) => {
+      const actualizado = await actualizar(id, data);
+      setView((vistaActual) =>
+        vistaActual.kind === 'detail' && vistaActual.paciente?.id === id
+          ? { kind: 'detail', paciente: actualizado }
+          : vistaActual,
+      );
+      return actualizado;
+    },
+    [actualizar],
+  );
 
+  if (view.kind === 'detail') {
     return (
       <>
         <AvisoSoloLectura />
         <PacienteDetail
-          paciente={paciente}
-          crear={crear}
-          actualizar={actualizar}
+          paciente={view.paciente}
+          crear={listado.crear}
+          actualizar={actualizarYSincronizarVista}
           obrasSociales={obrasSociales}
           obraSocialRepository={obraSocialRepository}
           documentoRepository={documentoRepository}
           requisitosActividadRepository={requisitosActividadRepository}
-          onCreated={(creado) => setView({ kind: 'detail', pacienteId: creado.id })}
+          onCreated={(creado) => setView({ kind: 'detail', paciente: creado })}
           onBack={() => setView({ kind: 'list' })}
         />
       </>
@@ -62,12 +87,18 @@ export function PacientesPage({ obraSocialRepository, documentoRepository, requi
     <>
       <AvisoSoloLectura />
       <PacientesList
-        pacientes={pacientes}
-        loading={loading}
-        error={error}
+        pacientes={listado.items}
+        loading={listado.loading}
+        error={listado.error}
         nombreObraSocial={nombreObraSocial}
-        onSelect={(paciente) => setView({ kind: 'detail', pacienteId: paciente.id })}
-        onCreateNew={() => setView({ kind: 'detail', pacienteId: null })}
+        onSelect={(paciente) => setView({ kind: 'detail', paciente })}
+        onCreateNew={() => setView({ kind: 'detail', paciente: null })}
+        busqueda={listado.busqueda}
+        onBusquedaChange={listado.setBusqueda}
+        pagina={listado.pagina}
+        tamanio={listado.tamanio}
+        total={listado.total}
+        onCambiarPagina={listado.irAPagina}
       />
     </>
   );

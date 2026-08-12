@@ -111,6 +111,7 @@ function buildRepositorios() {
   };
   const pacienteRepository: PacienteRepository = {
     list: vi.fn().mockResolvedValue([paciente]),
+    listPage: vi.fn(),
     getById: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),

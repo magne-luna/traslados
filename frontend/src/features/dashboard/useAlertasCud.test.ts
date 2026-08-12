@@ -25,7 +25,7 @@ const paciente: Paciente = {
 };
 
 function buildRepository(overrides: Partial<PacienteRepository> = {}): PacienteRepository {
-  return { list: vi.fn().mockResolvedValue([paciente]), getById: vi.fn(), create: vi.fn(), update: vi.fn(), ...overrides };
+  return { list: vi.fn().mockResolvedValue([paciente]), listPage: vi.fn(), getById: vi.fn(), create: vi.fn(), update: vi.fn(), ...overrides };
 }
 
 describe('useAlertasCud', () => {
@@ -38,6 +38,19 @@ describe('useAlertasCud', () => {
 
     expect(result.current.pacientes).toEqual([paciente]);
     expect(result.current.error).toBeNull();
+  });
+
+  // paginacion-listados, Fase 2 (tasks.md 14.2): no-regresión de alertas clínicas. Una alerta de
+  // CUD vencido calculada sobre 1/20 del padrón (por usar `listPage` en vez de `list()`) es un
+  // DATO CLÍNICO FALSO sin ningún error visible — la peor forma de fallo posible acá.
+  it('14.2 usa list() completo, nunca listPage() (dato clínico falso si paginara)', async () => {
+    const repository = buildRepository();
+    const { result } = renderHook(() => useAlertasCud(repository));
+
+    await waitFor(() => expect(result.current.cargando).toBe(false));
+
+    expect(repository.list).toHaveBeenCalled();
+    expect(repository.listPage).not.toHaveBeenCalled();
   });
 
   it('expone un error legible cuando falla la lectura', async () => {

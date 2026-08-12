@@ -1,6 +1,8 @@
 import { generateId } from '../id';
 import type { ActualizacionPaciente, NuevoPaciente, Paciente } from '../../types/paciente';
 import type { PacienteRepository } from '../pacientes/PacienteRepository';
+import { construirFiltroBusqueda, matcheaFiltroBusqueda } from '../paginacion/construirFiltroBusqueda';
+import { rangoSupabase } from '../paginacion/rangoSupabase';
 import { buildPacientesFixture } from './pacientesFixture';
 
 // Implementación mock de PacienteRepository (design.md Decisión 5): persiste en localStorage
@@ -56,9 +58,42 @@ function withLatency<T>(value: T, ms = 350): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
 
+// paginacion-listados (design.md §D9, tasks.md 11.4/12.3): mismo criterio de orden que
+// SupabasePacienteRepository.listPage — apellido, nombre, y `id` como desempate obligatorio (sin
+// desempate, dos pacientes con mismo apellido+nombre podrían "flotar" de posición entre llamadas).
+function ordenarPacientes(pacientes: Paciente[]): Paciente[] {
+  return [...pacientes].sort((a, b) => {
+    const porApellido = a.apellido.localeCompare(b.apellido);
+    if (porApellido !== 0) return porApellido;
+    const porNombre = a.nombre.localeCompare(b.nombre);
+    if (porNombre !== 0) return porNombre;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+// Mismas columnas "lógicas" que traduce SupabasePacienteRepository.listPage a `.or()` (design.md
+// §D5/CHECKPOINT 1) — acá solo importan para pasarlas a `construirFiltroBusqueda` (que las usa
+// para armar `expresionesOr`, sin consumidor en el mock); el match real lo hace
+// `matcheaFiltroBusqueda` sobre `valoresBuscables`, no sobre estos nombres de columna.
+const COLUMNAS_BUSQUEDA_PACIENTE = ['nombre_a', 'nombre_b', 'apellido_a', 'apellido_b', 'dni'] as const;
+
+function valoresBuscables(paciente: Paciente): Array<string | null | undefined> {
+  return [paciente.nombre, paciente.segundoNombre, paciente.apellido, paciente.segundoApellido, paciente.dni];
+}
+
 export const mockPacienteRepository: PacienteRepository = {
   async list() {
     return withLatency([...readStore()]);
+  },
+
+  async listPage({ pagina, tamanio, filtros }) {
+    const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_PACIENTE);
+    const todos = ordenarPacientes(readStore()).filter((paciente) =>
+      matcheaFiltroBusqueda(valoresBuscables(paciente), filtro),
+    );
+    const { desde, hasta } = rangoSupabase({ pagina, tamanio });
+    const items = todos.slice(desde, hasta + 1);
+    return withLatency({ items, total: todos.length, pagina, tamanio });
   },
 
   async getById(id) {

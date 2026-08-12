@@ -91,6 +91,7 @@ const facturaMartina: Factura = {
 function buildFakePacienteRepo(): PacienteRepository {
   return {
     list: vi.fn().mockResolvedValue([martina]),
+    listPage: vi.fn(),
     getById: vi.fn().mockResolvedValue(martina),
     create: vi.fn(),
     update: vi.fn(),

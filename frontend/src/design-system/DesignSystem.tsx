@@ -5,6 +5,7 @@ import { Field, Input, Select, Textarea } from './form';
 import { Alert, Pill, EmptyState } from './feedback';
 import { Card, Panel } from './layout';
 import { Table, Tr, Th, Td } from './table';
+import { Paginador } from './paginador';
 import { DocumentChecklist } from '../shared/components/DocumentChecklist';
 import { useDocumentChecklist } from '../shared/lib/documentos/useDocumentChecklist';
 import { mockDocumentoRepository } from '../shared/lib/documentos/mockDocumentoRepository';
@@ -419,6 +420,16 @@ export default function DesignSystem() {
         </p>
         <OverlayCatalog />
       </Section>
+
+      <Section label="19" title="Paginador (anterior/siguiente, total — sin estado propio)">
+        <p className="mt-[-8px] mb-md max-w-140 font-body text-xs text-muted">
+          Componente presentacional puro de <code>paginacion-listados</code> (design.md §D6). El dueño
+          del estado es <code>usePaginaListado</code> (<code>shared/lib/paginacion/</code>) — acá se
+          muestra con un estado local mínimo solo para poder navegar la demo. Fase 0: todavía sin
+          consumidores reales en ninguna pantalla.
+        </p>
+        <PaginadorCatalog />
+      </Section>
     </div>
   );
 }
@@ -440,6 +451,26 @@ function OverlayCatalog() {
         </p>
       </Overlay>
     </>
+  );
+}
+
+// Demo interactiva de Paginador (paginacion-listados, tasks.md 6.7/§D6): estado local mínimo
+// (`pagina`) solo para que el catálogo se pueda navegar de verdad — el componente en sí no tiene
+// estado propio, lo recibe todo por props (`pagina`, `totalPaginas`, `total`, `onCambiarPagina`).
+// Se muestra además el caso de una sola página, donde no se ofrece navegación (5.4).
+function PaginadorCatalog() {
+  const [pagina, setPagina] = useState(3);
+  return (
+    <div className="flex flex-col gap-lg">
+      <div>
+        <p className="mb-xs font-body text-xs font-semibold text-muted">Multi-página (anterior/siguiente activos)</p>
+        <Paginador pagina={pagina} totalPaginas={7} total={134} onCambiarPagina={setPagina} />
+      </div>
+      <div>
+        <p className="mb-xs font-body text-xs font-semibold text-muted">Una sola página (sin navegación)</p>
+        <Paginador pagina={1} totalPaginas={1} total={3} onCambiarPagina={() => {}} />
+      </div>
+    </div>
   );
 }
 
