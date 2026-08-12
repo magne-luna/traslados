@@ -50,11 +50,17 @@ export function mapArchivoUrl(archivoUrl: unknown, cargadoEn: string): ArchivoAd
 /** Fila del `toApi()` de la Edge Function `presupuestos` -> `Presupuesto` del dominio. `monto` y
  * `fechaEmision` son `NOT NULL` en el tipo de dominio pero nullable en la base (design.md D6): una
  * fila sin uno de los dos se descarta entera (`null`), no se inventa un valor. `archivoUrl`
- * ausente/vacío no descarta la fila: `archivo` queda `undefined` (D5). */
+ * ausente/vacío no descarta la fila: `archivo` queda `undefined` (D5).
+ *
+ * `prestacionId` (`presupuesto-prestaciones` PR 2, D9/2.4): la columna real es nullable
+ * (`prestacion_id UUID NULL`), y `toApi()` de la Edge Function la expone como `prestacionId: string
+ * | undefined` (nunca `null` — ver `supabase/functions/presupuestos/index.ts`). Esta función NO
+ * descarta la fila si `prestacionId` no es un `string`: cualquier valor que no sea `string`
+ * (`undefined`, `null`) se normaliza a `undefined`, nunca se deja pasar un `null` explícito. */
 export function parsePresupuestoApi(value: unknown): Presupuesto | null {
   if (!isRecord(value)) return null;
 
-  const { id, pacienteId, obraSocialId, monto, fechaEmision, archivoUrl } = value;
+  const { id, pacienteId, obraSocialId, monto, fechaEmision, archivoUrl, prestacionId } = value;
 
   if (typeof id !== 'string') return null;
   if (typeof pacienteId !== 'string') return null;
@@ -69,6 +75,7 @@ export function parsePresupuestoApi(value: unknown): Presupuesto | null {
     monto,
     fechaEmision,
     archivo: mapArchivoUrl(archivoUrl, fechaEmision),
+    prestacionId: typeof prestacionId === 'string' ? prestacionId : undefined,
   };
 }
 
@@ -88,15 +95,25 @@ export interface CrearPresupuestoPayload {
   monto: number;
   fechaEmision: string;
   archivoUrl?: string;
+  prestacionId?: string;
 }
 
+/** `prestacionId` (PR 2, 2.5): se incluye la clave únicamente cuando `nuevo.prestacionId` está
+ * presente (modalidad `por-prestacion`, alta vía `createLote`) — cuando está `undefined`
+ * (modalidad `general`) la clave queda directamente ausente del body, nunca se manda `undefined`
+ * explícito. Mismo criterio que el resto de este archivo (D5/D6b): la ausencia de una clave es una
+ * decisión, no un accidente de serialización. */
 export function toCrearPresupuestoPayload(nuevo: NuevoPresupuesto): CrearPresupuestoPayload {
-  return {
+  const payload: CrearPresupuestoPayload = {
     pacienteId: nuevo.pacienteId,
     obraSocialId: nuevo.obraSocialId,
     monto: nuevo.monto,
     fechaEmision: nuevo.fechaEmision,
   };
+
+  if (nuevo.prestacionId !== undefined) payload.prestacionId = nuevo.prestacionId;
+
+  return payload;
 }
 
 // -------------------------------------------------------------------------------------------
@@ -116,6 +133,9 @@ export function toActualizarPresupuestoPayload(cambios: ActualizacionPresupuesto
   if (cambios.obraSocialId !== undefined) payload.obraSocialId = cambios.obraSocialId;
   if (cambios.monto !== undefined) payload.monto = cambios.monto;
   if (cambios.fechaEmision !== undefined) payload.fechaEmision = cambios.fechaEmision;
+  // 2.6: misma trampa que D6b (integracion-obra-social D6) — clave ausente en `cambios` (nunca
+  // tocada por el usuario) MUST NOT viajar como `undefined` explícito en el body.
+  if (cambios.prestacionId !== undefined) payload.prestacionId = cambios.prestacionId;
 
   return payload;
 }

@@ -17,6 +17,7 @@ function buildFakeRepository(overrides: Partial<PresupuestoRepository> = {}): Pr
     list: vi.fn().mockResolvedValue([presupuestoMartina]),
     getById: vi.fn().mockResolvedValue(presupuestoMartina),
     create: vi.fn().mockResolvedValue(presupuestoMartina),
+    createLote: vi.fn().mockResolvedValue([presupuestoMartina]),
     update: vi.fn().mockResolvedValue(presupuestoMartina),
     ...overrides,
   };

@@ -104,18 +104,17 @@ que el orden de merge no bloquea funcionalidad a medio camino.
       (Implementado como `prestaciones?: Prestacion[]` — opcional a propósito, ver comentario en
       `paciente.ts`: la migración de Fase 3 es aditiva y `SupabasePacienteRepository`/
       `pacienteMapping.ts` todavía no leen/escriben esta clave en este PR.)
-- [ ] 2.3 **RED** — `Presupuesto.prestacionId?: string` en `presupuesto.ts`, comentario explícito
-      de que NO reabre la discrepancia #13 y que `monto` no cambia de forma. **(Fase 5/PR 2 —
-      fuera de alcance de este PR 1, no tocado.)**
-- [ ] 2.4 **RED** — `presupuestoMapping.ts`: `prestacionId` en `parsePresupuestoApi` (fila con
+- [x] 2.3 **RED** — `Presupuesto.prestacionId?: string` en `presupuesto.ts`, comentario explícito
+      de que NO reabre la discrepancia #13 y que `monto` no cambia de forma. **Hecho en PR 2.**
+- [x] 2.4 **RED** — `presupuestoMapping.ts`: `prestacionId` en `parsePresupuestoApi` (fila con
       `prestacion_id: null` → `prestacionId: undefined`, nunca `null` filtrándose).
-      **GREEN → TRIANGULATE (con y sin valor) → REFACTOR.** **(Fase 5/PR 2 — fuera de alcance.)**
-- [ ] 2.5 **RED** — `toCrearPresupuestoPayload`: incluye `prestacionId` cuando está presente,
-      ausente cuando no (misma semántica parcial que D6b de `integracion-presupuestos`). **(Fase
-      5/PR 2 — fuera de alcance.)**
-- [ ] 2.6 **RED** — `toActualizarPresupuestoPayload`: clave ausente en el `Partial` → clave ausente
+      **GREEN → TRIANGULATE (con y sin valor) → REFACTOR.** **Hecho en PR 2.**
+- [x] 2.5 **RED** — `toCrearPresupuestoPayload`: incluye `prestacionId` cuando está presente,
+      ausente cuando no (misma semántica parcial que D6b de `integracion-presupuestos`). **Hecho en
+      PR 2.**
+- [x] 2.6 **RED** — `toActualizarPresupuestoPayload`: clave ausente en el `Partial` → clave ausente
       en el payload (nunca se rellena con `undefined` explícito). Test dedicado: es el agujero que
-      ya rompió `integracion-obra-social` D6. **(Fase 5/PR 2 — fuera de alcance.)**
+      ya rompió `integracion-obra-social` D6. **Hecho en PR 2.**
 - [x] 2.7 `npx tsc -b --noEmit` + `oxlint` limpios. Cero `any`, cero `as` sobre datos externos.
       (Verificado sobre el alcance de PR 1: `prestacion.ts`, `prestacionMapping.ts`,
       `PrestacionesEditor.tsx`, `paciente.ts`, `PacienteDetail.tsx`.)
@@ -168,44 +167,71 @@ commit/PR.**
 
 ## 5. Migraciones: columna + RPC (bloqueada por 0.1, 0.2, 1.1, 1.2, aplicación de §3)
 
-- [ ] 5.1 Escribir `supabase/migrations/2026XXXXXXXXXX_presupuesto_prestacion_id.sql`:
+- [x] 5.1 Escribir `supabase/migrations/20260812130000_presupuesto_prestacion_id.sql`:
       `ALTER TABLE facturacion.presupuesto ADD COLUMN prestacion_id UUID REFERENCES
-      pacientes.prestaciones(id);` + índice sobre `prestacion_id` (con `CONCURRENTLY` si 1.1 mostró
-      volumen). Cabecera con plan de rollback (`DROP COLUMN` + `DROP INDEX`).
-- [ ] 5.2 Escribir `supabase/migrations/2026XXXXXXXXXX_presupuesto_rpc.sql`:
+      pacientes.prestaciones(id);` + índice sobre `prestacion_id`. Sin `CONCURRENTLY`: volumen
+      verificado en el gate §0.3 (2 presupuestos, 2 autorizaciones), mismo criterio que
+      `20260802100000_presupuesto_autorizacion_indices.sql` (lock de microsegundos sobre ese
+      volumen, y `CONCURRENTLY` no puede correr dentro de la transacción de `supabase db push`).
+      Cabecera con plan de rollback (`DROP INDEX` + `DROP COLUMN`). Escrita, **no aplicada**
+      (governance: la aplica la usuaria/Enzo).
+- [x] 5.2 Escribir `supabase/migrations/20260812140000_presupuesto_rpc.sql`:
       `facturacion.crear_presupuesto_completo(jsonb) RETURNS uuid` y
       `facturacion.crear_presupuestos_lote(jsonb) RETURNS uuid[]`, ambas **`SECURITY INVOKER`
       explícito**, `SET search_path = ''`, `REVOKE ALL ... FROM PUBLIC, anon`,
       `GRANT EXECUTE ... TO authenticated`, `COMMENT ON FUNCTION` con la prohibición de `DEFINER`.
-      `crear_presupuestos_lote` MUST ser atómica (una sola transacción, N inserts, todo o nada).
-- [ ] 5.3 **RED** — test de código fuente (`node:fs`, no `?raw` de Vite fuera de `frontend/`) que
-      verifica que las dos funciones declaran `SECURITY INVOKER` y no contienen `SECURITY DEFINER`
-      fuera de comentarios/literales. Única barrera automatizada contra la regresión de seguridad
-      más grave de este change.
-- [ ] 5.4 **Aplicar las dos migraciones — la usuaria / Enzo.** Bloquea 5.5-5.8 y la Fase 8.
+      `crear_presupuestos_lote` es atómica (un único `FOR` dentro de la transacción implícita de la
+      invocación de la función — un `RAISE EXCEPTION` en cualquier iteración revierte todo lo
+      insertado en esa misma invocación, sin `BEGIN/EXCEPTION` explícito). Códigos de error propios
+      en rango nuevo sin colisión (45401-45403). Escrita, **no aplicada**.
+- [x] 5.3 **RED** — test de código fuente (`node:fs`, no `?raw` de Vite fuera de `frontend/`,
+      `frontend/src/shared/lib/presupuestos/presupuestoMigrations.test.ts`) que verifica que las
+      dos funciones declaran `SECURITY INVOKER` y no contienen `SECURITY DEFINER` fuera de
+      comentarios/literales, más `REVOKE`/`GRANT`/`SET search_path`/códigos de error/atomicidad del
+      `FOR` y que la migración de columna es aditiva. 9/9 tests verdes. Única barrera automatizada
+      contra la regresión de seguridad más grave de este change.
+- [ ] 5.4 **Aplicar las dos migraciones — la usuaria / Enzo.** Bloquea 5.5-5.8 y la Fase 8. **Fuera
+      de alcance del agente en esta PR** (governance: el agente escribe, no aplica).
 - [ ] 5.5 Verificación manual con cuenta con `presupuestos: write`: alta simple vía
       `crear_presupuesto_completo` y alta en lote de 3 vía `crear_presupuestos_lote` → 1 y 3 filas
-      respectivamente, con auditoría.
+      respectivamente, con auditoría. **Pendiente de que 5.4 esté aplicada.**
 - [ ] 5.6 Verificación manual con cuenta solo-lectura (`presupuestos: read`, sin `write`): ambas
-      RPC → `42501`, cero filas escritas.
+      RPC → `42501`, cero filas escritas. **Pendiente de que 5.4 esté aplicada.**
 - [ ] 5.7 Verificación manual de falla parcial en lote: forzar que el tercer ítem viole una
       restricción → cero presupuestos del lote persistidos, incluidos los dos primeros válidos.
+      **Pendiente de que 5.4 esté aplicada.**
 - [ ] 5.8 `select proname, prosecdef from pg_proc where proname in ('crear_presupuesto_completo',
-      'crear_presupuestos_lote')` → `false` en ambas.
+      'crear_presupuestos_lote')` → `false` en ambas. **Pendiente de que 5.4 esté aplicada.**
 
 ## 6. `SupabasePresupuestoRepository.createLote` + Edge Function (TDD estricto — bloqueada por 5.4)
 
-- [ ] 6.1 **RED** — `createLote()`: una sola llamada al Edge Function/RPC, devuelve
+> Nota de apply: 6.1-6.5 se implementaron y testearon contra fakes/mocks (`vi.fn()` sobre
+> `functions.invoke`), sin depender de que 5.4 esté aplicada en la base real — mismo criterio que
+> el resto de la serie (el código de cliente/Edge Function es inerte hasta que las RPC existen de
+> verdad). La verificación manual real contra la base (5.5-5.8) sigue bloqueada por 5.4.
+
+- [x] 6.1 **RED** — `createLote()`: una sola llamada al Edge Function/RPC, devuelve
       `Presupuesto[]` mapeado con `parsePresupuestoApi`. **GREEN → REFACTOR.**
-- [ ] 6.2 **RED** — `createLote()` con fallo del servidor: rechaza con `Error` en castellano, sin
+- [x] 6.2 **RED** — `createLote()` con fallo del servidor: rechaza con `Error` en castellano, sin
       texto técnico, mismo contrato de errores que `create()`.
-- [ ] 6.3 Mock `PresupuestoRepository.createLote` en `frontend/src/shared/lib/mocks/` con la misma
-      semántica atómica (simulada) que la implementación real.
-- [ ] 6.4 `supabase/functions/presupuestos/index.ts`: reemplazar
+- [x] 6.3 Mock `PresupuestoRepository.createLote` en `frontend/src/shared/lib/mocks/` con la misma
+      semántica atómica (simulada) que la implementación real: valida el lote entero antes de
+      escribir nada, persiste con un único `writeStore()`.
+- [x] 6.4 `supabase/functions/presupuestos/index.ts`: reemplazar
       `.schema('facturacion').from('presupuesto').insert(...)` por invocación a
-      `crear_presupuesto_completo` / `crear_presupuestos_lote` (opción A de D2). `requirePermiso`
-      se mantiene como defensa en profundidad.
-- [ ] 6.5 `npx tsc -b --noEmit` + `oxlint` limpios.
+      `crear_presupuesto_completo` / `crear_presupuestos_lote` (opción A de D2) — un body `Array`
+      dispara el lote, un body `object` dispara el alta simple, mismo endpoint `POST /presupuestos`.
+      `requirePermiso` se mantiene como defensa en profundidad, sin cambios.
+- [x] 6.5 `npx tsc -b --noEmit` + `oxlint` limpios.
+
+**Verificación final de PR 2**: `tsc -b --noEmit` limpio. Suite completa corrida una vez: 244
+archivos / 2395 tests, 7 fallando en 6 archivos (`LoginPage`, `router`, `router.cuentas`,
+`PermisosMatrizFields`, `ChecklistEditor` ×2, `PacienteDocumentos`) — **ninguna en archivos de
+`presupuestos/`**, la corrida tardó 848s (vs. ~360-600s habitual), consistente con sobrecarga de
+máquina por procesos en paralelo durante la verificación, no regresión de esta PR. Aceptado como
+ruido ambiental por decisión explícita del usuario. `git diff --stat` de `PresupuestoForm.tsx` y
+`PresupuestoLineasEditor.tsx` vacío — PR 2 no toca la UI de bifurcación. **PR 2 lista para
+commit/PR.**
 
 **→ Fin de PR 2 (columna + RPC + Edge Function).**
 
