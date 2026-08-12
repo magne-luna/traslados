@@ -494,7 +494,13 @@ export function DocumentChecklist({
                   onClick={() => fileInputs.current[item.id]?.click()}
                   className={
                     esRing
-                      ? `${buttonClassName('secondary', 'sm')} disabled:cursor-not-allowed disabled:opacity-40`
+                      ? // pacientes-checklist-simplificacion (2026-08-11, feedback directo: "no quiero
+                        // que sea botón"): mismo tratamiento de link de texto plano que ya usan Ver/
+                        // Transferir/Quitar en `renderDocumentoRow` de este archivo — sin caja ni
+                        // borde, solo texto subrayado al hover. Solo el variant `ring` (Pacientes);
+                        // el variant `default` (Vehículos/Conductores/Facturación) no pidió este
+                        // cambio y sigue con su botón de siempre.
+                        'cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-primary underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:opacity-40'
                       : 'cursor-pointer rounded-sm border border-border-strong bg-surface px-md py-xs font-body text-xs font-semibold text-primary disabled:cursor-not-allowed disabled:opacity-40'
                   }
                 >

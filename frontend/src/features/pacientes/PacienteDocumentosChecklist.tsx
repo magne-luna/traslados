@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, FieldGroupHeading } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
+import { Card } from '../../design-system/layout';
 import { DocumentChecklist } from '../../shared/components/DocumentChecklist';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { useDocumentChecklist } from '../../shared/lib/documentos/useDocumentChecklist';
@@ -179,11 +180,14 @@ export function PacienteDocumentosChecklist({
   if (esActividad && label) {
     // documentos-transferencia-actividad (tasks.md §12, Checkpoint (b) VEREDICTO REVISADO
     // 2026-08-11, Checkpoint (g): exportar alcanza con permiso de lectura — el botón no se gatea
-    // con `puedeEscribir`). Solo se ofrece cuando el caller pasó `direccion`+`pacienteNombre`
-    // (siempre el caso real, `PacienteDocumentos.tsx`) — sin ellos no hay con qué identificar lo
-    // exportado. Vive AFUERA de `SeccionPlegable` (que no admite una acción propia en su
-    // encabezado) pero DENTRO del mismo `role="group"`, para que siga leyéndose como parte de
-    // este bloque.
+    // con `puedeEscribir`).
+    //
+    // pacientes-checklist-simplificacion (2026-08-11, feedback directo de la usuaria: "muchos
+    // botones, muchos cards, muchos colores distintos"): "Exportar" pasó al slot `accion` del
+    // encabezado de `SeccionPlegable` (antes flotaba en un `<div>` propio arriba de la tarjeta,
+    // desconectado visualmente de la sección a la que pertenecía). Solo se ofrece cuando el
+    // caller pasó `direccion`+`pacienteNombre` (siempre el caso real, `PacienteDocumentos.tsx`)
+    // — sin ellos no hay con qué identificar lo exportado.
     //
     // "Exportar" arma el `.zip` con los archivos reales (§12) — la acción que la usuaria pidió
     // para armar el legajo y mandarlo a la obra social. El botón "Ver resumen" (detalle
@@ -192,21 +196,18 @@ export function PacienteDocumentosChecklist({
     // (ZIP) es la única acción de exportación que queda.
     return (
       <div role="group" aria-label={label} className="flex flex-col gap-xs">
-        {direccion && pacienteNombre && (
-          <div className="flex flex-col items-end gap-xs">
-            <div className="flex justify-end gap-sm">
-              <Button variant="secondary" size="sm" disabled={exportandoZip} onClick={handleExportarZip}>
-                {exportandoZip ? 'Exportando…' : 'Exportar'}
-              </Button>
-            </div>
-            {errorExportacion && <Alert tone="danger">{errorExportacion}</Alert>}
-          </div>
-        )}
         <SeccionPlegable
           titulo={label}
           resumen={total > 0 ? `${cargados} de ${total} cargados` : undefined}
           abierta={abierta}
           onToggle={() => setAbierta((prev) => !prev)}
+          accion={
+            direccion && pacienteNombre ? (
+              <Button variant="secondary" size="sm" disabled={exportandoZip} onClick={handleExportarZip}>
+                {exportandoZip ? 'Exportando…' : 'Exportar'}
+              </Button>
+            ) : undefined
+          }
         >
           {sinConfigurar ? (
             <p className="rounded-sm border border-border bg-surface-soft px-md py-lg font-body text-sm text-muted">
@@ -217,14 +218,22 @@ export function PacienteDocumentosChecklist({
             checklist
           )}
         </SeccionPlegable>
+        {errorExportacion && <Alert tone="danger">{errorExportacion}</Alert>}
       </div>
     );
   }
 
+  // pacientes-checklist-simplificacion (2026-08-11): mismo tratamiento de tarjeta que los bloques
+  // de actividad (Card radius="sm" padding="lg" gap="sm") — antes "Documentación general" era el
+  // único bloque que quedaba plano, sin tarjeta, mientras el resto de la pantalla sí las usaba;
+  // esa inconsistencia era parte de lo que hacía sentir la pantalla con "muchos estilos de card
+  // distintos". Sin chevron/toggle a propósito: este bloque nunca colapsa.
   return (
-    <div role="group" aria-label={label}>
-      {label && <FieldGroupHeading>{label}</FieldGroupHeading>}
-      {checklist}
-    </div>
+    <Card radius="sm" padding="lg" gap="sm">
+      <div role="group" aria-label={label}>
+        {label && <FieldGroupHeading>{label}</FieldGroupHeading>}
+        {checklist}
+      </div>
+    </Card>
   );
 }
