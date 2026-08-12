@@ -190,18 +190,20 @@ commit/PR.**
       comentarios/literales, más `REVOKE`/`GRANT`/`SET search_path`/códigos de error/atomicidad del
       `FOR` y que la migración de columna es aditiva. 9/9 tests verdes. Única barrera automatizada
       contra la regresión de seguridad más grave de este change.
-- [ ] 5.4 **Aplicar las dos migraciones — la usuaria / Enzo.** Bloquea 5.5-5.8 y la Fase 8. **Fuera
-      de alcance del agente en esta PR** (governance: el agente escribe, no aplica).
+- [x] 5.4 **Aplicar las dos migraciones — Enzo.** Aplicadas 2026-08-12 vía `supabase db push
+      --linked` (las tres migraciones de la serie: catálogo, columna, RPC). Confirmado con
+      `supabase migration list --linked`: `local == remote` en las tres.
 - [ ] 5.5 Verificación manual con cuenta con `presupuestos: write`: alta simple vía
       `crear_presupuesto_completo` y alta en lote de 3 vía `crear_presupuestos_lote` → 1 y 3 filas
-      respectivamente, con auditoría. **Pendiente de que 5.4 esté aplicada.**
+      respectivamente, con auditoría. **Pendiente — requiere cuentas reales de `VITE_TEST_ACCOUNTS`.**
 - [ ] 5.6 Verificación manual con cuenta solo-lectura (`presupuestos: read`, sin `write`): ambas
-      RPC → `42501`, cero filas escritas. **Pendiente de que 5.4 esté aplicada.**
+      RPC → `42501`, cero filas escritas. **Pendiente — requiere cuentas reales.**
 - [ ] 5.7 Verificación manual de falla parcial en lote: forzar que el tercer ítem viole una
       restricción → cero presupuestos del lote persistidos, incluidos los dos primeros válidos.
-      **Pendiente de que 5.4 esté aplicada.**
-- [ ] 5.8 `select proname, prosecdef from pg_proc where proname in ('crear_presupuesto_completo',
-      'crear_presupuestos_lote')` → `false` en ambas. **Pendiente de que 5.4 esté aplicada.**
+      **Pendiente — requiere cuentas reales.**
+- [x] 5.8 `select proname, prosecdef from pg_proc where proname in ('crear_presupuesto_completo',
+      'crear_presupuestos_lote')` → **`false` en ambas, confirmado** 2026-08-12 vía
+      `supabase db query --linked`.
 
 ## 6. `SupabasePresupuestoRepository.createLote` + Edge Function (TDD estricto — bloqueada por 5.4)
 
@@ -297,11 +299,20 @@ verificación final, fuera del alcance de este batch de apply.**
 
 ## 10. Verificación final
 
-- [ ] 10.1 Suite completa en verde contra el baseline de 0.6, sin regresiones.
-- [ ] 10.2 `cd frontend && npx tsc -b --noEmit` y `oxlint` limpios en todo el diff.
+> **Pendiente, retomar en la próxima sesión.** Las 3 migraciones ya están aplicadas en producción
+> (5.4) y `SECURITY INVOKER` confirmado (5.8). Falta: suite completa de cierre (10.1, no corrida
+> por decisión explícita del usuario para poder suspender la máquina), y verificación manual con
+> cuentas reales (5.5-5.7, 10.3).
+
+- [ ] 10.1 Suite completa en verde contra el baseline de 0.6, sin regresiones. **Pendiente —
+      última corrida conocida (post-PR2, antes de aplicar migraciones): 244 archivos / 2395 tests,
+      7 fallando en módulos ajenos a este change (flakiness ambiental por carga de máquina).
+      Falta re-correr con el código de PR3 + migraciones aplicadas.**
+- [x] 10.2 `cd frontend && npx tsc -b --noEmit` y `oxlint` limpios en todo el diff. Confirmado
+      limpio tras cada PR (140decd, 1aec9d3, 2f8bedf).
 - [ ] 10.3 Verificación manual en navegador: paciente con prestaciones, obra social
       `por-prestacion` (alta en lote), obra social `general` (líneas + total), baja lógica de una
-      prestación con presupuesto asociado.
+      prestación con presupuesto asociado. **Pendiente — la hace el usuario.**
 - [ ] 10.4 Guardar en engram (`project: "traslados-app"`, `topic_key:
       "opsx/presupuesto-prestaciones/apply"`) cualquier discrepancia real encontrada en la Fase 1
       respecto de lo que `design.md` asume.
