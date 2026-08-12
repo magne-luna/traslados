@@ -76,6 +76,65 @@ describe('useHojasDeRuta', () => {
     expect(repository.list).toHaveBeenCalledTimes(2);
   });
 
+  // Regresión (fix "Sugerir orden no hace nada, se recarga la página", 2026-08-11): actualizar()
+  // y crear() reusaban cargar() para el refetch posterior, tildando `loading` también ahí. Eso
+  // desmontaba toda la vista de armado (incluida la tarjeta en modo "Editar") mientras el refetch
+  // seguía pendiente. Este test deja el refetch colgado a propósito (list() sin resolver) para
+  // observar `loading` en ese punto intermedio.
+  it('actualizar() no vuelve a poner loading en true mientras el refetch está pendiente', async () => {
+    let resolveList: (hojas: HojaDeRuta[]) => void = () => {};
+    const refetchPendiente = new Promise<HojaDeRuta[]>((resolve) => {
+      resolveList = resolve;
+    });
+    const repository = buildFakeRepository({
+      list: vi.fn().mockResolvedValueOnce([hojaDeHoy]).mockReturnValueOnce(refetchPendiente),
+    });
+    const { result } = renderHook(() => useHojasDeRuta(repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let actualizarPromise!: Promise<HojaDeRuta>;
+    act(() => {
+      actualizarPromise = result.current.actualizar('hoja-de-ruta-hoy', { notas: 'nota' });
+    });
+
+    await waitFor(() => expect(repository.update).toHaveBeenCalledTimes(1));
+    expect(result.current.loading).toBe(false);
+
+    await act(async () => {
+      resolveList([hojaDeHoy]);
+      await actualizarPromise;
+    });
+
+    expect(result.current.loading).toBe(false);
+  });
+
+  it('crear() no vuelve a poner loading en true mientras el refetch está pendiente', async () => {
+    let resolveList: (hojas: HojaDeRuta[]) => void = () => {};
+    const refetchPendiente = new Promise<HojaDeRuta[]>((resolve) => {
+      resolveList = resolve;
+    });
+    const repository = buildFakeRepository({
+      list: vi.fn().mockResolvedValueOnce([hojaDeHoy]).mockReturnValueOnce(refetchPendiente),
+    });
+    const { result } = renderHook(() => useHojasDeRuta(repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let crearPromise!: Promise<HojaDeRuta>;
+    act(() => {
+      crearPromise = result.current.crear({ fecha: '2026-08-01', franjaInicio: '08:00', franjaFin: '20:00', recorridos: [] });
+    });
+
+    await waitFor(() => expect(repository.create).toHaveBeenCalledTimes(1));
+    expect(result.current.loading).toBe(false);
+
+    await act(async () => {
+      resolveList([hojaDeHoy]);
+      await crearPromise;
+    });
+
+    expect(result.current.loading).toBe(false);
+  });
+
   it('crear() propaga el error del repository sin dejar loading colgado (borde)', async () => {
     const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('falló create')) });
     const { result } = renderHook(() => useHojasDeRuta(repository));

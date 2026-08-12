@@ -25,18 +25,29 @@ export function useHojasDeRuta(repository: HojaDeRutaRepository): UseHojasDeRuta
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await repository.list();
-      setHojasDeRuta(data);
-    } catch (err) {
-      setError(toErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [repository]);
+  // `silencioso` (fix "Sugerir orden no hace nada, se recarga la página", 2026-08-11): el
+  // refetch que sigue a crear()/actualizar() reusaba este mismo `cargar()`, tildando `loading`
+  // también ahí — HojaDeRutaPage reemplaza toda la vista de armado por "Cargando…" mientras
+  // `loading` es true, así que cada mutación (Sugerir orden, subir/bajar, quitar parada, crear
+  // recorrido) desmontaba todos los RecorridoCard, incluido el que estaba en modo "Editar", y los
+  // volvía a montar en modo lectura. El cambio sí se guardaba — solo que la pantalla te sacaba de
+  // edición antes de que lo vieras. La carga inicial (efecto de abajo) y `recargar()` (llamado
+  // manual del consumidor) siguen mostrando el loading de pantalla completa como corresponde.
+  const cargar = useCallback(
+    async (opts: { silencioso?: boolean } = {}) => {
+      if (!opts.silencioso) setLoading(true);
+      setError(null);
+      try {
+        const data = await repository.list();
+        setHojasDeRuta(data);
+      } catch (err) {
+        setError(toErrorMessage(err));
+      } finally {
+        if (!opts.silencioso) setLoading(false);
+      }
+    },
+    [repository],
+  );
 
   useEffect(() => {
     void cargar();
@@ -46,7 +57,7 @@ export function useHojasDeRuta(repository: HojaDeRutaRepository): UseHojasDeRuta
     async (data: NuevaHojaDeRuta) => {
       try {
         const creada = await repository.create(data);
-        await cargar();
+        await cargar({ silencioso: true });
         return creada;
       } catch (err) {
         setError(toErrorMessage(err));
@@ -60,7 +71,7 @@ export function useHojasDeRuta(repository: HojaDeRutaRepository): UseHojasDeRuta
     async (id: string, data: ActualizacionHojaDeRuta) => {
       try {
         const actualizada = await repository.update(id, data);
-        await cargar();
+        await cargar({ silencioso: true });
         return actualizada;
       } catch (err) {
         setError(toErrorMessage(err));
