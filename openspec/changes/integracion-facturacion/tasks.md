@@ -34,26 +34,27 @@
 
 ## 0. ⛔ Portón de governance — nada se ejecuta sin esto
 
-- [ ] 0.1 **Aprobación D3** — agregar la columna `facturacion.facturas.fecha_factura DATE` (nullable).
+- [x] 0.1 **Aprobación D3** — agregar la columna `facturacion.facturas.fecha_factura DATE` (nullable).
       Es la única modificación de schema del change y toca un dominio financiero.
-      **Respuesta de la usuaria requerida: sí / no.**
-- [ ] 0.2 **Aprobación D4** — crear las dos funciones RPC `SECURITY INVOKER`
+      **Respondido 2026-08-12: sí.**
+- [x] 0.2 **Aprobación D4** — crear las dos funciones RPC `SECURITY INVOKER`
       (`crear_factura_completa`, `actualizar_factura_completa`). Son código de servidor que escribe
       facturas, sin harness automatizado que las verifique.
-      **Respuesta de la usuaria requerida: sí / no.**
-- [ ] 0.3 **Aprobación D6** — incluir el swap de `CobroRepository` en este mismo change (el argumento
+      **Respondido 2026-08-12: sí.**
+- [x] 0.3 **Aprobación D6** — incluir el swap de `CobroRepository` en este mismo change (el argumento
       de por qué es obligatorio y no opcional está en `design.md` D6).
-      **Respuesta de la usuaria requerida: sí / no / change aparte.**
-- [ ] 0.4 **Aprobación D9 (CHECKPOINT de mayor riesgo funcional)** — dejar la validación de cupo
+      **Respondido 2026-08-12: sí, mismo change.**
+- [x] 0.4 **Aprobación D9 (CHECKPOINT de mayor riesgo funcional)** — dejar la validación de cupo
       (RN-FA-02) operando sobre fuente mixta: facturas reales × autorizaciones de fixture, con cartel
       visible. Opciones A / B / C en `design.md` D9.
-      **Respuesta de la usuaria requerida: A, B o C.**
-- [ ] 0.5 **Aprobación D10** — `CREATE INDEX` sin `CONCURRENTLY`, justificado en que las 6 tablas
+      **Respondido 2026-08-12: opción A (fuente mixta + cartel).**
+- [x] 0.5 **Aprobación D10** — `CREATE INDEX` sin `CONCURRENTLY`, justificado en que las 6 tablas
       tienen 0 filas hoy. Se aparta de una regla dura de `database-schema-design`.
-      **Respuesta de la usuaria requerida: sí / no.**
-- [ ] 0.6 **Coordinación con backend (Enzo), previa a escribir el `.sql` de D3.** Confirmar que
+      **Respondido 2026-08-12: sí (re-verificar conteo en 1.4 antes de aplicar).**
+- [x] 0.6 **Coordinación con backend (Enzo), previa a escribir el `.sql` de D3.** Confirmar que
       `fecha_factura` no está ya planeada con otro nombre. Es el aprendizaje directo de D12-revertida
       de `integracion-obra-social`: el schema real viene por delante del repo desde hace tres changes.
+      **Respondido 2026-08-12: confirmado, no existe columna equivalente.**
 - [ ] 0.7 Revisar `https://supabase.com/changelog.md` por cambios en `schema()`, embeds,
       `maybeSingle()` o `rpc()` desde la última verificación (2026-07-31, `@supabase/supabase-js`
       `^2.49.4`). Registrar hallazgos o "sin novedades".
