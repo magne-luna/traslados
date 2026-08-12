@@ -45,8 +45,12 @@ export interface ParadaRecorrido {
   coordenadaOrigen?: Coordenada;
   /**
    * Hora estimada del tramo (formato "HH:mm"), ej. "08:30". Opcional — un recorrido manual
-   * (RN-HR-03) puede no tener horario fijo. Puramente informativa: nunca determina `orden`, que
-   * el operador controla a mano o vía "Sugerir orden" (RN-HR-01).
+   * (RN-HR-03) puede no tener horario fijo. `orden` sigue siendo, en última instancia, un dato
+   * editable a mano por el operador (RN-HR-01) — pero desde el feedback de usuario que confirmó
+   * este criterio contra la hoja de ruta real en papel, "Sugerir orden" SÍ usa `horaEstimada`
+   * para agrupar por bloque horario antes de aplicar cercanía dentro de cada bloque (ver
+   * `sugerirOrdenPorCercania.ts`) — nunca sugiere una parada tardía antes que una temprana fuera
+   * de la ventana de agrupamiento.
    */
   horaEstimada?: string;
 }

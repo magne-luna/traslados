@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Conductor } from '../../shared/types/conductor';
 import type { Paciente } from '../../shared/types/paciente';
+import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { NuevoRecorridoForm } from './NuevoRecorridoForm';
@@ -50,6 +51,17 @@ function buildConductor(overrides: Partial<Conductor> = {}): Conductor {
     cuil: '20-1-1',
     estado: 'operando',
     asignaciones: [],
+    ...overrides,
+  };
+}
+
+function buildRecorrido(overrides: Partial<Recorrido> = {}): Recorrido {
+  return {
+    id: 'r-1',
+    vehiculoId: 'v-1',
+    conductorId: 'c-1',
+    manual: false,
+    paradas: [],
     ...overrides,
   };
 }
@@ -310,6 +322,213 @@ describe('NuevoRecorridoForm', () => {
   });
 });
 
+// Sugerencia de recorrido existente (feedback de usuario, RN-HR-01/RN-VE-01/RN-VE-02): antes de
+// forzar a crear un recorrido nuevo, si hay uno de hoy compatible (vehículo con lugar/accesorios,
+// horario dentro de la ventana de sugerirRecorridoExistente.ts) se ofrece sumarse a ese en vez de
+// arrancar de cero. Nunca automático — "Crear recorrido" sigue funcionando igual si se ignora.
+describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
+  function setupConCandidato() {
+    const vehiculoExistente = buildVehiculo({ id: 'v-existente', patente: 'EXI111' });
+    const recorridoExistente = buildRecorrido({
+      id: 'r-existente',
+      vehiculoId: 'v-existente',
+      conductorId: 'c-1',
+      paradas: [
+        {
+          id: 'parada-otro',
+          pacienteId: 'otro-paciente',
+          tramo: 'ida',
+          direccionOrigenId: 'x',
+          direccionDestinoId: 'y',
+          orden: 0,
+          horaEstimada: '09:00',
+        },
+      ],
+    });
+    return { vehiculoExistente, recorridoExistente };
+  }
+
+  it('sin recorridos hoy, no muestra ninguna sugerencia', async () => {
+    const user = userEvent.setup();
+    render(
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo()]}
+        conductores={[buildConductor()]}
+        pacientes={[buildPaciente()]}
+        recorridos={[]}
+        onCrear={vi.fn()}
+        onAgregarAExistente={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await user.type(screen.getByLabelText(/hora/i), '09:10');
+
+    expect(screen.queryByRole('button', { name: /agregar a este recorrido/i })).not.toBeInTheDocument();
+  });
+
+  it('sin hora estimada cargada, no muestra ninguna sugerencia (sin señal temporal)', async () => {
+    const user = userEvent.setup();
+    const { recorridoExistente, vehiculoExistente } = setupConCandidato();
+
+    render(
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo(), vehiculoExistente]}
+        conductores={[buildConductor()]}
+        pacientes={[buildPaciente()]}
+        recorridos={[recorridoExistente]}
+        onCrear={vi.fn()}
+        onAgregarAExistente={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+
+    expect(screen.queryByRole('button', { name: /agregar a este recorrido/i })).not.toBeInTheDocument();
+  });
+
+  it('con un recorrido compatible dentro de la ventana horaria, muestra la sugerencia con vehículo y ocupación', async () => {
+    const user = userEvent.setup();
+    const { recorridoExistente, vehiculoExistente } = setupConCandidato();
+
+    render(
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo(), vehiculoExistente]}
+        conductores={[buildConductor()]}
+        pacientes={[buildPaciente()]}
+        recorridos={[recorridoExistente]}
+        onCrear={vi.fn()}
+        onAgregarAExistente={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await user.type(screen.getByLabelText(/hora/i), '09:10');
+
+    // /exi111/i solo por getByText matchea también el <option> del selector de Vehículo (mismo
+    // vehículo, ambos candidatos legítimos) — se busca el texto de ocupación, único del cartel.
+    // "1/4" porque el recorrido existente ya tiene 1 parada cargada (otro-paciente, setupConCandidato).
+    expect(screen.getByText(/1\/4 pasajeros/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /agregar a este recorrido/i })).toBeInTheDocument();
+  });
+
+  it('al hacer click en "Agregar a este recorrido" llama a onAgregarAExistente con la parada armada y NO llama a onCrear', async () => {
+    const user = userEvent.setup();
+    const { recorridoExistente, vehiculoExistente } = setupConCandidato();
+    const onCrear = vi.fn();
+    const onAgregarAExistente = vi.fn();
+
+    render(
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo(), vehiculoExistente]}
+        conductores={[buildConductor()]}
+        pacientes={[buildPaciente()]}
+        recorridos={[recorridoExistente]}
+        onCrear={onCrear}
+        onAgregarAExistente={onAgregarAExistente}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await user.type(screen.getByLabelText(/hora/i), '09:10');
+    await user.click(screen.getByRole('button', { name: /agregar a este recorrido/i }));
+
+    expect(onAgregarAExistente).toHaveBeenCalledWith('r-existente', {
+      pacienteId: 'p-1',
+      tramo: 'ida',
+      direccionOrigenId: 'dir-1',
+      direccionDestinoId: 'dir-1',
+      orden: 0,
+      horaEstimada: '09:10',
+    });
+    expect(onCrear).not.toHaveBeenCalled();
+  });
+
+  it('usa la dirección de origen/destino ya elegida en el formulario, igual que "Crear recorrido"', async () => {
+    const user = userEvent.setup();
+    const { recorridoExistente, vehiculoExistente } = setupConCandidato();
+    const onAgregarAExistente = vi.fn();
+    const paciente = buildPaciente({
+      direcciones: [
+        { id: 'dir-ida', tipo: 'domicilio', calle: 'Calle A', localidad: 'CABA' },
+        { id: 'dir-vuelta', tipo: 'escuela', calle: 'Calle B', localidad: 'CABA' },
+      ],
+    });
+
+    render(
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo(), vehiculoExistente]}
+        conductores={[buildConductor()]}
+        pacientes={[paciente]}
+        recorridos={[recorridoExistente]}
+        onCrear={vi.fn()}
+        onAgregarAExistente={onAgregarAExistente}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await user.type(screen.getByLabelText(/hora/i), '09:10');
+    await user.selectOptions(screen.getByLabelText(/dirección de origen/i), 'dir-ida');
+    await user.selectOptions(screen.getByLabelText(/dirección de destino/i), 'dir-vuelta');
+    await user.click(screen.getByRole('button', { name: /agregar a este recorrido/i }));
+
+    expect(onAgregarAExistente).toHaveBeenCalledWith(
+      'r-existente',
+      expect.objectContaining({ direccionOrigenId: 'dir-ida', direccionDestinoId: 'dir-vuelta' }),
+    );
+  });
+
+  it('ignorar la sugerencia y usar "Crear recorrido" sigue funcionando igual, sin llamar a onAgregarAExistente', async () => {
+    const user = userEvent.setup();
+    const { recorridoExistente, vehiculoExistente } = setupConCandidato();
+    const onCrear = vi.fn();
+    const onAgregarAExistente = vi.fn();
+
+    render(
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo(), vehiculoExistente]}
+        conductores={[buildConductor()]}
+        pacientes={[buildPaciente()]}
+        recorridos={[recorridoExistente]}
+        onCrear={onCrear}
+        onAgregarAExistente={onAgregarAExistente}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await user.type(screen.getByLabelText(/hora/i), '09:10');
+    await user.click(screen.getByRole('button', { name: /^crear recorrido$/i }));
+
+    expect(onCrear).toHaveBeenCalled();
+    expect(onAgregarAExistente).not.toHaveBeenCalled();
+  });
+
+  it('si la hora elegida queda fuera de la ventana de todos los candidatos, la sugerencia desaparece', async () => {
+    const user = userEvent.setup();
+    const { recorridoExistente, vehiculoExistente } = setupConCandidato();
+
+    render(
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo(), vehiculoExistente]}
+        conductores={[buildConductor()]}
+        pacientes={[buildPaciente()]}
+        recorridos={[recorridoExistente]}
+        onCrear={vi.fn()}
+        onAgregarAExistente={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await user.type(screen.getByLabelText(/hora/i), '09:10');
+    expect(screen.getByRole('button', { name: /agregar a este recorrido/i })).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/hora/i));
+    await user.type(screen.getByLabelText(/hora/i), '14:00');
+
+    expect(screen.queryByRole('button', { name: /agregar a este recorrido/i })).not.toBeInTheDocument();
+  });
+});
+
 // Gateo de escritura (gateo-hojas-de-ruta, design.md D4/D9, tasks.md 3.1/3.2): una sola
 // inserción de CamposSoloLectura cubre SelectorPaciente + PacienteTramoCampos + los selects de
 // vehículo/conductor + el checkbox "manual" + la textarea de notas; "Crear recorrido" queda
@@ -368,5 +587,37 @@ describe('NuevoRecorridoForm — gateo de escritura', () => {
     );
 
     expect(screen.getByRole('button', { name: /crear recorrido/i })).toBeEnabled();
+  });
+
+  // "Agregar a este recorrido" vive dentro del mismo <CamposSoloLectura> que el resto del
+  // formulario (design.md D4/D9) — sin permiso de escritura, el fieldset deshabilitado bloquea
+  // llegar a elegir paciente+hora, así que el botón ni siquiera renderiza. Mismo caso que
+  // PacienteTramoCampos más arriba: cobertura estructural por el fieldset, no una aserción
+  // redundante por campo. Solo se prueba el caso CON permiso, donde sí se puede interactuar.
+  it('con permiso de escritura: "Agregar a este recorrido" respeta requiereEscritura (está habilitado)', async () => {
+    const user = userEvent.setup();
+    const vehiculoExistente = buildVehiculo({ id: 'v-existente', patente: 'EXI111' });
+    const recorridoExistente = buildRecorrido({
+      id: 'r-existente',
+      vehiculoId: 'v-existente',
+      paradas: [{ id: 'p-x', pacienteId: 'otro', tramo: 'ida', direccionOrigenId: 'x', direccionDestinoId: 'y', orden: 0, horaEstimada: '09:00' }],
+    });
+
+    renderConPermiso(
+      true,
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo(), vehiculoExistente]}
+        conductores={[buildConductor()]}
+        pacientes={[paciente]}
+        recorridos={[recorridoExistente]}
+        onCrear={vi.fn()}
+        onAgregarAExistente={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), paciente.id);
+    await user.type(screen.getByLabelText(/hora/i), '09:10');
+
+    expect(screen.getByRole('button', { name: /agregar a este recorrido/i })).toBeEnabled();
   });
 });

@@ -7,7 +7,7 @@ import { ordenarRecorridosPorHorario } from '../../shared/lib/hojas-de-ruta/orde
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { VehiculoRepository } from '../../shared/lib/vehiculos/VehiculoRepository';
-import type { Recorrido } from '../../shared/types/hojaDeRuta';
+import type { NuevaParadaRecorrido, ParadaRecorrido, Recorrido } from '../../shared/types/hojaDeRuta';
 import { useConductores } from '../conductores/useConductores';
 import { usePacientes } from '../pacientes/usePacientes';
 import { useVehiculos } from '../vehiculos/useVehiculos';
@@ -24,10 +24,11 @@ interface HojaDeRutaPageProps {
   pacienteRepository: PacienteRepository;
   vehiculoRepository: VehiculoRepository;
   conductorRepository: ConductorRepository;
-  /** La hoja que se muestra proviene del repository real (design.md Checkpoint 2, opción A): su
-   * mapeo nunca persiste coordenadas, así que el mapa de cada recorrido queda vacío por diseño.
-   * Lo fija el composition root (`HojaDeRutaRoute.tsx`), el único que sabe qué repository se
-   * inyecta. Ver `RecorridoMapa.desdeRepositoryReal`. */
+  /** La hoja que se muestra proviene del repository real: si un recorrido no tiene coordenadas
+   * es porque su dirección todavía no se geocodificó (o el geocoding falló al guardarla) — el
+   * geocoding real ya está implementado (RF-701), no es una limitación de diseño. Lo fija el
+   * composition root (`HojaDeRutaRoute.tsx`), el único que sabe qué repository se inyecta. Ver
+   * `RecorridoMapa.desdeRepositoryReal`. */
   desdeRepositoryReal?: boolean;
 }
 
@@ -38,6 +39,25 @@ const FRANJA_FIN_DEFAULT = '20:00';
 
 function hoyIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+const MS_POR_DIA = 24 * 60 * 60 * 1000;
+
+function isoConOffset(dias: number): string {
+  return new Date(Date.now() + dias * MS_POR_DIA).toISOString().slice(0, 10);
+}
+
+// Atajos de fecha (fix "elegir fecha incómodo", 2026-08-11): antes solo había un <input
+// type="date"> — para el caso de uso más común (día anterior, hoy, mañana, pasado) obligaba a
+// abrir el calendario nativo y navegar. Los pills resuelven ese caso con un click; "Personalizado"
+// sigue siendo el <input type="date"> de siempre para cualquier otra fecha.
+function atajosFecha(): { label: string; valor: string }[] {
+  return [
+    { label: 'Ayer', valor: isoConOffset(-1) },
+    { label: 'Hoy', valor: isoConOffset(0) },
+    { label: 'Mañana', valor: isoConOffset(1) },
+    { label: 'Pasado', valor: isoConOffset(2) },
+  ];
 }
 
 // Pantalla de armado de la hoja de ruta del día (tasks.md 5.1-5.4, 7.5, 8.1, 9.1, US-700):
@@ -55,6 +75,8 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
 
   const [fecha, setFecha] = useState(hoyIso);
   const [vista, setVista] = useState<Vista>('armado');
+  const shortcuts = atajosFecha();
+  const esFechaPersonalizada = !shortcuts.some((atajo) => atajo.valor === fecha);
 
   const hojaDelDia = hojasDeRuta.find((h) => h.fecha === fecha) ?? null;
 
@@ -96,6 +118,18 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
     await actualizar(hojaDelDia.id, { recorridos });
   }
 
+  // Sugerencia de recorrido existente (feedback de usuario, NuevoRecorridoForm.tsx, RN-HR-01):
+  // mismo molde que handleReasignar — agregarParada ya renumera `orden` del recorrido destino,
+  // así que el `orden` placeholder que arma el form se descarta acá sin problema.
+  async function handleAgregarAExistente(recorridoId: string, parada: NuevaParadaRecorrido) {
+    if (!hojaDelDia) return;
+    const nuevaParada: ParadaRecorrido = { ...parada, id: generateId('parada') };
+    const recorridos = hojaDelDia.recorridos.map((r) =>
+      r.id === recorridoId ? { ...r, paradas: agregarParada(r.paradas, nuevaParada) } : r,
+    );
+    await actualizar(hojaDelDia.id, { recorridos });
+  }
+
   return (
     <div className="flex flex-col gap-lg py-xxl px-xl">
       <h1 className="m-0 font-heading text-[21px] font-bold text-ink">Hoja de ruta del día</h1>
@@ -118,15 +152,31 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
           <label htmlFor={`${formId}-fecha`} className="font-body text-[12px] font-semibold text-muted">
             Fecha
           </label>
-          <div className="flex items-center gap-xs rounded-sm border border-border-strong bg-surface px-md py-2 text-muted">
-            <CalendarIcon />
-            <input
-              id={`${formId}-fecha`}
-              type="date"
-              value={fecha}
-              onChange={(event) => setFecha(event.target.value)}
-              className="border-none bg-transparent p-0 font-body text-[13px] text-text focus:outline-none"
-            />
+          <div className="flex flex-wrap items-center gap-xs">
+            {shortcuts.map((atajo) => (
+              <Button
+                key={atajo.label}
+                variant={fecha === atajo.valor ? 'primary' : 'secondary'}
+                size="sm"
+                onClick={() => setFecha(atajo.valor)}
+              >
+                {atajo.label}
+              </Button>
+            ))}
+            <div
+              className={`flex items-center gap-xs rounded-sm border px-md py-2 text-muted ${
+                esFechaPersonalizada ? 'border-primary text-primary' : 'border-border-strong bg-surface'
+              }`}
+            >
+              <CalendarIcon />
+              <input
+                id={`${formId}-fecha`}
+                type="date"
+                value={fecha}
+                onChange={(event) => setFecha(event.target.value)}
+                className="border-none bg-transparent p-0 font-body text-[13px] text-text focus:outline-none"
+              />
+            </div>
           </div>
         </div>
         {hojaDelDia && (
@@ -198,7 +248,9 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
               vehiculos={vehiculos}
               conductores={conductores}
               pacientes={pacientes}
+              recorridos={hojaDelDia.recorridos}
               onCrear={handleCrearRecorrido}
+              onAgregarAExistente={handleAgregarAExistente}
             />
           </div>
 

@@ -50,7 +50,7 @@ Cada regla tiene un código único `RN-{DOMINIO}-{NN}` para trazabilidad. Extra�
 
 ## Dominio: Hojas de ruta (RN-HR)
 
-- **RN-HR-01**: El sistema no arma la ruta automáticamente; su función es ayudar a ordenar los pasajeros de cada recorrido (sugerencia editable por geolocalización), dejando siempre la decisión y edición manual a cargo del operador.
+- **RN-HR-01**: El sistema no arma la ruta automáticamente; su función es ayudar a ordenar los pasajeros de cada recorrido (sugerencia editable por geolocalización), dejando siempre la decisión y edición manual a cargo del operador. La sugerencia agrupa primero por bloque horario (paradas cuyo horario estimado cae dentro de una ventana configurable — default 60 min, confirmado contra la hoja de ruta real en papel) y dentro de cada bloque ordena por cercanía; nunca propone una parada tardía antes que una temprana de un bloque distinto.
 - **RN-HR-02**: La dirección de ida y la de vuelta se modelan como datos independientes por tramo (origen y destino); no se asume que la vuelta es el trayecto inverso a la ida.
 - **RN-HR-03**: Se admite el armado de recorridos manuales sin frecuencia fija ni turno asignado (ej. traslados puntuales a hospitales), sin que se generen automáticamente desde una agenda.
 

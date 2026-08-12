@@ -5,10 +5,13 @@ import type { ParadaRecorrido } from '../../shared/types/hojaDeRuta';
 interface RecorridoMapaProps {
   paradas: ParadaRecorrido[];
   nombrePaciente: (pacienteId: string) => string;
-  /** Hoja proveniente del repository real (design.md Checkpoint 2, opción A): el mapeo de
-   * SupabaseHojaDeRutaRepository siempre resuelve `coordenadaOrigen` como `undefined`, así que la
-   * ausencia de coordenadas es por diseño (geocoding real fuera de scope) y se explica distinto
-   * del estado vacío genérico — para que no se lea como un bug. Lo propaga el composition root. */
+  /** Hoja proveniente del repository real: si ninguna parada tiene `coordenadaOrigen` acá, la
+   * causa más probable es que la dirección del paciente se cargó antes de que existiera el
+   * geocoding automático (change hojas-de-ruta-geocoding, RF-701) o que el geocoding falló al
+   * guardarla — el geocoding real YA está implementado (ver
+   * `SupabasePacienteRepository.geocodificarDirecciones`), no es una limitación de diseño. Se
+   * explica distinto del estado vacío genérico para que el operador sepa que editar la dirección
+   * lo resuelve. Lo propaga el composition root. */
   desdeRepositoryReal?: boolean;
 }
 
@@ -37,15 +40,17 @@ export function RecorridoMapa({ paradas, nombrePaciente, desdeRepositoryReal = f
 
   if (paradasConCoordenada.length === 0) {
     if (desdeRepositoryReal) {
-      // Checkpoint 2 (design.md, opción A): el repository real no persiste coordenadas, el mapa
-      // de una hoja real queda vacío por decisión y hay que explicarlo — no es el estado vacío
-      // genérico ni un bug. Todo el detalle queda en el cartel, visible sin leer la KB.
+      // El geocoding real ya está implementado (change hojas-de-ruta-geocoding, RF-701) — si acá
+      // no hay coordenadas, es porque la dirección todavía no se geocodificó (se cargó antes de
+      // este change) o el geocoding falló al guardarla, nunca porque esté fuera de scope. Se
+      // explica distinto del estado vacío genérico para que el operador sepa que editar la
+      // dirección del paciente lo resuelve.
       return (
         <AvisoModeloDatos>
-          El mapa queda vacío por diseño: las coordenadas de las paradas no se persisten todavía —
-          el geocoding real de las direcciones queda fuera de scope de este change (design.md
-          Checkpoint 2, opción A). No es un error; con datos de prueba (fixture) el mapa muestra
-          coordenadas simuladas.
+          El mapa está vacío: ninguna parada tiene coordenadas geocodificadas todavía. Puede ser
+          que la dirección del paciente se haya cargado antes de que existiera el geocoding
+          automático, o que el geocoding haya fallado al guardarla. Editá la dirección (cambiando
+          calle o localidad) y volvé a guardar para que se geocodifique.
         </AvisoModeloDatos>
       );
     }

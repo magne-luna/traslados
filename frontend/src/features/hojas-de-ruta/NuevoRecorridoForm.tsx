@@ -1,10 +1,12 @@
 import { useId, useState } from 'react';
 import { Button, CamposSoloLectura } from '../../design-system/components';
+import { Alert } from '../../design-system/feedback';
 import { Label, Textarea } from '../../design-system/form';
 import { conductoresDisponibles, vehiculosDisponibles } from '../../shared/lib/hojas-de-ruta/disponibilidad';
+import { sugerirRecorridoExistente } from '../../shared/lib/hojas-de-ruta/sugerirRecorridoExistente';
 import { vehiculosCompatibles } from '../../shared/lib/hojas-de-ruta/vehiculosCompatibles';
 import type { Conductor } from '../../shared/types/conductor';
-import type { NuevaParadaRecorrido, Tramo } from '../../shared/types/hojaDeRuta';
+import type { NuevaParadaRecorrido, Recorrido, Tramo } from '../../shared/types/hojaDeRuta';
 import type { Paciente } from '../../shared/types/paciente';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { ACCESORIO_MOVILIDAD_LABELS } from '../vehiculos/accesorioMovilidadOptions';
@@ -25,7 +27,13 @@ interface NuevoRecorridoFormProps {
   vehiculos: Vehiculo[];
   conductores: Conductor[];
   pacientes: Paciente[];
+  /** Recorridos de HOY (feedback de usuario, RN-HR-01) — habilita sugerir sumarse a uno
+   *  compatible en vez de crear uno nuevo desde cero. Sin recorridos que ofrecer todavía. */
+  recorridos?: Recorrido[];
   onCrear: (data: NuevoRecorridoPayload) => void;
+  /** Sumar el paciente elegido a un recorrido EXISTENTE en vez de crear uno nuevo — nunca
+   *  automático, el operador decide si usa la sugerencia (ver `sugerirRecorridoExistente.ts`). */
+  onAgregarAExistente?: (recorridoId: string, parada: NuevaParadaRecorrido) => void;
 }
 
 const NOTAS_MAX_LENGTH = 500;
@@ -54,7 +62,14 @@ function opcionVehiculo(vehiculo: Vehiculo): string {
 // vehículo elegido) y limita el selector de vehículo a los que le entran (capacidad + RN-VE-01).
 // El paciente es opcional — se puede crear el recorrido vacío y sumar pasajeros después vía
 // AsignacionPanel, igual que antes.
-export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear }: NuevoRecorridoFormProps) {
+export function NuevoRecorridoForm({
+  vehiculos,
+  conductores,
+  pacientes,
+  recorridos = [],
+  onCrear,
+  onAgregarAExistente,
+}: NuevoRecorridoFormProps) {
   const formId = useId();
   const disponibles = vehiculosDisponibles(vehiculos);
   const conductoresOperando = conductoresDisponibles(conductores);
@@ -74,6 +89,12 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
   const [notas, setNotas] = useState('');
 
   const vehiculoSeleccionado = candidatos.find((v) => v.id === vehiculoId);
+  // Sugerencia de recorrido existente (feedback de usuario, RN-HR-01): se recalcula en cada
+  // render junto con `candidatos` — misma estrategia sin useMemo, es barato sobre arrays ya
+  // cargados. Sin paciente elegido no hay nada para sugerir.
+  const candidatosExistentes = pacienteSeleccionado
+    ? sugerirRecorridoExistente(recorridos, vehiculos, pacienteSeleccionado, tramo, horaEstimada)
+    : [];
   // "Crear recorrido" vive debajo de Notas (feedback de usuario) pero mantiene el mismo gateo que
   // antes tenía en la fila de vehículo/conductor: sin vehículo compatible para el paciente
   // elegido, no se puede enviar.
@@ -115,6 +136,18 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
       : [];
 
     onCrear({ vehiculoId, conductorId, manual, paradas, notas: notas || undefined });
+  }
+
+  function handleAgregarAExistente(recorridoId: string) {
+    if (!pacienteSeleccionado) return;
+    onAgregarAExistente?.(recorridoId, {
+      pacienteId: pacienteSeleccionado.id,
+      tramo,
+      direccionOrigenId: direccionOrigenId || (pacienteSeleccionado.direcciones[0]?.id ?? ''),
+      direccionDestinoId: direccionDestinoId || (pacienteSeleccionado.direcciones[0]?.id ?? ''),
+      orden: 0,
+      horaEstimada: horaEstimada || undefined,
+    });
   }
 
   return (
@@ -163,6 +196,33 @@ export function NuevoRecorridoForm({ vehiculos, conductores, pacientes, onCrear 
           />
         )}
       </div>
+
+      {/* Sugerencia de recorrido existente (feedback de usuario, RN-HR-01/RN-VE-01/RN-VE-02):
+          nunca automática — el operador puede ignorarla y seguir completando el formulario para
+          crear un recorrido nuevo, sin fricción. Antes de vehículo/conductor/notas para que se
+          vea la opción de saltarse el resto del formulario antes de completarlo. */}
+      {pacienteSeleccionado && candidatosExistentes.length > 0 && (
+        <Alert tone="info" title="Ya hay un recorrido compatible hoy">
+          <div className="flex flex-col gap-xs">
+            <p className="m-0">Podés sumarlo a un recorrido existente en vez de crear uno nuevo.</p>
+            {candidatosExistentes.map(({ recorrido, vehiculo }) => {
+              const conductorDelRecorrido = conductores.find((c) => c.id === recorrido.conductorId);
+              return (
+                <div key={recorrido.id} className="flex flex-wrap items-center justify-between gap-sm">
+                  <span className="font-body text-[12px]">
+                    {`${vehiculo.patente} · ${vehiculo.modelo} — ${
+                      conductorDelRecorrido ? `${conductorDelRecorrido.apellido}, ${conductorDelRecorrido.nombre}` : 'sin conductor'
+                    } · ${recorrido.paradas.length}/${vehiculo.capacidad} pasajeros`}
+                  </span>
+                  <Button variant="secondary" size="sm" requiereEscritura onClick={() => handleAgregarAExistente(recorrido.id)}>
+                    Agregar a este recorrido
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </Alert>
+      )}
 
       {pacienteSeleccionado && <RequisitosPaciente paciente={pacienteSeleccionado} vehiculo={vehiculoSeleccionado} />}
 

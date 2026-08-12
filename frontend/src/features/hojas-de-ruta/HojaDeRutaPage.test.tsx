@@ -70,7 +70,7 @@ function buildFakeConductorRepo(): ConductorRepository {
 }
 
 function buildFakePacienteRepo(): PacienteRepository {
-  return { list: vi.fn().mockResolvedValue([]), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
+  return { list: vi.fn().mockResolvedValue([]), listPage: vi.fn(), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
 }
 
 function renderPage(hojaRepo: HojaDeRutaRepository, desdeRepositoryReal = false) {
@@ -118,11 +118,12 @@ describe('HojaDeRutaPage', () => {
     expect(notas.some((texto) => /conductorId/.test(texto) && /Traslados-Modelo-Datos/.test(texto))).toBe(true);
   });
 
-  // tasks.md 5.2, spec hoja-de-ruta-avisos-modelo-datos (Checkpoint 2 opción A): con la hoja que
-  // viene del repository real (coordenadas siempre `undefined`), el mapa queda vacío por diseño y
-  // se explica distinto del estado vacío genérico — la cadena HojaDeRutaPage → RecorridoCard →
-  // RecorridoMapa propaga `desdeRepositoryReal`.
-  it('explica por diseño el mapa vacío de un recorrido proveniente del repository real (Checkpoint 2)', async () => {
+  // tasks.md 5.2, spec hoja-de-ruta-avisos-modelo-datos: el geocoding real ya está implementado
+  // (RF-701) — si la hoja del repository real no tiene coordenadas es porque la dirección no se
+  // geocodificó todavía (o falló), no una limitación de diseño. Se explica distinto del estado
+  // vacío genérico — la cadena HojaDeRutaPage → RecorridoCard → RecorridoMapa propaga
+  // `desdeRepositoryReal`.
+  it('explica que falta geocodificar cuando un recorrido viene del repository real sin coordenadas', async () => {
     const hoja: HojaDeRuta = {
       id: 'hoja-1',
       fecha: HOY,
@@ -140,7 +141,7 @@ describe('HojaDeRutaPage', () => {
     };
     renderPageConPermiso(true, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hoja]) }), true);
 
-    expect(await screen.findByText(/no se persisten todavía/i)).toBeInTheDocument();
+    expect(await screen.findByText(/editá la dirección/i)).toBeInTheDocument();
   });
 
   it('muestra un estado vacío explícito cuando el día no tiene hoja de ruta cargada', async () => {
