@@ -79,6 +79,36 @@ describe('usePresupuestos', () => {
     expect(repository.list).toHaveBeenCalledTimes(2);
   });
 
+  // crearLote (presupuesto-prestaciones, tasks.md Fase 6/8, design.md D2/D4): usada por la rama
+  // por-prestacion de PresupuestoForm vía PresupuestoDetail.
+  it('crearLote() llama a repository.createLote() y recarga la lista', async () => {
+    const repository = buildFakeRepository();
+    const { result } = renderHook(() => usePresupuestos(repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.crearLote([
+        { pacienteId: 'paciente-facundo', obraSocialId: 'osecac', monto: 50_000, fechaEmision: '2026-07-01', prestacionId: 'prestacion-kine' },
+      ]);
+    });
+
+    expect(repository.createLote).toHaveBeenCalledTimes(1);
+    expect(repository.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('crearLote() propaga el error del repository sin dejar loading colgado', async () => {
+    const repository = buildFakeRepository({ createLote: vi.fn().mockRejectedValue(new Error('lote inválido')) });
+    const { result } = renderHook(() => usePresupuestos(repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await expect(result.current.crearLote([])).rejects.toThrow('lote inválido');
+    });
+
+    expect(result.current.error).toBe('lote inválido');
+    expect(result.current.loading).toBe(false);
+  });
+
   it('crear() propaga el error del repository sin dejar loading colgado', async () => {
     const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('paciente inválido')) });
     const { result } = renderHook(() => usePresupuestos(repository));

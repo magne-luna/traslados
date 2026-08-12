@@ -237,36 +237,55 @@ commit/PR.**
 
 ## 7. `PresupuestoLineasEditor.tsx` (TDD estricto — nadie lo importa hasta la Fase 8)
 
-- [ ] 7.1 **RED** — componente controlado puro (mismo espíritu que `AsistenciasEditor.tsx`):
+- [x] 7.1 **RED** — componente controlado puro (mismo espíritu que `AsistenciasEditor.tsx`):
       agregar/quitar línea `{ prestacionId, monto }`, total en vivo. **GREEN → REFACTOR.**
-- [ ] 7.2 **RED** — total con decimales (`NUMERIC(10,2)`), línea sin monto no rompe el cálculo.
-- [ ] 7.3 **RED** — sin red: el componente no invoca ningún repository.
-- [ ] 7.4 `npx tsc -b --noEmit` + `oxlint` limpios.
+- [x] 7.2 **RED** — total con decimales (`NUMERIC(10,2)`), línea sin monto no rompe el cálculo.
+- [x] 7.3 **RED** — sin red: el componente no invoca ningún repository (test dedicado con spy de
+      `fetch`, además de que el componente no recibe ningún repository por prop).
+- [x] 7.4 `npx tsc -b --noEmit` + `oxlint` limpios.
 
 ## 8. Bifurcación de `PresupuestoForm.tsx` — el swap real (⚠️ un solo commit — bloqueada por 4.4, 6.4, 7.4)
 
-- [ ] 8.1 **RED** — `PresupuestoForm.test.tsx`: sin obra social elegida → campo `monto` simple
+- [x] 8.1 **RED** — `PresupuestoForm.test.tsx`: sin obra social elegida → campo `monto` simple
       actual (comportamiento sin cambios).
-- [ ] 8.2 **RED** — obra social `general` → renderiza `PresupuestoLineasEditor`; submit usa
+- [x] 8.2 **RED** — obra social `general` → renderiza `PresupuestoLineasEditor`; submit usa
       `create()` con `monto = suma(líneas)` y `prestacionId` ausente.
-- [ ] 8.3 **RED** — obra social `general` sin líneas cargadas → cae al campo `monto` simple.
-- [ ] 8.4 **RED** — obra social `por-prestacion` → multi-select de prestaciones activas del
+- [x] 8.3 **RED** — obra social `general` sin líneas cargadas → cae al campo `monto` simple.
+- [x] 8.4 **RED** — obra social `por-prestacion` → multi-select de prestaciones activas del
       paciente + input de monto por cada una; submit usa `createLote()`.
-- [ ] 8.5 **RED** — obra social `por-prestacion`, paciente sin prestaciones activas → empty state
+- [x] 8.5 **RED** — obra social `por-prestacion`, paciente sin prestaciones activas → empty state
       con enlace a la ficha del paciente, submit bloqueado.
-- [ ] 8.6 **RED** — cambiar de paciente u obra social con datos cargados → reset del bloque de
+- [x] 8.6 **RED** — cambiar de paciente u obra social con datos cargados → reset del bloque de
       montos con aviso explícito.
-- [ ] 8.7 `validatePresupuestoForm.ts`: monto total > 0 en `general`; al menos una prestación con
-      monto > 0 en `por-prestacion`. **RED → GREEN → REFACTOR.**
-- [ ] 8.8 `PresupuestoDetail.tsx`: mostrar la prestación asociada cuando `prestacionId` está
-      presente; sin cambios cuando está ausente. Incluir `AvisoModeloDatos` (D5) referenciando la
-      discrepancia nueva, sin editar la #13.
-- [ ] 8.9 Verificar que la edición (`PATCH`) de un presupuesto existente sigue editando `monto` y
-      `prestacionId` uno a uno, sin bifurcar (D9).
-- [ ] 8.10 Correr la suite completa y comparar contra el baseline de 0.6. Cero regresiones.
-- [ ] 8.11 `npx tsc -b --noEmit` + `oxlint` limpios.
+- [x] 8.7 `validatePresupuestoForm.ts`: monto total > 0 en `general`; al menos una prestación con
+      monto > 0 en `por-prestacion`. **RED → GREEN → REFACTOR.** Implementado como una función
+      nueva y aditiva, `validatePresupuestoLoteForm` — `validatePresupuestoForm` (rama
+      `simple`/`general`) no cambia de firma.
+- [x] 8.8 `PresupuestoDetail.tsx` → implementado en `PresupuestoResumen.tsx` (el componente de
+      solo-lectura que `PresupuestoDetail` renderiza fuera de edición): mostrar la prestación
+      asociada cuando `prestacionId` está presente (buscada en `paciente.prestaciones`, incluidas
+      prestaciones ya inactivas por borrado lógico D1); sin cambios cuando está ausente. Incluye
+      `AvisoModeloDatos` (D5) referenciando la discrepancia nueva, sin editar la #13.
+- [x] 8.9 Verificado que la edición (`PATCH`) de un presupuesto existente sigue editando `monto` y
+      `prestacionId` uno a uno, sin bifurcar (D9): `PresupuestoForm` fuerza la rama `simple` en
+      todo momento que `initial` esté presente, sin importar la `modalidadFacturacion` de la obra
+      social — cubierto por `describe('PresupuestoForm — edición no bifurca (design.md D9)')` y
+      por los tests preexistentes de edición de `PresupuestoDetail.test.tsx`, que siguen en verde
+      sin cambios de comportamiento.
+- [ ] 8.10 **Diferido por instrucción explícita del usuario durante el apply** (2026-08-12): NO se
+      corre la suite completa en ningún momento de este batch, ni siquiera al final — solo el
+      subconjunto de archivos tocados. Confirmado en verde: `PresupuestoForm`
+      `PresupuestoLineasEditor` `PresupuestoDetail` `PresupuestoResumen` `validatePresupuestoForm`
+      `usePresupuestos` `PresupuestosPage` — 7 archivos / 72 tests, 0 fallando. La comparación
+      contra el baseline de 0.6 con la suite completa queda pendiente para la verificación final
+      (Fase 10, fuera de este batch).
+- [x] 8.11 `npx tsc -b --noEmit` limpio (cero errores) y `oxlint` limpio sobre
+      `src/features/presupuestos/` y `src/shared/lib/presupuestos/` (solo 2 warnings
+      preexistentes de `only-export-components` en archivos de contexto, sin relación con este
+      batch).
 
-**→ Fin de PR 3 (bifurcación de UI).**
+**→ Fin de PR 3 (bifurcación de UI). Pendiente: 8.10 (suite completa) queda para la Fase 10 —
+verificación final, fuera del alcance de este batch de apply.**
 
 ## 9. Documentación (obligatoria)
 
