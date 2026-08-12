@@ -11,6 +11,7 @@ import { PacienteDetail } from './PacienteDetail';
 function buildFakeObraSocialRepository(): ObraSocialRepository {
   return {
     list: vi.fn().mockResolvedValue([]),
+    listPage: vi.fn(),
     getById: vi.fn().mockResolvedValue(null),
     create: vi.fn(),
     update: vi.fn(),

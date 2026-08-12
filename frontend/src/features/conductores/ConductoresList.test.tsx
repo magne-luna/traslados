@@ -41,35 +41,43 @@ const vehiculoRepositoryStub: VehiculoRepository = {
   update: async () => vehiculoAbc,
 };
 
-function renderList(props: Partial<Parameters<typeof ConductoresList>[0]> = {}) {
+// paginacion-listados, Fase 3 (tasks.md 16.3): `ConductoresList` deja de tener estado propio de
+// filtrado (mismo criterio que PacientesList 13.8, presentacional puro) — `busqueda`/`pagina`/
+// `total`/`tamanio` llegan por props desde `useConductoresPaginado` (vía ConductoresPage), y
+// `conductores` es SOLO la página actual, no el padrón completo.
+function defaultProps(overrides: Partial<React.ComponentProps<typeof ConductoresList>> = {}): React.ComponentProps<
+  typeof ConductoresList
+> {
+  return {
+    conductores: [],
+    loading: false,
+    error: null,
+    onSelect: vi.fn(),
+    onCreateNew: vi.fn(),
+    ahora: new Date('2026-07-26T12:00:00Z'),
+    busqueda: '',
+    onBusquedaChange: vi.fn(),
+    pagina: 1,
+    tamanio: 20,
+    total: 0,
+    onCambiarPagina: vi.fn(),
+    ...overrides,
+  };
+}
+
+function renderList(overrides: Partial<React.ComponentProps<typeof ConductoresList>> = {}) {
   return render(
     <VehiculoRepositoryProvider repository={vehiculoRepositoryStub}>
-      <ConductoresList
-        conductores={[perez, gonzalez]}
-        loading={false}
-        error={null}
-        onSelect={vi.fn()}
-        onCreateNew={vi.fn()}
-        ahora={new Date('2026-07-26T12:00:00Z')}
-        {...props}
-      />
+      <ConductoresList {...defaultProps(overrides)} />
     </VehiculoRepositoryProvider>,
   );
 }
 
-function renderListConPermiso(puedeEscribir: boolean, props: Partial<Parameters<typeof ConductoresList>[0]> = {}) {
+function renderListConPermiso(puedeEscribir: boolean, overrides: Partial<React.ComponentProps<typeof ConductoresList>> = {}) {
   return render(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <VehiculoRepositoryProvider repository={vehiculoRepositoryStub}>
-        <ConductoresList
-          conductores={[perez, gonzalez]}
-          loading={false}
-          error={null}
-          onSelect={vi.fn()}
-          onCreateNew={vi.fn()}
-          ahora={new Date('2026-07-26T12:00:00Z')}
-          {...props}
-        />
+        <ConductoresList {...defaultProps(overrides)} />
       </VehiculoRepositoryProvider>
     </PuedeEscribirContext.Provider>,
   );
@@ -82,11 +90,22 @@ describe('ConductoresList', () => {
     expect(screen.getByText(/cargando/i)).toBeInTheDocument();
   });
 
-  it('muestra un estado vacío con la acción de crear el primer conductor cuando no hay datos', () => {
-    renderList({ conductores: [] });
+  it('estado 1/3 — sin conductores cargados: total 0 y sin búsqueda muestra el estado vacío con acción de crear', async () => {
+    const user = userEvent.setup();
+    const onCreateNew = vi.fn();
+
+    renderList({ conductores: [], total: 0, busqueda: '', onCreateNew });
 
     expect(screen.getByText(/no hay conductores/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /crear el primer conductor/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /crear el primer conductor/i }));
+    expect(onCreateNew).toHaveBeenCalledTimes(1);
+  });
+
+  it('estado 2/3 — búsqueda sin coincidencias: total 0 CON búsqueda muestra un mensaje distinto del vacío inicial', () => {
+    renderList({ conductores: [], total: 0, busqueda: 'zzz-inexistente' });
+
+    expect(screen.getByText(/ningún conductor coincide con "zzz-inexistente"/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no hay conductores cargados/i)).not.toBeInTheDocument();
   });
 
   it('muestra el error visible sin ocultar el resto de la pantalla', () => {
@@ -96,7 +115,7 @@ describe('ConductoresList', () => {
   });
 
   it('lista apellido, nombre y documento de cada conductor', () => {
-    renderList();
+    renderList({ conductores: [perez, gonzalez], total: 2 });
 
     expect(screen.getByText('Pérez')).toBeInTheDocument();
     expect(screen.getByText('Carlos')).toBeInTheDocument();
@@ -105,7 +124,7 @@ describe('ConductoresList', () => {
   });
 
   it('distingue el estado fuera de servicio con texto además de color (no solo color)', () => {
-    renderList();
+    renderList({ conductores: [perez, gonzalez], total: 2 });
 
     expect(screen.getByText(/fuera de servicio/i)).toBeInTheDocument();
   });
@@ -114,7 +133,7 @@ describe('ConductoresList', () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
 
-    renderList({ onSelect });
+    renderList({ conductores: [perez, gonzalez], total: 2, onSelect });
 
     await user.click(screen.getByText('Carlos'));
     expect(onSelect).toHaveBeenCalledWith(perez);
@@ -124,7 +143,7 @@ describe('ConductoresList', () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
 
-    renderList({ onSelect });
+    renderList({ conductores: [perez, gonzalez], total: 2, onSelect });
 
     await user.click(screen.getByRole('button', { name: /editar pérez/i }));
     expect(onSelect).toHaveBeenCalledTimes(1);
@@ -132,7 +151,7 @@ describe('ConductoresList', () => {
   });
 
   it('muestra cuil, domicilio y teléfono de cada conductor', () => {
-    renderList();
+    renderList({ conductores: [perez, gonzalez], total: 2 });
 
     expect(screen.getByText('20-15789456-9')).toBeInTheDocument();
     expect(screen.getByText('Calle 50 N° 1234, La Plata')).toBeInTheDocument();
@@ -140,7 +159,7 @@ describe('ConductoresList', () => {
   });
 
   it('muestra "Sin datos" cuando el conductor no tiene teléfono cargado', () => {
-    renderList();
+    renderList({ conductores: [perez, gonzalez], total: 2 });
 
     expect(screen.getAllByText(/sin datos/i).length).toBeGreaterThan(0);
   });
@@ -148,40 +167,65 @@ describe('ConductoresList', () => {
   // D6-B (tasks.md 2C.5): el listado ya no muestra restricciones como dato estructurado aparte —
   // solo queda `observaciones` como texto libre (ya cubierto por el fixture `perez` de arriba).
   it('no muestra ninguna columna/celda de restricciones de perfil ni su estado vacío', () => {
-    renderList();
+    renderList({ conductores: [perez, gonzalez], total: 2 });
 
     expect(screen.queryByText(/restricciones de perfil/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^sin restricciones/i)).not.toBeInTheDocument();
   });
 
   it('resuelve la patente del vehículo asignado la semana actual contra VehiculoRepository', async () => {
-    renderList();
+    renderList({ conductores: [perez, gonzalez], total: 2 });
 
     expect(await screen.findByText('ABC123')).toBeInTheDocument();
   });
 
   it('indica que no hay vehículo asignado esta semana cuando no hay asignaciones', async () => {
-    renderList();
+    renderList({ conductores: [perez, gonzalez], total: 2 });
 
     await screen.findByText('ABC123');
     expect(screen.getByText(/sin vehículo asignado/i)).toBeInTheDocument();
   });
 
-  it('filtra por apellido, documento o cuil con el buscador', async () => {
-    const user = userEvent.setup();
-    renderList();
+  // 16.3: el buscador ya no filtra en memoria — alimenta el término del hook vía prop.
+  describe('ConductoresList — búsqueda alimenta el hook, no filtra en memoria', () => {
+    it('escribir en el buscador llama a onBusquedaChange con el valor crudo (no filtra "conductores" localmente)', async () => {
+      const user = userEvent.setup();
+      const onBusquedaChange = vi.fn();
 
-    await user.type(screen.getByLabelText(/buscar conductor/i), '284567');
-    expect(screen.queryByText('Carlos')).not.toBeInTheDocument();
-    expect(screen.getByText('Marcos')).toBeInTheDocument();
+      renderList({ conductores: [perez, gonzalez], total: 2, onBusquedaChange });
+
+      await user.type(screen.getByLabelText(/buscar conductor/i), 'x');
+      expect(onBusquedaChange).toHaveBeenCalledWith('x');
+      // Ambos siguen en pantalla: el componente ya no decide qué filas mostrar por su cuenta.
+      expect(screen.getByText('Carlos')).toBeInTheDocument();
+      expect(screen.getByText('Marcos')).toBeInTheDocument();
+    });
   });
 
-  it('muestra un mensaje cuando ningún conductor coincide con la búsqueda', async () => {
-    const user = userEvent.setup();
-    renderList();
+  // 16.3: <Paginador> montado con el total que llega por props.
+  describe('ConductoresList — <Paginador>', () => {
+    it('renderiza el total de resultados que llega por props', () => {
+      renderList({ conductores: [perez], total: 45, pagina: 2, tamanio: 20 });
 
-    await user.type(screen.getByLabelText(/buscar conductor/i), 'no-existe-nadie');
-    expect(screen.getByText(/ningún conductor coincide/i)).toBeInTheDocument();
+      expect(screen.getByText('45 resultados')).toBeInTheDocument();
+      expect(screen.getByText(/página 2 de 3/i)).toBeInTheDocument();
+    });
+
+    it('click en "Siguiente" invoca onCambiarPagina con pagina + 1', async () => {
+      const user = userEvent.setup();
+      const onCambiarPagina = vi.fn();
+
+      renderList({ conductores: [perez], total: 45, pagina: 2, tamanio: 20, onCambiarPagina });
+
+      await user.click(screen.getByRole('button', { name: /página siguiente/i }));
+      expect(onCambiarPagina).toHaveBeenCalledWith(3);
+    });
+
+    it('no monta el <Paginador> (fila de navegación) mientras sin resultados', () => {
+      renderList({ conductores: [], total: 0, busqueda: '' });
+
+      expect(screen.queryByText(/resultados/i)).not.toBeInTheDocument();
+    });
   });
 });
 
@@ -199,7 +243,7 @@ describe('ConductoresList — gateo de escritura', () => {
   });
 
   it('sin permiso de escritura: "Crear el primer conductor" (estado vacío) queda visible y no se puede activar (triangulación con la lista no vacía)', () => {
-    renderListConPermiso(false, { conductores: [] });
+    renderListConPermiso(false, { conductores: [], total: 0 });
 
     expect(screen.getByRole('button', { name: /crear el primer conductor/i })).toBeDisabled();
   });
@@ -213,7 +257,7 @@ describe('ConductoresList — gateo de escritura', () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
 
-    renderListConPermiso(false, { onSelect });
+    renderListConPermiso(false, { conductores: [perez, gonzalez], total: 2, onSelect });
 
     const editar = screen.getByRole('button', { name: /editar pérez/i });
     expect(editar).toBeVisible();
@@ -224,17 +268,17 @@ describe('ConductoresList — gateo de escritura', () => {
   });
 
   it('con permiso de escritura: "Editar" por fila está activable (triangulación)', () => {
-    renderListConPermiso(true);
+    renderListConPermiso(true, { conductores: [perez, gonzalez], total: 2 });
     expect(screen.getByRole('button', { name: /editar pérez/i })).toBeEnabled();
   });
 
   it('sin permiso de escritura: el <button> nativo "Ver detalle" queda deshabilitado por el envoltorio', () => {
-    renderListConPermiso(false);
+    renderListConPermiso(false, { conductores: [perez, gonzalez], total: 2 });
     expect(screen.getAllByRole('button', { name: /^ver detalle$/i })[0]).toBeDisabled();
   });
 
   it('con permiso de escritura: el <button> nativo "Ver detalle" está activable (triangulación)', () => {
-    renderListConPermiso(true);
+    renderListConPermiso(true, { conductores: [perez, gonzalez], total: 2 });
     expect(screen.getAllByRole('button', { name: /^ver detalle$/i })[0]).toBeEnabled();
   });
 });
@@ -244,7 +288,7 @@ describe('ConductoresList — gateo de escritura', () => {
 // resultado, mismo criterio que PacientesList.test.tsx para el mismo escenario.
 describe('ConductoresList — rol admin sin filas de permisos', () => {
   it('con puedeEscribir true (equivalente al short-circuit de admin sin filas): la acción de alta está activable', () => {
-    renderListConPermiso(true, { conductores: [] });
+    renderListConPermiso(true, { conductores: [], total: 0 });
     expect(screen.getByRole('button', { name: /crear el primer conductor/i })).toBeEnabled();
   });
 });

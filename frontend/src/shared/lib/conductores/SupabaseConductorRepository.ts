@@ -1,7 +1,10 @@
 import { supabase } from '../supabaseClient';
 import type { ActualizacionConductor, Conductor, NuevoConductor } from '../../types/conductor';
-import type { ConductorRepository } from './ConductorRepository';
+import type { Pagina, RangoPagina } from '../../types/paginacion';
+import type { ConductorRepository, FiltrosConductor } from './ConductorRepository';
 import { ensamblarConductor, toActualizarConductorPayload, toCrearConductorPayload } from './conductorMapping';
+import { construirFiltroBusqueda } from '../paginacion/construirFiltroBusqueda';
+import { rangoSupabase } from '../paginacion/rangoSupabase';
 
 // Implementación real de ConductorRepository (change integracion-conductores-vehiculos,
 // design.md D9/D11/D12; tasks.md §7, desbloqueada por 1B.11). A diferencia de Vehículo (§5, que
@@ -50,6 +53,47 @@ async function listarConductores(): Promise<Conductor[]> {
     if (conductor) conductores.push(conductor);
   }
   return conductores;
+}
+
+// paginacion-listados (design.md §D5, búsqueda simple sin checkpoint): mismas columnas que
+// filtra `ConductoresList.tsx` hoy client-side (`apellido`, `nombre`, `documento`/dni, `cuil`).
+const COLUMNAS_BUSQUEDA_CONDUCTOR = ['apellido', 'nombre', 'dni', 'cuil'] as const;
+
+/** Página server-side con búsqueda (design.md §D3, ADITIVO — `listarConductores`/`list()` de
+ * arriba no cambia). Orden total determinista con desempate por `id` (§D4). `count: 'exact'`
+ * viaja en el mismo `select` y se propaga a `Pagina.total`, el universo filtrado. */
+async function listarConductoresPagina(query: RangoPagina & { filtros: FiltrosConductor }): Promise<Pagina<Conductor>> {
+  const { pagina, tamanio, filtros } = query;
+  const { desde, hasta } = rangoSupabase({ pagina, tamanio });
+
+  let consulta = supabase
+    .schema('conductores')
+    .from('conductores')
+    .select(SELECT_CONDUCTOR_CON_ASIGNACIONES, { count: 'exact' })
+    .order('apellido', { ascending: true })
+    .order('nombre', { ascending: true })
+    .order('id', { ascending: true })
+    .range(desde, hasta);
+
+  const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_CONDUCTOR);
+  if (filtro) {
+    for (const expresion of filtro.expresionesOr) {
+      consulta = consulta.or(expresion);
+    }
+  }
+
+  const { data, error, count } = await consulta;
+  if (error) throw mapearErrorConductor(error, { operacion: 'listar' });
+
+  const rows: unknown = data;
+  const filasCrudas = Array.isArray(rows) ? rows : [];
+  const items: Conductor[] = [];
+  for (const row of filasCrudas) {
+    const conductor = ensamblarConductor(row);
+    if (conductor) items.push(conductor);
+  }
+
+  return { items, total: count ?? 0, pagina, tamanio };
 }
 
 async function getConductorPorId(id: string): Promise<Conductor | null> {
@@ -213,6 +257,7 @@ async function actualizarConductor(id: string, data: ActualizacionConductor): Pr
 
 export const supabaseConductorRepository: ConductorRepository = {
   list: listarConductores,
+  listPage: listarConductoresPagina,
   getById: getConductorPorId,
   create: crearConductor,
   update: actualizarConductor,

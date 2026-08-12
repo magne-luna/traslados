@@ -26,6 +26,8 @@ interface FakeError {
 interface FakeResult {
   data: unknown;
   error: FakeError | null;
+  /** paginacion-listados (tasks.md 16.2): eco de `{ count: 'exact' }` de PostgREST. */
+  count?: number | null;
 }
 
 type FakeOp = 'select' | 'rpc';
@@ -35,6 +37,15 @@ interface RecordedCall {
   schema: string;
   table: string;
   eq: Array<[string, unknown]>;
+  /** paginacion-listados (tasks.md 16.2): un elemento por cada `.order()` encadenado, en orden. */
+  orders?: Array<{ column: string; ascending: boolean }>;
+  /** paginacion-listados (tasks.md 16.2): un elemento por cada `.or(...)` encadenado (N tokens ⇒
+   * N llamadas ⇒ AND de N ORs, ver construirFiltroBusqueda). */
+  orFilters?: string[];
+  /** paginacion-listados (tasks.md 16.2): `.range(desde, hasta)`. */
+  range?: { desde: number; hasta: number };
+  /** paginacion-listados (tasks.md 16.2): eco de `{ count: 'exact' }` pasado a `.select()`. */
+  count?: 'exact' | 'planned' | 'estimated';
   payload?: unknown;
 }
 
@@ -50,6 +61,12 @@ function resetFake(): void {
 
 function ok(data: unknown): FakeResult {
   return { data, error: null };
+}
+
+// paginacion-listados (tasks.md 16.2): variante de `ok` que además hace eco del `count` exacto
+// que PostgREST devuelve junto a `data` cuando se pide `{ count: 'exact' }`.
+function okConCount(data: unknown, count: number | null): FakeResult {
+  return { data, error: null, count };
 }
 
 function fail(error: FakeError): FakeResult {
@@ -78,8 +95,28 @@ class FakeSelectBuilder implements PromiseLike<FakeResult> {
     this.call = call;
   }
 
+  select(_columns: string, options?: { count?: 'exact' | 'planned' | 'estimated' }): FakeSelectBuilder {
+    if (options?.count) this.call.count = options.count;
+    return this;
+  }
+
   eq(column: string, value: unknown): FakeSelectBuilder {
     this.call.eq.push([column, value]);
+    return this;
+  }
+
+  order(column: string, options: { ascending: boolean }): FakeSelectBuilder {
+    this.call.orders = [...(this.call.orders ?? []), { column, ascending: options.ascending }];
+    return this;
+  }
+
+  or(expression: string): FakeSelectBuilder {
+    this.call.orFilters = [...(this.call.orFilters ?? []), expression];
+    return this;
+  }
+
+  range(desde: number, hasta: number): FakeSelectBuilder {
+    this.call.range = { desde, hasta };
     return this;
   }
 
@@ -105,8 +142,8 @@ function crearFakeSupabase() {
       return {
         from(table: string) {
           return {
-            select(_columns: string) {
-              return new FakeSelectBuilder({ op: 'select', schema: schemaName, table, eq: [] });
+            select(columns: string, options?: { count?: 'exact' | 'planned' | 'estimated' }) {
+              return new FakeSelectBuilder({ op: 'select', schema: schemaName, table, eq: [] }).select(columns, options);
             },
           };
         },
@@ -221,6 +258,91 @@ describe('getById()', () => {
   it('id inexistente -> null, no lanza (contrato de la interfaz)', async () => {
     configurarSelect('conductores', 'conductores', () => ok(null));
     await expect(supabaseConductorRepository.getById('no-existe')).resolves.toBeNull();
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// paginacion-listados, Fase 3 (tasks.md 16.2) — mismos casos que
+// SupabasePacienteRepository.test.ts 12.x, sin la segunda consulta de cobertura (no aplica acá).
+// -------------------------------------------------------------------------------------------
+
+describe('listPage()', () => {
+  it('emite .range(0, 19) y pide { count: "exact" }', async () => {
+    configurarSelect('conductores', 'conductores', () => okConCount([filaConductorEmbed()], 1));
+
+    await supabaseConductorRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const llamada = calls.find((c) => c.op === 'select');
+    expect(llamada?.range).toEqual({ desde: 0, hasta: 19 });
+    expect(llamada?.count).toBe('exact');
+  });
+
+  it('encadena .order(apellido), .order(nombre) y .order(id) como desempate', async () => {
+    configurarSelect('conductores', 'conductores', () => okConCount([filaConductorEmbed()], 1));
+
+    await supabaseConductorRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const llamada = calls.find((c) => c.op === 'select');
+    expect(llamada?.orders).toEqual([
+      { column: 'apellido', ascending: true },
+      { column: 'nombre', ascending: true },
+      { column: 'id', ascending: true },
+    ]);
+  });
+
+  it('páginas sin solapamiento: dos páginas consecutivas no comparten ids y su unión reconstruye el total', async () => {
+    const filaA = filaConductorEmbed({ id: 'c-a' });
+    const filaB = filaConductorEmbed({ id: 'c-b', dni: '11111111' });
+
+    configurarSelect('conductores', 'conductores', (call) => {
+      if (call.range?.desde === 0) return okConCount([filaA], 2);
+      return okConCount([filaB], 2);
+    });
+
+    const p1 = await supabaseConductorRepository.listPage({ pagina: 1, tamanio: 1, filtros: { busqueda: '' } });
+    const p2 = await supabaseConductorRepository.listPage({ pagina: 2, tamanio: 1, filtros: { busqueda: '' } });
+
+    const idsP1 = p1.items.map((c) => c.id);
+    const idsP2 = p2.items.map((c) => c.id);
+    expect(idsP1.filter((id) => idsP2.includes(id))).toEqual([]);
+    expect(new Set([...idsP1, ...idsP2]).size).toBe(2);
+  });
+
+  it('el count devuelto se propaga a Pagina.total; count null -> total 0', async () => {
+    configurarSelect('conductores', 'conductores', () => okConCount([filaConductorEmbed()], 7));
+    const pagina = await supabaseConductorRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+    expect(pagina.total).toBe(7);
+
+    configurarSelect('conductores', 'conductores', () => okConCount([], null));
+    const paginaSinCount = await supabaseConductorRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+    expect(paginaSinCount.total).toBe(0);
+  });
+
+  it('traduce construirFiltroBusqueda a .or(...) sobre apellido, nombre, dni y cuil', async () => {
+    configurarSelect('conductores', 'conductores', () => okConCount([filaConductorEmbed()], 1));
+
+    await supabaseConductorRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: 'perez' } });
+
+    const llamada = calls.find((c) => c.op === 'select');
+    expect(llamada?.orFilters).toHaveLength(1);
+    expect(llamada?.orFilters?.[0]).toContain('apellido.ilike');
+    expect(llamada?.orFilters?.[0]).toContain('nombre.ilike');
+    expect(llamada?.orFilters?.[0]).toContain('dni.ilike');
+    expect(llamada?.orFilters?.[0]).toContain('cuil.ilike');
+  });
+
+  it('sin término de búsqueda no emite ningún .or()', async () => {
+    configurarSelect('conductores', 'conductores', () => okConCount([filaConductorEmbed()], 1));
+    await supabaseConductorRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+    const llamada = calls.find((c) => c.op === 'select');
+    expect(llamada?.orFilters).toBeUndefined();
+  });
+
+  it('un error de PostgREST se traduce con mapearErrorConductor(operacion: "listar")', async () => {
+    configurarSelect('conductores', 'conductores', () => fail({ code: '42501', message: 'rls' }));
+    await expect(
+      supabaseConductorRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } }),
+    ).rejects.toThrow('No tenés permiso para consultar conductores.');
   });
 });
 

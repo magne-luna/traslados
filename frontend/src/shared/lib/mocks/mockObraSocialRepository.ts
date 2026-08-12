@@ -1,6 +1,8 @@
 import { generateId } from '../id';
 import type { ActualizacionObraSocial, NuevaObraSocial, ObraSocial } from '../../types/obraSocial';
 import type { ObraSocialRepository } from '../obrasSociales/ObraSocialRepository';
+import { construirFiltroBusqueda, matcheaFiltroBusqueda } from '../paginacion/construirFiltroBusqueda';
+import { rangoSupabase } from '../paginacion/rangoSupabase';
 import { buildOsecacFixture } from './osecacFixture';
 
 // Implementación mock de ObraSocialRepository (design.md Decisión 1): persiste en localStorage
@@ -60,9 +62,38 @@ function withLatency<T>(value: T, ms = 350): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
 
+// paginacion-listados (design.md §D4/§D9, tasks.md 17.2): mismo criterio de orden que
+// SupabaseObraSocialRepository.listPage — nombre asc, `id` como desempate obligatorio.
+function ordenarObrasSociales(obrasSociales: ObraSocial[]): ObraSocial[] {
+  return [...obrasSociales].sort((a, b) => {
+    const porNombre = a.nombre.localeCompare(b.nombre);
+    if (porNombre !== 0) return porNombre;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+// Mismas columnas "lógicas" que traduce SupabaseObraSocialRepository.listPage a `.or()`
+// (design.md §D5, búsqueda simple sin checkpoint) — el match real lo hace `matcheaFiltroBusqueda`
+// sobre `valoresBuscables`, no sobre estos nombres de columna.
+const COLUMNAS_BUSQUEDA_OBRA_SOCIAL = ['razon_social', 'cuit'] as const;
+
+function valoresBuscables(obraSocial: ObraSocial): Array<string | null | undefined> {
+  return [obraSocial.nombre, obraSocial.cuit];
+}
+
 export const mockObraSocialRepository: ObraSocialRepository = {
   async list() {
     return withLatency([...readStore()]);
+  },
+
+  async listPage({ pagina, tamanio, filtros }) {
+    const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_OBRA_SOCIAL);
+    const todas = ordenarObrasSociales(readStore()).filter((obraSocial) =>
+      matcheaFiltroBusqueda(valoresBuscables(obraSocial), filtro),
+    );
+    const { desde, hasta } = rangoSupabase({ pagina, tamanio });
+    const items = todas.slice(desde, hasta + 1);
+    return withLatency({ items, total: todas.length, pagina, tamanio });
   },
 
   async getById(id) {

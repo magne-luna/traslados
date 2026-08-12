@@ -81,6 +81,7 @@ function buildFakePacienteRepository(): PacienteRepository {
 function buildFakeObraSocialRepository(): ObraSocialRepository {
   return {
     list: vi.fn().mockResolvedValue([osecac]),
+    listPage: vi.fn(),
     getById: vi.fn().mockResolvedValue(osecac),
     create: vi.fn(),
     update: vi.fn(),
@@ -133,6 +134,27 @@ describe('PresupuestosPage — no-regresión: el combo de pacientes usa list() c
 
     expect(pacienteRepository.list).toHaveBeenCalled();
     expect(pacienteRepository.listPage).not.toHaveBeenCalled();
+  });
+});
+
+// paginacion-listados, Fase 3 (tasks.md 17.5): mismo criterio que 14.1 de arriba, ahora para el
+// selector de obra social de Presupuestos — sigue necesitando el catálogo COMPLETO.
+describe('PresupuestosPage — no-regresión: el selector de obra social usa list() completo (17.5)', () => {
+  it('llama a obraSocialRepository.list() y nunca a listPage()', async () => {
+    const obraSocialRepository = buildFakeObraSocialRepository();
+
+    render(
+      <PresupuestoRepositoryProvider repository={buildFakePresupuestoRepository()}>
+        <AutorizacionRepositoryProvider repository={buildFakeAutorizacionRepository()}>
+          <PresupuestosPage pacienteRepository={buildFakePacienteRepository()} obraSocialRepository={obraSocialRepository} />
+        </AutorizacionRepositoryProvider>
+      </PresupuestoRepositoryProvider>,
+    );
+
+    await screen.findByText('Gómez, Martina');
+
+    expect(obraSocialRepository.list).toHaveBeenCalled();
+    expect(obraSocialRepository.listPage).not.toHaveBeenCalled();
   });
 });
 

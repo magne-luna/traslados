@@ -396,36 +396,121 @@
 
 ### 16. Conductores
 
-- [ ] 16.1 Safety net: `useConductores.test.ts` + tests de la feature. Registrar baseline.
-- [ ] 16.2 **RED/GREEN/TRIANGULATE** `listPage` + `FiltrosConductor` en `ConductorRepository.ts`,
+- [x] 16.1 Safety net: `useConductores.test.ts` + tests de la feature. Registrar baseline.
+      **→ BASELINE (2026-08-12, apply Fase 3): 280/280 tests en verde** —
+      `src/features/conductores/**` + `src/shared/lib/conductores/**` +
+      `mockConductorRepository.test.ts` + `src/features/dashboard/**`. Comparado contra el baseline
+      global de 0.5 (2350/2354) y el cierre de Fase 2 (2460/2460) — ninguna falla preexistente cae
+      dentro de este subconjunto.
+- [x] 16.2 **RED/GREEN/TRIANGULATE** `listPage` + `FiltrosConductor` en `ConductorRepository.ts`,
       `SupabaseConductorRepository.ts` y `mockConductorRepository.ts` — mismos casos que 11.x y 12.x
       (páginas, orden con desempate por `id`, total, búsqueda, errores).
-- [ ] 16.3 **RED/GREEN/TRIANGULATE** hook + `ConductoresList.tsx`: retirar el `useMemo` de filtrado
+      **→ Orden: `apellido` asc, `nombre` asc, `id` desempate. Búsqueda sobre `apellido`, `nombre`,
+      `dni`, `cuil` (mismas columnas que el `useMemo` retirado de `ConductoresList.tsx:35-38`).
+      El fake harness de `SupabaseConductorRepository.test.ts` no soportaba `.range()`/`.or()`/
+      `.order()`/`{count}` (a diferencia del de Pacientes, ya extendido en Fase 2) — se extendió
+      antes del RED de producción, confirmando los 28 tests preexistentes en verde tras la
+      extensión. 17/17 tests nuevos en `mockConductorRepository.test.ts` (describe `listPage
+      (16.x)`), 7/7 nuevos en `SupabaseConductorRepository.test.ts` (describe `listPage()`).**
+- [x] 16.3 **RED/GREEN/TRIANGULATE** hook + `ConductoresList.tsx`: retirar el `useMemo` de filtrado
       (`ConductoresList.tsx:35-38`), montar `<Paginador>`, conservar fila clickeable + `stopPropagation`
       en "Editar".
-- [ ] 16.4 **Test de no-regresión**: `useConductoresDashboard` sigue usando `list()` completo.
-- [ ] 16.5 **REFACTOR** — si aparece duplicación real entre el `listPage` de pacientes y el de
-      conductores, extraerla; si es duplicación aparente (columnas y mapeos distintos), **no** forzar
-      una abstracción.
+      **→ Hook nuevo `frontend/src/features/conductores/useConductoresPaginado.ts`** (no se tocó
+      `useConductores.ts` — sigue existiendo tal cual, lo sigue usando `HojaDeRutaPage` para su
+      selector de conductores con el padrón completo). `ConductoresList.tsx` reescrito
+      presentacional puro (mismo criterio que `PacientesList` 13.8): `busqueda`/`pagina`/`tamanio`/
+      `total`/`onBusquedaChange`/`onCambiarPagina` llegan por props. `ConductoresPage.tsx` cablea
+      `useConductoresPaginado` y guarda el objeto `Conductor` completo en el estado de vista (no un
+      id a buscar en la página cargada) — mismo gotcha de Pacientes 13.7, con su propio
+      `actualizarYSincronizarVista` porque `ConductorDetail` lee el prop `conductor` directo (resumen,
+      form, asignación semanal) sin re-derivarlo. 25/25 tests en verde (`ConductoresList.test.tsx`,
+      reescrito), 12/12 en verde (`ConductoresPage.test.tsx`).
+- [x] 16.4 **Test de no-regresión**: `useConductoresDashboard` sigue usando `list()` completo.
+      **→ Test explícito agregado en `useConductoresDashboard.test.ts`** (`repository.list()`
+      llamado, `.listPage()` NUNCA).
+- [x] 16.5 **REFACTOR** — si aparece duplicación real entre el `listPage` de pacientes y el de
+      conductores, extraerla; si es duplicación aparente (columnas y mapeos distintos), **no**
+      forzar una abstracción.
+      **→ Duplicación aparente, no real**: columnas de orden/búsqueda distintas (`apellido`/`nombre`/
+      `dni`/`cuil` vs. `apellido_a`/`nombre_a`/`apellido_b`/`nombre_b`/`dni`), mapeo/ensamblado
+      distinto (`ensamblarConductor` con embed de asignaciones vs. `ensamblarFilasConCobertura` con
+      segunda consulta cross-schema), sin segunda consulta en Conductores. Lo único ya compartido —
+      `rangoSupabase`/`construirFiltroBusqueda`/`usePaginaListado`/`<Paginador>` (Fase 0) — ya se
+      reusa tal cual. No se forzó ninguna abstracción nueva.
 
 ### 17. Obras Sociales
 
-- [ ] 17.1 Safety net: `useObrasSociales.test.ts` + `SupabaseObraSocialRepository.test.ts`. Baseline.
-- [ ] 17.2 **RED/GREEN/TRIANGULATE** `listPage` + filtros en `ObraSocialRepository.ts`,
+- [x] 17.1 Safety net: `useObrasSociales.test.ts` + `SupabaseObraSocialRepository.test.ts`. Baseline.
+      **→ BASELINE: incluido en el mismo run de 280/280 de 16.1** (`src/features/obras-sociales/**`
+      corrido por separado más abajo en 17.2-17.5 también en verde; `ChecklistEditor.test.tsx` es la
+      única falla preexistente dentro de `obras-sociales/**`, ya documentada en 0.5, no tocada).
+- [x] 17.2 **RED/GREEN/TRIANGULATE** `listPage` + filtros en `ObraSocialRepository.ts`,
       `SupabaseObraSocialRepository.ts` y `mockObraSocialRepository.ts` (orden por nombre + `id`).
-- [ ] 17.3 **RED/GREEN/TRIANGULATE** hook + `ObrasSocialesList.tsx`: retirar el `useMemo`
+      **→ Orden: `razon_social` asc, `id` desempate. Búsqueda sobre `razon_social`, `cuit` (mismas
+      columnas que el `useMemo` retirado de `ObrasSocialesList.tsx:29-32`). Mismo patrón de
+      extensión del fake harness que 16.2 (`.range()`/`.or()`/`.order()`/`{count}`), confirmando los
+      40 tests preexistentes en verde tras la extensión. El fixture del mock solo trae OSECAC — los
+      tests de paginación siembran 2 obras sociales más con `create()` antes de paginar. 17/17 tests
+      nuevos en `mockObraSocialRepository.test.ts` (describe `listPage (17.x)`), 7/7 nuevos en
+      `SupabaseObraSocialRepository.test.ts` (describe `listPage()`).**
+- [x] 17.3 **RED/GREEN/TRIANGULATE** hook + `ObrasSocialesList.tsx`: retirar el `useMemo`
       (`ObrasSocialesList.tsx:29-32`), montar `<Paginador>`.
-- [ ] 17.4 **⚠️ Test de no-regresión crítico**: `PacientesList` resuelve el nombre de la obra social de
+      **→ Hook nuevo `frontend/src/features/obras-sociales/useObrasSocialesPaginado.ts`** (no se
+      tocó `useObrasSociales.ts` — sigue existiendo tal cual, lo siguen usando PacientesPage/
+      PresupuestosPage/FacturacionPage para sus selectores con el catálogo completo).
+      `ObrasSocialesList.tsx` reescrito presentacional puro (mismo criterio que `ConductoresList`
+      16.3). `ObraSocialesPage.tsx` cablea `useObrasSocialesPaginado` y guarda el objeto
+      `ObraSocial` completo en el estado de vista, con su propio `actualizarYSincronizarVista`
+      (`ObraSocialDetail` lee el prop `obraSocial` directo — resumen, form, checklist, plantilla de
+      factura — sin re-derivarlo; mismo gotcha que 16.3/13.7). 18/18 tests en verde
+      (`ObrasSocialesList.test.tsx`, reescrito — se preservaron los casos de truncado de checklist
+      y de cantidad de documentos/identificador del archivo original), 7/7 en verde
+      (`ObraSocialesPage.test.tsx`).
+- [x] 17.4 **⚠️ Test de no-regresión crítico**: `PacientesList` resuelve el nombre de la obra social de
       cada paciente vía `nombreObraSocial(obraSocialId)`, poblado desde `ObraSocialRepository.list()`.
       Si eso se paginara, los pacientes cuya obra social cayó fuera de la página mostrarían "Sin obra
       social" — **dato incorrecto sin ningún error visible**. Verificar que sigue usando `list()`.
-- [ ] 17.5 **Test de no-regresión**: los selectores de obra social de Pacientes, Presupuestos y
+      **→ Test explícito agregado en `PacientesPage.test.tsx`** (`obraSocialRepository.list()`
+      llamado, `.listPage()` NUNCA).
+- [x] 17.5 **Test de no-regresión**: los selectores de obra social de Pacientes, Presupuestos y
       Facturación siguen recibiendo el catálogo completo.
+      **→ Cubierto por 17.4 (Pacientes) + tests explícitos nuevos agregados en
+      `PresupuestosPage.test.tsx` y `FacturacionPage.test.tsx`** (`obraSocialRepository.list()`
+      llamado, `.listPage()` NUNCA, en los tres). `PacienteForm`/`FacturaForm` no se tocaron — siguen
+      recibiendo el array ya resuelto por `useObrasSociales` en su composition root respectivo.
 
 ### 18. Cierre de la fase 3
 
-- [ ] 18.1 `npx tsc -b --noEmit` + `npx vitest run` + `npx oxlint` en verde, sin regresiones.
+- [x] 18.1 `npx tsc -b --noEmit` + `npx vitest run` + `npx oxlint` en verde, sin regresiones.
+      **→ `tsc -b --noEmit`: 3 errores, los 3 esperados y documentados — dos test doubles
+      (`ConductorRepository`/`ObraSocialRepository`) bajo `frontend/src/features/hojas-de-ruta/`
+      (`HojaDeRutaPage.test.tsx`, `HojaDeRutaPage.coherencia.test.tsx`) quedan sin `listPage`
+      **a propósito, sin tocar**: hay otra sesión trabajando en paralelo sobre archivos de
+      Hojas de Ruta (`RecorridoCard.tsx`, `useHojasDeRuta.ts`, `useHojasDeRuta.test.ts`,
+      modificados/sin commitear en el working tree) y la instrucción explícita de este batch fue no
+      tocar nada bajo `hojas-de-ruta/`, ni siquiera un fix mecánico de una línea (a diferencia de la
+      Fase 2, donde sí se aplicó ese fix mínimo para `PacienteRepository`). **Todos los demás test
+      doubles de `ConductorRepository`/`ObraSocialRepository` del resto del repo (11 archivos fuera
+      de `hojas-de-ruta/`) sí se actualizaron con `listPage`.** Nota importante: `vitest run` (motor
+      esbuild, sin type-check) SÍ ejecuta esos dos archivos igual — no rompen en tests, solo en
+      `tsc -b`; si hay un gate de CI que corre `tsc -b --noEmit`, fallará en esos 2 archivos hasta
+      que la sesión paralela cierre o la usuaria autorice tocarlos. `npx oxlint`: 0 hallazgos nuevos
+      (confirmado: los mismos warnings preexistentes de siempre, `react(only-export-components)` y
+      `no-unsafe-optional-chaining`, todos en archivos no tocados por este apply). Suite completa:
+      **2508/2511 tests en verde**, 3 fallas — las 3 dentro del set ya documentado de flakiness
+      preexistente (`PermisosMatrizFields.test.tsx` ×1, `ChecklistEditor.test.tsx` ×2) — mismo
+      patrón sensible a carga de CPU ya documentado en el cierre de las Fases 0 y 2. Ninguna falla
+      nueva atribuible a este apply. **2511 tests totales vs. 2460 al cierre de la Fase 2** (+51
+      tests nuevos de esta fase). Confirmado además `.list()` de `ConductorRepository`/
+      `ObraSocialRepository` intacto en ambos repositories reales (`SupabaseConductorRepository.ts`,
+      `SupabaseObraSocialRepository.ts`) — `listPage` es puramente aditivo, ninguna firma existente
+      cambió.**
 - [ ] 18.2 Commit `feat(conductores,obras-sociales): listado paginado con busqueda server-side`.
+      **⏸️ CHECKPOINT de fase — pase visual en navegador con la usuaria (paginar, buscar, crear,
+      editar en ambas pantallas) antes del cierre del change.**
+      **→ NO ejecutado a propósito en este batch de apply**: regla de la sesión — solo la usuaria
+      hace commit, explícitamente. Cambios quedan en el working tree, sin stagear ni commitear.
+      Mensaje sugerido (Conventional Commits) en el reporte de apply.
 
 ---
 

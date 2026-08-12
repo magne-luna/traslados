@@ -21,6 +21,8 @@ interface FakeError {
 interface FakeResult {
   data: unknown;
   error: FakeError | null;
+  /** paginacion-listados (tasks.md 17.2): eco de `{ count: 'exact' }` de PostgREST. */
+  count?: number | null;
 }
 
 type FakeOp = 'select' | 'rpc' | 'insert' | 'update' | 'delete' | 'upsert';
@@ -30,6 +32,15 @@ interface RecordedCall {
   schema: string;
   table: string;
   eq: Array<[string, unknown]>;
+  /** paginacion-listados (tasks.md 17.2): un elemento por cada `.order()` encadenado, en orden. */
+  orders?: Array<{ column: string; ascending: boolean }>;
+  /** paginacion-listados (tasks.md 17.2): un elemento por cada `.or(...)` encadenado (N tokens ⇒
+   * N llamadas ⇒ AND de N ORs, ver construirFiltroBusqueda). */
+  orFilters?: string[];
+  /** paginacion-listados (tasks.md 17.2): `.range(desde, hasta)`. */
+  range?: { desde: number; hasta: number };
+  /** paginacion-listados (tasks.md 17.2): eco de `{ count: 'exact' }` pasado a `.select()`. */
+  count?: 'exact' | 'planned' | 'estimated';
   payload?: unknown;
 }
 
@@ -45,6 +56,12 @@ function resetFake(): void {
 
 function ok(data: unknown): FakeResult {
   return { data, error: null };
+}
+
+// paginacion-listados (tasks.md 17.2): variante de `ok` que además hace eco del `count` exacto
+// que PostgREST devuelve junto a `data` cuando se pide `{ count: 'exact' }`.
+function okConCount(data: unknown, count: number | null): FakeResult {
+  return { data, error: null, count };
 }
 
 function fail(error: FakeError): FakeResult {
@@ -73,12 +90,28 @@ class FakeSelectBuilder implements PromiseLike<FakeResult> {
     this.call = call;
   }
 
-  select(_columns: string): FakeSelectBuilder {
+  select(_columns: string, options?: { count?: 'exact' | 'planned' | 'estimated' }): FakeSelectBuilder {
+    if (options?.count) this.call.count = options.count;
     return this;
   }
 
   eq(column: string, value: unknown): FakeSelectBuilder {
     this.call.eq.push([column, value]);
+    return this;
+  }
+
+  order(column: string, options: { ascending: boolean }): FakeSelectBuilder {
+    this.call.orders = [...(this.call.orders ?? []), { column, ascending: options.ascending }];
+    return this;
+  }
+
+  or(expression: string): FakeSelectBuilder {
+    this.call.orFilters = [...(this.call.orFilters ?? []), expression];
+    return this;
+  }
+
+  range(desde: number, hasta: number): FakeSelectBuilder {
+    this.call.range = { desde, hasta };
     return this;
   }
 
@@ -104,8 +137,8 @@ function crearFakeSupabase() {
       return {
         from(table: string) {
           return {
-            select(columns: string) {
-              return new FakeSelectBuilder({ op: 'select', schema: schemaName, table, eq: [] }).select(columns);
+            select(columns: string, options?: { count?: 'exact' | 'planned' | 'estimated' }) {
+              return new FakeSelectBuilder({ op: 'select', schema: schemaName, table, eq: [] }).select(columns, options);
             },
             insert(payload: unknown) {
               calls.push({ op: 'insert', schema: schemaName, table, eq: [], payload });
@@ -203,6 +236,89 @@ describe('supabaseObraSocialRepository.list (4.2)', () => {
     await expect(supabaseObraSocialRepository.list()).rejects.toThrow(
       'El módulo de Obras Sociales no está habilitado en el servidor.',
     );
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// paginacion-listados, Fase 3 (tasks.md 17.2) — mismos casos que
+// SupabaseConductorRepository.test.ts listPage(), sin la segunda consulta cross-schema (D5: acá
+// todo vive en el mismo schema `obra_social`).
+// -------------------------------------------------------------------------------------------
+
+describe('supabaseObraSocialRepository.listPage()', () => {
+  it('emite .range(0, 19) y pide { count: "exact" }', async () => {
+    configurar('obra_social', 'obra_social', 'select', () => okConCount([filaObraSocial()], 1));
+
+    await supabaseObraSocialRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const llamada = calls.find((c) => c.op === 'select');
+    expect(llamada?.range).toEqual({ desde: 0, hasta: 19 });
+    expect(llamada?.count).toBe('exact');
+  });
+
+  it('encadena .order(razon_social) y .order(id) como desempate', async () => {
+    configurar('obra_social', 'obra_social', 'select', () => okConCount([filaObraSocial()], 1));
+
+    await supabaseObraSocialRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const llamada = calls.find((c) => c.op === 'select');
+    expect(llamada?.orders).toEqual([
+      { column: 'razon_social', ascending: true },
+      { column: 'id', ascending: true },
+    ]);
+  });
+
+  it('páginas sin solapamiento: dos páginas consecutivas no comparten ids y su unión reconstruye el total', async () => {
+    const filaA = filaObraSocial({ id: 'os-a' });
+    const filaB = filaObraSocial({ id: 'os-b', razon_social: 'Swiss Medical' });
+
+    configurar('obra_social', 'obra_social', 'select', (call) => {
+      if (call.range?.desde === 0) return okConCount([filaA], 2);
+      return okConCount([filaB], 2);
+    });
+
+    const p1 = await supabaseObraSocialRepository.listPage({ pagina: 1, tamanio: 1, filtros: { busqueda: '' } });
+    const p2 = await supabaseObraSocialRepository.listPage({ pagina: 2, tamanio: 1, filtros: { busqueda: '' } });
+
+    const idsP1 = p1.items.map((os) => os.id);
+    const idsP2 = p2.items.map((os) => os.id);
+    expect(idsP1.filter((id) => idsP2.includes(id))).toEqual([]);
+    expect(new Set([...idsP1, ...idsP2]).size).toBe(2);
+  });
+
+  it('el count devuelto se propaga a Pagina.total; count null -> total 0', async () => {
+    configurar('obra_social', 'obra_social', 'select', () => okConCount([filaObraSocial()], 7));
+    const pagina = await supabaseObraSocialRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+    expect(pagina.total).toBe(7);
+
+    configurar('obra_social', 'obra_social', 'select', () => okConCount([], null));
+    const paginaSinCount = await supabaseObraSocialRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+    expect(paginaSinCount.total).toBe(0);
+  });
+
+  it('traduce construirFiltroBusqueda a .or(...) sobre razon_social y cuit', async () => {
+    configurar('obra_social', 'obra_social', 'select', () => okConCount([filaObraSocial()], 1));
+
+    await supabaseObraSocialRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: 'osecac' } });
+
+    const llamada = calls.find((c) => c.op === 'select');
+    expect(llamada?.orFilters).toHaveLength(1);
+    expect(llamada?.orFilters?.[0]).toContain('razon_social.ilike');
+    expect(llamada?.orFilters?.[0]).toContain('cuit.ilike');
+  });
+
+  it('sin término de búsqueda no emite ningún .or()', async () => {
+    configurar('obra_social', 'obra_social', 'select', () => okConCount([filaObraSocial()], 1));
+    await supabaseObraSocialRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+    const llamada = calls.find((c) => c.op === 'select');
+    expect(llamada?.orFilters).toBeUndefined();
+  });
+
+  it('un error de PostgREST se traduce con mapearErrorObraSocial(operacion: "listar")', async () => {
+    configurar('obra_social', 'obra_social', 'select', () => fail({ code: 'PGRST106', message: 'schema not exposed' }));
+    await expect(
+      supabaseObraSocialRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } }),
+    ).rejects.toThrow('El módulo de Obras Sociales no está habilitado en el servidor.');
   });
 });
 

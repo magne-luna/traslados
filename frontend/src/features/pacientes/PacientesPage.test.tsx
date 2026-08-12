@@ -56,6 +56,7 @@ function buildFakePacienteRepository(): PacienteRepository {
 function buildFakeObraSocialRepository(): ObraSocialRepository {
   return {
     list: vi.fn().mockResolvedValue([osecac]),
+    listPage: vi.fn(),
     getById: vi.fn().mockResolvedValue(osecac),
     create: vi.fn(),
     update: vi.fn(),
@@ -152,6 +153,28 @@ describe('PacientesPage', () => {
 
     const dniInputs = screen.getAllByLabelText(/^dni$/i) as HTMLInputElement[];
     expect(dniInputs.some((input) => input.value === '45123456')).toBe(true);
+  });
+});
+
+// paginacion-listados, Fase 3 (tasks.md 17.4): PacientesList resuelve el nombre de la obra
+// social de cada paciente vía `nombreObraSocial(obraSocialId)`, poblado desde
+// `ObraSocialRepository.list()` (useObrasSociales). Si eso se paginara, los pacientes cuya obra
+// social cayó fuera de la página mostrarían "Sin obra social" — dato incorrecto sin ningún error
+// visible (mismo modo de falla que 14.1/14.2 de la Fase 2).
+describe('PacientesPage — no-regresión: obra social sigue usando list() completo (17.4)', () => {
+  it('llama a obraSocialRepository.list(), nunca a listPage()', async () => {
+    const obraSocialRepository = buildFakeObraSocialRepository();
+
+    render(
+      <PacienteRepositoryProvider repository={buildFakePacienteRepository()}>
+        <PacientesPage obraSocialRepository={obraSocialRepository} documentoRepository={buildFakeDocumentoRepository()} />
+      </PacienteRepositoryProvider>,
+    );
+
+    await screen.findByText('OSECAC');
+
+    expect(obraSocialRepository.list).toHaveBeenCalled();
+    expect(obraSocialRepository.listPage).not.toHaveBeenCalled();
   });
 });
 

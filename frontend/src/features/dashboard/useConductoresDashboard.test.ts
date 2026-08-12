@@ -22,7 +22,14 @@ const conductor: Conductor = {
 };
 
 function buildRepository(overrides: Partial<ConductorRepository> = {}): ConductorRepository {
-  return { list: vi.fn().mockResolvedValue([conductor]), getById: vi.fn(), create: vi.fn(), update: vi.fn(), ...overrides };
+  return {
+    list: vi.fn().mockResolvedValue([conductor]),
+    listPage: vi.fn(),
+    getById: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    ...overrides,
+  };
 }
 
 describe('useConductoresDashboard', () => {
@@ -44,5 +51,17 @@ describe('useConductoresDashboard', () => {
 
     expect(result.current).not.toHaveProperty('crear');
     expect(result.current).not.toHaveProperty('actualizar');
+  });
+
+  // paginacion-listados, Fase 3 (tasks.md 16.4): el dashboard sigue calculando sobre el universo
+  // completo — nunca sobre una página. Paginar acá dejaría de resolver conductores fuera de la
+  // primera página en silencio (mismo modo de falla que 14.2 de la Fase 2, dato falso sin error).
+  it('no-regresión: sigue usando list() completo, nunca listPage()', async () => {
+    const repository = buildRepository();
+    const { result } = renderHook(() => useConductoresDashboard(repository));
+    await waitFor(() => expect(result.current.cargando).toBe(false));
+
+    expect(repository.list).toHaveBeenCalled();
+    expect(repository.listPage).not.toHaveBeenCalled();
   });
 });

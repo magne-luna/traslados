@@ -1,7 +1,10 @@
 import { supabase } from '../supabaseClient';
-import type { ActualizacionObraSocial, NuevaObraSocial } from '../../types/obraSocial';
-import type { ObraSocialRepository } from './ObraSocialRepository';
+import type { ActualizacionObraSocial, NuevaObraSocial, ObraSocial } from '../../types/obraSocial';
+import type { Pagina, RangoPagina } from '../../types/paginacion';
+import type { FiltrosObraSocial, ObraSocialRepository } from './ObraSocialRepository';
 import { ensamblarObraSocial, toActualizarObraSocialPayload, toCrearObraSocialPayload } from './obraSocialMapping';
+import { construirFiltroBusqueda } from '../paginacion/construirFiltroBusqueda';
+import { rangoSupabase } from '../paginacion/rangoSupabase';
 
 // Implementación real de ObraSocialRepository (design.md del change integracion-obra-social,
 // decisiones D1-D12). Toda la traducción fila<->dominio vive en `obraSocialMapping.ts` (D1); acá
@@ -30,6 +33,44 @@ async function listarObrasSociales() {
   if (!Array.isArray(rows)) return [];
 
   return rows.map((row) => ensamblarObraSocial(row));
+}
+
+// paginacion-listados (design.md §D5, búsqueda simple sin checkpoint): mismas columnas que
+// filtra `ObrasSocialesList.tsx` hoy client-side (`nombre`/`razon_social`, `cuit`).
+const COLUMNAS_BUSQUEDA_OBRA_SOCIAL = ['razon_social', 'cuit'] as const;
+
+/** Página server-side con búsqueda (design.md §D3, ADITIVO — `listarObrasSociales`/`list()` de
+ * arriba no cambia). Orden total determinista con desempate por `id` (§D4). `count: 'exact'`
+ * viaja en el mismo `select` y se propaga a `Pagina.total`, el universo filtrado. */
+async function listarObrasSocialesPagina(
+  query: RangoPagina & { filtros: FiltrosObraSocial },
+): Promise<Pagina<ObraSocial>> {
+  const { pagina, tamanio, filtros } = query;
+  const { desde, hasta } = rangoSupabase({ pagina, tamanio });
+
+  let consulta = supabase
+    .schema('obra_social')
+    .from('obra_social')
+    .select(SELECT_OBRA_SOCIAL_COMPLETA, { count: 'exact' })
+    .order('razon_social', { ascending: true })
+    .order('id', { ascending: true })
+    .range(desde, hasta);
+
+  const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_OBRA_SOCIAL);
+  if (filtro) {
+    for (const expresion of filtro.expresionesOr) {
+      consulta = consulta.or(expresion);
+    }
+  }
+
+  const { data, error, count } = await consulta;
+  if (error) throw mapearErrorObraSocial(error, { operacion: 'listar' });
+
+  const rows: unknown = data;
+  const filasCrudas = Array.isArray(rows) ? rows : [];
+  const items = filasCrudas.map((row) => ensamblarObraSocial(row));
+
+  return { items, total: count ?? 0, pagina, tamanio };
 }
 
 async function getObraSocialById(id: string) {
@@ -180,6 +221,7 @@ async function actualizarObraSocial(id: string, data: ActualizacionObraSocial) {
 
 export const supabaseObraSocialRepository: ObraSocialRepository = {
   list: listarObrasSociales,
+  listPage: listarObrasSocialesPagina,
   getById: getObraSocialById,
   create: crearObraSocial,
   update: actualizarObraSocial,

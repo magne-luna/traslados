@@ -76,6 +76,7 @@ function buildProps() {
   };
   const obraSocialRepository: ObraSocialRepository = {
     list: vi.fn().mockResolvedValue([]),
+    listPage: vi.fn(),
     getById: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -133,6 +134,27 @@ describe('FacturacionPage', () => {
     await userEvent.click(volverArriba);
 
     expect(await screen.findByRole('button', { name: /nueva factura/i })).toBeInTheDocument();
+  });
+});
+
+// paginacion-listados, Fase 3 (tasks.md 17.5): el selector de obra social de Facturación sigue
+// necesitando el catálogo COMPLETO (design.md §D3) — mismo criterio que 17.4/17.5 de
+// PacientesPage/PresupuestosPage.
+describe('FacturacionPage — no-regresión: el selector de obra social usa list() completo (17.5)', () => {
+  it('llama a obraSocialRepository.list() y nunca a listPage()', async () => {
+    const props = buildProps();
+    render(
+      <FacturaRepositoryProvider repository={buildFacturaRepository()}>
+        <CobroRepositoryProvider repository={buildCobroRepository()}>
+          <FacturacionPage {...props} feriados={[]} />
+        </CobroRepositoryProvider>
+      </FacturaRepositoryProvider>,
+    );
+
+    await screen.findByText('Gómez, Martina', { selector: 'span' });
+
+    expect(props.obraSocialRepository.list).toHaveBeenCalled();
+    expect(props.obraSocialRepository.listPage).not.toHaveBeenCalled();
   });
 });
 

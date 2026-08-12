@@ -98,7 +98,13 @@ function buildFakePacienteRepo(): PacienteRepository {
   };
 }
 function buildFakeObraSocialRepo(): ObraSocialRepository {
-  return { list: vi.fn().mockResolvedValue([osecac]), getById: vi.fn().mockResolvedValue(osecac), create: vi.fn(), update: vi.fn() };
+  return {
+    list: vi.fn().mockResolvedValue([osecac]),
+    listPage: vi.fn(),
+    getById: vi.fn().mockResolvedValue(osecac),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
 }
 function buildFakePresupuestoRepo(): PresupuestoRepository {
   return {

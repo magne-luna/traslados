@@ -1,6 +1,8 @@
 import { generateId } from '../id';
 import type { ActualizacionConductor, Conductor, NuevoConductor } from '../../types/conductor';
 import type { ConductorRepository } from '../conductores/ConductorRepository';
+import { construirFiltroBusqueda, matcheaFiltroBusqueda } from '../paginacion/construirFiltroBusqueda';
+import { rangoSupabase } from '../paginacion/rangoSupabase';
 import { buildConductoresFixture } from './conductoresFixture';
 
 // Implementación mock de ConductorRepository (design.md Decisión 1): persiste en localStorage
@@ -65,9 +67,40 @@ function withLatency<T>(value: T, ms = 350): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms));
 }
 
+// paginacion-listados (design.md §D4/§D9, tasks.md 16.2): mismo criterio de orden que
+// SupabaseConductorRepository.listPage — apellido, nombre, y `id` como desempate obligatorio.
+function ordenarConductores(conductores: Conductor[]): Conductor[] {
+  return [...conductores].sort((a, b) => {
+    const porApellido = a.apellido.localeCompare(b.apellido);
+    if (porApellido !== 0) return porApellido;
+    const porNombre = a.nombre.localeCompare(b.nombre);
+    if (porNombre !== 0) return porNombre;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+// Mismas columnas "lógicas" que traduce SupabaseConductorRepository.listPage a `.or()`
+// (design.md §D5, búsqueda simple sin checkpoint) — el match real lo hace `matcheaFiltroBusqueda`
+// sobre `valoresBuscables`, no sobre estos nombres de columna.
+const COLUMNAS_BUSQUEDA_CONDUCTOR = ['apellido', 'nombre', 'dni', 'cuil'] as const;
+
+function valoresBuscables(conductor: Conductor): Array<string | null | undefined> {
+  return [conductor.apellido, conductor.nombre, conductor.documento, conductor.cuil];
+}
+
 export const mockConductorRepository: ConductorRepository = {
   async list() {
     return withLatency([...readStore()]);
+  },
+
+  async listPage({ pagina, tamanio, filtros }) {
+    const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_CONDUCTOR);
+    const todos = ordenarConductores(readStore()).filter((conductor) =>
+      matcheaFiltroBusqueda(valoresBuscables(conductor), filtro),
+    );
+    const { desde, hasta } = rangoSupabase({ pagina, tamanio });
+    const items = todos.slice(desde, hasta + 1);
+    return withLatency({ items, total: todos.length, pagina, tamanio });
   },
 
   async getById(id) {

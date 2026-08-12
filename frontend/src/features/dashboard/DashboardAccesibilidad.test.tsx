@@ -131,6 +131,7 @@ function buildRepositorios() {
   };
   const conductorRepository: ConductorRepository = {
     list: vi.fn().mockResolvedValue([conductor]),
+    listPage: vi.fn(),
     getById: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),

@@ -53,6 +53,7 @@ const osecac: ObraSocial = {
 function buildObraSocialRepository(overrides: Partial<ObraSocialRepository> = {}): ObraSocialRepository {
   return {
     list: vi.fn().mockResolvedValue([]),
+    listPage: vi.fn(),
     getById: vi.fn().mockResolvedValue(osecac),
     create: vi.fn(),
     update: vi.fn(),

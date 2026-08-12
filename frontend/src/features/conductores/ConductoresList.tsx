@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
 import { Button, CamposSoloLectura, Chip, InlineIcon, SearchInput } from '../../design-system/components';
 import { Alert, EmptyState } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
+import { Paginador } from '../../design-system/paginador';
 import { iconCasa, iconCredencial, iconLlave, iconTelefono } from '../../design-system/icons';
 import { semanaActualIso } from '../../shared/lib/conductores/semanaActualIso';
 import type { Conductor } from '../../shared/types/conductor';
@@ -9,6 +9,7 @@ import { useVehiculoRepository } from '../vehiculos/VehiculoRepositoryContext';
 import { useVehiculos } from '../vehiculos/useVehiculos';
 
 interface ConductoresListProps {
+  /** SOLO la página actual (paginacion-listados, Fase 3) — nunca el padrón completo. */
   conductores: Conductor[];
   loading: boolean;
   error: string | null;
@@ -17,32 +18,52 @@ interface ConductoresListProps {
   /** Fecha de referencia inyectable (tests); por defecto "ahora" real — mismo criterio que
    * VehiculosList/AsignacionSemanalTabla, nunca `new Date()` fuera del borde de la UI. */
   ahora?: Date;
+  /** Término de búsqueda (paginacion-listados §D6): controlado desde afuera — este componente ya
+   * no filtra en memoria, solo refleja lo que le llega por `conductores`/`total`. */
+  busqueda: string;
+  onBusquedaChange: (valor: string) => void;
+  pagina: number;
+  tamanio: number;
+  /** Total de resultados que matchean el filtro aplicado (no `conductores.length`, que es como
+   * mucho `tamanio`) — lo que permite mostrar "Página N de M" sin una segunda consulta. */
+  total: number;
+  onCambiarPagina: (pagina: number) => void;
 }
 
-// Pantalla de listado (tasks.md 5.1, US-600): estados de carga/vacío/error explícitos,
-// presentacional puro salvo el filtro de búsqueda (estado local, no persiste). Grid de tarjetas
-// para exponer de entrada la mayor cantidad de información del maestro (mismo criterio que
-// VehiculosList/ObrasSocialesList): documento, CUIL, domicilio, teléfono, observaciones (D6-B:
-// único campo libre del perfil, sin selector de restricciones estructurado) y el vehículo
-// asignado la semana actual (resuelto contra VehiculoRepository, mismo patrón de composición que
-// AsignacionSemanalTabla — VehiculoRepositoryProvider ya está montado en ConductoresRoute).
-export function ConductoresList({ conductores, loading, error, onSelect, onCreateNew, ahora = new Date() }: ConductoresListProps) {
-  const [busqueda, setBusqueda] = useState('');
+// Pantalla de listado (tasks.md 5.1, US-600; paginacion-listados Fase 3 tasks.md 16.3): estados
+// de carga/vacío/error explícitos, presentacional puro (sin estado propio de filtrado ni de
+// página, todo llega por props desde `useConductoresPaginado` — mismo criterio que PacientesList
+// 13.8). Grid de tarjetas para exponer de entrada la mayor cantidad de información del maestro
+// (mismo criterio que VehiculosList/ObrasSocialesList): documento, CUIL, domicilio, teléfono,
+// observaciones (D6-B: único campo libre del perfil, sin selector de restricciones estructurado)
+// y el vehículo asignado la semana actual (resuelto contra VehiculoRepository, mismo patrón de
+// composición que AsignacionSemanalTabla — VehiculoRepositoryProvider ya está montado en
+// ConductoresRoute).
+export function ConductoresList({
+  conductores,
+  loading,
+  error,
+  onSelect,
+  onCreateNew,
+  ahora = new Date(),
+  busqueda,
+  onBusquedaChange,
+  pagina,
+  tamanio,
+  total,
+  onCambiarPagina,
+}: ConductoresListProps) {
   const vehiculoRepository = useVehiculoRepository();
   const { vehiculos } = useVehiculos(vehiculoRepository);
   const semanaActual = semanaActualIso(ahora);
 
-  const filtrados = useMemo(() => {
-    const termino = busqueda.trim().toLowerCase();
-    if (!termino) return conductores;
-    return conductores.filter(
-      (conductor) =>
-        conductor.apellido.toLowerCase().includes(termino) ||
-        conductor.nombre.toLowerCase().includes(termino) ||
-        conductor.documento.toLowerCase().includes(termino) ||
-        conductor.cuil.toLowerCase().includes(termino),
-    );
-  }, [busqueda, conductores]);
+  // Tres estados distinguibles (mismo criterio que PacientesList 13.5), nunca la misma pantalla
+  // para los tres: sin conductores cargados en TODO el sistema / búsqueda sin coincidencias /
+  // carga inicial en curso (se resuelve antes que los otros dos, más abajo).
+  const sinResultados = total === 0;
+  const hayBusquedaActiva = busqueda.trim() !== '';
+  const mostrarBuscador = total > 0 || hayBusquedaActiva;
+  const totalPaginas = Math.ceil(total / tamanio);
 
   return (
     <div className="flex flex-col gap-lg py-xxl px-xl">
@@ -53,10 +74,10 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
         </Button>
       </div>
 
-      {conductores.length > 0 && (
+      {mostrarBuscador && (
         <SearchInput
           value={busqueda}
-          onChange={setBusqueda}
+          onChange={onBusquedaChange}
           placeholder="Buscar por apellido, documento o CUIL…"
           ariaLabel="Buscar conductor"
         />
@@ -66,7 +87,7 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
 
       {loading ? (
         <p className="font-body text-sm text-muted">Cargando conductores…</p>
-      ) : conductores.length === 0 ? (
+      ) : sinResultados && !hayBusquedaActiva ? (
         <EmptyState
           message="No hay conductores cargados todavía."
           action={
@@ -75,11 +96,12 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
             </Button>
           }
         />
-      ) : filtrados.length === 0 ? (
+      ) : sinResultados ? (
         <p className="font-body text-sm text-muted">Ningún conductor coincide con "{busqueda}".</p>
       ) : (
+        <>
         <div className="grid grid-cols-1 gap-md md:grid-cols-3">
-          {filtrados.map((conductor) => {
+          {conductores.map((conductor) => {
             const asignacionActual = conductor.asignaciones.find((asignacion) => asignacion.semana === semanaActual);
             const vehiculoAsignado = asignacionActual
               ? (vehiculos.find((vehiculo) => vehiculo.id === asignacionActual.vehiculoId) ?? null)
@@ -185,6 +207,8 @@ export function ConductoresList({ conductores, loading, error, onSelect, onCreat
             );
           })}
         </div>
+        <Paginador pagina={pagina} totalPaginas={totalPaginas} total={total} onCambiarPagina={onCambiarPagina} />
+        </>
       )}
     </div>
   );

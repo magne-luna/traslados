@@ -18,6 +18,7 @@ const perez: Conductor = {
 function buildFakeRepository(overrides: Partial<ConductorRepository> = {}): ConductorRepository {
   return {
     list: vi.fn().mockResolvedValue([perez]),
+    listPage: vi.fn().mockResolvedValue({ items: [perez], total: 1, pagina: 1, tamanio: 20 }),
     getById: vi.fn().mockResolvedValue(perez),
     create: vi.fn().mockResolvedValue(perez),
     update: vi.fn().mockResolvedValue(perez),

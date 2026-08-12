@@ -6,6 +6,7 @@ import { ObraSocialRepositoryProvider, useObraSocialRepository } from './ObraSoc
 function buildFakeRepository(): ObraSocialRepository {
   return {
     list: vi.fn().mockResolvedValue([]),
+    listPage: vi.fn().mockResolvedValue({ items: [], total: 0, pagina: 1, tamanio: 20 }),
     getById: vi.fn().mockResolvedValue(null),
     create: vi.fn(),
     update: vi.fn(),
