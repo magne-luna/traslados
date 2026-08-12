@@ -306,29 +306,45 @@
 
 ## 3. `SupabaseFacturaRepository.ts` (TDD estricto, nadie lo importa todavía)
 
-- [ ] 3.1 Construir el fake tipado del cliente de supabase-js (interfaces propias, **cero `any`, cero
-      `as`**) que **registra** cada llamada. Reusar el criterio de
-      `SupabaseObraSocialRepository.test.ts`, sin copiar de más: mantenerlo en el subconjunto mínimo
-      usado (`schema`, `from`, `select`, `eq`, `maybeSingle`, `rpc`, `insert`, `delete`).
-- [ ] 3.2 **RED** — `list()`: **una sola** consulta a `facturacion.facturas` con el embed de
-      asistencias (anti N+1). Aserción sobre el número de llamadas registradas, no solo sobre el
-      resultado.
-- [ ] 3.3 **RED** — `getById()`: fila → `Factura`; sin fila → **`null`, no lanza**; RLS que filtra →
-      también `null` (mismo camino de código, test separado porque es contrato).
-- [ ] 3.4 **RED** — `listByPaciente()`: el filtro por `paciente_id` se aplica **en la consulta**, no
-      filtrando el resultado de `list()` en memoria.
-- [ ] 3.5 **RED** — `create()`: **exactamente una** `.rpc()` y **ningún** `.insert()` sobre
-      `asistencia_prestacion`; relee por id y devuelve esa lectura.
-- [ ] 3.6 **RED** — `update()`: ídem, con `p_id` y `p_cambios`; y el caso "solo estado" que **no**
-      manda la clave `asistencias`.
-- [ ] 3.7 **RED** — traducción de errores (D7), **un test por código**: `42501`/`PGRST301`, `23503`
-      sobre `paciente_id`, `23503` sobre `domicilio_id`, `23514`, `22P02`, `45201`, `45202`, `45203`,
-      `45204`, `PGRST202`, `PGRST204`, `PGRST106`, y el fallback genérico distinguiendo carga de
-      guardado. **TRIANGULATE**: verificar además que ningún mensaje contiene nombres de tabla,
-      nombres de columna ni texto en inglés.
-- [ ] 3.8 **RED** — aserción de código fuente (`?raw`): el archivo no contiene `service_role`, no
-      contiene `any`, no crea su propio cliente y no consulta `modulos.permisos` ni `modulos.modulos`.
-- [ ] 3.9 `npx tsc -b --noEmit` + `oxlint` limpios.
+- [x] 3.1 **Hecho 2026-08-12.** Fake tipado del cliente de supabase-js en
+      `SupabaseFacturaRepository.test.ts` (interfaces propias, cero `any`, cero `as`), recortado al
+      subconjunto real usado: `schema`, `from`, `select`, `eq`, `maybeSingle`, `rpc`, `insert`,
+      `delete`. Registra cada llamada en `calls` (mismo molde que
+      `SupabaseObraSocialRepository.test.ts`).
+- [x] 3.2 **Hecho.** `list()`: una sola consulta a `facturacion.facturas` con el embed de
+      asistencias (`SELECT_FACTURA_COMPLETA`). Test dedicado afirma
+      `calls.filter((c) => c.op === 'select')` tiene longitud 1 (anti N+1, no solo el resultado).
+- [x] 3.3 **Hecho.** `getById()`: fila → `Factura` (vía `ensamblarFactura`); sin fila → `null`, no
+      lanza; RLS que filtra → también `null`, mismo camino de código, test separado (contrato
+      explícito de la interfaz).
+- [x] 3.4 **Hecho.** `listByPaciente()`: filtro `.eq('paciente_id', ...)` verificado explícitamente
+      en el `RecordedCall.eq` de la consulta (no post-filtrado en memoria de `list()`).
+- [x] 3.5 **Hecho.** `create()`: test dedicado verifica **exactamente una** `.rpc()`
+      (`crear_factura_completa`) y **cero** `.insert()` (ninguno, ni sobre `asistencia_prestacion`
+      en particular). Relee por el id devuelto vía `getFacturaById` y devuelve esa lectura.
+- [x] 3.6 **Hecho.** `update()`: **exactamente una** `.rpc()` (`actualizar_factura_completa`, `p_id`
+      + `p_cambios`); caso "EL CASO CRÍTICO: editar SOLO el estado" verifica que `p_cambios` NO
+      tiene la clave `asistencias`; caso complementario verifica que `asistencias: []` SÍ viaja
+      cuando está presente. **RED confirmado**: se forzó temporalmente el envío de
+      `asistencias: []` siempre y el test del caso crítico falló como se esperaba
+      (`expected ... to not have property "asistencias"`); revertido antes del commit.
+- [x] 3.7 **Hecho.** Un test por código de D7: `42501`/`PGRST301`, `23503` sobre `paciente_id`,
+      `23503` sobre `domicilio_id` (distinguidos por el texto de constraint del error crudo, nunca
+      propagado), `23514`, `22P02`, `45201`, `45202`, `45203`, `45204`, `PGRST202`, `PGRST204`,
+      `PGRST106`, y el fallback genérico distinguiendo `listar` (`getById`/`list`) de `guardar`
+      (`create`/`update`). **TRIANGULATE** (`it.each` sobre los 12 códigos): ningún mensaje contiene
+      nombre de tabla calificado, columnas snake_case ni jerga técnica en inglés (`schema`, `table`,
+      `column`, `constraint`, `relation`, `permission denied`) — la palabra de dominio "facturas" en
+      castellano queda explícitamente permitida.
+- [x] 3.8 **Hecho — con `node:fs`, no `?raw`** (instrucción explícita de esta sesión de apply, pese a
+      que el archivo vive dentro de `frontend/` donde `?raw` sí funciona; mismo patrón de
+      `facturaMigrations.test.ts` 1B.5: `fileURLToPath(import.meta.url)` + `resolve`). Verifica que
+      el archivo no contiene `service_role`, no contiene `\bany\b`, no crea su propio cliente
+      (`createClient`) y sí importa el singleton de `../supabaseClient`, y que no consulta
+      `.from('permisos')`/`.from('modulos')`/`schema('modulos')`.
+- [x] 3.9 **Verificado.** `npx tsc -b --noEmit` sin salida (exit 0); `oxlint` sobre los dos archivos
+      nuevos sin salida. Suite completa de `src/shared/lib/facturacion/`: **13 archivos / 151 tests,
+      todos verdes** (incluye los 54 nuevos de `SupabaseFacturaRepository.test.ts`).
 
 ## 4. `SupabaseCobroRepository.ts` (TDD estricto — bloqueada por 0.3)
 
