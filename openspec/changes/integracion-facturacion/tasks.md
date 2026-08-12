@@ -348,17 +348,33 @@
 
 ## 4. `SupabaseCobroRepository.ts` (TDD estricto — bloqueada por 0.3)
 
-- [ ] 4.1 **RED** — `list()`: una sola consulta sin filtro (la necesita `C-11`).
-- [ ] 4.2 **RED** — `listByFactura(facturaId)`: filtro sobre la columna **`facturas_id`** (plural).
-      Test explícito del nombre de columna: es el error más fácil de cometer y el más silencioso.
-- [ ] 4.3 **RED** — `create()`: `.insert()` + `.select().single()`, devuelve el `Cobro` mapeado.
-- [ ] 4.4 **RED** — `remove(id)`: `.delete().eq('id', id)`; una lectura posterior no lo incluye.
-- [ ] 4.5 **RED** — traducción de errores: `42501`/`PGRST301` → mensaje de permiso; `23503` sobre
-      `facturas_id` → `La factura de ese cobro ya no existe.`
-- [ ] 4.6 **RED** — coherencia `list()` / `listByFactura()`: los cobros que devuelve el segundo son
-      exactamente los del primero cuyo `facturaId` coincide (requisito vigente de `factura-contract`).
-- [ ] 4.7 Aserción de código fuente (`?raw`) equivalente a 3.8.
-- [ ] 4.8 `npx tsc -b --noEmit` + `oxlint` limpios.
+- [x] 4.1 **Hecho.** `list()`: una sola consulta sin filtro sobre `facturacion.cobros`
+      (`SELECT_COBRO`, sin `.eq`). Test dedicado afirma `calls.filter(op==='select')` longitud 1 y
+      `eq` vacío.
+- [x] 4.2 **Hecho.** `listByFactura(facturaId)`: filtro `.eq('facturas_id', facturaId)` (plural).
+      Test explícito que afirma la llamada exacta `['facturas_id', 'f-1']` y que **no** existe
+      ninguna `.eq` con clave `'factura_id'` (singular) — el typo más silencioso posible.
+- [x] 4.3 **Hecho.** `create()`: `.insert(toCrearCobroPayload(data))` + `.select().single()`,
+      devuelve `parseCobroRow(fila)`. Test verifica payload snake_case exacto y que una relectura
+      `null` sin error lanza en vez de inventar un `Cobro`.
+- [x] 4.4 **Hecho.** `remove(id)`: `.delete().eq('id', id)`; test de `.eq` exacto y test de que una
+      lectura posterior (mock con estado compartido) ya no incluye el cobro eliminado.
+- [x] 4.5 **Hecho.** `42501`/`PGRST301` → `'No tenés permiso para modificar facturas.'` (mismo
+      texto de D7, módulo `facturacion` comparte el mensaje de permiso de escritura); `23503` sobre
+      `facturas_id` → mensaje **exacto** `'La factura de ese cobro ya no existe.'` (test con
+      `toThrow(new Error(...))` para el string literal). Fallback genérico distingue `listar` de
+      `guardar` (`create`/`remove`), igual que 3.7.
+- [x] 4.6 **Hecho.** Test de coherencia: `listByFactura('f-1')` sobre un fake con 3 filas (2 de
+      `f-1`, 1 de `f-2`) es idéntico a `list().filter(c => c.facturaId === 'f-1')`.
+- [x] 4.7 **Hecho — con `node:fs`, no `?raw`** (mismo criterio que 3.8). Verifica: sin
+      `service_role`, sin `\bany\b`, sin `createClient` propio (importa `../supabaseClient`), sin
+      `.from('permisos')`/`.from('modulos')`/`schema('modulos')`.
+- [x] 4.8 **Verificado.** `npx tsc -b --noEmit` sin salida (exit 0); `oxlint` sobre los dos archivos
+      nuevos sin salida. Suite completa de `src/shared/lib/facturacion/`: **14 archivos / 181 tests,
+      todos verdes** (151 previos + 30 nuevos de `SupabaseCobroRepository.test.ts`). RED real
+      confirmado: el archivo de test se corrió antes de escribir `SupabaseCobroRepository.ts` y
+      falló por módulo inexistente; tras implementar, los 30 tests pasaron en la primera corrida
+      (GREEN sin iteración, mapeo reusado de `facturaMapping.ts` sin ajustes).
 
 ## 5. El swap (⚠️ el corte real — bloqueada por 1B.7)
 
