@@ -68,7 +68,6 @@ function atajosFecha(): { label: string; valor: string }[] {
 export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conductorRepository, desdeRepositoryReal = false }: HojaDeRutaPageProps) {
   const formId = useId();
   const hojaRepository = useHojaDeRutaRepository();
-  const { hojasDeRuta, loading, error, crear, actualizar } = useHojasDeRuta(hojaRepository);
   const { pacientes } = usePacientes(pacienteRepository);
   const { vehiculos } = useVehiculos(vehiculoRepository);
   const { conductores } = useConductores(conductorRepository);
@@ -78,7 +77,9 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
   const shortcuts = atajosFecha();
   const esFechaPersonalizada = !shortcuts.some((atajo) => atajo.valor === fecha);
 
-  const hojaDelDia = hojasDeRuta.find((h) => h.fecha === fecha) ?? null;
+  // paginacion-listados Fase 1 (design.md §D7): resuelve el día seleccionado con `getByFecha`,
+  // no con `list()` + `.find()` sobre la historia entera — ver useHojasDeRuta.ts.
+  const { hojaDeRuta: hojaDelDia, loading, error, crear, actualizar } = useHojasDeRuta(hojaRepository, fecha);
 
   async function handleCrearHoja() {
     await crear({ fecha, franjaInicio: FRANJA_INICIO_DEFAULT, franjaFin: FRANJA_FIN_DEFAULT, recorridos: [] });

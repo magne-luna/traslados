@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
 import type { HojaDeRutaRepository } from '../../shared/lib/hojas-de-ruta/HojaDeRutaRepository';
@@ -59,6 +59,17 @@ function buildFakeHojaRepo(overrides: Partial<HojaDeRutaRepository> = {}): HojaD
     update: vi.fn(),
     ...overrides,
   };
+}
+
+// paginacion-listados Fase 1 (design.md §D7): HojaDeRutaPage resuelve el día vía
+// `getByFecha(fecha)`, no `list()` + `.find()`. Este doble respeta la fecha pedida — si no, un
+// test que cambia de fecha (o que renderiza con la fecha "de hoy" real, no determinística) vería
+// la misma hoja sin importar qué día se pida, y dejaría de probar lo que dice probar.
+function buildFakeHojaRepoConHoja(hoja: HojaDeRuta, overrides: Partial<HojaDeRutaRepository> = {}): HojaDeRutaRepository {
+  return buildFakeHojaRepo({
+    getByFecha: vi.fn(async (fecha: string) => (fecha === hoja.fecha ? hoja : null)),
+    ...overrides,
+  });
 }
 
 function buildFakeVehiculoRepo(): VehiculoRepository {
@@ -145,7 +156,7 @@ describe('HojaDeRutaPage', () => {
         },
       ],
     };
-    renderPageConPermiso(true, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hoja]) }), true);
+    renderPageConPermiso(true, buildFakeHojaRepoConHoja(hoja), true);
 
     expect(await screen.findByText(/editá la dirección/i)).toBeInTheDocument();
   });
@@ -175,7 +186,7 @@ describe('HojaDeRutaPage', () => {
   });
 
   it('muestra un mensaje de error visible cuando falla la carga', async () => {
-    const repo = buildFakeHojaRepo({ list: vi.fn().mockRejectedValue(new Error('caído')) });
+    const repo = buildFakeHojaRepo({ getByFecha: vi.fn().mockRejectedValue(new Error('caído')) });
 
     renderPage(repo);
 
@@ -190,7 +201,7 @@ describe('HojaDeRutaPage', () => {
       franjaFin: '20:00',
       recorridos: [{ id: 'r-1', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
     };
-    const repo = buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hoja]) });
+    const repo = buildFakeHojaRepoConHoja(hoja);
 
     renderPage(repo);
 
@@ -257,7 +268,7 @@ describe('HojaDeRutaPage — lo que NO se gatea (D1/D2)', () => {
 
   it('sin permiso de escritura: los tres conmutadores de vista son activables y las tres vistas se renderizan completas', async () => {
     const user = userEvent.setup();
-    renderPageConPermiso(false, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hojaConRecorrido]) }));
+    renderPageConPermiso(false, buildFakeHojaRepoConHoja(hojaConRecorrido));
 
     const botonArmado = await screen.findByRole('button', { name: /^armado$/i });
     const botonGlobal = screen.getByRole('button', { name: /vista global/i });
@@ -278,14 +289,14 @@ describe('HojaDeRutaPage — lo que NO se gatea (D1/D2)', () => {
 
   it('con permiso de escritura: los tres conmutadores de vista funcionan igual', async () => {
     const user = userEvent.setup();
-    renderPageConPermiso(true, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hojaConRecorrido]) }));
+    renderPageConPermiso(true, buildFakeHojaRepoConHoja(hojaConRecorrido));
 
     await user.click(await screen.findByRole('button', { name: /vista global/i }));
     expect(screen.getByText(/sin conflictos/i)).toBeInTheDocument();
   });
 
   it('sin permiso de escritura: el selector de fecha acepta el cambio y la pantalla muestra la hoja (o el estado vacío) de ese día', async () => {
-    renderPageConPermiso(false, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hojaConRecorrido]) }));
+    renderPageConPermiso(false, buildFakeHojaRepoConHoja(hojaConRecorrido));
 
     const inputFecha = await screen.findByLabelText(/fecha/i);
     expect(inputFecha).toBeEnabled();
@@ -296,7 +307,7 @@ describe('HojaDeRutaPage — lo que NO se gatea (D1/D2)', () => {
   });
 
   it('el encabezado de la pantalla (fecha + conmutadores) no queda dentro de ningún envoltorio de solo lectura', async () => {
-    renderPageConPermiso(false, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hojaConRecorrido]) }));
+    renderPageConPermiso(false, buildFakeHojaRepoConHoja(hojaConRecorrido));
 
     const inputFecha = await screen.findByLabelText(/fecha/i);
     // Un <fieldset disabled> ancestro deshabilitaría también este input — si esto pasa, prueba
@@ -319,7 +330,7 @@ describe('HojaDeRutaPage — vistas de solo lectura no se bloquean', () => {
       franjaFin: '20:00',
       recorridos: [{ id: 'r-1', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
     };
-    renderPageConPermiso(false, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hoja]) }));
+    renderPageConPermiso(false, buildFakeHojaRepoConHoja(hoja));
 
     await user.click(await screen.findByRole('button', { name: /imprimir/i }));
 
@@ -364,7 +375,7 @@ describe('HojaDeRutaPage — aviso de modo solo lectura', () => {
 
   it('sin permiso de escritura: el aviso sigue visible al conmutar entre armado, global e imprimir', async () => {
     const user = userEvent.setup();
-    renderPageConPermiso(false, buildFakeHojaRepo({ list: vi.fn().mockResolvedValue([hojaConRecorrido]) }));
+    renderPageConPermiso(false, buildFakeHojaRepoConHoja(hojaConRecorrido));
 
     function avisoVisible(): boolean {
       return screen.getAllByRole('note').some((nota) => /modo solo lectura/i.test(nota.textContent ?? ''));
@@ -381,5 +392,68 @@ describe('HojaDeRutaPage — aviso de modo solo lectura', () => {
 
     await user.click(screen.getByRole('button', { name: /^armado$/i }));
     expect(avisoVisible()).toBe(true);
+  });
+});
+
+// ⚠️ Regresión obligatoria (paginacion-listados Fase 1, design.md §D7 "Cuidado en el apply",
+// tasks.md 8.6): al migrar de `list()` a `getByFecha()` en useHojasDeRuta, el refetch post-
+// mutación debe seguir siendo silencioso (`{ silencioso: true }`) — si vuelve a tildar `loading`,
+// HojaDeRutaPage desmonta la vista de armado completa (incluido el RecorridoCard en modo
+// "Editar") mientras el refetch está pendiente, igual que el bug original arreglado el
+// 2026-08-11 (commit 59caedc, cubierto entonces solo a nivel hook). Este test lo cubre a nivel
+// de integración de pantalla, mutando un recorrido real (Sugerir orden) con un RecorridoCard en
+// modo edición.
+describe('HojaDeRutaPage — regresión de recarga silenciosa (design.md §D7)', () => {
+  it('mutar un recorrido en modo edición no muestra el loading de pantalla completa ni desmonta el RecorridoCard', async () => {
+    const user = userEvent.setup();
+    const hoja: HojaDeRuta = {
+      id: 'hoja-1',
+      fecha: HOY,
+      franjaInicio: '08:00',
+      franjaFin: '20:00',
+      recorridos: [
+        {
+          id: 'r-1',
+          vehiculoId: 'v-1',
+          conductorId: 'c-1',
+          manual: false,
+          paradas: [
+            { id: 'p-1', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'd1', direccionDestinoId: 'd2', orden: 0 },
+            { id: 'p-2', pacienteId: 'paciente-2', tramo: 'ida', direccionOrigenId: 'd3', direccionDestinoId: 'd4', orden: 1 },
+          ],
+        },
+      ],
+    };
+
+    let resolveRefetch: (hoja: HojaDeRuta | null) => void = () => {};
+    const refetchPendiente = new Promise<HojaDeRuta | null>((resolve) => {
+      resolveRefetch = resolve;
+    });
+    const getByFecha = vi
+      .fn()
+      .mockResolvedValueOnce(hoja) // carga inicial
+      .mockReturnValueOnce(refetchPendiente); // refetch post-mutación (silencioso)
+    const update = vi.fn().mockResolvedValue(hoja);
+    const repo = buildFakeHojaRepo({ getByFecha, update });
+
+    renderPageConPermiso(true, repo);
+
+    await user.click(await screen.findByRole('button', { name: /^editar$/i }));
+    expect(screen.getByRole('button', { name: /^listo$/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /sugerir orden/i }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+
+    // Mientras el refetch silencioso sigue pendiente: nunca el loading de pantalla completa, y
+    // el RecorridoCard sigue montado en modo edición (no se resetea a modo lectura).
+    expect(screen.queryByText(/cargando hoja de ruta/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^listo$/i })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefetch(hoja);
+    });
+
+    expect(screen.getByRole('button', { name: /^listo$/i })).toBeInTheDocument();
   });
 });

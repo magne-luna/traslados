@@ -184,11 +184,11 @@
 
 ## Fase 1 — Hojas de Ruta: `getByFecha` en vez de traer la historia entera
 
-> **⏸️ POSPUESTA (2026-08-12).** Hay otra sesión de la usuaria trabajando en paralelo sobre Hojas de
-> Ruta (`NuevoRecorridoForm.tsx`, `sugerirRecorridoExistente.ts`, sin commitear). Para no pisar ese
-> trabajo, se reordena el rollout: **Fase 2 (Pacientes) se hace primero** — no toca ningún archivo de
-> Hojas de Ruta, cero riesgo de conflicto. Fase 1 se retoma cuando esa sesión cierre o la usuaria lo
-> indique.
+> **✅ RETOMADA Y CERRADA (2026-08-12).** La sesión paralela sobre Hojas de Ruta (`NuevoRecorridoForm.tsx`,
+> `sugerirRecorridoExistente.ts`, `RecorridoCard.tsx`, `useHojasDeRuta.ts`, `useHojasDeRuta.test.ts`)
+> cerró y commiteó su trabajo (`b758d4b`, `59caedc`) antes de este apply — working tree limpio al
+> arrancar. La usuaria autorizó explícitamente (dos veces) avanzar. Ver engram
+> `paginacion-listados: usuaria autorizó tocar useHojasDeRuta.ts pese a WIP sin commitear`.
 
 > La mayor ganancia de payload del change y la más barata: `getByFecha` **ya existe** en
 > `HojaDeRutaRepository` y en `SupabaseHojaDeRutaRepository`. No hay nada nuevo que escribir en la capa
@@ -196,41 +196,102 @@
 
 ### 7. Safety net
 
-- [ ] 7.1 Correr los tests que cubren `HojaDeRutaPage` y `useHojasDeRuta`
+- [x] 7.1 Correr los tests que cubren `HojaDeRutaPage` y `useHojasDeRuta`
       (`useHojasDeRuta.test.ts` y los de la feature) y registrar el baseline "N/N en verde".
       Si algo ya falla → falla preexistente, se reporta y NO se arregla acá.
+      **→ BASELINE (2026-08-12, apply Fase 1): 205/205 tests en verde (30 archivos)** —
+      `src/features/hojas-de-ruta/**` + `src/features/dashboard/**` (el dashboard también consume
+      `getByFecha` vía `useHojaDeRutaDelDia`, mismo repository). Comparado contra el cierre de la
+      Fase 3 (2508/2511 global) — ninguna falla preexistente cae dentro de este subconjunto.
 
 ### 8. Carga del día por fecha (TDD)
 
-- [ ] 8.1 **RED** — test sobre el hook/página con un `HojaDeRutaRepository` doble: al seleccionar una
+- [x] 8.1 **RED** — test sobre el hook/página con un `HojaDeRutaRepository` doble: al seleccionar una
       fecha se invoca **`getByFecha(fecha)`** y **NO** `list()`. Es el corazón del cambio: el test
       cuenta qué método se llamó.
-- [ ] 8.2 **GREEN** — reemplazar en `HojaDeRutaPage.tsx` el `useHojasDeRuta(...)` + `.find(h => h.fecha === fecha)`
+      **→ `useHojasDeRuta.test.ts`, primer test reescrito: además de loading/hoja del día, asserta
+      `expect(repository.getByFecha).toHaveBeenCalledWith(fecha)` y
+      `expect(repository.list).not.toHaveBeenCalled()`. Confirmado en rojo contra la implementación
+      vieja (6/9 tests fallando) antes de tocar producción.**
+- [x] 8.2 **GREEN** — reemplazar en `HojaDeRutaPage.tsx` el `useHojasDeRuta(...)` + `.find(h => h.fecha === fecha)`
       por la carga por fecha (hook propio `useHojaDeRutaDelDia` o variante del existente — decidir en el
       apply según cuál deja el diff más chico y no rompe `crear`/`actualizar`).
-- [ ] 8.3 **TRIANGULATE — día sin hoja de ruta**: `getByFecha` resuelve `null` → estado vacío del día,
+      **→ Se eligió la variante del hook existente** (`useHojasDeRuta.ts`, único consumidor
+      `HojaDeRutaPage.tsx` confirmado por grep antes de tocarlo): pasa a recibir `fecha` como
+      segundo parámetro, cambia `hojasDeRuta: HojaDeRuta[]` por `hojaDeRuta: HojaDeRuta | null`, y
+      `cargar()` llama `repository.getByFecha(fecha)` en vez de `repository.list()`. `fecha` entra
+      en las deps de `cargar` (`useCallback`), así que cambiar de fecha dispara solo el efecto de
+      carga inicial de forma natural — sin lógica nueva de "refetch on date change". `crear`/
+      `actualizar` (con `{ silencioso: true }`) no cambiaron de forma, solo lo que reconsultan.
+      `HojaDeRutaPage.tsx`: `const { hojaDeRuta: hojaDelDia, loading, error, crear, actualizar } =
+      useHojasDeRuta(hojaRepository, fecha)` — se renombra en la desestructuración para no tocar
+      el resto del archivo (sigue usando `hojaDelDia` en todos lados). Se eligió esta variante en
+      vez de extender `useHojaDeRutaDelDia` (dashboard) porque ese hook es de solo lectura — hacerle
+      `crear`/`actualizar` + `{ silencioso: true }` hubiera sido más diff total que adaptar el hook
+      que ya los tenía.**
+- [x] 8.3 **TRIANGULATE — día sin hoja de ruta**: `getByFecha` resuelve `null` → estado vacío del día,
       sin excepción y sin carga infinita.
-- [ ] 8.4 **TRIANGULATE — cambio de fecha**: elegir otra fecha vuelve a consultar por la nueva fecha y
+      **→ Test explícito en `useHojasDeRuta.test.ts` ("expone null cuando getByFecha() resuelve sin
+      hoja para ese día").**
+- [x] 8.4 **TRIANGULATE — cambio de fecha**: elegir otra fecha vuelve a consultar por la nueva fecha y
       descarta la anterior (no se acumulan días en memoria).
-- [ ] 8.5 **TRIANGULATE — error del repository**: mensaje visible, sin loading infinito.
-- [ ] 8.6 **⚠️ TRIANGULATE — regresión de recarga silenciosa (obligatorio)**: mutar un recorrido
+      **→ Test explícito con `renderHook(..., { initialProps })` + `rerender({ fecha: otra })`,
+      verificando `getByFecha` llamado 1º con la fecha vieja y 2º con la nueva, y que el estado
+      pasa a contener solo la hoja del día nuevo.**
+- [x] 8.5 **TRIANGULATE — error del repository**: mensaje visible, sin loading infinito.
+      **→ Test explícito, mismo patrón que antes pero contra `getByFecha` en vez de `list`.**
+- [x] 8.6 **⚠️ TRIANGULATE — regresión de recarga silenciosa (obligatorio)**: mutar un recorrido
       (sugerir orden / subir / bajar / quitar parada) mientras un `RecorridoCard` está en modo edición
       **NO** debe activar el `loading` de pantalla completa ni desmontar la tarjeta en edición. Es el
       bug ya corregido el 2026-08-11 (`useHojasDeRuta.ts:28-35`, opción `{ silencioso: true }`) y este
       cambio puede reintroducirlo.
-- [ ] 8.7 **TRIANGULATE — la carga inicial sí muestra loading**: el contraparte de 8.6, para no
+      **→ Cubierto en DOS niveles.** (1) Hook: los dos tests de regresión preexistentes
+      (`actualizar()`/`crear()` no vuelven a poner loading en true durante el refetch pendiente) se
+      migraron a `getByFecha`. (2) Integración de pantalla — NUEVO, no estaba en el fix original del
+      2026-08-11 (que solo tenía cobertura a nivel hook): test en `HojaDeRutaPage.test.tsx`
+      ("mutar un recorrido en modo edición no muestra el loading de pantalla completa ni desmonta el
+      RecorridoCard") que monta la pantalla, entra en modo "Editar" de un `RecorridoCard` real, hace
+      click en "Sugerir orden" con el refetch de `getByFecha` colgado a propósito, y verifica que no
+      aparece "Cargando hoja de ruta…" y que el botón "Listo" (= sigue en modo edición, no se
+      remontó en modo lectura) sigue presente. **Verificado que el test realmente detecta la
+      regresión**: se revirtió temporalmente el guard `if (!opts.silencioso)` en `useHojasDeRuta.ts`
+      (sed puntual, sin commitear) y se confirmó que los 3 tests de regresión (2 de hook + 1 de
+      página) fallan correctamente; se restauró el fix inmediatamente después y se re-confirmó
+      verde. No quedó ningún cambio de esa prueba en el archivo final.**
+- [x] 8.7 **TRIANGULATE — la carga inicial sí muestra loading**: el contraparte de 8.6, para no
       "arreglarlo" silenciando también la carga inicial.
-- [ ] 8.8 **REFACTOR** — dejar comentado en el código el porqué de `getByFecha` (embed de tres niveles,
+      **→ Cubierto por el primer test de `useHojasDeRuta.test.ts` (`expect(result.current.loading).toBe(true)`
+      antes de que resuelva `getByFecha`), sin tocar ese comportamiento.**
+- [x] 8.8 **REFACTOR** — dejar comentado en el código el porqué de `getByFecha` (embed de tres niveles,
       crece con cada día operado) para que nadie lo revierta a `list()` por comodidad.
+      **→ Comentario extendido en `useHojasDeRuta.ts` (referencia explícita a design.md §D7, al
+      embed de tres niveles hoja→recorrido→historial_recorridos y a por qué NO volver a `list()`) y
+      nota corta en `HojaDeRutaPage.tsx` junto al cableado del hook.**
 
 ### 9. Cierre de la fase 1
 
-- [ ] 9.1 Verificar que ningún otro consumidor de `useHojasDeRuta` quedó roto
+- [x] 9.1 Verificar que ningún otro consumidor de `useHojasDeRuta` quedó roto
       (`grep -rn "useHojasDeRuta" frontend/src`).
-- [ ] 9.2 `npx tsc -b --noEmit` + `npx vitest run` + `npx oxlint` en verde, sin regresiones.
+      **→ Confirmado: único consumidor real `HojaDeRutaPage.tsx` (los otros dos matches son el
+      propio hook y su test).**
+- [x] 9.2 `npx tsc -b --noEmit` + `npx vitest run` + `npx oxlint` en verde, sin regresiones.
+      **→ `tsc -b --noEmit`: 0 errores.** Suite completa: **2511/2514 tests en verde**, 3 fallas —
+      las 3 dentro del set ya documentado de flakiness preexistente (`PermisosMatrizFields.test.tsx`
+      ×1, `ChecklistEditor.test.tsx` ×2) — mismo patrón sensible a carga de CPU documentado en el
+      cierre de las Fases 0/2/3. Ninguna falla nueva atribuible a este apply. **2514 tests totales
+      vs. 2511 al cierre de la Fase 3** (+3 tests nuevos de esta fase: 2 triangulaciones de hook +
+      1 regresión de integración de pantalla). `npx oxlint`: 0 hallazgos nuevos — los únicos 4
+      hallazgos preexistentes bajo `hojas-de-ruta/**` (`SupabaseHojaDeRutaRepository.test.ts` ×3,
+      `HojaDeRutaRepositoryContext.tsx` ×1) están en archivos NO tocados por este apply.
 - [ ] 9.3 Commit `perf(hojas-de-ruta): cargar el dia por fecha en vez de traer todas las hojas de ruta`.
       **⏸️ CHECKPOINT de fase — pase visual en navegador con la usuaria (armado del día, cambio de
       fecha, edición de recorrido) antes de la fase 2.**
+      **→ NO ejecutado a propósito, por instrucción explícita de este batch: solo la usuaria hace
+      commit. Cambios quedan en el working tree, sin stagear ni commitear. Mensaje sugerido
+      (Conventional Commits) en el reporte de apply — nota: el diff de esta fase toca 5 archivos que
+      NO tenían cambios propios de otra sesión al arrancar (working tree limpio, confirmado por
+      `git status` antes de empezar), así que este commit puede hacerse solo, sin mezclar con WIP
+      ajeno.**
 
 ---
 

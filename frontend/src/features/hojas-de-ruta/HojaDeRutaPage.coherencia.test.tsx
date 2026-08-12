@@ -75,7 +75,16 @@ const martina: Paciente = {
 };
 
 function buildFakeHojaRepo(): HojaDeRutaRepository {
-  return { list: vi.fn().mockResolvedValue([]), getById: vi.fn(), getByFecha: vi.fn(), create: vi.fn(), update: vi.fn() };
+  return {
+    list: vi.fn().mockResolvedValue([]),
+    getById: vi.fn(),
+    // paginacion-listados Fase 1 (design.md §D7): HojaDeRutaPage resuelve por getByFecha, no
+    // list() — resuelve explícitamente `null` (contrato de la interfaz) en vez de dejar el double
+    // sin mock (que resolvería `undefined`).
+    getByFecha: vi.fn().mockResolvedValue(null),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
 }
 function buildFakeVehiculoRepo(): VehiculoRepository {
   return { list: vi.fn().mockResolvedValue([vehiculo]), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
