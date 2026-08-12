@@ -55,16 +55,36 @@
       `fecha_factura` no está ya planeada con otro nombre. Es el aprendizaje directo de D12-revertida
       de `integracion-obra-social`: el schema real viene por delante del repo desde hace tres changes.
       **Respondido 2026-08-12: confirmado, no existe columna equivalente.**
-- [ ] 0.7 Revisar `https://supabase.com/changelog.md` por cambios en `schema()`, embeds,
+- [x] 0.7 Revisar `https://supabase.com/changelog.md` por cambios en `schema()`, embeds,
       `maybeSingle()` o `rpc()` desde la última verificación (2026-07-31, `@supabase/supabase-js`
       `^2.49.4`). Registrar hallazgos o "sin novedades".
-- [ ] 0.8 **Safety net / baseline.** Correr
+      **Verificado 2026-08-12.** Changelog público (`supabase.com/changelog.md`) revisado hasta la
+      última entrada (2026-07-30) — sin novedades sobre `schema()`, embeds, `maybeSingle()` o `rpc()`.
+      El `CHANGELOG.md` del propio paquete `@supabase/supabase-js` (más granular) sí tiene un cambio
+      relevante para tener en el radar, aunque **no aplica a este change ni a la versión instalada**:
+      `2.112.0` (2026-08-03) — *"postgrest: honour `throwOnError` when `maybeSingle` finds multiple
+      rows"* (#2580). Los repositories de este change no usan `throwOnError`, y la versión realmente
+      instalada en `node_modules` es **`2.110.8`** (no `2.112.x`) pese al `^2.49.4` del `package.json`
+      — el lockfile la fija por debajo del último release. Sin cambios de firma en `schema()`, en la
+      sintaxis de embeds ni en `rpc()`. `dist-tags.latest` real de npm hoy es `2.112.3`.
+- [x] 0.8 **Safety net / baseline.** Correr
       `cd frontend && NODE_OPTIONS="--no-experimental-webstorage" npx vitest run` y registrar el
       número exacto de tests y archivos. **No asumir el baseline** — hay trabajo concurrente de otra
       sesión sobre el repo (`CHANGES.md` §Plan de integración, fila 3). Sin el flag `NODE_OPTIONS`
       fallan ~112 tests por un bug de entorno diagnosticado (Node v26 + jsdom 29 + vitest 4: el
       `localStorage` nativo experimental de Node shadowea el de jsdom) — **no es regresión y no se
       "arregla" tocando `vite.config.ts`**, que es compartido con el trabajo en paralelo.
+      **Ejecutado 2026-08-12, una sola corrida** (816.44s, ~13.6 min):
+      **`Test Files: 4 failed | 245 passed (249)`** — **`Tests: 5 failed | 2506 passed (2511)`**.
+      Las 5 fallas son **todas** en `src/features/obras-sociales/ChecklistEditor.test.tsx` (el mismo
+      archivo aparece repetido en el log — mismo patrón: `getByRole('button', { name: /^agregar$/i
+      })` no encuentra el elemento tras interacción previa del test). **No es el baseline de ~112
+      fallas del bug de `localStorage`** (ese está evitado por el flag `NODE_OPTIONS`, confirmado: si
+      fuera el bug de entorno serían ~112 fallas dispersas, no 5 concentradas en un solo archivo).
+      Este es el **baseline real y exacto** contra el que se compara la §5.5 y la §8.1 de este change
+      — **no asumir 0 fallas**: `ChecklistEditor.test.tsx` ya entra roto, ajeno a este change (es de
+      `features/obras-sociales/`, no de `features/facturacion/`). Si §5.5/8.1 encuentran exactamente
+      estas mismas 5 fallas y ninguna otra, **no hay regresión**.
 
 ---
 
@@ -72,16 +92,27 @@
 
 > Todo lo de esta sección es **solo lectura**. Ninguna tarea acá corre DDL.
 
-- [ ] 1.1 Reconfirmar que el schema `facturacion` está expuesto en el Data API. Método verificado el
+- [x] 1.1 Reconfirmar que el schema `facturacion` está expuesto en el Data API. Método verificado el
       2026-07-31: `curl` con la `anon key` contra
       `GET /rest/v1/facturas?select=id&limit=1` con `Accept-Profile: facturacion` →
       `401 {"code":"42501","message":"permission denied for schema facturacion"}` (**no**
       `PGRST106`/`PGRST205`). Control negativo con `Accept-Profile: obra_social` → `404 PGRST205`.
-- [ ] 1.2 Revisar el estado del historial de migraciones (`supabase migration list --linked`) por el
+      **Reconfirmado 2026-08-12, idéntico resultado**: `facturacion` → `401 42501 "permission denied
+      for schema facturacion"`; `obra_social` (control negativo) → `404 PGRST205`. Sin cambios.
+- [x] 1.2 Revisar el estado del historial de migraciones (`supabase migration list --linked`) por el
       desfasaje ya conocido y **agravado** en este dominio: 2 tablas y 10+ columnas de `facturacion`
       existen en producción sin ninguna migración commiteada que las cree (discrepancia N6 de
       `design.md` D12). Registrar el estado, **no correr `migration repair`** (es decisión de backend).
-- [ ] 1.3 **Volver a verificar el schema real antes de escribir nada**, no confiar en lo capturado en
+      **Verificado 2026-08-12.** Todas las migraciones locales están sincronizadas con el remoto
+      (`local === remote` en cada fila hasta `20260811110000`). **Pero hay 3 migraciones aplicadas al
+      remoto sin archivo local**: `20260812120000` (`schema_pacientes_prestaciones`), `20260812130000`
+      (`presupuesto_prestacion_id`) y `20260812140000` (`presupuesto_rpc`) — nombres consultados vía
+      `supabase_migrations.schema_migrations`. **No son de este change** (son del change
+      `presupuesto-prestaciones`, mergeado hoy mismo a `main` por otra sesión, confirmado por memoria
+      de sesión). Se registran acá porque confirman que el patrón N6 (schema real por delante del repo
+      sin migración commiteada) sigue activo **hoy**, en un dominio adyacente (`presupuesto`/
+      `autorizacion`, ver 1.3/1.4 más abajo) — no se corrió `migration repair` ni ningún DDL.
+- [x] 1.3 **Volver a verificar el schema real antes de escribir nada**, no confiar en lo capturado en
       el propose. Contra el proyecto vinculado, con `supabase db query --linked`:
       columnas de `facturacion.facturas` / `asistencia_prestacion` / `cobros`
       (`information_schema.columns`), los enums (`pg_enum`), las FK y CHECK (`pg_constraint`), los
@@ -89,13 +120,68 @@
       (`information_schema.role_table_grants`) y los triggers. Comparar contra el bloque §Context de
       `design.md` y **reportar toda diferencia antes de continuar** — es el tercer change consecutivo
       en que la base va por delante del documento.
-- [ ] 1.4 **Verificar `count(*)` de las 6 tablas de `facturacion`.** Es la condición que sostiene D10
+      **Verificado 2026-08-12.** `facturas` (19 columnas), `asistencia_prestacion` (7) y `cobros` (4)
+      coinciden **exactamente** con `design.md` §Context: mismos nombres, tipos, nullability y
+      defaults; **`fecha_factura` sigue sin existir** (confirma que D3 sigue siendo necesaria). Los
+      tres enums (`estado_factura` 5 literales, `tipo_factura` A/B/C, `identificador_origen_factura`)
+      coinciden byte a byte. FK, CHECK (`mes_facturado` 1..12) y triggers de auditoría
+      (`trg_audit_facturas`/`_asistencia_prestacion`/`_cobros`, `AFTER INSERT/UPDATE/DELETE →
+      auditoria.log_action()`) coinciden. Policies de `facturas`/`asistencia_prestacion`/`cobros`
+      coinciden (`FOR ALL`/`SELECT`, `USING` sin `WITH CHECK`, `tiene_permiso('facturacion', …)`).
+      GRANT a `authenticated` (INSERT/SELECT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER), **nada** a
+      `anon` — coincide.
+      **⚠️ Discrepancia real encontrada** (no es una regresión de este change, es deriva concurrente):
+      `pg_indexes` sobre el schema `facturacion` ya **no** tiene "exactamente 7 índices: las 7 primary
+      keys" como afirma `design.md` D10 §El hecho. Hoy tiene **11**: las 7 PK **más**
+      `idx_autorizacion_presupuesto_id`, `idx_presupuesto_obra_social_id`,
+      `idx_presupuesto_paciente_id` e `idx_presupuesto_prestacion_id` (esta última sobre una columna
+      `presupuesto.prestacion_id` que `design.md` no menciona). Estos 4 índices son exactamente los
+      que D10 marca como **"fuera de alcance, se reporta pero no se toca"** (de `C-06`) — los aplicó el
+      change `presupuesto-prestaciones` (mergeado hoy, ver 1.2). **No afecta la decisión de D10**: las
+      4 tablas que este change sí indexa (`facturas`, `asistencia_prestacion`, `cobros`,
+      `documento_factura`) siguen sin ningún índice de FK, y ninguna de esas 6 columnas objetivo tiene
+      índice todavía. Solo desactualiza la frase "7 índices = todas PK" del §Context de `design.md`, no
+      su plan de acción.
+      Policies de `presupuesto`/`autorizacion` reconfirmadas: `tiene_permiso('presupuestos', …)`, no
+      `'facturacion'` — coincide con D9/N4.
+- [x] 1.4 **Verificar `count(*)` de las 6 tablas de `facturacion`.** Es la condición que sostiene D10
       (índices sin `CONCURRENTLY`). Si alguna tiene filas en volumen, **la migración de índices se
       rehace con `CONCURRENTLY` fuera de transacción** y se vuelve a consultar a la usuaria.
-- [ ] 1.5 Confirmar que el módulo `facturacion` existe en `modulos.modulos` (verificado el
+      **Verificado 2026-08-12** (las 7 tablas del schema, no 6 — ver nota): `facturas` = 0,
+      `asistencia_prestacion` = 0, `cobros` = 0, `documento_factura` = 0, `gastos_vehiculos` = 0.
+      **⚠️ `presupuesto` = 2 y `autorizacion` = 2** (`design.md` D10/Risks decía "las seis tablas
+      tienen 0 filas hoy" — ya no es cierto para estas dos). Sin impacto en D10: `presupuesto` y
+      `autorizacion` están **fuera del alcance de índices de este change** (son de `C-06`, ya además
+      indexadas por otro change, ver 1.3), y las **4 tablas que este change sí va a indexar**
+      (`facturas`, `asistencia_prestacion`, `cobros`, `documento_factura`) siguen en **0 filas**. La
+      condición de D10 (`CREATE INDEX` sin `CONCURRENTLY` porque las tablas objetivo están vacías)
+      **sigue sosteniéndose** para el alcance real de la migración de este change. Se reporta el
+      cambio de cifra igual porque D10 lo pide explícitamente como "condición de caducidad" a
+      re-verificar.
+- [x] 1.5 Confirmar que el módulo `facturacion` existe en `modulos.modulos` (verificado el
       2026-07-31) y averiguar qué permisos tiene realmente la cuenta *Facturación* de
       `VITE_TEST_ACCOUNTS` — en particular **si tiene o no `presupuestos: read`**, porque es la que
       expone la trampa de D9.
+      **Reconfirmado 2026-08-12**: `modulos.modulos` tiene `facturacion` y `presupuestos` como
+      módulos **distintos** (junto con `pacientes`, `obra_social`, `conductores`, `vehiculos`,
+      `hojas_de_ruta`) — confirma la base de D9/N4.
+      **⚠️ Discrepancia de setup, no de schema**: `VITE_TEST_ACCOUNTS` **no está definido** en
+      `frontend/.env.local` (el archivo solo trae `SUPABASE_URL`, `SUPABASE_ANON_KEY` y
+      `VITE_GOOGLE_MAPS_API_KEY`; el `.env.local` fue modificado hoy 2026-08-12, probablemente por la
+      sesión concurrente de `presupuesto-prestaciones`). No se pudo leer el email/password de la
+      cuenta *Facturación* desde ahí. Se identificó igual el usuario real por `usuarios.usuarios`
+      (`nombre = 'facturacion'`, `apellido = 'pastor traslados'`, sin exponer email/password —
+      lectura directa de `auth.users` fue bloqueada por el sandbox por contener PII, correctamente) y
+      se leyeron sus permisos reales en `modulos.permisos`:
+      `facturacion: write`, `conductores: read`, `hojas_de_ruta: read`, `obra_social: read`,
+      `vehiculos: write`. **`pacientes` y `presupuestos` no aparecen en absoluto** (ni `read` ni
+      `write`) — confirma **empíricamente**, no solo en teoría, la trampa de D9/N4: esta cuenta puede
+      escribir facturas pero **no** puede leer autorizaciones/presupuestos reales, así que cuando
+      `C-06` se integre va a ver 0 autorizaciones en silencio, exactamente como predice `design.md`.
+      **Acción recomendada para quien ejecute §1B**: restaurar/coordinar `VITE_TEST_ACCOUNTS` en
+      `.env.local` antes de las verificaciones manuales de esa sección, o documentar el
+      email/password por otro canal — sin eso, 1B.8-1B.12 y 8.3 no se pueden ejecutar desde la UI con
+      el flujo de autocompletado.
 
 ## 1B. Migraciones y verificación manual (coordinación con backend)
 
