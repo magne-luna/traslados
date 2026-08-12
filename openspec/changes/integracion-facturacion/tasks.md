@@ -188,33 +188,60 @@
 > **Bloqueada por 0.1, 0.2, 0.5 y 0.6.** El agente **escribe** los `.sql`; **la usuaria / Enzo los
 > aplica**. La verificación manual es un checklist de coordinación, no un paso automatizado.
 
-- [ ] 1B.1 Escribir `supabase/migrations/2026XXXXXXXXXX_factura_fecha_emision_indices.sql`:
-      `ALTER TABLE facturacion.facturas ADD COLUMN fecha_factura DATE;` (nullable, sin default — ver
-      D3 para por qué no lleva `NOT NULL` ni `CHECK` correlacionado) + los **6 índices** de D10
-      (`facturas.paciente_id`, `facturas.domicilio_id`, `asistencia_prestacion.factura_id`,
-      `cobros.facturas_id`, `documento_factura.factura_id`, `documento_factura.id_tipo_documento`),
-      todos con `IF NOT EXISTS`. Cabecera con: qué se agrega, por qué, plan de rollback explícito
-      (`DROP COLUMN` + `DROP INDEX` × 6), y la condición de caducidad del `CONCURRENTLY`.
-      **No se toca ninguna columna, policy ni tabla existente.**
-- [ ] 1B.2 Escribir `supabase/migrations/2026XXXXXXXXXX_factura_rpc.sql` con las dos funciones
-      `plpgsql`, **`SECURITY INVOKER` explícito**, `SET search_path = ''`,
-      `REVOKE ALL … FROM PUBLIC, anon`, `GRANT EXECUTE … TO authenticated` y `COMMENT ON FUNCTION`
-      con la prohibición de `DEFINER` escrita para quien lea la base sin abrir el design.
-      Cabecera con bloque **⚠️⚠️** explicando el vector de bypass de RLS sobre datos financieros.
-      Ojo con el precedente engañoso del mismo schema: `facturacion.validar_autorizacion_monto()`
-      **sí** es `DEFINER` (correcto, es un trigger de validación que no escribe).
-- [ ] 1B.3 En `actualizar_factura_completa`, usar el operador `?` de `jsonb`
-      (`p_cambios ? 'asistencias'`) para distinguir *clave ausente* de *clave presente con null*.
-      **Es la trampa central del change**: confundirlas borra las asistencias en cada cambio de
-      estado, que es la operación más frecuente del circuito.
-- [ ] 1B.4 Implementar los códigos de error `45201`/`45202`/`45203`/`45204` de D4 (rango `452xx`, para
-      no colisionar con el `451xx` de `integracion-obra-social`).
-- [ ] 1B.5 **RED** — test que lee los `.sql` con `node:fs` (**no** `?raw` de Vite: no funciona para
-      rutas fuera de `frontend/`, ya comprobado empíricamente) y verifica que declaran
-      `SECURITY INVOKER` y **no** contienen `SECURITY DEFINER` fuera de comentarios y literales.
-      Es la única barrera automatizada contra la regresión de seguridad más grave del change.
-- [ ] 1B.6 Correr `supabase db advisors --linked --type security` **antes** de aplicar (para tener la
-      línea base de hallazgos preexistentes) y **después**. Comparar y reportar el delta.
+- [x] 1B.1 **Hecho 2026-08-12.**
+      `supabase/migrations/20260812150000_factura_fecha_emision_indices.sql`:
+      `ALTER TABLE facturacion.facturas ADD COLUMN IF NOT EXISTS fecha_factura DATE;` (nullable, sin
+      default, sin `NOT NULL`, per D3) + los **6 índices** de D10 (`facturas.paciente_id`,
+      `facturas.domicilio_id`, `asistencia_prestacion.factura_id`, `cobros.facturas_id`,
+      `documento_factura.factura_id`, `documento_factura.id_tipo_documento`), todos con
+      `IF NOT EXISTS`, **sin `CONCURRENTLY`** — re-verificado contra 1.4: las 4 tablas objetivo de
+      esta migración (`facturas`, `asistencia_prestacion`, `cobros`, `documento_factura`) siguen en
+      **0 filas**; `presupuesto`/`autorizacion` (que sí tienen 2 filas cada una, ver 1.4) están
+      **fuera del alcance** de esta migración, así que el criterio original de D10 se sostiene sin
+      apartarse de él. Cabecera con qué agrega, por qué, rollback explícito
+      (`DROP COLUMN` + `DROP INDEX` × 6) y la condición de caducidad del `CONCURRENTLY`. No toca
+      ninguna columna, policy ni tabla existente.
+- [x] 1B.2 **Hecho 2026-08-12.** `supabase/migrations/20260812160000_factura_rpc.sql` con
+      `facturacion.crear_factura_completa(jsonb) RETURNS uuid` y
+      `facturacion.actualizar_factura_completa(uuid, jsonb) RETURNS uuid`, `plpgsql`,
+      **`SECURITY INVOKER` explícito**, `SET search_path = ''`, `REVOKE ALL … FROM PUBLIC, anon`,
+      `GRANT EXECUTE … TO authenticated` y `COMMENT ON FUNCTION` con la prohibición de `DEFINER`
+      escrita. Cabecera con bloque **⚠️⚠️** sobre el vector de bypass de RLS sobre datos financieros
+      y el precedente engañoso de `facturacion.validar_autorizacion_monto()` (sí `DEFINER`,
+      correcto por ser trigger de validación). Reemplazo completo del conjunto de asistencias
+      (DELETE + INSERT en la misma transacción, D4); ambas releen y devuelven el registro final.
+- [x] 1B.3 **Hecho 2026-08-12.** `actualizar_factura_completa` usa `p_cambios ? 'asistencias'`
+      (operador `?` de `jsonb`) para distinguir clave ausente (no toca asistencias) de clave
+      presente (reemplazo completo, incluso `[]`). Comentario SQL explícito sobre la trampa en la
+      migración, y test dedicado en `facturaMigrations.test.ts` que verifica que el operador `?` se
+      usa literalmente en el archivo.
+- [x] 1B.4 **Hecho 2026-08-12.** Códigos `45201` (asistencia sin fecha/prestación), `45202`
+      (`p_factura`/`p_cambios` no es objeto JSON), `45203` (`actualizar_…` con id inexistente/oculto
+      por RLS) y `45204` (`mes_facturado` fuera de 1-12, defensa en profundidad sobre el `CHECK` de
+      la tabla) — rango `452xx`, no colisiona con el `451xx` de `integracion-obra-social`.
+- [x] 1B.5 **RED → GREEN, hecho 2026-08-12.**
+      `frontend/src/shared/lib/facturacion/facturaMigrations.test.ts`, `node:fs` (no `?raw`), 10
+      tests. **RED real**: se corrió con `SECURITY INVOKER` reemplazado temporalmente por
+      `SECURITY DEFINER` en `20260812160000_factura_rpc.sql` → el test
+      "declara SECURITY INVOKER…" falló (`expected 1 to be 2`), confirmando que la barrera detecta
+      la regresión; se revirtió el cambio temporal y se corrigió de paso un regex demasiado amplio
+      en el propio test (RED también en ese caso, por un bug propio, no del SQL). **GREEN**: los 10
+      tests pasan contra el estado final de las dos migraciones
+      (`NODE_OPTIONS="--no-experimental-webstorage" npx vitest run
+      src/shared/lib/facturacion/facturaMigrations.test.ts` → `Test Files 1 passed | Tests 10
+      passed`). `npx tsc -b --noEmit` y `oxlint` limpios sobre el archivo nuevo.
+- [x] 1B.6 **Hecho 2026-08-12 — línea base únicamente** (no hay "después": este batch no aplica
+      migraciones). `supabase db advisors --linked --type security --level warn --fail-on none` →
+      **15 hallazgos preexistentes**, ninguno relacionado con `facturacion.crear_factura_completa` ni
+      `actualizar_factura_completa` (no existen aún en la base real): 7×
+      `anon_security_definer_function_executable` + 7× `authenticated_security_definer_function_executable`
+      sobre funciones `SECURITY DEFINER` ya existentes y ajenas a este change
+      (`auditoria.log_action`, `facturacion.validar_autorizacion_monto` — correcto, ver 1B.2 —,
+      `modulos.tiene_permiso`, `usuarios.handle_new_user`/`prevent_rol_tampering`/`track_egreso`/
+      `track_ingreso`) + 1× `auth_leaked_password_protection` (WARN, Auth-level, no de este dominio).
+      El delta real (¿las dos funciones nuevas agregan o no un hallazgo `SECURITY DEFINER`?) se mide
+      **después** de que la usuaria/Enzo aplique 1B.7 — queda pendiente como parte de esa tarea, no
+      de esta.
 - [ ] 1B.7 **Aplicar las dos migraciones** — **la usuaria / Enzo**. Bloquea la §5.
 - [ ] 1B.8 Verificación manual con la cuenta **Facturación** (`facturacion: write`): alta completa de
       una factura con 3 asistencias vía `POST /rpc/crear_factura_completa` → 1 fila en `facturas` y 3
