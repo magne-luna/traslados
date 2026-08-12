@@ -206,6 +206,37 @@ export function AvisoSoloLectura(): ReactElement | null {
   );
 }
 
+// Barra de tabs de nivel de módulo (pacientes-docs-actividad-tabs): primitivo puramente
+// presentacional — recibe `onClick` en vez de `to`, mismo criterio que VolverAlListadoLink de
+// abajo, para no acoplar el design system a react-router. El caller resuelve la navegación real
+// (useNavigate/Link) y decide cuál tab está activo.
+export interface TopTabItem {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}
+
+export function TopTabs({ tabs }: { tabs: TopTabItem[] }) {
+  return (
+    <div role="tablist" className="mb-lg flex gap-xl border-b border-border">
+      {tabs.map((tab) => (
+        <button
+          key={tab.label}
+          type="button"
+          role="tab"
+          aria-selected={tab.active}
+          onClick={tab.onClick}
+          className={`-mb-px cursor-pointer border-none border-b-2 bg-transparent pb-sm font-body text-sm font-semibold transition-colors ${
+            tab.active ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // Link de "volver" de arriba de cada pantalla de detalle (Conductores/Vehículos/Obras
 // Sociales/Pacientes/Presupuestos/Facturación): antes duplicado idéntico en los 6 features.
 // Único punto de cambio ahora — cualquier ajuste de estilo se aplica acá una sola vez.

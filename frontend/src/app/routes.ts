@@ -44,6 +44,11 @@ export interface AppRoute extends NavItem {
   /** Módulo del backend requerido (nivel mínimo `read`) para acceder a esta ruta, o `null` si
    * la ruta no tiene módulo propio (ver design.md D4). */
   modulo: Modulo | null;
+  /** pacientes-docs-actividad-tabs: `true` si la ruta ya no se lista en el sidebar porque ahora
+   * se llega a ella por otro punto de navegación (acá, el tab "Documentación por requisitos"
+   * dentro de Pacientes — ver `PacientesDocumentacionTabs`). El módulo y el guard de
+   * `RequireAuth` no cambian: esto solo afecta qué entradas arma `SidebarNav`. Default `false`. */
+  ocultaEnSidebar?: boolean;
 }
 
 export const APP_ROUTES: readonly AppRoute[] = [
@@ -98,11 +103,16 @@ export const APP_ROUTES: readonly AppRoute[] = [
     // `pacientes`, aunque la use la pantalla de Pacientes: quien administra checklists documentales
     // es el módulo obra_social, decidido explícitamente (no por descarte, precedente de
     // `integracion-documentos`: bucket `documentos-vehiculos` gateado por el módulo equivocado).
+    //
+    // pacientes-docs-actividad-tabs: `ocultaEnSidebar` porque ahora se llega acá desde el tab
+    // "Documentación por requisitos" dentro de /pacientes, no desde Administración — el módulo
+    // sigue siendo `obra_social` (RequireAuth y el permiso de escritura no cambian).
     path: '/documentacion-por-actividad',
     label: 'Documentación por Actividad',
     icon: 'documentacionActividad',
     section: 'Administración',
     modulo: 'obra_social',
+    ocultaEnSidebar: true,
   },
 ] as const;
 

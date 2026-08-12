@@ -2,6 +2,7 @@ import { supabaseDocumentoRepository } from '../../shared/lib/documentos/Supabas
 import { supabaseObraSocialRepository } from '../../shared/lib/obrasSociales/SupabaseObraSocialRepository';
 import { supabasePacienteRepository } from '../../shared/lib/pacientes/SupabasePacienteRepository';
 import { supabaseRequisitosActividadRepository } from '../../shared/lib/requisitosActividad/SupabaseRequisitosActividadRepository';
+import { PacientesDocumentacionTabs } from '../../shared/components/PacientesDocumentacionTabs';
 import { PacienteRepositoryProvider } from './PacienteRepositoryContext';
 import { PacientesPage } from './PacientesPage';
 
@@ -16,9 +17,15 @@ import { PacientesPage } from './PacientesPage';
 // (tabla `obra_social.requisitos_actividad`, gateada por el mismo módulo `obra_social` que
 // `requisitos_os`, veredicto 1.2). El resto de la feature solo conoce las interfaces de los
 // repositories, así que este es el único archivo que cambia (mismo criterio que CuentasRoute.tsx).
+// `PacientesDocumentacionTabs` se monta acá, no dentro de `PacientesPage` (pacientes-docs-
+// actividad-tabs): usa `useLocation`/`useNavigate`/`usePermiso`, que exigen Router y AuthProvider
+// — `PacientesPage`/`PacientesPage.test.tsx` se mantienen deliberadamente libres de esa
+// dependencia (~15 tests existentes la montan con `render()` sin Router). Acá, en cambio, ya
+// estamos en el único archivo que conoce el mundo exterior a la feature.
 export function PacientesRoute() {
   return (
     <PacienteRepositoryProvider repository={supabasePacienteRepository}>
+      <PacientesDocumentacionTabs />
       <PacientesPage
         obraSocialRepository={supabaseObraSocialRepository}
         documentoRepository={supabaseDocumentoRepository}

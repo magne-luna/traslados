@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import { renderConSesion } from '../../shared/test/renderConSesion';
 
 // `PacientesRoute` inyecta `supabasePacienteRepository` (real, tasks.md 4.1), `supabaseObraSocialRepository`
 // (real, `integracion-obra-social`), `supabaseDocumentoRepository` (real, `integracion-documentos`
@@ -29,7 +31,14 @@ describe('PacientesRoute', () => {
   });
 
   it('monta la feature con supabasePacienteRepository/supabaseObraSocialRepository/supabaseDocumentoRepository/supabaseRequisitosActividadRepository (mockeados)', async () => {
-    render(<PacientesRoute />);
+    // pacientes-docs-actividad-tabs: `PacientesRoute` ahora monta `PacientesDocumentacionTabs`
+    // (useLocation/useNavigate/usePermiso), que exige Router + AuthProvider — de ahí el
+    // MemoryRouter y renderConSesion (admin por defecto) que antes no hacían falta acá.
+    renderConSesion(
+      <MemoryRouter>
+        <PacientesRoute />
+      </MemoryRouter>,
+    );
 
     await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
     expect(screen.getByRole('heading', { name: 'Pacientes' })).toBeInTheDocument();

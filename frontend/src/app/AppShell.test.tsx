@@ -57,7 +57,10 @@ describe('AppShell', () => {
   it('renderiza los ítems de navegación de routes.ts', async () => {
     renderShellAt('/');
 
-    for (const route of APP_ROUTES) {
+    // pacientes-docs-actividad-tabs: `ocultaEnSidebar` (routes.ts) saca a "Documentación por
+    // Actividad" del sidebar a propósito — ahora se llega desde el tab dentro de Pacientes
+    // (PacientesDocumentacionTabs), no desde Administración.
+    for (const route of APP_ROUTES.filter((r) => !r.ocultaEnSidebar)) {
       expect(await screen.findByRole('link', { name: new RegExp(route.label) })).toBeInTheDocument();
     }
   });
@@ -220,7 +223,7 @@ describe('AppShell — sidebar colapsable en desktop', () => {
     await screen.findByText('Dashboard');
     await user.click(screen.getByRole('button', { name: /colapsar navegación/i }));
 
-    for (const route of APP_ROUTES) {
+    for (const route of APP_ROUTES.filter((r) => !r.ocultaEnSidebar)) {
       expect(screen.getByRole('link', { name: route.label })).toBeInTheDocument();
     }
   });

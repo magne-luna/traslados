@@ -69,7 +69,7 @@ export function RequisitosActividadPage({ repository }: RequisitosActividadPageP
   const itemsDelTipo = requisitos[tipoSeleccionado] ?? [];
 
   return (
-    <div className="flex flex-col gap-lg">
+    <div className="flex flex-col gap-lg py-xxl px-xl">
       <AvisoSoloLectura />
 
       {/* documentos-checklist-items-por-actividad (specs/checklist-por-tipo-actividad/spec.md):

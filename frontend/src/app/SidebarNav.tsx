@@ -42,9 +42,12 @@ export function SidebarNav({ rol, permisos, collapsed, onNavigate }: SidebarNavP
   const rutasConModulo = APP_ROUTES.filter(
     (route): route is AppRoute & { modulo: Modulo } => route.modulo !== null,
   );
+  // `ocultaEnSidebar` (pacientes-docs-actividad-tabs) filtra solo el renderizado del sidebar —
+  // `rutasConModulo`/`sinAccesoAModulos` más abajo siguen leyendo de APP_ROUTES sin este filtro,
+  // así que una cuenta con permiso únicamente sobre ese módulo no ve el aviso de "sin acceso".
   const rutasVisibles = APP_ROUTES.filter(
     (route) => route.modulo === null || tienePermiso(rol, permisos, route.modulo, 'read'),
-  );
+  ).filter((route) => !route.ocultaEnSidebar);
   const rutasAdmin = rol === 'admin' ? ADMIN_NAV_ROUTES : [];
 
   // "Cuenta sin ningún módulo habilitado" (tasks.md 8.3): sin esto, una cuenta empleado recién
