@@ -38,16 +38,16 @@
 
 ## 0. ⛔ Portón de governance — nada se ejecuta sin esto
 
-- [ ] 0.1 **Aprobación D1** — `ALTER TABLE facturacion.facturas ADD COLUMN autorizacion_id UUID
+- [x] 0.1 **Aprobación D1** — `ALTER TABLE facturacion.facturas ADD COLUMN autorizacion_id UUID
       REFERENCES facturacion.autorizacion(id)` (nullable, sin `UNIQUE`) + `CREATE INDEX` sobre esa
       columna. Modificación de schema sobre el registro financiero, y apartamiento condicional de la
       regla dura de `database-schema-design` sobre `CONCURRENTLY` (ver 0.3).
-      **Respuesta de la usuaria requerida: sí/no.**
-- [ ] 0.2 **Aprobación D2** — `CREATE OR REPLACE FUNCTION` sobre las **dos RPC vivas**
+      **Respondido 2026-08-13: sí.**
+- [x] 0.2 **Aprobación D2** — `CREATE OR REPLACE FUNCTION` sobre las **dos RPC vivas**
       (`facturacion.crear_factura_completa`, `facturacion.actualizar_factura_completa`) para
       leer/escribir `autorizacion_id`. Reemplaza código de servidor que hoy está en producción y
       funciona; una versión mal aplicada rompe el alta y la edición de facturas.
-      **Respuesta de la usuaria requerida: sí/no.**
+      **Respondido 2026-08-13: sí.**
 - [ ] 0.3 **Coordinación bloqueante — verificar `count(*)` real de `facturacion.facturas` antes de
       decidir `CONCURRENTLY`.** `design.md` D1 deja esto **condicionado**, no asumido: el change
       `integracion-facturacion` ya se aplicó en esta rama, así que la tabla puede tener filas de
@@ -55,11 +55,12 @@
       quedó desactualizado una vez en 1.4 de ese change). Si tiene volumen real, el índice de D1 se
       rehace con `CREATE INDEX CONCURRENTLY` fuera de transacción y **se vuelve a consultar a la
       usuaria** antes de escribir el `.sql` de 1B.1.
-- [ ] 0.4 **Coordinación con backend (Enzo), previa a escribir el `.sql` de D1.** Confirmar que
+- [x] 0.4 **Coordinación con backend (Enzo), previa a escribir el `.sql` de D1.** Confirmar que
       `autorizacion_id` no está ya planeada con otro nombre o forma en trabajo concurrente sobre
       `facturacion`/`presupuesto`/`autorizacion` (aprendizaje directo de D12-revertida de
       `integracion-obra-social`, y del desfasaje ya visto en `integracion-facturacion` 1.2/1.3: el
       schema real viene por delante del repo desde hace varios changes).
+      **Respondido 2026-08-13 por Enzo: confirmado, no hay columna equivalente planeada.**
 - [ ] 0.5 **Safety net / baseline.** Correr
       `cd frontend && NODE_OPTIONS="--no-experimental-webstorage" npx vitest run` y registrar el
       número exacto de archivos y tests. **No asumir el baseline de `integracion-facturacion`
