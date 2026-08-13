@@ -527,9 +527,58 @@
 
 ## 8. Verificación final
 
-- [ ] 8.1 Suite completa en verde contra el baseline de 0.8, sin regresiones.
-- [ ] 8.2 `cd frontend && npx tsc -b --noEmit` (**con `-b`**) y `oxlint` limpios.
-- [ ] 8.3 Verificación manual en navegador con las **tres** cuentas de `VITE_TEST_ACCOUNTS`:
+- [ ] 8.1 **Ejecutado 2026-08-13, una sola corrida completa** (783.77s, ~13.1 min) —
+      **NO coincide con lo aceptado en 5.5. PARADO, no arreglado — requiere decisión de la
+      usuaria.**
+      Resultado: **`Test Files: 6 failed | 247 passed (253)`** — **`Tests: 11 failed | 2648
+      passed (2659)`**.
+      Composición de las 11 fallas:
+      - 2 en `ChecklistEditor.test.tsx` — **coinciden** con el baseline de 0.8 (mismo archivo,
+        mismo patrón `getByRole('button', { name: /^agregar$/i })`).
+      - 1 en `PermisosMatrizFields.test.tsx` (`expected 7 got 14`) — coincide con la falla nueva
+        ya aceptada en 5.5 (misma composición exacta).
+      - 1 en `router.test.tsx` — coincide con la falla nueva ya aceptada en 5.5.
+      - `router.cuentas.test.tsx` esta vez **no falló** (pasó) — variación respecto de 5.5,
+        consistente con el patrón de flakiness/contaminación entre suites ya documentado ahí.
+      - 1 en `PacienteDetail.test.tsx` (timeout 5000ms) — **NUEVA, no está ni en el baseline de
+        0.8 ni en 5.5**. Fuera de `features/facturacion/`, no se investigó más (fuera de alcance
+        de esta tarea, mismo criterio que `PermisosMatrizFields.test.tsx` en 5.5: se registra,
+        no se arregla acá).
+      - 5 en `FacturaForm.test.tsx` (todos timeout 5000ms) — **⚠️ NUEVA, dentro de
+        `features/facturacion/`.** Triage en aislamiento: `NODE_OPTIONS="--no-experimental-webstorage"
+        npx vitest run src/features/facturacion/FacturaDetail.test.tsx
+        src/features/facturacion/FacturaForm.test.tsx` → **18/18 verdes, sin ninguna falla.**
+        Coincide con la flakiness por carga de máquina ya documentada en 6.5 ("una corrida
+        conjunta de toda `features/facturacion/` mostró 8 timeouts transitorios... no
+        reproducibles corriendo el archivo solo"). **No es una regresión real** — es el mismo
+        patrón de contaminación/timeout bajo carga ya conocido.
+      - 1 en `FacturaDetail.test.tsx` (`agrupa las 5 discrepancias de impacto backend en un único
+        AvisoModeloDatos`, `expected undefined to be truthy`) — **⚠️⚠️ NUEVA, dentro de
+        `features/facturacion/`, y REPRODUCIBLE EN AISLAMIENTO** (falla igual sola, sin carga:
+        `Test Files 1 failed | 1 passed (2)` — `Tests 1 failed | 27 passed (28)`, mismo archivo,
+        mismo assertion). **Esto NO es flakiness — es una falla real y determinística.**
+        Hipótesis sin confirmar (no investigado a fondo, por instrucción explícita de no
+        arreglar): el test busca un aviso `AvisoModeloDatos` agrupado que mencione
+        `documento_factura|documentos por factura`; 6.3 reescribió el texto del
+        `AvisoModeloDatos` de `FacturaDocumentos.tsx` (dejó de decir "todavía usa datos mock") y
+        6.5 solo corrió `FacturaDocumentos.test.tsx` en foco, no `FacturaDetail.test.tsx` (que
+        compone/agrupa los avisos de los hijos) — es candidato más probable a la causa, pero
+        **no se confirmó ni se tocó código**. **CRÍTICO — reportado para que decida la usuaria,
+        no corregido por este agente.**
+      **Conclusión: NO se marca esta tarea como "sin regresión".** Queda sin `[x]` a propósito,
+      igual que 5.5, hasta que la usuaria decida qué hacer con la falla reproducible de
+      `FacturaDetail.test.tsx`.
+- [x] 8.2 **Verificado 2026-08-13.** `npx tsc -b --noEmit` (con `-b`) sin salida, exit 0 — limpio.
+      `oxlint .` exit 0 (sin errores) — solo warnings preexistentes y dispersos en todo el
+      proyecto (`no-unsafe-optional-chaining` en tests de `hojas-de-ruta`/`pacientes`,
+      `react/only-export-components` en 12 archivos que exportan contexto + componente en el
+      mismo archivo — patrón sistémico repetido en 10+ `RepositoryContext.tsx` incluidos los dos
+      de `features/facturacion/` (`FacturaRepositoryContext.tsx`, `CobroRepositoryContext.tsx`),
+      no específico de este change — y 2 `react-hooks/exhaustive-deps` en `pacientes`). Ninguno
+      de los warnings es nuevo de este change ni bloquea el build.
+- [ ] 8.3 **Pendiente — verificación manual de la usuaria en el navegador (bloqueada además por
+      `VITE_TEST_ACCOUNTS` ausente de `frontend/.env.local`).** Verificación manual en navegador
+      con las **tres** cuentas de `VITE_TEST_ACCOUNTS`:
       - **Admin**: alta de factura con asistencias, emisión, registro de dos cobros parciales, baja de
         un cobro, vista imprimible.
       - **Facturación**: lo mismo (es el perfil real de uso). Confirmar además qué pasa con la alerta
@@ -537,11 +586,14 @@
       - **Operación**: sin permiso de escritura sobre facturación → los formularios quedan en solo
         lectura y cualquier intento de escritura produce el mensaje en castellano de D7, no un error
         críptico ni un fallo silencioso.
-- [ ] 8.4 Verificar en el navegador que **la fecha de emisión sobrevive a un recargar**: emitir una
-      factura, recargar, confirmar que la alerta de vencimiento se sigue calculando. Es la prueba
-      funcional de que D3 hacía falta.
-- [ ] 8.5 Verificar en el navegador que **editar el estado de una factura no borra sus asistencias**
-      (el modo de falla de 1B.3, visto desde la UI).
+- [ ] 8.4 **Pendiente — verificación manual de la usuaria en el navegador (bloqueada además por
+      `VITE_TEST_ACCOUNTS` ausente de `frontend/.env.local`).** Verificar en el navegador que **la
+      fecha de emisión sobrevive a un recargar**: emitir una factura, recargar, confirmar que la
+      alerta de vencimiento se sigue calculando. Es la prueba funcional de que D3 hacía falta.
+- [ ] 8.5 **Pendiente — verificación manual de la usuaria en el navegador (bloqueada además por
+      `VITE_TEST_ACCOUNTS` ausente de `frontend/.env.local`).** Verificar en el navegador que
+      **editar el estado de una factura no borra sus asistencias** (el modo de falla de 1B.3,
+      visto desde la UI).
 - [ ] 8.6 Guardar en engram (`project: "traslados-app"`, `topic_key:
       "opsx/integracion-facturacion/apply"`) las discrepancias reales encontradas en 1.3 respecto de
       lo que este `design.md` asume — cuarta vez consecutiva que conviene dejarlo escrito.
