@@ -387,21 +387,65 @@
 
 > Un solo commit. A partir de acá la pantalla usa datos reales.
 
-- [ ] 5.1 **RED** — actualizar `FacturacionRoute.test.tsx` para inyectar dobles en lugar de los mocks
-      concretos, si hoy los acopla.
-- [ ] 5.2 Cambiar `FacturacionRoute.tsx`: `mockFacturaRepository` → `supabaseFacturaRepository` y
-      `mockCobroRepository` → `supabaseCobroRepository`. **Dos imports y dos props. Nada más.**
-      Los otros cinco repositories (Paciente, ObraSocial, Presupuesto, Autorizacion, Documento) y el
-      fixture de feriados **no se tocan** en este change.
-- [ ] 5.3 Verificar que **ningún** otro archivo de `features/facturacion/` cambió: los 26
-      componentes, los 3 hooks, los 2 contexts y los 2 validadores quedan idénticos.
-- [ ] 5.4 Verificar que **ninguna** de las 9 funciones puras de reglas de negocio de
-      `shared/lib/facturacion/` cambió, y que **ninguna regla de negocio se reimplementó en SQL**
-      (`calcularFechaEstimadaCobro` sigue siendo la única implementación de la precedencia
-      amparo > obra social > default).
-- [ ] 5.5 Correr la suite completa y comparar contra el baseline de 0.8. **Cero regresiones.**
-- [ ] 5.6 Los mocks **no se borran**: verificar que `mockFacturaRepository` y `mockCobroRepository`
-      siguen exportándose y siendo usables como dobles de test.
+- [x] 5.1 **RED, verificado 2026-08-12.** `FacturacionRoute.test.tsx` **ya** inyectaba dobles vía
+      `vi.mock('../../shared/lib/supabaseClient', …)` (mismo patrón usado por
+      `supabasePacienteRepository`/`supabaseObraSocialRepository` desde el swap parcial del
+      2026-08-05) — no acoplaba `mockFacturaRepository`/`mockCobroRepository` directamente en el
+      test, así que no hizo falta tocar el archivo. Confirmado corriendo el test **antes** del swap
+      de 5.2 (pasaba con los mocks) y **después** (pasa igual, ahora ejerce el mismo mock de cliente
+      contra los repositories reales) — no hay commit intermedio real de "RED" propiamente dicho
+      porque no había nada que romper: la inyección de dobles ya estaba resuelta por diseño.
+- [x] 5.2 **Hecho 2026-08-12.** `FacturacionRoute.tsx`: `mockFacturaRepository` →
+      `supabaseFacturaRepository`, `mockCobroRepository` → `supabaseCobroRepository`. Dos imports
+      (de `shared/lib/facturacion/SupabaseFacturaRepository` y `.../SupabaseCobroRepository`) y dos
+      props (`FacturaRepositoryProvider`/`CobroRepositoryProvider`). Los otros cinco repositories
+      (Paciente, ObraSocial, Presupuesto, Autorizacion, Documento) y el fixture de feriados **no se
+      tocaron**. `npx tsc -b --noEmit` limpio.
+- [x] 5.3 **Verificado 2026-08-12.** `git diff --stat` contra el HEAD anterior: **un solo archivo
+      cambiado**, `frontend/src/features/facturacion/FacturacionRoute.tsx` (+11/-9). Los 26
+      componentes, 3 hooks, 2 contexts y 2 validadores de `features/facturacion/` quedan idénticos.
+- [x] 5.4 **Verificado 2026-08-12.** `shared/lib/facturacion/` no aparece en el diff — ninguna de
+      las 9 funciones puras (`calcularFechaEstimadaCobro`, `validarCupoFacturacion`,
+      `estadoDerivadoFactura`, etc.) cambió. Ninguna regla de negocio se reimplementó en SQL: las dos
+      migraciones de §1B solo agregan columna/índices/RPC de persistencia — la precedencia amparo >
+      obra social > default sigue viviendo únicamente en `calcularFechaEstimadaCobro` (frontend).
+- [ ] 5.5 **Ejecutado 2026-08-12, una sola corrida completa** (796.66s, ~13.3 min) —
+      **NO coincide con el baseline de 0.8, PARADO sin commitear.**
+      Resultado: **`Test Files: 4 failed | 249 passed (253)`** — **`Tests: 5 failed | 2643 passed
+      (2648)`**. El conteo total de archivos/tests subió respecto de 0.8 (249→253 archivos,
+      2511→2648 tests) por los tests nuevos de §1B/2/3/4 (`facturaMigrations`, `facturaMapping`,
+      `SupabaseFacturaRepository`, `SupabaseCobroRepository`) — eso es esperado, no regresión.
+      **El problema es la composición de las 5 fallas**, que ya NO son las mismas 5 del baseline:
+      - 2 en `ChecklistEditor.test.tsx` (`sin permiso…` / `con permiso…`) — **coinciden** con el
+        baseline (mismo archivo, mismo patrón `getByRole('button', { name: /^agregar$/i })` no
+        encontrado tras interacción previa).
+      - 1 en `PermisosMatrizFields.test.tsx` (`muestra un ícono de identidad por módulo…`,
+        `expected 7 got 14`) — **NUEVA**, no está en el baseline.
+      - 1 en `src/app/router.test.tsx` — **NUEVA**, no está en el baseline.
+      - 1 en `src/app/router.cuentas.test.tsx` — **NUEVA**, no está en el baseline.
+      **Triage acotado (sin arreglar nada):** re-corridos los 4 archivos sospechosos juntos en
+      aislamiento → `router.test.tsx` y `router.cuentas.test.tsx` **pasan** solos (indicio de
+      contaminación/flakiness entre suites en la corrida completa, no relacionado con este change).
+      `PermisosMatrizFields.test.tsx` **falla también solo** (`expected 7 got 14`, un ícono
+      duplicado por fila) — es una falla real, preexistente, **ajena a `features/facturacion/`**
+      (pertenece a `features/cuentas/`, último tocado en el commit `2675693` de otra sesión, ninguna
+      relación con el swap de esta tarea). `git diff --stat` de esta sesión confirma que
+      `PermisosMatrizFields.tsx`/`.test.tsx` no fueron tocados. Ninguna de las 3 fallas nuevas está
+      en `features/facturacion/`, `shared/lib/facturacion/` ni en el archivo que tocó esta tarea.
+      **Conclusión: no es una regresión causada por el swap de `FacturacionRoute.tsx`**, pero
+      **tampoco coincide exactamente con el baseline registrado en 0.8** — hay al menos una falla
+      nueva y genuina (`PermisosMatrizFields.test.tsx`) y posible flakiness de entorno en los otros
+      dos.
+      **Decisión de la usuaria (2026-08-12): aceptar como flakiness/preexistente y commitear.**
+      Mismo criterio ya usado en `presupuesto-prestaciones` para escalada de fallas bajo carga de
+      máquina. Ninguna de las 3 fallas nuevas toca `features/facturacion/` ni
+      `shared/lib/facturacion/`; `PermisosMatrizFields.test.tsx` queda registrado como falla
+      preexistente ajena a este change, a investigar aparte (no en el alcance de
+      `integracion-facturacion`).
+- [x] 5.6 **Verificado 2026-08-12.** `mockFacturaRepository` (línea 61,
+      `shared/lib/mocks/mockFacturaRepository.ts`) y `mockCobroRepository` (línea 58,
+      `shared/lib/mocks/mockCobroRepository.ts`) siguen exportados, sin cambios, usables como
+      dobles de test.
 
 ## 6. Carteles de discrepancia y de fuente mixta
 
