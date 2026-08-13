@@ -74,6 +74,30 @@ export const mockPresupuestoRepository: PresupuestoRepository = {
     return withLatency(nuevo);
   },
 
+  // 6.3 (presupuesto-prestaciones PR 2): misma semántica atómica (simulada) que
+  // facturacion.crear_presupuestos_lote — se valida el lote ENTERO antes de escribir nada, y se
+  // persiste con un único writeStore() (o entran todos, o no entra ninguno).
+  async createLote(nuevos: NuevoPresupuesto[]) {
+    if (nuevos.length === 0) {
+      throw new Error('El lote de presupuestos no puede estar vacío.');
+    }
+    for (const nuevo of nuevos) {
+      if (
+        !nuevo.pacienteId ||
+        !nuevo.obraSocialId ||
+        typeof nuevo.monto !== 'number' ||
+        Number.isNaN(nuevo.monto) ||
+        !nuevo.fechaEmision
+      ) {
+        throw new Error('Faltan datos obligatorios del presupuesto.');
+      }
+    }
+
+    const creados: Presupuesto[] = nuevos.map((nuevo) => ({ ...nuevo, id: generateId('presupuesto') }));
+    writeStore([...readStore(), ...creados]);
+    return withLatency(creados);
+  },
+
   async update(id, data: ActualizacionPresupuesto) {
     const current = readStore();
     const index = current.findIndex((presupuesto) => presupuesto.id === id);

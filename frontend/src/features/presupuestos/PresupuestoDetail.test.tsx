@@ -33,7 +33,11 @@ const osecac: ObraSocial = {
   id: 'osecac',
   nombre: 'OSECAC',
   cuit: '30-54155200-6',
-  modalidadFacturacion: 'por-prestacion',
+  // 'general' a propósito (presupuesto-prestaciones, design.md D9): estos tests ejercitan el flujo
+  // genérico de crear()/actualizar() de PresupuestoDetail, no la bifurcación en sí (cubierta en
+  // PresupuestoForm.test.tsx) — martina no tiene `prestaciones` cargadas, así que 'por-prestacion'
+  // caería en el empty state con submit bloqueado.
+  modalidadFacturacion: 'general',
   admitePagosParciales: false,
   formatoAfiliado: 'numero-documento',
   checklist: [],
@@ -72,6 +76,7 @@ describe('PresupuestoDetail — modo alta (presupuesto null)', () => {
       <PresupuestoDetail
         presupuesto={null}
         crear={vi.fn()}
+        crearLote={vi.fn()}
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
@@ -95,6 +100,7 @@ describe('PresupuestoDetail — modo alta (presupuesto null)', () => {
       <PresupuestoDetail
         presupuesto={null}
         crear={crear}
+        crearLote={vi.fn()}
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
@@ -106,7 +112,7 @@ describe('PresupuestoDetail — modo alta (presupuesto null)', () => {
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
     await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac');
-    await user.type(screen.getByLabelText(/monto/i), '150000');
+    await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(crear).toHaveBeenCalledWith(expect.objectContaining({ pacienteId: 'paciente-martina', obraSocialId: 'osecac' }));
@@ -120,6 +126,7 @@ describe('PresupuestoDetail — modo edición', () => {
       <PresupuestoDetail
         presupuesto={presupuestoMartina}
         crear={vi.fn()}
+        crearLote={vi.fn()}
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
@@ -143,6 +150,7 @@ describe('PresupuestoDetail — modo edición', () => {
       <PresupuestoDetail
         presupuesto={presupuestoMartina}
         crear={vi.fn()}
+        crearLote={vi.fn()}
         actualizar={actualizar}
         pacientes={[martina]}
         obrasSociales={[osecac]}
@@ -176,6 +184,7 @@ describe('PresupuestoDetail — modo edición', () => {
       <PresupuestoDetail
         presupuesto={presupuestoMartina}
         crear={vi.fn()}
+        crearLote={vi.fn()}
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
@@ -205,6 +214,7 @@ describe('PresupuestoDetail — modo edición', () => {
       <PresupuestoDetail
         presupuesto={presupuestoMartina}
         crear={vi.fn()}
+        crearLote={vi.fn()}
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
@@ -232,6 +242,7 @@ describe('PresupuestoDetail — modo edición', () => {
       <PresupuestoDetail
         presupuesto={presupuestoMartina}
         crear={vi.fn()}
+        crearLote={vi.fn()}
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
@@ -257,6 +268,7 @@ describe('PresupuestoDetail — cartel de fuente mixta con Facturación (D11)', 
       <PresupuestoDetail
         presupuesto={null}
         crear={vi.fn()}
+        crearLote={vi.fn()}
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
@@ -280,6 +292,7 @@ describe('PresupuestoDetail — cartel de fuente mixta con Facturación (D11)', 
       <PresupuestoDetail
         presupuesto={presupuestoMartina}
         crear={vi.fn()}
+        crearLote={vi.fn()}
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
@@ -312,6 +325,7 @@ describe('PresupuestoDetail — gateo de escritura de la entrada a autorización
       <PresupuestoDetail
         presupuesto={presupuestoMartina}
         crear={vi.fn()}
+        crearLote={vi.fn()}
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
@@ -334,6 +348,7 @@ describe('PresupuestoDetail — gateo de escritura de la entrada a autorización
       <PresupuestoDetail
         presupuesto={presupuestoMartina}
         crear={vi.fn()}
+        crearLote={vi.fn()}
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}

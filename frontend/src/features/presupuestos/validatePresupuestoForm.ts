@@ -31,3 +31,50 @@ export function validatePresupuestoForm(input: PresupuestoFormInput): Presupuest
 
   return errors;
 }
+
+// -------------------------------------------------------------------------------------------
+// Validación de la rama `por-prestacion` (presupuesto-prestaciones, design.md D9/D10, tasks.md
+// 8.7): sin campo `monto` — el alta es un lote de prestaciones seleccionadas, cada una con su
+// propio monto. Función aparte y aditiva: `validatePresupuestoForm` (arriba) no cambia de firma
+// y sigue siendo la validación de la rama `simple`/`general` (donde `monto` ya es la suma de las
+// líneas, calculada por PresupuestoLineasEditor antes de llegar acá).
+// -------------------------------------------------------------------------------------------
+
+export interface PresupuestoLoteItemInput {
+  prestacionId: string;
+  monto: number;
+}
+
+export interface PresupuestoLoteFormInput {
+  pacienteId: string | null;
+  obraSocialId: string | null;
+  items: PresupuestoLoteItemInput[];
+}
+
+export interface PresupuestoLoteFormErrors {
+  pacienteId?: string;
+  obraSocialId?: string;
+  items?: string;
+}
+
+/** Al menos una prestación seleccionada con `monto > 0` (spec `presupuesto-prestacion`,
+ * Requirement "Alta atómica en lote…"). `items` ya llega acotado a las prestaciones que el
+ * usuario efectivamente marcó — no valida contra el catálogo completo del paciente. */
+export function validatePresupuestoLoteForm(input: PresupuestoLoteFormInput): PresupuestoLoteFormErrors {
+  const errors: PresupuestoLoteFormErrors = {};
+
+  if (input.pacienteId === null) {
+    errors.pacienteId = 'El paciente es obligatorio.';
+  }
+
+  if (input.obraSocialId === null) {
+    errors.obraSocialId = 'La obra social es obligatoria.';
+  }
+
+  const algunaConMonto = input.items.some((item) => item.monto > 0);
+  if (!algunaConMonto) {
+    errors.items = 'Cargá el monto de al menos una prestación seleccionada.';
+  }
+
+  return errors;
+}

@@ -66,6 +66,32 @@ describe('parsePresupuestoApi (2.1)', () => {
     expect(parsePresupuestoApi(undefined)).toBeNull();
     expect(parsePresupuestoApi(42)).toBeNull();
   });
+
+  // -----------------------------------------------------------------------------------------------
+  // 2.4 — prestacionId (presupuesto-prestaciones PR 2, D9)
+  // -----------------------------------------------------------------------------------------------
+
+  it('prestacionId presente (string) se mapea tal cual (modalidad por-prestacion)', () => {
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto({ prestacionId: 'prestacion-1' }));
+
+    expect(presupuesto?.prestacionId).toBe('prestacion-1');
+  });
+
+  it('prestacionId null (fila con la columna vacía) se mapea a undefined, nunca null (modalidad general)', () => {
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto({ prestacionId: null }));
+
+    expect(presupuesto).not.toBeNull();
+    expect(presupuesto?.prestacionId).toBeUndefined();
+  });
+
+  it('prestacionId ausente del todo se mapea a undefined', () => {
+    const record = presupuestoApiCompleto();
+    delete record.prestacionId;
+
+    const presupuesto = parsePresupuestoApi(record);
+
+    expect(presupuesto?.prestacionId).toBeUndefined();
+  });
 });
 
 // -----------------------------------------------------------------------------------------------
@@ -147,6 +173,22 @@ describe('toCrearPresupuestoPayload (2.3)', () => {
 
     expect('archivoUrl' in payload).toBe(false);
   });
+
+  // -----------------------------------------------------------------------------------------------
+  // 2.5 — prestacionId (presupuesto-prestaciones PR 2, D9): presente cuando está, ausente cuando no
+  // -----------------------------------------------------------------------------------------------
+
+  it('prestacionId presente (modalidad por-prestacion): viaja en el body', () => {
+    const payload = toCrearPresupuestoPayload(nuevoPresupuestoMinimo({ prestacionId: 'prestacion-1' }));
+
+    expect(payload.prestacionId).toBe('prestacion-1');
+  });
+
+  it('prestacionId ausente (modalidad general): la clave no aparece en el body', () => {
+    const payload = toCrearPresupuestoPayload(nuevoPresupuestoMinimo());
+
+    expect('prestacionId' in payload).toBe(false);
+  });
 });
 
 // -----------------------------------------------------------------------------------------------
@@ -172,5 +214,17 @@ describe('toActualizarPresupuestoPayload (2.4) — clave ausente no viaja', () =
 
   it('objeto vacío -> body vacío: no pisa ningún campo que el usuario no tocó', () => {
     expect(toActualizarPresupuestoPayload({})).toEqual({});
+  });
+
+  it('prestacionId presente (incluso reasignando a otra prestación): viaja en el body (2.6)', () => {
+    const payload = toActualizarPresupuestoPayload({ prestacionId: 'prestacion-2' });
+
+    expect(payload).toEqual({ prestacionId: 'prestacion-2' });
+  });
+
+  it('prestacionId ausente en cambios (ej. editar solo el monto): la clave no viaja, nunca se manda undefined (2.6, la trampa de D6b)', () => {
+    const payload = toActualizarPresupuestoPayload({ monto: 1000 });
+
+    expect('prestacionId' in payload).toBe(false);
   });
 });

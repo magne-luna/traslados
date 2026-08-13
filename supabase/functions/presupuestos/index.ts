@@ -8,6 +8,18 @@
 // `archivoUrl` expone directamente la columna existente (sin nombre/fecha de carga aparte -- el
 // nombre ya viaja en la URL y la fecha del presupuesto ya es fecha_emision, agregar columnas
 // separadas para eso era redundante).
+//
+// presupuesto-prestaciones PR 2 (design.md D2, opcion A -- decidida en el gate de tasks.md 0.2):
+// la escritura (POST) deja de hacer `.insert(...)` directo contra la tabla y pasa a invocar las RPC
+// `facturacion.crear_presupuesto_completo` / `facturacion.crear_presupuestos_lote`, ambas
+// SECURITY INVOKER (la sesion sigue siendo la del `userClient`, RLS aplica igual que antes -- esta
+// funcion NO se convierte en un atajo que bypasee permisos). `requirePermiso` se mantiene como
+// defensa en profundidad, sin cambios. Un body que es un arreglo JSON dispara el alta en lote
+// (una prestacion por presupuesto, modalidad `por-prestacion`); un body que es un objeto dispara
+// el alta simple (modalidad `general`) -- mismo endpoint `POST /presupuestos`, un solo llamador
+// (`SupabasePresupuestoRepository.create()`/`.createLote()`) que ya elige la forma correcta segun
+// D9. GET/PATCH/DELETE no cambian: siguen leyendo/escribiendo `facturacion.presupuesto` via
+// PostgREST directo, RPC solo se usa para el alta (D2 no toca lectura ni edicion).
 
 import { requirePermiso, isAuthorized, jsonResponse, CORS_HEADERS, extractIdFromPath } from '../_shared/auth.ts';
 
@@ -24,6 +36,7 @@ interface PresupuestoRow {
   monto: number;
   fecha_emision: string;
   archivo_url: string | null;
+  prestacion_id: string | null;
 }
 
 interface PresupuestoInput {
@@ -32,6 +45,8 @@ interface PresupuestoInput {
   monto?: number;
   fechaEmision?: string;
   archivoUrl?: string;
+  /** presupuesto-prestaciones PR 2 (design.md D9): poblado solo en modalidad por-prestacion. */
+  prestacionId?: string;
 }
 
 function toApi(row: PresupuestoRow) {
@@ -42,6 +57,7 @@ function toApi(row: PresupuestoRow) {
     monto: Number(row.monto),
     fechaEmision: row.fecha_emision,
     archivoUrl: row.archivo_url ?? undefined,
+    prestacionId: row.prestacion_id ?? undefined,
   };
 }
 
@@ -52,7 +68,12 @@ function toDb(input: PresupuestoInput): Record<string, unknown> {
   if (input.monto !== undefined) row.monto = input.monto;
   if (input.fechaEmision !== undefined) row.fecha_emision = input.fechaEmision;
   if (input.archivoUrl !== undefined) row.archivo_url = input.archivoUrl;
+  if (input.prestacionId !== undefined) row.prestacion_id = input.prestacionId;
   return row;
+}
+
+function faltanCamposRequeridos(input: PresupuestoInput): boolean {
+  return !input.pacienteId || !input.obraSocialId || input.monto === undefined || !input.fechaEmision;
 }
 
 Deno.serve(async (req) => {
@@ -80,17 +101,59 @@ Deno.serve(async (req) => {
   }
 
   if (req.method === 'POST') {
-    let body: PresupuestoInput;
+    let body: unknown;
     try {
       body = await req.json();
     } catch {
       return jsonResponse(400, { error: 'body invalido, se espera JSON' });
     }
-    if (!body.pacienteId || !body.obraSocialId || body.monto === undefined || !body.fechaEmision) {
+
+    // Alta en lote (modalidad por-prestacion, D9/D2 opcion A): un arreglo dispara
+    // crear_presupuestos_lote -- atomica, o entran todos o no entra ninguno.
+    if (Array.isArray(body)) {
+      const items = body as PresupuestoInput[];
+      if (items.length === 0) {
+        return jsonResponse(400, { error: 'el lote de presupuestos no puede estar vacio' });
+      }
+      for (const item of items) {
+        if (faltanCamposRequeridos(item)) {
+          return jsonResponse(400, { error: 'faltan campos requeridos: pacienteId, obraSocialId, monto, fechaEmision' });
+        }
+      }
+
+      const { data: ids, error } = await userClient
+        .schema('facturacion')
+        .rpc('crear_presupuestos_lote', { p_presupuestos: items.map(toDb) });
+      if (error) return jsonResponse(400, { error: error.message });
+
+      const { data, error: errorSelect } = await userClient
+        .schema('facturacion')
+        .from('presupuesto')
+        .select('*')
+        .in('id', (ids as string[] | null) ?? []);
+      if (errorSelect) return jsonResponse(400, { error: errorSelect.message });
+      return jsonResponse(201, (data as PresupuestoRow[]).map(toApi));
+    }
+
+    // Alta simple (modalidad general): un objeto dispara crear_presupuesto_completo.
+    const single = body as PresupuestoInput;
+    if (faltanCamposRequeridos(single)) {
       return jsonResponse(400, { error: 'faltan campos requeridos: pacienteId, obraSocialId, monto, fechaEmision' });
     }
-    const { data, error } = await userClient.schema('facturacion').from('presupuesto').insert(toDb(body)).select('*').single();
+
+    const { data: nuevoId, error } = await userClient
+      .schema('facturacion')
+      .rpc('crear_presupuesto_completo', { p_presupuesto: toDb(single) });
     if (error) return jsonResponse(400, { error: error.message });
+
+    const { data, error: errorSelect } = await userClient
+      .schema('facturacion')
+      .from('presupuesto')
+      .select('*')
+      .eq('id', nuevoId as string)
+      .maybeSingle();
+    if (errorSelect) return jsonResponse(400, { error: errorSelect.message });
+    if (!data) return jsonResponse(404, { error: 'presupuesto no encontrado' });
     return jsonResponse(201, toApi(data as PresupuestoRow));
   }
 

@@ -8,6 +8,12 @@ export interface UsePresupuestosResult {
   error: string | null;
   recargar: () => Promise<void>;
   crear: (data: NuevoPresupuesto) => Promise<Presupuesto>;
+  /**
+   * Alta atómica de N presupuestos (presupuesto-prestaciones, tasks.md Fase 6/8, design.md D2/D4):
+   * usada por la rama `por-prestacion` de `PresupuestoForm` vía `PresupuestoDetail`. Recarga la
+   * lista igual que `crear`, una sola vez, con los N presupuestos ya confirmados.
+   */
+  crearLote: (datas: NuevoPresupuesto[]) => Promise<Presupuesto[]>;
   actualizar: (id: string, data: ActualizacionPresupuesto) => Promise<Presupuesto>;
 }
 
@@ -56,6 +62,20 @@ export function usePresupuestos(repository: PresupuestoRepository): UsePresupues
     [repository, cargar],
   );
 
+  const crearLote = useCallback(
+    async (datas: NuevoPresupuesto[]) => {
+      try {
+        const creados = await repository.createLote(datas);
+        await cargar();
+        return creados;
+      } catch (err) {
+        setError(toErrorMessage(err));
+        throw err;
+      }
+    },
+    [repository, cargar],
+  );
+
   const actualizar = useCallback(
     async (id: string, data: ActualizacionPresupuesto) => {
       try {
@@ -70,5 +90,5 @@ export function usePresupuestos(repository: PresupuestoRepository): UsePresupues
     [repository, cargar],
   );
 
-  return { presupuestos, loading, error, recargar: cargar, crear, actualizar };
+  return { presupuestos, loading, error, recargar: cargar, crear, crearLote, actualizar };
 }
