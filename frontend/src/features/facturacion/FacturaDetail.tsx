@@ -82,7 +82,6 @@ export function FacturaDetail({
     paciente,
     obraSocial,
     facturasExistentes,
-    presupuestoRepository,
     autorizacionRepository,
     actualizar,
     onError: setSubmitError,
@@ -186,6 +185,8 @@ export function FacturaDetail({
             facturasExistentes={facturasExistentes}
             facturaIdEnEdicion={factura?.id ?? null}
             feriados={feriados}
+            presupuestoRepository={presupuestoRepository}
+            autorizacionRepository={autorizacionRepository}
             resolverCupoAutorizado={resolverCupoAutorizado}
             esBorrador={factura === null || factura.estado === 'a-facturar'}
             onSubmit={handleSubmitForm}

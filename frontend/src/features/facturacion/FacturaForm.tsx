@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Button, CamposSoloLectura } from '../../design-system/components';
-import { Alert } from '../../design-system/feedback';
+import { Alert, EmptyState } from '../../design-system/feedback';
 import { Field, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import { Stepper, type StepperStep } from '../../design-system/stepper';
@@ -8,6 +8,8 @@ import type { AsistenciaPrestacion, Factura } from '../../shared/types/factura';
 import type { CupoAutorizado } from '../../shared/types/presupuesto';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
+import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
+import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import { AlertaCupo } from './AlertaCupo';
 import { AsistenciasEditor } from './AsistenciasEditor';
 import { DiasFacturablesSelector } from './DiasFacturablesSelector';
@@ -15,9 +17,11 @@ import { FacturaFormDatosBasicos } from './FacturaFormDatosBasicos';
 import { FacturaFormEconomicos } from './FacturaFormEconomicos';
 import { ResumenPasoWizard } from './ResumenPasoWizard';
 import { SeccionPlegable } from './SeccionPlegable';
+import { autorizacionesPendientes, type AutorizacionPendiente } from '../../shared/lib/facturacion/autorizacionesPendientes';
 import { construirDatosDescripcion } from '../../shared/lib/facturacion/construirDatosDescripcion';
 import { TIPO_COMPROBANTE_DEFAULT } from '../../shared/lib/facturacion/constantes';
 import { cupoConsumido } from '../../shared/lib/facturacion/cupoConsumido';
+import { etiquetaAutorizacion } from '../../shared/lib/facturacion/etiquetaAutorizacion';
 import { renderDescripcionFactura } from '../../shared/lib/facturacion/renderDescripcionFactura';
 import { validarCupoFacturacion } from '../../shared/lib/facturacion/validarCupoFacturacion';
 import { validateFacturaForm, type FacturaFormErrors } from './validateFacturaForm';
@@ -56,9 +60,14 @@ interface FacturaFormProps {
   facturaIdEnEdicion: string | null;
   /** Catálogo de feriados inyectado — ver feriadosFixture.ts. */
   feriados: string[];
-  /** Resuelve el CupoAutorizado del paciente vía PresupuestoRepository + AutorizacionRepository +
-   * derivarCupoAutorizado (tasks.md 8.2) — sin reimplementar la derivación acá. */
-  resolverCupoAutorizado: (pacienteId: string) => Promise<CupoAutorizado | undefined>;
+  /** Insumo del Paso 2 (change `facturacion-seleccion-autorizacion`, design.md D3): reusados tal
+   * cual para derivar `autorizacionesPendientes(pacienteId, ...)`, sin métodos nuevos. */
+  presupuestoRepository: PresupuestoRepository;
+  autorizacionRepository: AutorizacionRepository;
+  /** Resuelve el CupoAutorizado de la autorización ELEGIDA (change `facturacion-seleccion-autorizacion`,
+   * design.md D6): ya no adivina — recibe también `autorizacionId`. Sin autorización elegida
+   * (facturas anteriores a este change) resuelve `undefined`. */
+  resolverCupoAutorizado: (pacienteId: string, autorizacionId: string | undefined) => Promise<CupoAutorizado | undefined>;
   /** `true` mientras la factura sigue en `a-facturar` (design.md Decisión 5, tasks.md 7.6): solo
    * en ese estado se muestra la vista previa en vivo — una vez emitida, la descripción está
    * congelada y no se recalcula. Default `true` (alta de una factura nueva). */
@@ -76,7 +85,7 @@ const labelClasses = 'font-body text-[12px] font-semibold text-muted';
 // más abajo) — en edición el wizard se saltea por completo.
 const PASOS_WIZARD: StepperStep[] = [
   { label: 'Paciente' },
-  { label: 'Obra social / Prestador' },
+  { label: 'Autorización' },
   { label: 'Datos de la factura' },
 ];
 
@@ -101,11 +110,10 @@ const PASOS_WIZARD: StepperStep[] = [
 // render sobre el MISMO árbol de contenido (`pasoPacienteContent`/`pasoObraSocialContent`/
 // `pasoRestoContent`, definidos más abajo):
 //   - Alta (sin `initial`): wizard real — un paso visible a la vez, `paso` (estado local) avanza
-//     con "Siguiente" (Paso 1→2 requiere `pacienteId`; el gateo de Paso 2→3 por datos de
-//     prestador, `faltaCompletarPrestador`, se retiró junto con esos campos — change
-//     `facturacion-seleccion-autorizacion`, design.md D5 — el reemplazo por `!values.autorizacionId`
-//     es la sección 3 de ese change, todavía no cableada acá) y retrocede con "Atrás", sin perder
-//     nada de `values` (el estado vive en el componente, no en el paso visible).
+//     con "Siguiente" (Paso 1→2 requiere `pacienteId`; Paso 2→3 requiere `values.autorizacionId` —
+//     change `facturacion-seleccion-autorizacion`, design.md D4, reemplaza al gateo por datos de
+//     prestador `faltaCompletarPrestador` retirado en D5) y retrocede con "Atrás", sin perder nada
+//     de `values` (el estado vive en el componente, no en el paso visible).
 //   - Edición (`initial?.pacienteId` truthy): el wizard se saltea por completo — se renderizan los
 //     tres bloques juntos, sin Stepper ni botones de navegación, igual que el formulario plano de
 //     antes de este change. No tiene sentido forzar el flujo guiado cuando paciente/obra social ya
@@ -118,6 +126,8 @@ export function FacturaForm({
   facturasExistentes,
   facturaIdEnEdicion,
   feriados,
+  presupuestoRepository,
+  autorizacionRepository,
   resolverCupoAutorizado,
   esBorrador = true,
   onSubmit,
@@ -128,6 +138,10 @@ export function FacturaForm({
   const [values, setValues] = useState<FacturaFormValues>(initial ?? valoresPorDefecto());
   const [errors, setErrors] = useState<FacturaFormErrors>({});
   const [cupo, setCupo] = useState<CupoAutorizado | undefined>(undefined);
+  // Autorizaciones pendientes del paciente elegido (D3/D4, tasks.md 2.6/3.1): `null` = todavía no
+  // se resolvió (o no hay paciente elegido) — distinto de `[]` (resuelto, sin resultados), que
+  // dispara el estado vacío bloqueante.
+  const [autorizaciones, setAutorizaciones] = useState<AutorizacionPendiente[] | null>(null);
   const formId = useId();
 
   // Editar una factura existente saltea el wizard (ver comentario de arriba del componente):
@@ -151,13 +165,35 @@ export function FacturaForm({
 
   useEffect(() => {
     let cancelled = false;
-    resolverCupoAutorizado(values.pacienteId).then((resultado) => {
+    resolverCupoAutorizado(values.pacienteId, values.autorizacionId).then((resultado) => {
       if (!cancelled) setCupo(resultado);
     });
     return () => {
       cancelled = true;
     };
-  }, [values.pacienteId, resolverCupoAutorizado]);
+  }, [values.pacienteId, values.autorizacionId, resolverCupoAutorizado]);
+
+  // Autorizaciones pendientes del paciente elegido (D3, insumo del Paso 2 — D4): se resuelve en
+  // cuanto hay `pacienteId`, sin esperar a llegar al Paso 2, para no hacerle esperar al operador.
+  useEffect(() => {
+    if (!values.pacienteId) {
+      setAutorizaciones(null);
+      return;
+    }
+    let cancelled = false;
+    autorizacionesPendientes(values.pacienteId, presupuestoRepository, autorizacionRepository).then((resultado) => {
+      if (!cancelled) setAutorizaciones(resultado);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [values.pacienteId, presupuestoRepository, autorizacionRepository]);
+
+  const autorizacionSeleccionada = autorizaciones?.find((item) => item.autorizacion.id === values.autorizacionId);
+  const autorizacionLabel = autorizacionSeleccionada ? etiquetaAutorizacion(autorizacionSeleccionada, paciente) : undefined;
+  // Gateo del Paso 2 en modo alta (D4): bloqueado mientras no se resolvió la lista, si está vacía,
+  // o si todavía no se eligió ninguna. En edición el paso no bifurca (D4) — nunca bloquea acá.
+  const bloqueaAutorizacion = autorizaciones === null || autorizaciones.length === 0 || !values.autorizacionId;
 
   const resultadoCupo = useMemo(() => {
     const consumido = cupoConsumido(facturasExistentes, values.pacienteId, values.mesFacturado, values.anioFacturado, {
@@ -170,14 +206,10 @@ export function FacturaForm({
     });
   }, [facturasExistentes, values.pacienteId, values.mesFacturado, values.anioFacturado, values.dias, values.cantidadKm, facturaIdEnEdicion, cupo]);
 
-  // Gateo del Paso 2 (change `facturacion-seleccion-autorizacion`, design.md D4/D5): el gateo por
-  // texto libre de prestador (`faltaCompletarPrestador`, change `sacar-prestadores`) se retiró por
-  // completo junto con esos dos campos — `prestadorNombre`/`prestadorDomicilio` ya no existen en
-  // `Factura`. El reemplazo real (gatear "Siguiente" por `!values.autorizacionId` y elegir una
-  // autorización de un selector) es la sección 3 de ese change, bloqueada hasta que se apliquen
-  // las migraciones (`1B.4`); mientras tanto el Paso 2 no gatea nada propio (se comporta como la
-  // modalidad "general" en las dos modalidades) y la vista previa ya no depende de ningún dato de
-  // prestador.
+  // Vista previa de la descripción (change `facturacion-seleccion-autorizacion`, design.md D4/D5):
+  // ya no depende de ningún dato de prestador (`faltaCompletarPrestador` se retiró junto con
+  // `prestadorNombre`/`prestadorDomicilio`, D5) — arma apenas hay paciente + obra social, igual en
+  // las dos modalidades, sin esperar a que se elija una autorización.
   const previaDescripcion =
     esBorrador && obraSocial && paciente
       ? renderDescripcionFactura(obraSocial.plantillaFactura, construirDatosDescripcion(values, paciente))
@@ -218,13 +250,14 @@ export function FacturaForm({
     </CamposSoloLectura>
   );
 
-  // Paso 2 — Obra social / Autorización (design.md de `facturacion-seleccion-autorizacion`, D4/D5):
-  // la obra social se muestra de solo lectura (se deriva del paciente elegido en el Paso 1, no es
-  // un campo editable acá). Los dos campos de texto libre de prestador (change `sacar-prestadores`,
+  // Paso 2 — Autorización (design.md de `facturacion-seleccion-autorizacion`, D4/D5): la obra
+  // social se muestra de solo lectura (se deriva del paciente elegido en el Paso 1, no es un
+  // campo editable acá). Los dos campos de texto libre de prestador (change `sacar-prestadores`,
   // que a su vez revertía `factura-por-prestador`) se retiraron por completo — no tenían columna
-  // real en producción (D5). El selector de autorizaciones pendientes que los reemplaza (D4) es la
-  // sección 3 de ese change, bloqueada hasta que se apliquen las migraciones de D1/D2 — este paso
-  // queda temporalmente sin contenido propio en modalidad "por-prestacion" hasta ese commit.
+  // real en producción (D5). En su lugar, un selector de las autorizaciones PENDIENTES del
+  // paciente elegido (`autorizacionesPendientes`, D3): estado vacío bloqueante si no hay ninguna
+  // (con link a Presupuestos), y en modo edición la autorización ya persistida se muestra de solo
+  // lectura — no se puede recambiar (D4: "la edición no bifurca").
   const pasoObraSocialContent: ReactNode = (
     <div className="flex flex-col gap-md">
       <div className="flex flex-col gap-xs">
@@ -232,6 +265,44 @@ export function FacturaForm({
         <p className="m-0 font-body text-[13px] text-text">
           {obraSocial ? obraSocial.nombre : 'El paciente elegido no tiene una obra social asociada.'}
         </p>
+      </div>
+
+      <div className="flex flex-col gap-xs">
+        <span className={labelClasses}>Autorización</span>
+        {esEdicion ? (
+          <p className="m-0 font-body text-[13px] text-text">
+            {autorizacionLabel ??
+              (values.autorizacionId ? 'No se pudo resolver la autorización elegida.' : 'Esta factura no tiene una autorización asociada.')}
+          </p>
+        ) : autorizaciones === null ? (
+          <p className="m-0 font-body text-[13px] text-muted">Buscando autorizaciones pendientes…</p>
+        ) : autorizaciones.length === 0 ? (
+          <EmptyState
+            message="Este paciente no tiene autorizaciones pendientes de facturar. Cargalas desde Presupuestos antes de emitir la factura."
+            action={
+              <a href="/presupuestos" className="font-body text-[13px] font-semibold text-primary">
+                Ir a Presupuestos
+              </a>
+            }
+          />
+        ) : (
+          <CamposSoloLectura>
+            <Field label="Autorización" htmlFor={`${formId}-autorizacion`}>
+              <Select
+                id={`${formId}-autorizacion`}
+                value={values.autorizacionId ?? ''}
+                onChange={(e) => set('autorizacionId', e.target.value || undefined)}
+              >
+                <option value="">Seleccionar autorización…</option>
+                {autorizaciones.map((item) => (
+                  <option key={item.autorizacion.id} value={item.autorizacion.id}>
+                    {etiquetaAutorizacion(item, paciente)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </CamposSoloLectura>
+        )}
       </div>
     </div>
   );
@@ -297,7 +368,12 @@ export function FacturaForm({
       </div>
 
       <div className="flex flex-col gap-md lg:sticky lg:top-xl lg:self-start">
-        <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} datosFactura={{ dias: values.dias, total: values.monto }} />
+        <ResumenPasoWizard
+          paciente={paciente}
+          obraSocial={obraSocial}
+          autorizacionLabel={autorizacionLabel}
+          datosFactura={{ dias: values.dias, total: values.monto }}
+        />
         <AlertaCupo resultado={resultadoCupo} />
         {previaDescripcion !== null && (
           <div className="flex flex-col gap-xs rounded-sm border border-border bg-surface-soft p-md">
@@ -360,10 +436,10 @@ export function FacturaForm({
                 {pasoObraSocialContent}
                 <div className="flex items-center justify-between gap-sm">
                   <Button variant="secondary" onClick={() => setPaso(0)}>Atrás</Button>
-                  <Button variant="primary" onClick={() => setPaso(2)}>Siguiente</Button>
+                  <Button variant="primary" disabled={bloqueaAutorizacion} onClick={() => setPaso(2)}>Siguiente</Button>
                 </div>
               </div>
-              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} />
+              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} autorizacionLabel={autorizacionLabel} />
             </div>
           )}
 

@@ -10,6 +10,10 @@ interface ResumenPasoWizardProps {
   /** Días facturables y total, solo disponibles una vez llegado al Paso 3 (o en edición, donde
    * ya están cargados de entrada) — omitido en los Pasos 1 y 2, donde todavía no existen. */
   datosFactura?: { dias: number; total: number };
+  /** Etiqueta de la autorización elegida en el Paso 2 (change `facturacion-seleccion-autorizacion`,
+   * design.md D4): reemplaza a `prestadorNombre`/`prestadorDomicilio`, retirados por completo
+   * (D5). Ausente mientras no se eligió ninguna autorización. */
+  autorizacionLabel?: string;
 }
 
 function iniciales(paciente: Paciente): string {
@@ -28,10 +32,9 @@ function iniciales(paciente: Paciente): string {
 // hay nada editable adentro.
 //
 // `prestadorNombre`/`prestadorDomicilio` se retiraron por completo (change
-// `facturacion-seleccion-autorizacion`, design.md D5) — la autorización elegida en el Paso 2 los
-// reemplaza (D4), pero ese picker todavía no está cableado acá (sección 3 de ese change, bloqueada
-// hasta que se apliquen las migraciones).
-export function ResumenPasoWizard({ paciente, obraSocial, datosFactura }: ResumenPasoWizardProps) {
+// `facturacion-seleccion-autorizacion`, design.md D5) — la autorización elegida en el Paso 2
+// (`autorizacionLabel`) los reemplaza (D4, sección 3).
+export function ResumenPasoWizard({ paciente, obraSocial, datosFactura, autorizacionLabel }: ResumenPasoWizardProps) {
   return (
     <Card radius="sm" padding="lg" gap="sm" background="surface-soft">
       <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-faint">Esta factura, hasta ahora</span>
@@ -53,6 +56,13 @@ export function ResumenPasoWizard({ paciente, obraSocial, datosFactura }: Resume
             <div className="flex items-center gap-xs font-body text-[13px] text-text">
               <InlineIcon size={14}>{iconCredencial}</InlineIcon>
               {obraSocial.nombre}
+            </div>
+          )}
+
+          {autorizacionLabel && (
+            <div className="flex items-center gap-xs font-body text-[13px] text-text">
+              <InlineIcon size={14}>{iconCredencial}</InlineIcon>
+              {autorizacionLabel}
             </div>
           )}
 

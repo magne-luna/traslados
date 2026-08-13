@@ -3,7 +3,6 @@ import type { ActualizacionFactura, Factura } from '../../shared/types/factura';
 import type { CupoAutorizado } from '../../shared/types/presupuesto';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
-import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import { derivarCupoAutorizado } from '../../shared/lib/presupuestos/cupoAutorizado';
 import { construirDatosDescripcion } from '../../shared/lib/facturacion/construirDatosDescripcion';
@@ -18,7 +17,6 @@ interface UseEmisionFacturaArgs {
   paciente: Paciente | undefined;
   obraSocial: ObraSocial | undefined;
   facturasExistentes: Factura[];
-  presupuestoRepository: PresupuestoRepository;
   autorizacionRepository: AutorizacionRepository;
   actualizar: (id: string, data: ActualizacionFactura) => Promise<Factura>;
   onError: (mensaje: string) => void;
@@ -39,26 +37,28 @@ export function useEmisionFactura({
   paciente,
   obraSocial,
   facturasExistentes,
-  presupuestoRepository,
   autorizacionRepository,
   actualizar,
   onError,
 }: UseEmisionFacturaArgs) {
   const [cupoParaConfirmar, setCupoParaConfirmar] = useState<ValidarCupoFacturacionResultado | null>(null);
 
+  // `resolverCupoAutorizado` deja de adivinar (change `facturacion-seleccion-autorizacion`,
+  // design.md D6): antes iteraba TODOS los presupuestos del paciente y devolvía la primera
+  // autorización con cupo cargado — con varias autorizaciones simultáneas (`por-prestacion`) eso
+  // podía alertar contra la autorización equivocada. Ahora recibe la autorización ELEGIDA en el
+  // Paso 2 del wizard (`autorizacionId`) y deriva el cupo de ESA, vía `getById` +
+  // `derivarCupoAutorizado` (reusada sin cambios). Sin `autorizacionId` (facturas anteriores a
+  // este change, `autorizacion_id NULL`) → `undefined`, camino ya tolerado por
+  // `validarCupoFacturacion` (sin cupo, no alerta).
   const resolverCupoAutorizado = useCallback(
-    async (pacienteId: string): Promise<CupoAutorizado | undefined> => {
-      if (!pacienteId) return undefined;
-      const presupuestos = await presupuestoRepository.list();
-      for (const presupuesto of presupuestos.filter((p) => p.pacienteId === pacienteId)) {
-        const autorizacion = await autorizacionRepository.getByPresupuestoId(presupuesto.id);
-        if (autorizacion && (autorizacion.cupoMensualDias !== undefined || autorizacion.cupoMensualKm !== undefined)) {
-          return derivarCupoAutorizado(autorizacion, pacienteId);
-        }
-      }
-      return undefined;
+    async (pacienteId: string, autorizacionId: string | undefined): Promise<CupoAutorizado | undefined> => {
+      if (!pacienteId || !autorizacionId) return undefined;
+      const autorizacion = await autorizacionRepository.getById(autorizacionId);
+      if (!autorizacion) return undefined;
+      return derivarCupoAutorizado(autorizacion, pacienteId);
     },
-    [presupuestoRepository, autorizacionRepository],
+    [autorizacionRepository],
   );
 
   async function emitirFactura() {
@@ -87,7 +87,7 @@ export function useEmisionFactura({
 
   async function handleEmitirClick() {
     if (!factura) return;
-    const cupo = await resolverCupoAutorizado(factura.pacienteId);
+    const cupo = await resolverCupoAutorizado(factura.pacienteId, factura.autorizacionId);
     const consumido = cupoConsumido(facturasExistentes, factura.pacienteId, factura.mesFacturado, factura.anioFacturado, {
       excluirFacturaId: factura.id,
     });

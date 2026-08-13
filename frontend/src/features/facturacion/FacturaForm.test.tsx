@@ -1,9 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Factura } from '../../shared/types/factura';
+import type {
+  ActualizacionAutorizacion,
+  ActualizacionPresupuesto,
+  Autorizacion,
+  NuevaAutorizacion,
+  NuevoPresupuesto,
+  Presupuesto,
+} from '../../shared/types/presupuesto';
+import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
+import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { FacturaForm, type FacturaFormValues } from './FacturaForm';
 
@@ -74,9 +84,70 @@ function valoresIniciales(overrides: Partial<FacturaFormValues> = {}): FacturaFo
   };
 }
 
+// Fakes tipados del insumo del Paso 2 (D3, tasks.md 2.6/3.1) — mismo patrón que
+// `autorizacionesPendientes.test.ts`, sin red, cero `any`.
+function presupuesto(overrides: Partial<Presupuesto> = {}): Presupuesto {
+  return {
+    id: 'presupuesto-default',
+    pacienteId: 'paciente-martina',
+    obraSocialId: 'osecac',
+    monto: 45000,
+    fechaEmision: '2026-03-01',
+    ...overrides,
+  };
+}
+
+function autorizacion(overrides: Partial<Autorizacion> = {}): Autorizacion {
+  return {
+    id: 'autorizacion-default',
+    presupuestoId: 'presupuesto-default',
+    estado: 'autorizada',
+    ...overrides,
+  };
+}
+
+function fakePresupuestoRepository(presupuestos: Presupuesto[]): PresupuestoRepository {
+  return {
+    list: () => Promise.resolve(presupuestos),
+    getById: (id: string) => Promise.resolve(presupuestos.find((p) => p.id === id) ?? null),
+    create: (_data: NuevoPresupuesto) => Promise.reject(new Error('no usado en este test')),
+    createLote: (_nuevos: NuevoPresupuesto[]) => Promise.reject(new Error('no usado en este test')),
+    update: (_id: string, _data: ActualizacionPresupuesto) => Promise.reject(new Error('no usado en este test')),
+  };
+}
+
+function fakeAutorizacionRepository(autorizacionesPorPresupuesto: Map<string, Autorizacion>): AutorizacionRepository {
+  const todas = [...autorizacionesPorPresupuesto.values()];
+  return {
+    list: () => Promise.resolve(todas),
+    getById: (id: string) => Promise.resolve(todas.find((a) => a.id === id) ?? null),
+    getByPresupuestoId: (presupuestoId: string) => Promise.resolve(autorizacionesPorPresupuesto.get(presupuestoId) ?? null),
+    create: (_data: NuevaAutorizacion) => Promise.reject(new Error('no usado en este test')),
+    update: (_id: string, _data: ActualizacionAutorizacion) => Promise.reject(new Error('no usado en este test')),
+  };
+}
+
+// Default: una única autorización "autorizada" por cada paciente usado en estos tests, para no
+// tener que especificar repositories en cada test que solo necesita atravesar el wizard.
+function repositoriosPorDefecto() {
+  const presupuestos = [
+    presupuesto({ id: 'presupuesto-martina', pacienteId: 'paciente-martina' }),
+    presupuesto({ id: 'presupuesto-general', pacienteId: 'paciente-general' }),
+  ];
+  const autorizaciones = new Map<string, Autorizacion>([
+    ['presupuesto-martina', autorizacion({ id: 'autorizacion-martina', presupuestoId: 'presupuesto-martina' })],
+    ['presupuesto-general', autorizacion({ id: 'autorizacion-general', presupuestoId: 'presupuesto-general' })],
+  ]);
+  return {
+    presupuestoRepository: fakePresupuestoRepository(presupuestos),
+    autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+  };
+}
+
 function renderForm(overrides: Partial<React.ComponentProps<typeof FacturaForm>> = {}) {
   const onSubmit = vi.fn();
   const onCancel = vi.fn();
+  const { presupuestoRepository, autorizacionRepository } = repositoriosPorDefecto();
   render(
     <FacturaForm
       pacientes={[martina]}
@@ -84,6 +155,8 @@ function renderForm(overrides: Partial<React.ComponentProps<typeof FacturaForm>>
       facturasExistentes={[]}
       facturaIdEnEdicion={null}
       feriados={[]}
+      presupuestoRepository={presupuestoRepository}
+      autorizacionRepository={autorizacionRepository}
       resolverCupoAutorizado={vi.fn().mockResolvedValue(undefined)}
       onSubmit={onSubmit}
       onCancel={onCancel}
@@ -96,6 +169,7 @@ function renderForm(overrides: Partial<React.ComponentProps<typeof FacturaForm>>
 function renderFormConPermiso(puedeEscribir: boolean, overrides: Partial<React.ComponentProps<typeof FacturaForm>> = {}) {
   const onSubmit = vi.fn();
   const onCancel = vi.fn();
+  const { presupuestoRepository, autorizacionRepository } = repositoriosPorDefecto();
   render(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <FacturaForm
@@ -104,6 +178,8 @@ function renderFormConPermiso(puedeEscribir: boolean, overrides: Partial<React.C
         facturasExistentes={[]}
         facturaIdEnEdicion={null}
         feriados={[]}
+        presupuestoRepository={presupuestoRepository}
+        autorizacionRepository={autorizacionRepository}
         resolverCupoAutorizado={vi.fn().mockResolvedValue(undefined)}
         onSubmit={onSubmit}
         onCancel={onCancel}
@@ -112,6 +188,27 @@ function renderFormConPermiso(puedeEscribir: boolean, overrides: Partial<React.C
     </PuedeEscribirContext.Provider>,
   );
   return { onSubmit, onCancel };
+}
+
+// Selecciona la primera opción real (no el placeholder "Seleccionar autorización…") del selector
+// del Paso 2 — helper compartido por los tests que necesitan atravesar el wizard completo.
+async function elegirPrimeraAutorizacion() {
+  const select = await screen.findByLabelText(/^autorización$/i);
+  const opciones = within(select).getAllByRole('option') as HTMLOptionElement[];
+  const primera = opciones.find((o) => o.value !== '');
+  if (!primera) throw new Error('Debería existir al menos una opción de autorización');
+  await userEvent.selectOptions(select, primera.value);
+}
+
+// Atraviesa Paso 1 (elegir paciente) → Paso 2 (elegir la primera autorización pendiente, D4) →
+// Paso 3, con los repositories por defecto de `renderForm`/`renderFormConPermiso` (una
+// autorización "autorizada" por paciente). Reemplaza al doble click de "Siguiente" sin selección
+// que usaban estos tests antes de D4 (ahora bloqueado, tasks.md 3.3).
+async function avanzarHastaPaso3(pacienteId: string) {
+  await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), pacienteId);
+  await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+  await elegirPrimeraAutorizacion();
+  await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 }
 
 describe('FacturaForm', () => {
@@ -138,9 +235,7 @@ describe('FacturaForm', () => {
 
     expect(screen.queryByLabelText(/tipo de comprobante/i)).not.toBeInTheDocument();
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await avanzarHastaPaso3('paciente-martina');
 
     const tipoComprobante = screen.getByLabelText(/tipo de comprobante/i) as HTMLSelectElement;
     expect(tipoComprobante.value).toBe('A');
@@ -151,9 +246,7 @@ describe('FacturaForm', () => {
 
   it('el selector de domicilio se puebla con las direcciones del paciente seleccionado', async () => {
     renderForm();
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await avanzarHastaPaso3('paciente-martina');
 
     expect(screen.getByRole('option', { name: /rivadavia 4500/i })).toBeInTheDocument();
   });
@@ -161,9 +254,7 @@ describe('FacturaForm', () => {
   it('envía el formulario con los valores cargados cuando pasa la validación', async () => {
     const { onSubmit } = renderForm();
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await avanzarHastaPaso3('paciente-martina');
 
     await userEvent.type(screen.getByLabelText(/valor del km/i), '300');
     await userEvent.type(screen.getByLabelText(/cantidad de km/i), '10');
@@ -177,6 +268,8 @@ describe('FacturaForm', () => {
     expect(values.pacienteId).toBe('paciente-martina');
     expect(values.valorKm).toBe(300);
     expect(values.dias).toBe(5);
+    // Payload incluye la autorización elegida en el Paso 2 (D6, tasks.md 3.5/3.6).
+    expect(values.autorizacionId).toBe('autorizacion-martina');
   });
 
   it('muestra la vista previa en vivo de la descripción mientras la factura está en a-facturar', async () => {
@@ -192,9 +285,7 @@ describe('FacturaForm', () => {
       ],
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await avanzarHastaPaso3('paciente-martina');
 
     const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
     if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
@@ -205,14 +296,11 @@ describe('FacturaForm', () => {
 
   // La vista previa ya no depende de ningún dato de prestador (change
   // `facturacion-seleccion-autorizacion`, design.md D5): arma apenas se completan los Pasos 1 y 2,
-  // en las dos modalidades por igual, hasta que la sección 3 de ese change cablee el gateo real
-  // por `autorizacionId`.
+  // en las dos modalidades por igual.
   it('la vista previa de la descripción arma apenas se completan los Pasos 1 y 2 (sin nada de prestador que completar)', async () => {
     renderForm({ pacientes: [martina, pacienteGeneral], obrasSociales: [osecac, obraSocialGeneral] });
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-general');
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await avanzarHastaPaso3('paciente-general');
 
     expect(await screen.findByText(/vista previa de la descripción/i)).toBeInTheDocument();
   });
@@ -221,8 +309,8 @@ describe('FacturaForm', () => {
 // Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`, design.md): gateo de
 // navegación entre pasos, conservación de valores con "Atrás" y el bypass de modo edición. El
 // gateo de Paso 2→3 por datos de prestador (`faltaCompletarPrestador`) se retiró por completo
-// junto con esos campos (change `facturacion-seleccion-autorizacion`, design.md D5) — el
-// reemplazo por `!values.autorizacionId` es la sección 3 de ese change, todavía no cableada acá.
+// junto con esos campos y lo reemplaza `!values.autorizacionId` (change
+// `facturacion-seleccion-autorizacion`, design.md D4, tasks.md 3.3).
 describe('FacturaForm — wizard de alta', () => {
   it('Paso 1→2: "Siguiente" está deshabilitado sin paciente elegido y se habilita al elegirlo', async () => {
     renderForm();
@@ -234,20 +322,74 @@ describe('FacturaForm — wizard de alta', () => {
     expect(siguiente).toBeEnabled();
   });
 
-  it('Paso 2→3: "Siguiente" está habilitado de entrada (sin gateo propio de prestador)', async () => {
+  it('Paso 2→3: "Siguiente" queda deshabilitado hasta elegir una autorización y se habilita al elegirla (D4)', async () => {
     renderForm();
     await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
-    expect(screen.getByRole('button', { name: /siguiente/i })).toBeEnabled();
+    const siguiente = screen.getByRole('button', { name: /siguiente/i });
+    // Recién llegado al Paso 2, la lista todavía puede estar resolviéndose — siempre bloqueado
+    // hasta que haya una autorización elegida.
+    expect(siguiente).toBeDisabled();
+
+    await elegirPrimeraAutorizacion();
+    expect(siguiente).toBeEnabled();
+  });
+
+  // Estado vacío (D4, tasks.md 3.3): sin autorizaciones pendientes, "Siguiente" queda bloqueado y
+  // aparece el mensaje con link a Presupuestos — mismo patrón que `PresupuestoForm` usa para "sin
+  // prestaciones activas".
+  it('Paso 2, estado vacío: sin autorizaciones pendientes bloquea "Siguiente" y muestra el link a Presupuestos', async () => {
+    renderForm({
+      presupuestoRepository: fakePresupuestoRepository([]),
+      autorizacionRepository: fakeAutorizacionRepository(new Map()),
+    });
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    expect(await screen.findByText(/no tiene autorizaciones pendientes de facturar/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /ir a presupuestos/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /siguiente/i })).toBeDisabled();
+  });
+
+  // Varias autorizaciones simultáneas del mismo paciente en `por-prestacion` (D4, D6, tasks.md
+  // 3.2/3.7): el selector las lista todas, distinguidas por el nombre real de la prestación
+  // (`presupuesto.prestacionId` → `paciente.prestaciones`, hallazgo de esta sesión — ya no hace
+  // falta el fallback de `design.md` porque el campo existe en esta rama).
+  it('Paso 2, varias autorizaciones simultáneas: el selector las distingue por el nombre real de la prestación', async () => {
+    const pacienteConPrestaciones: Paciente = {
+      ...martina,
+      prestaciones: [
+        { id: 'prestacion-kine', pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true },
+        { id: 'prestacion-fono', pacienteId: 'paciente-martina', nombre: 'Fonoaudiología', activa: true },
+      ],
+    };
+    const presupuestos = [
+      presupuesto({ id: 'presupuesto-kine', pacienteId: 'paciente-martina', prestacionId: 'prestacion-kine' }),
+      presupuesto({ id: 'presupuesto-fono', pacienteId: 'paciente-martina', prestacionId: 'prestacion-fono' }),
+    ];
+    const autorizaciones = new Map([
+      ['presupuesto-kine', autorizacion({ id: 'autorizacion-kine', presupuestoId: 'presupuesto-kine' })],
+      ['presupuesto-fono', autorizacion({ id: 'autorizacion-fono', presupuestoId: 'presupuesto-fono' })],
+    ]);
+
+    renderForm({
+      pacientes: [pacienteConPrestaciones],
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
+      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+    });
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const select = await screen.findByLabelText(/^autorización$/i);
+    expect(within(select).getByRole('option', { name: 'Kinesiología' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: 'Fonoaudiología' })).toBeInTheDocument();
   });
 
   it('"Atrás" conserva los valores ya cargados al volver a un paso anterior', async () => {
     renderForm();
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await avanzarHastaPaso3('paciente-martina');
 
     const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
     if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
@@ -258,8 +400,10 @@ describe('FacturaForm — wizard de alta', () => {
     await userEvent.click(screen.getByRole('button', { name: /atrás/i }));
     expect(screen.getByLabelText(/^paciente$/i)).toHaveValue('paciente-martina');
 
-    // Vuelve a avanzar hasta el Paso 3: la prestación tipeada antes de "Atrás" sigue ahí.
+    // Vuelve a avanzar hasta el Paso 3: la autorización y la prestación tipeada antes de "Atrás"
+    // siguen ahí — "Siguiente" ya está habilitado sin volver a elegir (D4).
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    expect(screen.getByRole('button', { name: /siguiente/i })).toBeEnabled();
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
     const [campoPrestacionFinal] = screen.getAllByLabelText(/^prestación$/i);
     expect(campoPrestacionFinal).toHaveValue('Kinesiología');
@@ -276,6 +420,19 @@ describe('FacturaForm — wizard de alta', () => {
     expect(screen.queryByRole('list', { name: /progreso del formulario/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^siguiente$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^atrás$/i })).not.toBeInTheDocument();
+  });
+
+  // Modo edición (D4): la autorización ya persistida se muestra de solo lectura — no aparece
+  // ningún `<select>` para recambiarla, mismo criterio que "la edición no bifurca" ya usado en
+  // Presupuestos.
+  it('en modo edición, la autorización ya elegida se muestra de solo lectura y no se puede recambiar', async () => {
+    renderForm({ initial: valoresIniciales({ autorizacionId: 'autorizacion-martina' }) });
+
+    // Fallback de `etiquetaAutorizacion` (martina no tiene `prestaciones` cargadas): fecha +
+    // monto del presupuesto por defecto de `repositoriosPorDefecto`. Aparece dos veces (Paso 2 y
+    // `ResumenPasoWizard`), nunca como control editable.
+    await waitFor(() => expect(screen.getAllByText(/presupuesto del 2026-03-01/i).length).toBeGreaterThan(0));
+    expect(screen.queryByLabelText(/^autorización$/i)).not.toBeInTheDocument();
   });
 });
 
@@ -319,9 +476,7 @@ describe('FacturaForm — gateo de escritura', () => {
 
     expect(screen.getByLabelText(/^paciente$/i)).toBeEnabled();
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await avanzarHastaPaso3('paciente-martina');
 
     expect(screen.getByLabelText(/valor del km/i)).toBeEnabled();
     await userEvent.type(screen.getByLabelText(/valor del km/i), '300');

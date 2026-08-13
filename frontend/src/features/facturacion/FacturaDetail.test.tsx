@@ -194,10 +194,14 @@ describe('FacturaDetail', () => {
     expect(payload.identificadorFactura).toEqual({ origen: 'paciente.numeroAfiliado', valor: '45123456' });
   });
 
+  // `resolverCupoAutorizado` deriva el cupo de la autorización ELEGIDA (change
+  // `facturacion-seleccion-autorizacion`, design.md D6, tasks.md 3.6): ya no adivina vía
+  // `presupuestoRepository.list()` + `getByPresupuestoId` — la factura necesita `autorizacionId` y
+  // el repository resuelve por `getById`.
   it('exige confirmación explícita antes de emitir si excede el cupo autorizado, sin bloquear', async () => {
     const autorizacionRepository: AutorizacionRepository = {
       ...buildAutorizacionRepository(),
-      getByPresupuestoId: vi.fn().mockResolvedValue({
+      getById: vi.fn().mockResolvedValue({
         id: 'auth-1',
         presupuestoId: 'pres-1',
         estado: 'autorizada',
@@ -205,12 +209,12 @@ describe('FacturaDetail', () => {
         cupoMensualKm: 5,
       }),
     };
-    const presupuestoRepository: PresupuestoRepository = {
-      ...buildPresupuestoRepository(),
-      list: vi.fn().mockResolvedValue([{ id: 'pres-1', pacienteId: 'paciente-martina', obraSocialId: 'osecac', monto: 1000, fechaEmision: '2026-01-01' }]),
-    };
 
-    const { actualizar } = renderDetail({ presupuestoRepository, autorizacionRepository });
+    const { actualizar } = renderDetail({
+      factura: facturaAFacturar({ autorizacionId: 'auth-1' }),
+      facturasExistentes: [facturaAFacturar({ autorizacionId: 'auth-1' })],
+      autorizacionRepository,
+    });
 
     await userEvent.click(screen.getByRole('button', { name: /^emitir/i }));
 
@@ -272,15 +276,27 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
   });
 
   // Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`): "Nueva factura" arranca
-  // en el Paso 1 (solo Paciente) — AsistenciasEditor vive en el Paso 3, hay que elegir paciente y
-  // avanzar el Paso 2 (obra social de solo lectura, sin campos propios desde que se retiraron los
-  // de prestador — change `facturacion-seleccion-autorizacion`, design.md D5) antes de llegar a
-  // verlo.
+  // en el Paso 1 (solo Paciente) — AsistenciasEditor vive en el Paso 3, hay que elegir paciente,
+  // elegir una autorización pendiente en el Paso 2 (change `facturacion-seleccion-autorizacion`,
+  // design.md D4, tasks.md 3.3: "Siguiente" queda bloqueado sin elegir una) y avanzar antes de
+  // llegar a verlo.
   it('con write (sin admin): editar asistencias está activable (en modo edición del form)', async () => {
-    renderDetailConPermiso(true, { factura: null });
+    const presupuestoRepository: PresupuestoRepository = {
+      ...buildPresupuestoRepository(),
+      list: vi.fn().mockResolvedValue([{ id: 'pres-1', pacienteId: 'paciente-martina', obraSocialId: 'osecac', monto: 1000, fechaEmision: '2026-01-01' }]),
+    };
+    const autorizacionRepository: AutorizacionRepository = {
+      ...buildAutorizacionRepository(),
+      getByPresupuestoId: vi.fn().mockResolvedValue({ id: 'auth-1', presupuestoId: 'pres-1', estado: 'autorizada' }),
+    };
+
+    renderDetailConPermiso(true, { factura: null, presupuestoRepository, autorizacionRepository });
 
     await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const autorizacion = await screen.findByLabelText(/^autorización$/i);
+    await userEvent.selectOptions(autorizacion, 'auth-1');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     // "Prestación" existe dos veces en el Paso 3: FacturaFormDatosBasicos (gateo tasks.md 4.3) y
