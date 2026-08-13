@@ -143,6 +143,7 @@ export function parseFacturaRow(row: unknown): Omit<Factura, 'asistencias'> {
     dependenciaYRetorno: readString(record, 'dependencia_y_retorno'),
     domicilioId: readString(record, 'domicilio_id'),
     identificadorFactura: parseIdentificadorFactura(record.identificador_origen, record.identificador_valor),
+    autorizacionId: readOptionalString(record, 'autorizacion_id'),
   };
 }
 
@@ -264,6 +265,7 @@ export interface CrearFacturaPayload {
   domicilio_id: string;
   identificador_origen: IdentificadorOrigenFactura | null;
   identificador_valor: string | null;
+  autorizacion_id: string | null;
   asistencias: AsistenciaPayload[];
 }
 
@@ -291,6 +293,7 @@ export function toCrearFacturaPayload(nueva: NuevaFactura): CrearFacturaPayload 
     domicilio_id: nueva.domicilioId,
     identificador_origen: nueva.identificadorFactura?.origen ?? null,
     identificador_valor: nueva.identificadorFactura?.valor ?? null,
+    autorizacion_id: nueva.autorizacionId ?? null,
     asistencias: nueva.asistencias.map(asistenciaAPayload),
   };
 }
@@ -329,6 +332,11 @@ export function toActualizarFacturaPayload(cambios: ActualizacionFactura): Recor
     payload.identificador_origen = cambios.identificadorFactura.origen;
     payload.identificador_valor = cambios.identificadorFactura.valor;
   }
+  // ⚠️ Mismo criterio que `asistencias` (D2 facturacion-seleccion-autorizacion): si
+  // `autorizacionId` no viene en `cambios`, la clave `autorizacion_id` NUNCA se agrega al
+  // payload — así editar solo el estado (la operación más frecuente del circuito) no borra el
+  // vínculo con la autorización ya persistida.
+  if (cambios.autorizacionId !== undefined) payload.autorizacion_id = cambios.autorizacionId;
   // ⚠️ No usar `?? []` ni ningún fallback acá: si `cambios.asistencias` es `undefined`, la clave
   // debe quedar TOTALMENTE ausente del payload (ver comentario de la función).
   if (cambios.asistencias !== undefined) payload.asistencias = cambios.asistencias.map(asistenciaAPayload);

@@ -273,16 +273,14 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
 
   // Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`): "Nueva factura" arranca
   // en el Paso 1 (solo Paciente) — AsistenciasEditor vive en el Paso 3, hay que elegir paciente y
-  // (esta obra social es "por-prestacion") completar nombre y domicilio del prestador (texto
-  // libre, change `sacar-prestadores`) antes de llegar a verlo.
+  // avanzar el Paso 2 (obra social de solo lectura, sin campos propios desde que se retiraron los
+  // de prestador — change `facturacion-seleccion-autorizacion`, design.md D5) antes de llegar a
+  // verlo.
   it('con write (sin admin): editar asistencias está activable (en modo edición del form)', async () => {
     renderDetailConPermiso(true, { factura: null });
 
     await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-
-    await userEvent.type(await screen.findByLabelText(/^nombre$/i), 'Traslados Andrea Pastor');
-    await userEvent.type(screen.getByLabelText(/^domicilio$/i, { selector: 'input' }), 'Av. Rivadavia 4500, CABA');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     // "Prestación" existe dos veces en el Paso 3: FacturaFormDatosBasicos (gateo tasks.md 4.3) y

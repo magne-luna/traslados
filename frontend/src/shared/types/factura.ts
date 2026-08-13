@@ -88,15 +88,13 @@ export interface Factura {
   fechaTope: string;
   tipoComprobante: TipoComprobante;
   /**
-   * Nombre y domicilio del prestador que efectivamente realizó la prestación (change
-   * `sacar-prestadores`, revierte `factura-por-prestador`): texto libre cargado a mano por
-   * factura, sin entidad ni repository detrás — Andrea (Traslado Personalizado) es la única
-   * prestadora real, así que no amerita un maestro propio. Ausentes cuando
-   * `ObraSocial.modalidadFacturacion === 'general'`. Ambos deben estar completos antes de que el
-   * form arme la vista previa de la descripción (`FacturaForm.tsx`, `faltaCompletarPrestador`).
+   * Referencia por id a la `Autorizacion` elegida en el Paso 2 del wizard (change
+   * `facturacion-seleccion-autorizacion`, design.md D1/D3/D4/D6): reemplaza los dos campos de
+   * texto libre de prestador (`sacar-prestadores`), que se retiran por completo (D5) — no tenían
+   * columna real en producción. Ausente en facturas anteriores a este change (`autorizacion_id
+   * NULL` en la base) y en modalidad `general`, donde el picker no aplica.
    */
-  prestadorNombre?: string;
-  prestadorDomicilio?: string;
+  autorizacionId?: string;
 
   // --- Agregados sobre el docx (documentados con su discrepancia, design.md §Discrepancias) ---
 

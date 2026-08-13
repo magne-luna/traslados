@@ -41,6 +41,7 @@ function filaFacturaCompleta(overrides: Record<string, unknown> = {}): Record<st
     domicilio_id: 'domicilio-1',
     identificador_origen: 'paciente.dni',
     identificador_valor: '30123456',
+    autorizacion_id: 'autorizacion-1',
     asistencia_prestacion: [],
     ...overrides,
   };
@@ -401,6 +402,22 @@ describe('parseCobroRow (2.7)', () => {
 });
 
 // -------------------------------------------------------------------------------------------
+// 2.2 (facturacion-seleccion-autorizacion) — parseFacturaRow: autorizacion_id -> autorizacionId
+// -------------------------------------------------------------------------------------------
+
+describe('parseFacturaRow (2.2, facturacion-seleccion-autorizacion) — autorizacion_id', () => {
+  it('columna con uuid presente mapea a autorizacionId', () => {
+    const factura = parseFacturaRow(filaFacturaCompleta({ autorizacion_id: 'autorizacion-1' }));
+    expect(factura.autorizacionId).toBe('autorizacion-1');
+  });
+
+  it('columna NULL (triangulación) produce el campo undefined, nunca null ni string vacío', () => {
+    const factura = parseFacturaRow(filaFacturaCompleta({ autorizacion_id: null }));
+    expect(factura.autorizacionId).toBeUndefined();
+  });
+});
+
+// -------------------------------------------------------------------------------------------
 // 2.8 — toCrearFacturaPayload
 // -------------------------------------------------------------------------------------------
 
@@ -490,6 +507,32 @@ describe('toCrearFacturaPayload (2.8)', () => {
     const payload = toCrearFacturaPayload(nuevaFacturaMinima({ estado: 'facturado' }));
     expect(payload.estado).toBe('facturado');
   });
+
+  // 2.3 (facturacion-seleccion-autorizacion) — autorizacionId presente/ausente en el alta.
+  it('con autorización elegida, el payload incluye autorizacion_id con ese valor', () => {
+    const payload = toCrearFacturaPayload(nuevaFacturaMinima({ autorizacionId: 'autorizacion-1' }));
+    expect(payload.autorizacion_id).toBe('autorizacion-1');
+  });
+
+  it('sin autorización elegida (triangulación), autorizacion_id viaja en null', () => {
+    const payload = toCrearFacturaPayload(nuevaFacturaMinima());
+    expect(payload.autorizacion_id).toBeNull();
+  });
+
+  // 2.7 (facturacion-seleccion-autorizacion, design.md D1) — relación N:1: `autorizacion_id` NO es
+  // `UNIQUE` en la base (una autorización = un cupo mensual recurrente, factura por mes). El mapeo
+  // no impone ninguna restricción propia: dos facturas con la MISMA autorización en meses distintos
+  // producen dos payloads válidos e independientes, sin que ninguno de los dos rechace ni mute al
+  // otro.
+  it('dos facturas con la misma autorizacionId en meses distintos se aceptan sin restricción de unicidad (N:1, D1)', () => {
+    const facturaMarzo = toCrearFacturaPayload(nuevaFacturaMinima({ autorizacionId: 'autorizacion-1', mesFacturado: 3 }));
+    const facturaAbril = toCrearFacturaPayload(nuevaFacturaMinima({ autorizacionId: 'autorizacion-1', mesFacturado: 4 }));
+
+    expect(facturaMarzo.autorizacion_id).toBe('autorizacion-1');
+    expect(facturaAbril.autorizacion_id).toBe('autorizacion-1');
+    expect(facturaMarzo.mes_facturado).toBe(3);
+    expect(facturaAbril.mes_facturado).toBe(4);
+  });
 });
 
 // -------------------------------------------------------------------------------------------
@@ -555,6 +598,24 @@ describe('toActualizarFacturaPayload (2.9) — semántica parcial, la trampa de 
     const payload = toActualizarFacturaPayload(cambios);
 
     expect(payload).toEqual({ identificador_origen: 'paciente.numeroAfiliado', identificador_valor: 'AF-1' });
+  });
+
+  // 2.4 (facturacion-seleccion-autorizacion) — EL CASO CRÍTICO: editar solo el estado no debe
+  // tocar el vínculo con la autorización ya persistida (D2: la RPC usa `p_cambios ? 'clave'`,
+  // clave ausente = no tocar).
+  it('EL CASO CRÍTICO: editar SOLO el estado no manda la clave "autorizacion_id" — no borra el vínculo existente', () => {
+    const cambios: ActualizacionFactura = { estado: 'facturado' };
+    const payload = toActualizarFacturaPayload(cambios);
+
+    expect(payload).toEqual({ estado: 'facturado' });
+    expect('autorizacion_id' in payload).toBe(false);
+  });
+
+  it('clave autorizacionId presente (incluso re-eligiendo la misma) manda autorizacion_id', () => {
+    const cambios: ActualizacionFactura = { autorizacionId: 'autorizacion-1' };
+    const payload = toActualizarFacturaPayload(cambios);
+
+    expect(payload).toEqual({ autorizacion_id: 'autorizacion-1' });
   });
 });
 

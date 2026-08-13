@@ -207,28 +207,43 @@
 > Fase mayormente aditiva: `autorizacionId` no se consume todavía en el wizard hasta la §3. La baja
 > de `prestadorNombre`/`prestadorDomicilio` sí toca los 5 archivos donde viven hoy (D5), pero es
 > cambio de frontend puro — no requiere migración.
+>
+> **⚠️ Desviación registrada 2026-08-13, instrucción explícita de la usuaria en esta sesión.** El
+> plan original de esta sección asumía "aditivo puro" para D5, pero eso es fácticamente incorrecto:
+> `FacturaForm.tsx`/`ResumenPasoWizard.tsx`/`FacturaForm.test.tsx` ya CONSUMEN
+> `prestadorNombre`/`prestadorDomicilio` en profundidad (Paso 2 del wizard, gateo
+> `faltaCompletarPrestador`, `ResumenPasoWizard`) — retirar esos campos del tipo sin tocar esos
+> archivos rompe la compilación (`tsc -b --noEmit`). La usuaria instruyó explícitamente limpiar los
+> 5 archivos de D5 en esta sesión, con el límite explícito de NO implementar el reemplazo funcional
+> (selector de autorizaciones, gateo por `autorizacionId`, D4) — eso sigue siendo la sección 3,
+> bloqueada por 1B.4. Se hizo una limpieza mínima: se sacaron los dos `Input` de prestador, el
+> gateo `faltaCompletarPrestador` y las props de `ResumenPasoWizard`, dejando el Paso 2 sin
+> contenido propio hasta que la §3 lo reemplace por el selector real — **esto es un hueco funcional
+> temporal y documentado**, no la implementación de D4. También se ajustaron `FacturaForm.test.tsx`
+> y `FacturaDetail.test.tsx` (test no listado en el inventario de D5 pero con la misma dependencia)
+> para reflejar el nuevo Paso 2 sin gateo propio.
 
-- [ ] 2.1 **RED** — `shared/types/factura.ts`: agregar `autorizacionId?: string` a `Factura` (y por
+- [x] 2.1 **RED** — `shared/types/factura.ts`: agregar `autorizacionId?: string` a `Factura` (y por
       lo tanto a `FacturaFormValues`, que se deriva); **retirar** `prestadorNombre`/
       `prestadorDomicilio`. **GREEN → REFACTOR.** Confirmar que `Autorizacion`/`CupoAutorizado` se
       siguen importando de `presupuesto.ts`, sin redefinir.
-- [ ] 2.2 **RED** — `facturaMapping.ts` — `parseFacturaRow`: `autorizacion_id` (columna, snake_case)
+- [x] 2.2 **RED** — `facturaMapping.ts` — `parseFacturaRow`: `autorizacion_id` (columna, snake_case)
       → `autorizacionId` (campo, camelCase); `NULL` → campo **ausente** (`undefined`), nunca `null`
       ni string vacío. **GREEN → TRIANGULATE** (fila con valor, fila con `NULL`) **→ REFACTOR**.
-- [ ] 2.3 **RED** — `toCrearFacturaPayload`: cuando `autorizacionId` está presente en la factura de
+- [x] 2.3 **RED** — `toCrearFacturaPayload`: cuando `autorizacionId` está presente en la factura de
       entrada, el payload incluye `autorizacion_id` con ese valor. **GREEN → TRIANGULATE** (con
       autorización elegida, sin autorización elegida) **→ REFACTOR**.
-- [ ] 2.4 **RED** — `toActualizarFacturaPayload`: **semántica parcial, igual que la trampa ya
+- [x] 2.4 **RED** — `toActualizarFacturaPayload`: **semántica parcial, igual que la trampa ya
       resuelta para `asistencias`**. Clave `autorizacionId` ausente en el `Partial` de entrada →
       clave `autorizacion_id` ausente en el `jsonb` de salida (no sobrescribe el vínculo existente
       en la RPC, per D2). Clave presente (incluso con el mismo valor) → clave presente. **Test
       dedicado del caso crítico**: editar solo el estado no debe mandar `autorizacion_id`. **GREEN →
       TRIANGULATE → REFACTOR.**
-- [ ] 2.5 **RED** — `SupabaseFacturaRepository.ts`: agregar `autorizacion_id` a la lista de columnas
+- [x] 2.5 **RED** — `SupabaseFacturaRepository.ts`: agregar `autorizacion_id` a la lista de columnas
       del `select` (`SELECT_FACTURA_COMPLETA` o equivalente), verificado con el fake tipado del
       cliente ya existente en el repositorio de tests (mismo patrón que
       `integracion-facturacion` §3). **GREEN → REFACTOR.**
-- [ ] 2.6 **RED** — `frontend/src/shared/lib/facturacion/autorizacionesPendientes.ts` (D3, capability
+- [x] 2.6 **RED** — `frontend/src/shared/lib/facturacion/autorizacionesPendientes.ts` (D3, capability
       `factura-autorizacion-seleccion`): función pura `autorizacionesPendientes(pacienteId,
       presupuestoRepository, autorizacionRepository)` que:
       1. `presupuestoRepository.list()` filtrado por `pacienteId`,
@@ -239,14 +254,19 @@
       (lista vacía, no `null`, no lanza), varias autorizaciones simultáneas del mismo paciente (todas
       aparecen), y una autorización que ya facturó el mes en curso sigue apareciendo (sin filtro por
       período). Repositories fake tipados, sin red, cero `any`. **GREEN → TRIANGULATE → REFACTOR.**
-- [ ] 2.7 **RED** — Persistencia N:1 sin unicidad: test (a nivel de mapeo o repository fake) que
+- [x] 2.7 **RED** — Persistencia N:1 sin unicidad: test (a nivel de mapeo o repository fake) que
       confirma que dos facturas con el mismo `autorizacionId` en meses distintos se aceptan sin que
       el mapeo/payload imponga ninguna restricción de unicidad. **GREEN → REFACTOR.**
-- [ ] 2.8 `frontend/src/shared/lib/mocks/facturasFixture.ts`: sacar `prestadorNombre`/
+- [x] 2.8 `frontend/src/shared/lib/mocks/facturasFixture.ts`: sacar `prestadorNombre`/
       `prestadorDomicilio` de los fixtures existentes (sin TDD — es un dato estático, no lógica).
-- [ ] 2.9 `npx tsc -b --noEmit` limpio + `oxlint` limpio sobre todos los archivos tocados en esta
+- [x] 2.9 `npx tsc -b --noEmit` limpio + `oxlint` limpio sobre todos los archivos tocados en esta
       sección. Cero `any`, cero `as` sobre datos externos. Suite focalizada de
       `src/shared/lib/facturacion/` completa en verde.
+      **Ejecutado 2026-08-13**: `tsc -b --noEmit` limpio (0 errores). `oxlint .` sin errores nuevos
+      (solo warnings preexistentes ajenos a este change). `src/shared/lib/facturacion/`: 15 archivos,
+      207 tests, todos en verde. `src/features/facturacion/`: 23 archivos, 133 tests, todos en verde
+      (corrido en dos lotes por timeouts de carga de máquina, mismo patrón ya documentado en
+      `integracion-facturacion` 6.5/8.1 — sin fallas de contenido, solo partición del comando).
 
 ---
 

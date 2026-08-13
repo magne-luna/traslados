@@ -16,7 +16,7 @@ import { ensamblarFactura, toActualizarFacturaPayload, toCrearFacturaPayload } f
 const SELECT_FACTURA_COMPLETA = `
   id, paciente_id, descripcion, dias, valor_km, monto, estado, fecha_init, fecha_tope, tipo,
   cantidad_km, fecha_estimada_cobro, fecha_factura, prestacion, mes_facturado, anio_facturado,
-  dependencia_y_retorno, domicilio_id, identificador_origen, identificador_valor,
+  dependencia_y_retorno, domicilio_id, identificador_origen, identificador_valor, autorizacion_id,
   asistencia_prestacion ( id, fecha, prestacion, dependencia, retorno, factura_sabados )
 `;
 

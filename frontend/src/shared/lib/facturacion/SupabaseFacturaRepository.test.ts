@@ -32,6 +32,7 @@ interface RecordedCall {
   table: string;
   eq: Array<[string, unknown]>;
   payload?: unknown;
+  columns?: string;
 }
 
 type Handler = (call: RecordedCall) => FakeResult;
@@ -74,7 +75,8 @@ class FakeSelectBuilder implements PromiseLike<FakeResult> {
     this.call = call;
   }
 
-  select(_columns: string): FakeSelectBuilder {
+  select(columns: string): FakeSelectBuilder {
+    this.call.columns = columns;
     return this;
   }
 
@@ -207,6 +209,26 @@ describe('supabaseFacturaRepository.list (3.2)', () => {
     const resultado = await supabaseFacturaRepository.list();
 
     expect(resultado).toEqual([ensamblarFactura(filas[0]), ensamblarFactura(filas[1])]);
+  });
+
+  // 2.5 (facturacion-seleccion-autorizacion, D1): la columna nueva viaja en el SELECT — sin esto,
+  // `autorizacion_id` nunca llega a `parseFacturaRow` aunque el mapeo ya lo sepa traducir.
+  it('el SELECT incluye la columna autorizacion_id (D1)', async () => {
+    configurar('facturacion', 'facturas', 'select', () => ok([filaFactura({ id: 'f-1', autorizacion_id: 'autorizacion-1' })]));
+
+    await supabaseFacturaRepository.list();
+
+    const selectCall = calls.find((c) => c.op === 'select');
+    expect(selectCall?.columns).toContain('autorizacion_id');
+  });
+
+  it('segundo caso (triangulación): una fila con autorizacion_id llega ensamblada con autorizacionId', async () => {
+    const fila = filaFactura({ id: 'f-1', autorizacion_id: 'autorizacion-9' });
+    configurar('facturacion', 'facturas', 'select', () => ok([fila]));
+
+    const [factura] = await supabaseFacturaRepository.list();
+
+    expect(factura?.autorizacionId).toBe('autorizacion-9');
   });
 
   it('un listado de 3 facturas dispara una sola consulta (anti N+1)', async () => {

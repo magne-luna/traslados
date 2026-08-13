@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
-import { Field, Input, Select } from '../../design-system/form';
+import { Field, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import { Stepper, type StepperStep } from '../../design-system/stepper';
 import type { AsistenciaPrestacion, Factura } from '../../shared/types/factura';
@@ -101,11 +101,11 @@ const PASOS_WIZARD: StepperStep[] = [
 // render sobre el MISMO árbol de contenido (`pasoPacienteContent`/`pasoObraSocialContent`/
 // `pasoRestoContent`, definidos más abajo):
 //   - Alta (sin `initial`): wizard real — un paso visible a la vez, `paso` (estado local) avanza
-//     con "Siguiente" (gateado: Paso 1→2 requiere `pacienteId`, Paso 2→3 requiere completar
-//     nombre y domicilio del prestador cuando `obraSocial.modalidadFacturacion ===
-//     'por-prestacion'`, ver `faltaCompletarPrestador` más abajo — misma variable que gatea la
-//     vista previa) y retrocede con "Atrás", sin perder nada de `values` (el estado vive en el
-//     componente, no en el paso visible).
+//     con "Siguiente" (Paso 1→2 requiere `pacienteId`; el gateo de Paso 2→3 por datos de
+//     prestador, `faltaCompletarPrestador`, se retiró junto con esos campos — change
+//     `facturacion-seleccion-autorizacion`, design.md D5 — el reemplazo por `!values.autorizacionId`
+//     es la sección 3 de ese change, todavía no cableada acá) y retrocede con "Atrás", sin perder
+//     nada de `values` (el estado vive en el componente, no en el paso visible).
 //   - Edición (`initial?.pacienteId` truthy): el wizard se saltea por completo — se renderizan los
 //     tres bloques juntos, sin Stepper ni botones de navegación, igual que el formulario plano de
 //     antes de este change. No tiene sentido forzar el flujo guiado cuando paciente/obra social ya
@@ -170,21 +170,16 @@ export function FacturaForm({
     });
   }, [facturasExistentes, values.pacienteId, values.mesFacturado, values.anioFacturado, values.dias, values.cantidadKm, facturaIdEnEdicion, cupo]);
 
-  // Gateo por datos del prestador (change `sacar-prestadores`, design.md D2 — revierte
-  // `factura-por-prestador`): en modalidad "por-prestacion" la plantilla NO se arma hasta
-  // completar nombre Y domicilio del prestador (texto libre, sin entidad) — es el paso previo, no
-  // un dato más de la descripción. En "general" no cambia nada (sin nada que completar, se
-  // comporta como siempre). Reutilizada por el wizard (más abajo) para gatear "Siguiente" del
-  // Paso 2→3: en alta, nunca se llega al Paso 3 (donde vive la vista previa) sin haber completado
-  // ambos campos cuando la modalidad lo exige, así que en ese modo esta bandera siempre da
-  // `false` una vez visible el Paso 3. Sigue pudiendo dar `true` en edición (wizard salteado,
-  // todo visible junto) si se borra lo ya cargado.
-  const faltaCompletarPrestador =
-    obraSocial?.modalidadFacturacion === 'por-prestacion' &&
-    (!values.prestadorNombre?.trim() || !values.prestadorDomicilio?.trim());
-
+  // Gateo del Paso 2 (change `facturacion-seleccion-autorizacion`, design.md D4/D5): el gateo por
+  // texto libre de prestador (`faltaCompletarPrestador`, change `sacar-prestadores`) se retiró por
+  // completo junto con esos dos campos — `prestadorNombre`/`prestadorDomicilio` ya no existen en
+  // `Factura`. El reemplazo real (gatear "Siguiente" por `!values.autorizacionId` y elegir una
+  // autorización de un selector) es la sección 3 de ese change, bloqueada hasta que se apliquen
+  // las migraciones (`1B.4`); mientras tanto el Paso 2 no gatea nada propio (se comporta como la
+  // modalidad "general" en las dos modalidades) y la vista previa ya no depende de ningún dato de
+  // prestador.
   const previaDescripcion =
-    esBorrador && obraSocial && paciente && !faltaCompletarPrestador
+    esBorrador && obraSocial && paciente
       ? renderDescripcionFactura(obraSocial.plantillaFactura, construirDatosDescripcion(values, paciente))
       : null;
 
@@ -223,11 +218,13 @@ export function FacturaForm({
     </CamposSoloLectura>
   );
 
-  // Paso 2 — Obra social / Prestador (design.md, change `sacar-prestadores` D4 — revierte
-  // `factura-por-prestador`): la obra social se muestra de solo lectura (se deriva del paciente
-  // elegido en el Paso 1, no es un campo editable acá) y, cuando la modalidad lo requiere, dos
-  // campos de texto libre ("Nombre"/"Domicilio" del prestador que hizo la prestación) — sin
-  // entidad ni repository detrás, cargados a mano por factura.
+  // Paso 2 — Obra social / Autorización (design.md de `facturacion-seleccion-autorizacion`, D4/D5):
+  // la obra social se muestra de solo lectura (se deriva del paciente elegido en el Paso 1, no es
+  // un campo editable acá). Los dos campos de texto libre de prestador (change `sacar-prestadores`,
+  // que a su vez revertía `factura-por-prestador`) se retiraron por completo — no tenían columna
+  // real en producción (D5). El selector de autorizaciones pendientes que los reemplaza (D4) es la
+  // sección 3 de ese change, bloqueada hasta que se apliquen las migraciones de D1/D2 — este paso
+  // queda temporalmente sin contenido propio en modalidad "por-prestacion" hasta ese commit.
   const pasoObraSocialContent: ReactNode = (
     <div className="flex flex-col gap-md">
       <div className="flex flex-col gap-xs">
@@ -236,29 +233,6 @@ export function FacturaForm({
           {obraSocial ? obraSocial.nombre : 'El paciente elegido no tiene una obra social asociada.'}
         </p>
       </div>
-
-      {obraSocial?.modalidadFacturacion === 'por-prestacion' && (
-        <CamposSoloLectura>
-          <div className="flex flex-col gap-md">
-            <Field label="Nombre" htmlFor={`${formId}-prestador-nombre`}>
-              <Input
-                id={`${formId}-prestador-nombre`}
-                type="text"
-                value={values.prestadorNombre ?? ''}
-                onChange={(e) => set('prestadorNombre', e.target.value)}
-              />
-            </Field>
-            <Field label="Domicilio" htmlFor={`${formId}-prestador-domicilio`}>
-              <Input
-                id={`${formId}-prestador-domicilio`}
-                type="text"
-                value={values.prestadorDomicilio ?? ''}
-                onChange={(e) => set('prestadorDomicilio', e.target.value)}
-              />
-            </Field>
-          </div>
-        </CamposSoloLectura>
-      )}
     </div>
   );
 
@@ -323,13 +297,7 @@ export function FacturaForm({
       </div>
 
       <div className="flex flex-col gap-md lg:sticky lg:top-xl lg:self-start">
-        <ResumenPasoWizard
-          paciente={paciente}
-          obraSocial={obraSocial}
-          prestadorNombre={values.prestadorNombre}
-          prestadorDomicilio={values.prestadorDomicilio}
-          datosFactura={{ dias: values.dias, total: values.monto }}
-        />
+        <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} datosFactura={{ dias: values.dias, total: values.monto }} />
         <AlertaCupo resultado={resultadoCupo} />
         {previaDescripcion !== null && (
           <div className="flex flex-col gap-xs rounded-sm border border-border bg-surface-soft p-md">
@@ -382,7 +350,7 @@ export function FacturaForm({
                   <Button variant="primary" disabled={!values.pacienteId} onClick={() => setPaso(1)}>Siguiente</Button>
                 </div>
               </div>
-              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} prestadorNombre={values.prestadorNombre} prestadorDomicilio={values.prestadorDomicilio} />
+              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} />
             </div>
           )}
 
@@ -392,10 +360,10 @@ export function FacturaForm({
                 {pasoObraSocialContent}
                 <div className="flex items-center justify-between gap-sm">
                   <Button variant="secondary" onClick={() => setPaso(0)}>Atrás</Button>
-                  <Button variant="primary" disabled={faltaCompletarPrestador} onClick={() => setPaso(2)}>Siguiente</Button>
+                  <Button variant="primary" onClick={() => setPaso(2)}>Siguiente</Button>
                 </div>
               </div>
-              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} prestadorNombre={values.prestadorNombre} prestadorDomicilio={values.prestadorDomicilio} />
+              <ResumenPasoWizard paciente={paciente} obraSocial={obraSocial} />
             </div>
           )}
 
