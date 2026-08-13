@@ -48,25 +48,44 @@
       leer/escribir `autorizacion_id`. Reemplaza código de servidor que hoy está en producción y
       funciona; una versión mal aplicada rompe el alta y la edición de facturas.
       **Respondido 2026-08-13: sí.**
-- [ ] 0.3 **Coordinación bloqueante — verificar `count(*)` real de `facturacion.facturas` antes de
+- [x] 0.3 **Coordinación bloqueante — verificar `count(*)` real de `facturacion.facturas` antes de
       decidir `CONCURRENTLY`.** `design.md` D1 deja esto **condicionado**, no asumido: el change
       `integracion-facturacion` ya se aplicó en esta rama, así que la tabla puede tener filas de
       prueba hoy (no repetir el supuesto de "0 filas" de D10 de `integracion-facturacion`, que ya
       quedó desactualizado una vez en 1.4 de ese change). Si tiene volumen real, el índice de D1 se
       rehace con `CREATE INDEX CONCURRENTLY` fuera de transacción y **se vuelve a consultar a la
       usuaria** antes de escribir el `.sql` de 1B.1.
+      **Verificado 2026-08-13 con `supabase db query "select count(*) from facturacion.facturas;"
+      --linked` sobre el proyecto vinculado (`pkryfoljypuzfifofdwp`): `count(*) = 0`.** Volumen nulo,
+      no hay filas de prueba ni reales. El índice de D1 **puede seguir sin `CONCURRENTLY`**, condición
+      sostenida — no hace falta reconsultar a la usuaria.
 - [x] 0.4 **Coordinación con backend (Enzo), previa a escribir el `.sql` de D1.** Confirmar que
       `autorizacion_id` no está ya planeada con otro nombre o forma en trabajo concurrente sobre
       `facturacion`/`presupuesto`/`autorizacion` (aprendizaje directo de D12-revertida de
       `integracion-obra-social`, y del desfasaje ya visto en `integracion-facturacion` 1.2/1.3: el
       schema real viene por delante del repo desde hace varios changes).
       **Respondido 2026-08-13 por Enzo: confirmado, no hay columna equivalente planeada.**
-- [ ] 0.5 **Safety net / baseline.** Correr
+- [x] 0.5 **Safety net / baseline.** Correr
       `cd frontend && NODE_OPTIONS="--no-experimental-webstorage" npx vitest run` y registrar el
       número exacto de archivos y tests. **No asumir el baseline de `integracion-facturacion`
       (0.8/5.5/8.1 de ese change)** — puede haber trabajo concurrente adicional sobre el repo desde
       entonces. Registrar también si aparece la misma falla conocida y ajena
       (`ChecklistEditor.test.tsx`) u otra distinta.
+      **Corrida 2026-08-13, una sola vez**: `Test Files 11 failed | 242 passed (253)`,
+      `Tests 26 failed | 2633 passed (2659)`. `Start at 08:21:57`, `Duration 1070.41s` (transform
+      52.99s, setup 287.23s, import 142.94s, tests 860.07s, environment 1582.96s) — ~18 min, muy por
+      encima de lo habitual. **Causa observada durante la corrida**: `load average` de la máquina en
+      ~7.7 con otra sesión corriendo `vitest`/`turbo dev`/`next-server` de otro proyecto en paralelo
+      (confirmado con `ps aux`/`uptime` durante la espera). Las dos fallas visibles en el tail
+      capturado (`tail -40`, el resto del log no quedó accesible tras finalizar el proceso) son
+      `Test timed out in 5000ms` en `PersonasACargoEditor.test.tsx` y `VehiculoForm.test.tsx` —
+      patrón consistente con contención de CPU, no con una regresión de código (ningún archivo de
+      `features/facturacion/`/`shared/lib/facturacion/` fue tocado todavía en este change). **No se
+      pudo confirmar ni descartar si `ChecklistEditor.test.tsx` está entre los 11 fallidos** por el
+      truncamiento del log — no está en el tail visible. **Este baseline (11 archivos/26 tests
+      fallidos) no se puede comparar con confianza contra 0.8 de `integracion-facturacion`** por la
+      contención de CPU detectada; se recomienda re-correr en una máquina sin carga concurrente antes
+      de usarlo como referencia definitiva para 5.1.
 
 ---
 
@@ -76,23 +95,45 @@
 > en cada change de este proyecto: **el schema real viene por delante del repo, no se asume nada del
 > propose sin reverificar.**
 
-- [ ] 1.1 Reconfirmar contra el proyecto vinculado (`supabase db query --linked` o equivalente) las
+- [x] 1.1 Reconfirmar contra el proyecto vinculado (`supabase db query --linked` o equivalente) las
       columnas actuales de `facturacion.facturas`: confirmar que **`autorizacion_id` sigue sin
       existir** (per `design.md` §Context) y que el resto de columnas coincide con lo que
       `facturaMapping.ts`/`SupabaseFacturaRepository.ts` asumen hoy. Reportar cualquier diferencia
       antes de continuar.
-- [ ] 1.2 Reconfirmar el schema de `facturacion.autorizacion` (columnas, tipo de `estado`, FK hacia
+      **Verificado 2026-08-13**: 20 columnas en `facturacion.facturas` (`id, paciente_id, descripcion,
+      dias, valor_km, monto, estado, fecha_init, fecha_tope, tipo, cantidad_km,
+      fecha_estimada_cobro, prestacion, mes_facturado, anio_facturado, dependencia_y_retorno,
+      domicilio_id, identificador_origen, identificador_valor, fecha_factura`).
+      **`autorizacion_id` NO existe** — confirma `design.md` §Context. El resto coincide byte a byte
+      con el `select` de `SupabaseFacturaRepository.ts` L17-20 y con `CrearFacturaPayload` de
+      `facturaMapping.ts`. Sin diferencias.
+- [x] 1.2 Reconfirmar el schema de `facturacion.autorizacion` (columnas, tipo de `estado`, FK hacia
       `presupuesto`) contra lo que `design.md` D3/D4 asume — en particular que `estado` sigue
       admitiendo el literal `'autorizada'` usado como filtro de "pendiente de facturar".
       Reconfirmar también que `Autorizacion` sigue sin `pacienteId` propio (solo `presupuestoId`),
       condición que sostiene el patrón O(N) de D3.
-- [ ] 1.3 Reconfirmar que las dos RPC vigentes (`facturacion.crear_factura_completa`,
+      **Verificado 2026-08-13**: `facturacion.autorizacion` tiene `id, presupuesto_id (NOT NULL,
+      única FK a presupuesto), estado, fecha_respuesta, cupo_mensual_dias, cupo_mensual_km,
+      archivo_url, monto_autorizado, vigencia_desde` — **sin `paciente_id`**, confirma que D3 sigue
+      necesitando el join vía `presupuesto`. El enum `estado_autorizacion` tiene los literales
+      `pendiente, autorizada, judicializada, rechazada` — **`'autorizada'` existe**. Sin diferencias
+      contra lo que `design.md` D3/D4 asume.
+- [x] 1.3 Reconfirmar que las dos RPC vigentes (`facturacion.crear_factura_completa`,
       `facturacion.actualizar_factura_completa`, `supabase/migrations/20260812160000_factura_rpc.sql`)
       siguen con la firma y el `SECURITY INVOKER` que `design.md` D2 asume, y que ninguna migración
       posterior ya las reemplazó por otra vía.
-- [ ] 1.4 Revisar el historial de migraciones (`supabase migration list --linked`) por desfasaje
+      **Verificado 2026-08-13** vía `pg_proc`/`pg_get_function_identity_arguments`:
+      `crear_factura_completa(p_factura jsonb)` y `actualizar_factura_completa(p_id uuid, p_cambios
+      jsonb)`, ambas con `prosecdef = false` (`SECURITY INVOKER`). Firma y seguridad coinciden con lo
+      que `design.md` D2 asume. Última migración de facturación aplicada es
+      `20260812160000` (la citada en `design.md`) — ninguna posterior la reemplazó.
+- [x] 1.4 Revisar el historial de migraciones (`supabase migration list --linked`) por desfasaje
       nuevo desde la última verificación de `integracion-facturacion` (patrón N6, ya confirmado
       recurrente en este dominio). Registrar el estado, **no correr `migration repair`**.
+      **Verificado 2026-08-13**: `supabase migration list --linked` — 52 migraciones, todas con
+      `local == remote` (sin desfasaje, sin migraciones locales sin aplicar ni aplicadas sin archivo
+      local). La más reciente es `20260812160000`. Sin drift respecto del repo. No se corrió
+      `migration repair`.
 
 ---
 
