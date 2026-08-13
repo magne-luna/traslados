@@ -38,7 +38,7 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 | 1 | Pacientes (C-05) | ✅ `integracion-pacientes` archivado (2026-08-07), 64/66 — solo falta un pase visual en navegador, ver `archive/2026-08-06-integracion-pacientes/PENDIENTE.md` | Ver bullet ✅ en §C-05 más abajo |
 | 2 | Obra Social (C-04) | ✅ `integracion-obra-social` archivado (2026-08-07), 69/70 — solo falta un pase visual en navegador, ver `archive/2026-08-06-integracion-obra-social/PENDIENTE.md` | Ver bullet ✅ en §C-04 más abajo. Hallazgo del apply: el schema real ya tenía casi todo lo que `design.md` planeaba (nombres/tipos distintos). D12 (RN-ID-02) se revirtió y luego se restauró el mismo día — la "confirmación" que la revertía nunca pasó, ver §C-04 |
 | 3 | Conductores + Vehículos (C-08/C-09) | 🔶 **reconciliado (2026-08-01), bloqueado en 1 gap** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). `openspec/changes/integracion-conductores-vehiculos/` (mock→Supabase de Vehículos+Conductores) se escribió en paralelo con `C-08-vehiculos-mantenimiento` de Enzo (ya mergeado a `main`, commit `f840a96`), sin que ninguno de los dos supiera del otro. **Vehículos**: reconciliado contra el backend real de Enzo (gasto, habilitaciones y kilometraje adoptan su implementación) — ver bullet ⚠️ en §C-08 más abajo, **bloqueado en un gap real** (falta fuente de datos para `mantenimientos`, necesita decisión de Enzo). **Conductores**: sin conflicto con lo que Enzo mergeó (confirmado, ninguna de sus 15 migraciones toca `conductores.conductores`/`conductores_vehiculos`); tanda de mapeo puro (`conductorMapping.ts`, `semanaIso.ts`) completa; el repository real (§7) queda bloqueado porque las migraciones de asignación semanal/estado (`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`) todavía no las escribió nadie |
-| 4 | Facturación (C-07) | 🔶 propose completo (`integracion-facturacion`, 2026-07-31), **bloqueado en el portón de governance §0 de `tasks.md` — 5 decisiones a cargo de Enzo/backend** antes de poder aplicar | Ver bullet ⏳ en §C-07 más abajo para el detalle de las 5 decisiones |
+| 4 | Facturación (C-07) | ✅ **swap real completo (`integracion-facturacion`, 2026-08-12)** — las 5 decisiones de governance de §0 aprobadas, migraciones aplicadas, `FacturacionRoute.tsx` lee/escribe contra `SupabaseFacturaRepository`/`SupabaseCobroRepository` reales; falta solo la verificación manual en navegador con las 3 cuentas (`tasks.md` §8) | Ver bullet ✅ en §C-07 más abajo. Discrepancias N1-N6 y salvedad D9 (cupo sobre fuente mixta, autorizaciones de fixture) documentadas, no bloquean el swap |
 | 5 | Presupuestos (C-06) | ✅ **completo y archivado (2026-08-06)** (`integracion-presupuestos`, ahora en `openspec/changes/archive/2026-08-06-integracion-presupuestos/`) — las 8 secciones de `tasks.md` completas, `PresupuestosRoute.tsx` lee/escribe contra las Edge Functions reales | Verificación con 3 cuentas reales corrida por `curl` directo (no por navegador, decisión de la usuaria) y RN-GL-02 parcialmente cumplida (`usuario_id` null en auditoría, gap aceptado) — dos desviaciones deliberadas y documentadas, ver bullet ✅ en §C-06 más abajo |
 | 6 | Hojas de Ruta (C-10) | 🔶 en progreso (apply `integracion-hojas-de-ruta`, 2026-08-04 — WU5a, documentación, completada) | Ver bullet ⚠️ en §C-10 más abajo |
 | 7 | Dashboard (C-11) | ⏳ pendiente | Va último — agrega datos de todos los repos reales de arriba |
@@ -799,6 +799,28 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   deployadas (verificado: la cadena "Edge Function" no aparece en su `proposal.md` ni en su
   `design.md`). `integracion-presupuestos` **declara el hallazgo y no lo resuelve** — unificar es un
   change transversal. **Decisor**: equipo técnico.
+- **⛔ BLOQUEANTE heredado de `integracion-facturacion` D9 (registrado acá 2026-08-13, sin resolver)**:
+  la migración commiteada `20260724100005_schema_facturacion.sql` crea las policies de
+  `facturacion.presupuesto`/`facturacion.autorizacion` con `tiene_permiso('facturacion', …)`, pero la
+  base real las tiene con **`tiene_permiso('presupuestos', …)`** — verificado dos veces contra
+  `pg_policies` (`integracion-facturacion` 1.3, y de nuevo por este mismo `integracion-presupuestos`,
+  D11 arriba, que lo confirma "cerrado y verificable" **para su propio transporte**: como
+  `PresupuestosRoute.tsx` habla con las Edge Functions `presupuestos`/`autorizaciones` — D2,
+  `service_role` + `requirePermiso` — un perfil con `facturacion` sin `presupuestos` recibe un `403`
+  explícito ahí, no 0 filas). **Eso no cierra la trampa para Facturación**:
+  `SupabaseFacturaRepository`/`AlertaCupo.tsx` (`C-07`) no hablan con esas Edge Functions — si en el
+  futuro `AlertaCupo.tsx` pasara a leer `presupuesto`/`autorizacion` directo por PostgREST (como hace
+  hoy con el resto de sus lecturas), un perfil con `facturacion: read/write` y sin `presupuestos: read`
+  va a ver **0 autorizaciones en silencio, sin ningún error** — el modo de falla "policy de SELECT
+  faltante → 0 filas silenciosas". **Bloqueante a resolver antes de integrar Presupuestos/Autorizaciones
+  de verdad con Facturación**: hoy la validación de cupo de Facturación (`AlertaCupo.tsx`, RN-FA-02)
+  sigue operando sobre fuente mixta — facturas reales × autorizaciones de **fixture**
+  (`integracion-facturacion` D9 opción A, cartel `AvisoModeloDatos` visible, sección 6 de `tasks.md` de
+  ese change) — así que el modo de falla todavía no se disparó en producción, pero queda latente para
+  quien cablee esa pantalla a Postgres real. **Decisor**: backend (Enzo) — corregir las policies para
+  que coincidan con la migración commiteada (`facturacion`), o documentar `presupuestos` como el módulo
+  correcto y ajustar el comentario de la migración; en cualquier caso, decidir explícitamente antes de
+  que `AlertaCupo.tsx` deje de usar el fixture.
 
 ### [C-10] `hojas-de-ruta-recorridos`
 - **Estado**: `[x]` completado (FE-5 frontend-only, 2026-07-25)
@@ -995,8 +1017,25 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - Solo lectura/agregación — no introduce entidades nuevas, no requiere migraciones más allá de vistas SQL o funciones agregadoras.
   - Tests: cálculo correcto de diferencia facturado/cobrado por período, agregación anual, tarjetas reflejan datos reales de los módulos fuente.
   - ⚠️ Discrepancia con `Traslados-Modelo-Datos.docx` (1/4, **nueva/estructural**): el docx **no modela ninguna vista, reporte ni agregación** — describe siete áreas de entidades operativas y cero objetos de reporte. Las funciones puras de `frontend/src/shared/lib/reportes/` y sus tests son el contrato que las vistas SQL / RPC de `C-11` deben cumplir.
-  - ⚠️ Discrepancia con `Traslados-Modelo-Datos.docx` (2/4, **known promovida a bloqueante**): la factura del docx no tiene **fecha de emisión** ni el estado **`facturado`**, y la tarjeta de facturas en mora (RF-801/RF-406) necesita las dos. Sin ellas RF-801 no se puede cumplir: confirmar `factura.fecha_factura` y el enum de estado con quien mantiene el docx, o redefinir la regla de mora con el cliente.
-  - ⚠️ Discrepancia con `Traslados-Modelo-Datos.docx` (3/4, **menor en C-07 promovida a estructural**): la factura del docx no tiene **período de atribución estructurado** (solo `Fecha inicial / tope`, que pueden cruzar el límite de mes), así que "¿cuánto facturamos en marzo?" no tiene respuesta única. El frontend atribuye por `mesFacturado`/`anioFacturado`; el backend debe agregar `mes_facturado`/`anio_facturado` o declarar cuál fecha es la columna canónica.
+  - ⚠️ Discrepancia con `Traslados-Modelo-Datos.docx` (2/4, **actualizada 2026-08-13,
+    `integracion-facturacion`, queda A MITAD**): el estado **`facturado`** ya existía en el enum real
+    de `facturacion.estado_factura` **antes de este change** (no era un hueco de schema, ver
+    `04_modelo_de_datos.md` §Discrepancias bloque "Facturación vs. esquema real de `C-07`", punto 5);
+    lo que sí faltaba de verdad era **`facturas.fecha_factura`** (fecha de emisión), agregada recién
+    por `integracion-facturacion` (D3, `ALTER TABLE ... ADD COLUMN fecha_factura DATE`, nullable, sin
+    default). El dato ya existe en la base real y sobrevive a un recargar (swap de
+    `SupabaseFacturaRepository` hecho). **Lo que sigue faltando** es que `C-11` (todavía en mock,
+    `dashboard-ui`) lea `fecha_factura`/`estado` reales para calcular RF-801 — hoy la tarjeta de
+    facturas en mora sigue sobre el repositorio mock del propio `dashboard-ui`, no sobre
+    `SupabaseFacturaRepository`. Cierra del todo cuando `C-11` haga su propio swap de backend.
+  - ⚠️ Discrepancia con `Traslados-Modelo-Datos.docx` (3/4, **CERRADA 2026-08-13,
+    `integracion-facturacion`**): la factura del docx no tenía **período de atribución estructurado**
+    (solo `Fecha inicial / tope`), pero el schema real de `facturacion.facturas` **sí** tiene
+    `mes_facturado`/`anio_facturado` como columnas propias (verificado contra
+    `information_schema.columns`, `integracion-facturacion` tarea 1.3) — mapeadas 1:1 a
+    `mesFacturado`/`anioFacturado` del frontend por `parseFacturaRow`. "¿Cuánto facturamos en marzo?"
+    ya tiene respuesta única sobre datos reales; falta únicamente que `C-11` los consuma (mismo gap
+    que el punto 2/4 de arriba).
   - ⚠️ Discrepancia con `Traslados-Modelo-Datos.docx` (4/4, **known, doble fuente de verdad**): el docx **persiste** el booleano `Vigente` del CUD y los "Próximo vencimiento (fecha/km)" de Mantenimiento; el frontend los **deriva** con `estadoCud` / `estadoServicePreventivo` / `estadoHabilitacion`. Si el backend persiste y no recalcula, la tarjeta y la BD pueden contradecirse. Postura del frontend: manda la derivación — a confirmar con `C-05`/`C-08`.
   - Las cuatro se señalizan con `AvisoModeloDatos` agrupado en la pantalla de Dashboard y están detalladas en `openspec/changes/dashboard-ui/design.md` §Discrepancias y en `knowledge-base/04_modelo_de_datos.md` §Discrepancias.
 - **Dependencias**: `C-05`, `C-07`, `C-08`, `C-10`

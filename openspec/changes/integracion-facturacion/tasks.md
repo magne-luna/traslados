@@ -506,13 +506,24 @@
         precedencia, e integración ARCA. Anotar que el swap de backend **hereda el default, no lo
         convierte en definitivo**.
 - [ ] 7.3 `CHANGES.md` §`C-07`: reescribir el bloque ⚠️ de 5 puntos contra la realidad verificada.
-- [ ] 7.4 `CHANGES.md` §`C-11`: la discrepancia 3/4 (período estructurado) queda **cerrada**; la 2/4
-      queda **a mitad** (el estado `facturado` existe; `fecha_factura` se agrega en este change).
-- [ ] 7.5 `CHANGES.md` §`C-06`: registrar la trampa de RLS de D9 —`presupuesto` y `autorizacion` están
-      gateadas por el módulo **`presupuestos`**, no por `facturacion` como dice la migración
-      commiteada— como **bloqueante a resolver antes de `integracion-presupuestos`**.
-- [ ] 7.6 `CHANGES.md` §Plan de integración, fila 4 (Facturación) → estado real.
-- [ ] 7.7 `ROADMAP-FRONTEND.md`.
+- [x] 7.4 **Hecho 2026-08-13.** `CHANGES.md` §`C-11`: discrepancia 3/4 (período estructurado,
+      `mes_facturado`/`anio_facturado`) marcada **CERRADA** — columnas reales confirmadas en 1.3,
+      mapeadas 1:1 por `parseFacturaRow`. Discrepancia 2/4 marcada **A MITAD**: el estado `facturado`
+      ya existía en el enum real antes de este change (no era un hueco de schema); `fecha_factura`
+      (fecha de emisión) sí se agregó en este change (D3) y sobrevive a un recargar; lo que falta es
+      que `C-11` (todavía en mock) lea esos datos reales para RF-801.
+- [x] 7.5 **Hecho 2026-08-13.** `CHANGES.md` §`C-06`: registrada la trampa de RLS de D9 —
+      `presupuesto`/`autorizacion` gateadas por el módulo **`presupuestos`**, no por `facturacion`
+      como dice la migración commiteada— como **bloqueante a resolver antes de integrar
+      Presupuestos/Autorizaciones de verdad con `AlertaCupo.tsx`** (hoy la validación de cupo de
+      Facturación sigue sobre fixture, D9 opción A). Aclarado que `integracion-presupuestos` (D11) ya
+      cerró la trampa **para su propio transporte** (Edge Functions + `service_role`), pero no para
+      un futuro acceso directo por PostgREST desde Facturación.
+- [x] 7.6 **Hecho 2026-08-13.** `CHANGES.md` §Plan de integración, fila 4 (Facturación) → actualizada
+      a swap real completo, con la salvedad de verificación manual pendiente (`tasks.md` §8).
+- [x] 7.7 **Hecho 2026-08-13.** `ROADMAP-FRONTEND.md`, fila `C-07` actualizada al mismo criterio que
+      `C-04`/`C-10` (swap real 🔶, no ✅ hasta verificación manual), con detalle del swap y remisión
+      al bloqueante de RLS en §C-06.
 
 ## 8. Verificación final
 
