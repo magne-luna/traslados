@@ -577,17 +577,24 @@
 
 ## 19. Cierre del change
 
-- [ ] 19.1 Suite completa en verde y comparada contra el baseline de 0.5 (ningún test perdido, ningún
+- [x] 19.1 Suite completa en verde y comparada contra el baseline de 0.5 (ningún test perdido, ningún
       test "arreglado" bajándole la exigencia).
-- [ ] 19.2 Verificar que el alcance recortado se respetó: `git diff --stat` no toca
+      **→ 2511/2514 en verde, mismas 3 fallas preexistentes de siempre (`PermisosMatrizFields.test.tsx`,
+      `ChecklistEditor.test.tsx` ×2), ninguna relacionada con este change.**
+- [x] 19.2 Verificar que el alcance recortado se respetó: `git diff --stat` no toca
       `supabase/functions/**`, `supabase/migrations/**`, `design-system/table.tsx`, ni los repositories
       de vehículos, presupuestos, autorizaciones, facturas, cobros, cuentas ni documentos.
-- [ ] 19.3 Verificar que **ninguna** firma de `list()` cambió en ningún repository
+      **→ Verificado (`git diff --stat b758d4b..cbb77fe`, base = antes de Fase 0): vacío, nada tocado.**
+- [x] 19.3 Verificar que **ninguna** firma de `list()` cambió en ningún repository
       (`git diff frontend/src/shared/lib/**/[A-Z]*Repository.ts`).
-- [ ] 19.4 Documentar en `CHANGES.md` la deuda que este change deja abierta y **por qué**: paginación
+      **→ Verificado: el diff sobre `list()` en todo el change son solo comentarios documentando la
+      relación aditiva con `listPage()`; cero cambios de firma o de comportamiento.**
+- [x] 19.4 Documentar en `CHANGES.md` la deuda que este change deja abierta y **por qué**: paginación
       de vehículos / presupuestos / autorizaciones bloqueada por Edge Functions (requiere deploy de
       backend), paginación de facturas / cobros bloqueada por `integracion-facturacion`, y typeahead de
       selectores como el próximo paso si el padrón de pacientes sigue creciendo.
+      **→ Documentado: nota completa bajo §C-05 (`pacientes-fichas-clinicas`), referencias cruzadas
+      cortas bajo §C-04, §C-09 y §C-10.**
 - [ ] 19.5 Pase visual final en navegador con la usuaria sobre las 4 pantallas tocadas.
 - [ ] 19.6 `/opsx:archive paginacion-listados`.
 </content>
