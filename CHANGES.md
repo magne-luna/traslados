@@ -799,6 +799,19 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   deployadas (verificado: la cadena "Edge Function" no aparece en su `proposal.md` ni en su
   `design.md`). `integracion-presupuestos` **declara el hallazgo y no lo resuelve** — unificar es un
   change transversal. **Decisor**: equipo técnico.
+- **🔶 Reapertura post-archivo (`presupuesto-prestaciones`, propose+apply 2026-08-12)**: `C-06` se
+  reabre **parcialmente**, solo para agregar el vínculo opcional presupuesto↔prestación — la
+  decisión de `monto` único de este bullet **no se reabre** (ver
+  `knowledge-base/04_modelo_de_datos.md` §Discrepancias, entrada nueva sobre
+  `presupuesto.prestacion_id`, que cita la #13 sin editarla). Tres PRs encadenadas: (1) catálogo
+  nuevo `pacientes.prestaciones` (tabla + `PrestacionesEditor.tsx` + sección en `PacienteDetail.tsx`),
+  (2) columna `facturacion.presupuesto.prestacion_id` (nullable, aditiva) + dos funciones Postgres
+  `SECURITY INVOKER` (`crear_presupuesto_completo`, `crear_presupuestos_lote`) reemplazando el CRUD
+  directo del Edge Function, (3) bifurcación de `PresupuestoForm.tsx` por
+  `ObraSocial.modalidadFacturacion` (`por-prestacion`: multi-select + alta en lote atómica;
+  `general`: líneas de prestación + monto sumadas en frontend, sin persistir el desglose). La
+  relación Autorización↔Presupuesto sigue 1:1 sin cambios. Detalle completo en
+  `openspec/changes/presupuesto-prestaciones/design.md`.
 
 ### [C-10] `hojas-de-ruta-recorridos`
 - **Estado**: `[x]` completado (FE-5 frontend-only, 2026-07-25)
