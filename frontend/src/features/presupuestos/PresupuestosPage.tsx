@@ -29,7 +29,7 @@ interface PresupuestosPageProps {
 export function PresupuestosPage({ pacienteRepository, obraSocialRepository }: PresupuestosPageProps) {
   const presupuestoRepository = usePresupuestoRepository();
   const autorizacionRepository = useAutorizacionRepository();
-  const { presupuestos, loading, error, crear, actualizar } = usePresupuestos(presupuestoRepository);
+  const { presupuestos, loading, error, crear, crearLote, actualizar } = usePresupuestos(presupuestoRepository);
   const { pacientes } = usePacientes(pacienteRepository);
   const { obrasSociales } = useObrasSociales(obraSocialRepository);
   /** Solo lectura (design.md Decisión 8): alimenta el chip de estado por tarjeta en el listado. */
@@ -59,6 +59,7 @@ export function PresupuestosPage({ pacienteRepository, obraSocialRepository }: P
         <PresupuestoDetail
           presupuesto={presupuesto}
           crear={crear}
+          crearLote={crearLote}
           actualizar={actualizar}
           pacientes={pacientes}
           obrasSociales={obrasSociales}

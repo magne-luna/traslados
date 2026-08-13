@@ -100,6 +100,14 @@ este change** (tarea 1B.5 de `tasks.md`):
   (`integracion-facturacion/design.md` D4 y `tasks.md` 1B.3) — exactamente la clase de bug que un
   test de Postgres atraparía y un checklist manual puede pasar por alto. **Este propose solo suma
   el dato; no toma la decisión.** **Decisor**: equipo técnico.
+  **Conteo actualizado (2026-08-12, `presupuesto-prestaciones`)**: dos funciones más,
+  `facturacion.crear_presupuesto_completo` y `facturacion.crear_presupuestos_lote` (D2/D10 de
+  `openspec/changes/presupuesto-prestaciones/design.md`), verificadas solo por test de código
+  fuente (texto del `.sql`, `presupuestoMigrations.test.ts`) más el mismo checklist manual del
+  §Migration Plan — sin harness automatizado. El acumulado pasa a **5 changes / 7 funciones** de
+  escritura multi-tabla `SECURITY INVOKER` sin ningún harness de Postgres real, y el proyecto sigue
+  sin `supabase/config.toml` ni pgTAP. **Este apply tampoco toma la decisión** — solo suma el dato.
+  **Decisor**: equipo técnico.
 - **¿Se indexan las FK `paciente_id` de las tablas hijas de Pacientes?**
   `20260724100004_schema_pacientes.sql` no crea índices sobre `cud.paciente_id`,
   `clinicos.paciente_id`, `direcciones.paciente_id`, `personas_a_cargo.paciente_id` ni
@@ -362,6 +370,25 @@ de `FacturaRepository`/`CobroRepository` a Supabase persiste el mismo default qu
 `facturacion-ui` — no lo confirma, no lo convierte en definitivo, y no agrega ninguna fuente nueva
 que lo resuelva. Sigue pendiente de **Cliente (Andrea Pastor) / equipo técnico**, igual que en el
 bloque "Defaults implementados por `facturacion-ui`" de arriba.
+
+## Preguntas nuevas — `presupuesto-prestaciones` (2026-08-12)
+
+Surgida de `design.md` §D8 (`openspec/changes/presupuesto-prestaciones/`). No se cierra en este
+change — se registra acá y queda para confirmar.
+
+- **¿`facturas.prestacion` debería apuntar al catálogo nuevo `pacientes.prestaciones`?**
+  `facturacion.facturas` ya tiene una columna `prestacion TEXT` (libre, sin FK, documentada en
+  `integracion-facturacion` §Context como parte del schema real). Este change agrega un catálogo
+  nuevo, tipado y con FK, `pacientes.prestaciones` (embebido en la ficha del paciente, para el
+  vínculo opcional con `Presupuesto` en modalidad `por-prestacion`). Los dos conceptos **no se
+  conectan en este change**: `facturas.prestacion` sigue siendo texto libre, sin relación con el
+  catálogo. Motivo de no tocarlo acá: Facturación es dominio **CRÍTICO** y `integracion-facturacion`
+  es un change activo y no aplicado — arrastrarlo adentro de un change ALTO repetiría el error que
+  `integracion-presupuestos` §Discrepancias #11 ya identificó y evitó. ¿Conviene unificar los dos
+  conceptos a futuro (que `facturas.prestacion` pase a ser una FK al mismo catálogo), o quedan como
+  conceptos separados a propósito — uno de negocio/facturación (texto libre, por factura), otro de
+  catálogo clínico (tipado, por paciente)? **No se resuelve acá.** **Decisor**: cliente + backend,
+  en el change de Facturación.
 
 ## Insumos pendientes del cliente
 

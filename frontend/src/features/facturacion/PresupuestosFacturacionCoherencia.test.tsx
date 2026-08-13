@@ -111,6 +111,7 @@ function buildFakePresupuestoRepo(): PresupuestoRepository {
     list: vi.fn().mockResolvedValue([presupuestoMartina]),
     getById: vi.fn().mockResolvedValue(presupuestoMartina),
     create: vi.fn(),
+    createLote: vi.fn(),
     update: vi.fn(),
   };
 }

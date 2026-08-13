@@ -4,6 +4,7 @@
 // backend real (C-05) se archive, estos tipos no deberían necesitar reescritura.
 
 import type { AccesorioMovilidad } from './vehiculo';
+import type { Prestacion } from './prestacion';
 
 /**
  * Identificador de afiliado (RF-106, RN-ID-02): `valor` es libre. El formato (número de
@@ -107,6 +108,16 @@ export interface Paciente {
   /** Flag de amparo judicial (afecta plazos de cobro en Facturación, FE-6). */
   amparoJudicial: boolean;
   amparoJudicialAclaracion?: string;
+  /**
+   * Catálogo de prestaciones del paciente (presupuesto-prestaciones, design.md D1/D7, PR 1 de la
+   * serie encadenada). OPCIONAL a propósito, a diferencia de `direcciones`/`personasACargo`
+   * (siempre `[]`, nunca ausentes): la migración de `pacientes.prestaciones` (tasks.md Fase 3) es
+   * aditiva y `SupabasePacienteRepository`/`pacienteMapping.ts` todavía no la leen ni escriben en
+   * este PR (queda para un PR posterior, una vez aplicada) — forzar el campo a requerido hubiera
+   * obligado a tocar decenas de fixtures/tests de dominios sin relación con este change solo para
+   * satisfacer el tipo. `PacienteDetail` la trata como `paciente.prestaciones ?? []`.
+   */
+  prestaciones?: Prestacion[];
 }
 
 /** Payload de alta: todo lo de Paciente salvo el id, que asigna el repository. */

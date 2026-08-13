@@ -961,6 +961,21 @@ así que queda anotado acá hasta que se construya esa feature.
   `design.md` Checkpoint (e) de `documentos-transferencia-actividad` había dejado anotada como forma
   futura, implementada antes de archivar ese change.
 
+- **`presupuesto.prestacion_id` (columna nueva) — decidido, NO es reapertura de #13**
+  (`openspec/changes/presupuesto-prestaciones/design.md` §D5, propose+apply 2026-08-12): el docx no
+  vincula `Presupuesto` con ninguna prestación. Se agrega una FK **opcional**
+  (`facturacion.presupuesto.prestacion_id UUID NULL REFERENCES pacientes.prestaciones(id)`) para
+  soportar obras sociales con `modalidad_facturacion = 'por-prestacion'`, donde cada prestación
+  genera su propio presupuesto (con su propio `monto` único y su propia autorización 1:1, sin
+  cambios). **`monto` sigue siendo un importe único y nunca un desglose persistido**, exactamente
+  como fijó la discrepancia **#13** de "Presupuestos / Autorizaciones vs. esquema real de `C-06`"
+  arriba — esta entrada **cita** la #13, no la edita ni la reabre. En modalidad `general` la columna
+  queda `NULL` y el desglose por prestación **solo existe en el estado del formulario**
+  (`PresupuestoLineasEditor.tsx`), nunca en la base. El catálogo nuevo `pacientes.prestaciones`
+  (tabla hija del paciente, calco de `pacientes.direcciones`, borrado lógico vía `activa`) es la
+  única estructura nueva; no hay tabla intermedia N:N. Cartel `AvisoModeloDatos` correspondiente en
+  `PresupuestoForm.tsx` y `PresupuestoResumen.tsx`.
+
 ### Presupuesto / Autorizacion — policies gateadas por `presupuestos`, no `facturacion`
 
 **Confirmado leyendo `pg_policies` directamente** (`integracion-presupuestos`, 2026-08-02 y

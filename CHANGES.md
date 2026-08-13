@@ -446,6 +446,11 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
     entidad `Prestador` en `frontend/src`/`supabase/functions` (quedan `prestadorNombre`/
     `prestadorDomicilio` y comentarios de historia, ambos esperados) antes de dar el change por
     terminado.
+- **Refinamiento posterior (`paginacion-listados`, 2026-08-12)**: `ObrasSocialesList` pasa a
+  listado paginado server-side, mismo patrón que Pacientes (ver detalle completo en la nota
+  equivalente de `C-05` más abajo). `listPage()` aditivo sobre `ObraSocialRepository`, `list()`
+  intacto. Sin checkpoint de semántica de búsqueda — filtra pocas columnas, sin ambigüedad
+  relevante.
 
 ### [C-08] `vehiculos-mantenimiento`
 - **Estado**: `[x]` completado (frontend mock, 2026-07-31)
@@ -659,6 +664,30 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   con RLS propia sobre documentación de salud, apoyada en una regla de negocio sin confirmar (ver
   nota `⚠️` en `05_reglas_de_negocio.md` RN-FA-08/RN-FA-10). **Pendiente**: tarea 9.4 (verificación
   de permisos con dos cuentas reales) sin hacer a propósito, deuda técnica anotada.
+- **Refinamiento posterior (`paginacion-listados`, propose+apply 2026-08-12)**: `PacientesList`/
+  `PacientesPage` (dueña de este change) pasan a listado paginado server-side (`.range()` +
+  `count: 'exact'`, 20 por página, sin selector de tamaño) con búsqueda por tokens contra
+  `nombre_a`/`nombre_b`/`apellido_a`/`apellido_b`/`dni` (AND de ORs — cambia la semántica del
+  buscador: `"perez juan"` ahora encuentra a "Juan Pérez" aunque antes no, y una subcadena que
+  cruza el límite nombre/apellido deja de matchear; veredicto de la usuaria: aceptado). `listPage()`
+  se agregó **aditivo** a `PacienteRepository` — `list()` sigue igual, sin params, porque selectores
+  de formulario (`PresupuestosRoute.tsx`, `PacienteForm`, `FacturaForm`) y cálculos de dashboard
+  (`useAlertasCud`, `useDatosFinancieros`) necesitan el padrón completo, no una página; paginar ahí
+  habría producido alertas clínicas silenciosamente incorrectas. Mismo patrón replicado en
+  Conductores y Obras Sociales (ver notas en `C-09` y `C-04`) y en Hojas de Ruta con una solución
+  distinta (ver nota en `C-10`, no es paginación). **Deuda que deja abierta, documentada a
+  propósito**: Vehículos/Presupuestos/Autorizaciones NO se paginaron — pasan por Edge Functions
+  (`supabase/functions/vehiculos`, `/presupuestos`, `/autorizaciones`) que hoy no aceptan
+  `limit`/`offset`/`count`, paginarlas requiere editar y redesplegar esas functions (fuera del
+  alcance de un change de frontend, deploy a cargo de la usuaria/Enzo). Facturas/Cobros tampoco —
+  `FacturacionRoute.tsx` sigue con `mockFacturaRepository` sobre `localStorage`; el swap real es
+  `integracion-facturacion`, bloqueado en su propio portón de governance (§C-07 arriba); cuando se
+  desbloquee, `SupabaseFacturaRepository` debería nacer ya con `listPage` para no repetir este
+  trabajo. Cuentas quedó afuera por padrón chico y pantalla solo-admin (más riesgo que beneficio
+  hoy). **Próximo paso sugerido si el padrón de pacientes sigue creciendo**: typeahead/autocomplete
+  server-side para los selectores que hoy siguen usando `list()` completo. Página 20 fija sin
+  selector y `?pagina=N` sin persistir en la URL, ambos por decisión explícita de la usuaria, a
+  reevaluar con uso real. Detalle completo en `openspec/changes/paginacion-listados/design.md`.
 
 ### [C-09] `conductores`
 - **Estado**: `[ ]` pendiente
@@ -685,6 +714,10 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - ~~**Pendiente**: "Restricciones" acá es un catálogo cerrado (`RestriccionConductor[]`); en el docx es texto libre dentro de un único campo "Notas" junto con las observaciones — reconciliar con el punto 1 de arriba (catálogo cerrado pendiente de confirmar con el cliente) **y coordinar con Enzo (backend) antes de cerrar C-09**.~~ — **RESUELTO por decisión de diseño D6-B** (`integracion-conductores-vehiculos/design.md`, opción B elegida): `Conductor.restricciones` desaparece por completo del dominio, todo pasa a un único campo `notas`/`observaciones` de texto libre, alineado 1:1 al docx. Costo asumido: `C-10` pierde el filtro computable por restricción (RN-GL-03 pasa a ser lectura humana, no validación automática).
   - El docx modela la asignación semanal con **Fecha de inicio** y **Fecha de fin de semana** como dos campos de fecha independientes, no como la etiqueta ISO única del punto 5 de arriba.
   - **Bloqueante para §7 (repository real de Conductores), no relacionado con Vehículos**: las migraciones de asignación semanal/estado planeadas en `integracion-conductores-vehiculos/tasks.md` §1B.1/1B.2 (`20260801120000_conductores_vehiculos_campos.sql` y `_rpc.sql`) **no existen todavía en ningún lado** — ni en esta rama, ni en lo que Enzo mergeó. Alguien tiene que escribirlas y aplicarlas antes de poder avanzar el repository real de Conductores.
+- **Refinamiento posterior (`paginacion-listados`, 2026-08-12)**: `ConductoresList` pasa a listado
+  paginado server-side, mismo patrón que Pacientes (detalle completo en la nota equivalente de
+  `C-05` más arriba). `listPage()` aditivo sobre `ConductorRepository`, `list()` intacto. Sin
+  checkpoint de semántica de búsqueda.
 
 ---
 
@@ -821,6 +854,19 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   que coincidan con la migración commiteada (`facturacion`), o documentar `presupuestos` como el módulo
   correcto y ajustar el comentario de la migración; en cualquier caso, decidir explícitamente antes de
   que `AlertaCupo.tsx` deje de usar el fixture.
+- **🔶 Reapertura post-archivo (`presupuesto-prestaciones`, propose+apply 2026-08-12)**: `C-06` se
+  reabre **parcialmente**, solo para agregar el vínculo opcional presupuesto↔prestación — la
+  decisión de `monto` único de este bullet **no se reabre** (ver
+  `knowledge-base/04_modelo_de_datos.md` §Discrepancias, entrada nueva sobre
+  `presupuesto.prestacion_id`, que cita la #13 sin editarla). Tres PRs encadenadas: (1) catálogo
+  nuevo `pacientes.prestaciones` (tabla + `PrestacionesEditor.tsx` + sección en `PacienteDetail.tsx`),
+  (2) columna `facturacion.presupuesto.prestacion_id` (nullable, aditiva) + dos funciones Postgres
+  `SECURITY INVOKER` (`crear_presupuesto_completo`, `crear_presupuestos_lote`) reemplazando el CRUD
+  directo del Edge Function, (3) bifurcación de `PresupuestoForm.tsx` por
+  `ObraSocial.modalidadFacturacion` (`por-prestacion`: multi-select + alta en lote atómica;
+  `general`: líneas de prestación + monto sumadas en frontend, sin persistir el desglose). La
+  relación Autorización↔Presupuesto sigue 1:1 sin cambios. Detalle completo en
+  `openspec/changes/presupuesto-prestaciones/design.md`.
 
 ### [C-10] `hojas-de-ruta-recorridos`
 - **Estado**: `[x]` completado (FE-5 frontend-only, 2026-07-25)
@@ -854,6 +900,16 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
     `integracion-conductores-vehiculos`, y la confirmación de fondo con el dueño del docx queda como
     verificación manual en `openspec/changes/integracion-hojas-de-ruta/tasks.md` 7.4.
   - Menores, ya con cartel propio en la UI (agregado 2026-07-25, antes solo cubiertos por el cartel general): el orden de recogida y las coordenadas del mapa no existen en el docx (cartel en `RecorridoCard.tsx`); la franja horaria y las notas al pie del agregado `HojaDeRuta` tampoco existen en el docx (cartel en `HojaDeRutaPage.tsx`).
+- **Refinamiento posterior (`paginacion-listados`, 2026-08-12)**: a diferencia de las otras tres
+  pantallas de este change (ver nota completa en `C-05`), `HojaDeRutaPage` **no se paginó** —
+  design.md §D7 razona que no es un listado, es la vista de **un solo día**, y hoy la resuelve
+  trayendo `useHojasDeRuta()` → `list()` (embed de 3 niveles hoja→recorrido→historial_recorridos
+  sobre **toda la historia**) + `.find(h => h.fecha === fecha)` para quedarse con uno. Pasa a
+  `getByFecha(fecha)`, que ya existía en `HojaDeRutaRepository`/`SupabaseHojaDeRutaRepository` —
+  la lectura más cara de la app resuelta sin escribir código nuevo en la capa de datos. Preserva el
+  refetch `{ silencioso: true }` de `crear`/`actualizar` (fix `59caedc`, "el refetch post-mutación
+  no debe sacar al operador del modo edición") con test de regresión explícito a nivel hook e
+  integración.
 
 ---
 
