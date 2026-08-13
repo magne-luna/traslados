@@ -838,7 +838,9 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 ## FASE 4 — Facturación y cobros
 
 ### [C-07] `facturacion-asistencias-cobros`
-- **Estado**: `[~]` backend implementado y pusheado (2026-07-30); falta verificación manual y que frontend reemplace el mock
+- **Estado**: `[~]` backend implementado y pusheado (2026-07-30); swap de frontend a datos reales
+  completo (`integracion-facturacion`, 2026-08-12, ver bullet ✅ más abajo) — falta la verificación
+  manual con las tres cuentas reales en navegador (`tasks.md` §8 de `integracion-facturacion`)
 - **Scope**:
   - Migración: tabla `factura` (identificador del paciente — **definir por obra social si es DNI o N° de afiliado, ver pregunta abierta**; domicilio, prestación, mes/año, cantidad de días, dependencia y retorno, valor del km — nomenclador de carga manual, cantidad de km, total, tipo de comprobante A/B/C, estado: a facturar/facturado/cobrado/pagado parcialmente).
   - Migración: tabla `asistencia_prestacion` (se facturan íntegramente; el recorrido efectivo de `C-10` es independiente y no se deriva de acá, RN-FA-01) y tabla `cobro` (admite pagos parciales, N por factura).
@@ -859,18 +861,24 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - `knowledge-base/07_flujos_principales.md` §Flujo 3
   - `knowledge-base/08_arquitectura_propuesta.md` §Nota sobre integración con ARCA
   - `knowledge-base/10_preguntas_abiertas.md` (prioridad Alta: identificador en factura DNI/afiliado, integración ARCA, plazos por defecto 90/60/45 días, año en facturación manual vs. estructurado)
-- **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** (detalle completo en
-  `04_modelo_de_datos.md` §Facturación y Cobros, y en `openspec/changes/facturacion-ui/design.md`
-  §Discrepancias): 5 puntos con impacto en el esquema de este change, todos con `AvisoModeloDatos`
-  agrupado en la UI del frontend (mock, ver bullet de progreso abajo). El backend debe absorberlos
-  **antes de cerrar el esquema**: (1) no existe la tabla `asistencia_prestacion` (la KB modela
-  `Factura 1---N Asistencia/Prestacion`, el docx no tiene ninguna entidad de asistencias); (2) no
-  existe `documento_factura` (`Factura` no tiene ningún campo/tabla de adjuntos — Presupuesto y
-  Autorización sí tienen un campo "Archivo" único cada uno); (3) no existe `fecha_estimada_cobro`
-  en `factura` (el docx solo tiene "Fecha inicial / tope", ambiguo respecto del plazo de cobro);
-  (4) no existe `cantidad_km` en `factura` (el docx solo tiene "Valor del kilómetro" y "Monto");
-  (5) el enum de `estado` del docx ("a facturar, cobrada, pagada parcialmente, pendiente") no
-  incluye `facturado`, necesario como disparador del cálculo de fecha estimada de cobro.
+- **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx` — reescrito 2026-08-12 contra la
+  realidad verificada, ya no contra datos mock** (detalle completo en `04_modelo_de_datos.md`
+  §Discrepancias, bloque "Facturación vs. esquema real de `C-07`", y en `openspec/changes/
+  integracion-facturacion/design.md` D12): de los 5 puntos originales, **4 ya estaban cerrados en
+  la base real antes de que este change empezara** — (1) `asistencia_prestacion` existe (FK
+  `ON DELETE CASCADE`, RLS, auditoría); (2) `documento_factura` existe (doble FK, RLS, auditoría —
+  el schema está resuelto, lo que falta es el swap del repository, ver D8 más abajo); (3)
+  `fecha_estimada_cobro` existe como columna propia de `facturas`; (4) `cantidad_km` existe como
+  columna propia de `facturas`. El quinto queda **parcial**: (5) el enum `estado_factura` **sí**
+  tiene `facturado`, pero además conserva `pendiente` — un literal que el frontend nunca modeló, se
+  resuelve por mapeo client-side (`estadoDesdeBase`/`estadoHaciaBase`), no por schema. Este change
+  además documenta **6 discrepancias nuevas** (N1-N6 en `design.md` D12) descubiertas al verificar
+  el schema real: `fecha_factura` faltante (N1, resuelta acá — ver D3 más abajo), el enum
+  (N2, ver punto 5), nullability amplia (N3, absorbida en el mapeo, reportada a backend),
+  `presupuesto`/`autorizacion` gateadas por el módulo `presupuestos` en vez de `facturacion` (N4,
+  ver §C-06 más abajo), FK sin índice (N5, 6 índices agregados por este change), y 10+ columnas/2
+  tablas del schema real aplicadas fuera del historial de migraciones del repo (N6, elevado a
+  `10_preguntas_abiertas.md`).
 - **Progreso frontend (mock, vía FE-6)**: ✅ implementado como `facturacion-ui`
   (**archivado**, `openspec/changes/archive/2026-07-27-facturacion-ui/`), 61/61 tasks incluida la
   verificación estructural de RN-FA-01 (cero acoplamiento con
@@ -916,9 +924,21 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `factura-cupo-validacion`/`cobro-registro` modificadas). Los 4 defaults de negocio de
   `10_preguntas_abiertas.md` se **heredan sin cerrarlos** (identificador de factura, período
   estructurado, plazos 90/60/45, ARCA manual) — la usuaria confirmó ese criterio antes del propose.
-- **⏳ Pendiente de decisión (a cargo de Enzo/backend)** antes de que `integracion-facturacion` pueda
-  pasar a apply — portón de governance §0 de `tasks.md`, gobernanza CRITICO, ninguna tarea corre sin
-  esto:
+- **✅ Apply completo (`integracion-facturacion`, 2026-08-12)**: las 5 decisiones de governance
+  (D3, D4, D6, D9, D10, ver detalle histórico más abajo) fueron aprobadas y ejecutadas. Migraciones
+  aplicadas (`facturacion.facturas.fecha_factura` agregada, dos funciones `SECURITY INVOKER`
+  `crear_factura_completa`/`actualizar_factura_completa`, 6 índices sobre FK sin `CONCURRENTLY`),
+  `facturaMapping.ts` + `SupabaseFacturaRepository.ts` + `SupabaseCobroRepository.ts`
+  implementados, y **el swap real de `FacturacionRoute.tsx` está hecho** — la pantalla de
+  Facturación lee y escribe contra Postgres real, ya no contra `mockFacturaRepository`/
+  `mockCobroRepository`. Los 3 carteles de discrepancia (`FacturaAvisoDiscrepancias.tsx`,
+  `FacturaDocumentos.tsx`, `AlertaCupo.tsx`) están reconciliados contra el schema real (sección 6
+  de `tasks.md`). D9 se resolvió con la opción **A** (fuente mixta + `AvisoModeloDatos` en
+  `AlertaCupo.tsx`) — la alerta de cupo sigue operando sobre autorizaciones de fixture hasta que
+  `integracion-presupuestos` se cablee acá, ver bullet siguiente y §C-06 más abajo. Queda pendiente
+  únicamente la verificación manual en navegador con las tres cuentas reales (`tasks.md` §8).
+- **Historial de la decisión de governance (a cargo de Enzo/backend, ya resuelto)** — portón §0 de
+  `tasks.md`, gobernanza CRITICO, las 5 decisiones que bloqueaban el apply:
   - **D3** — agregar `facturacion.facturas.fecha_factura DATE` (nullable). Única modificación de
     schema del change. Requiere además coordinación previa con Enzo para confirmar que no está
     planeada con otro nombre — el schema real viene por delante del repo desde hace tres changes

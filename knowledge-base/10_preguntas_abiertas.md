@@ -300,6 +300,69 @@ adjuntos) sigue **sin cerrar del todo**:
   administración?) pasa de "housekeeping" a "necesaria antes de que crezca sin control" ahora que hay
   uso real detrás.
 
+## Preguntas nuevas — `integracion-facturacion` (2026-08-12)
+
+`openspec/changes/integracion-facturacion/` (mock→Supabase de Facturación y Cobros, dominio
+CRÍTICO) swapea `FacturaRepository`/`CobroRepository` a datos reales. Ninguna pregunta de negocio
+se cierra — ver el bullet siguiente y `design.md` D13. Se registran acá las preguntas técnicas
+nuevas que abre (`design.md` §Open Questions):
+
+- **¿La factura debe congelar su obra social, o se re-resuelve desde el paciente?** Hoy `facturas`
+  **no tiene** `obra_social_id`: la obra social se alcanza vía la cobertura vigente del paciente.
+  RN-FA-06 dice que una factura emitida no se ajusta retroactivamente, y hoy eso se cumple **a
+  medias**: `descripcion` e `identificadorFactura` **sí** quedan congelados (columnas propias de
+  `facturas`), pero `plazoCobroDias` y la plantilla se re-resuelven en cada lectura contra la
+  obra social actual del paciente. Si un paciente cambia de obra social, sus facturas viejas
+  empiezan a mostrar la configuración de la obra social nueva. ¿`facturas.obra_social_id` como
+  snapshot? **No se resuelve en este change** — es una columna nueva sobre un dominio CRÍTICO y
+  ninguna fuente la pide. **Decisor**: cliente / quien mantiene el docx.
+- **¿Las policies `FOR ALL` de `facturacion` deberían tener `WITH CHECK` explícito?** Hoy las 14
+  policies del schema usan `USING` sin `WITH CHECK` (funciona porque PostgreSQL reusa `USING`
+  como check de `INSERT`, verificado), pero la intención no queda legible en el diff. Este change
+  **no las toca** — tocar RLS de un dominio financiero sin necesidad es riesgo puro. **Decisor**:
+  backend.
+- **¿Se agregan `NOT NULL` a las columnas de `facturas` que el frontend trata como requeridas?**
+  (N3 de `04_modelo_de_datos.md` §Discrepancias, bloque "Facturación vs. esquema real de `C-07`").
+  Hoy 17 de 19 columnas son nullable. Requiere backfill coordinado y una migración expand/contract
+  en dos pasos. **Decisor**: backend.
+- **¿Cómo se reconcilia el schema real de `facturacion` con las migraciones del repo?** (N6).
+  **Tercer change consecutivo** que encuentra columnas y tablas en producción sin migración
+  commiteada — esta vez, **2 tablas y 10+ columnas del dominio más crítico** del sistema. Un
+  `supabase db reset` sobre el repo actual produce un schema `facturacion` incapaz de sostener la
+  app. ¿Se genera una migración de reconciliación (`supabase db diff`) y se hace
+  `migration repair`? **Decisor**: backend / equipo técnico. Es un problema de proceso, no de este
+  change — mismo patrón que `integracion-pacientes` 1B.3 e `integracion-obra-social` 1.3.
+- **¿Por qué `facturacion.presupuesto` y `facturacion.autorizacion` quedaron gateadas por el
+  módulo `presupuestos` si la migración commiteada dice `facturacion`?** (N4, D9 de `design.md`).
+  La migración (`20260724100005_schema_facturacion.sql`) tiene un comentario largo argumentando
+  explícitamente lo contrario, citando el docx. O el comentario está mal, o el cambio en
+  producción fue involuntario. Verificado empíricamente contra `pg_policies` en vivo (2026-07-31):
+  la cuenta *Facturación* de `VITE_TEST_ACCOUNTS` tiene `facturacion: read/write` y **no** tiene
+  `presupuestos: read`. **Bloquea `integracion-presupuestos`**: sin resolverlo, ese perfil ve 0
+  autorizaciones en silencio, sin ningún error, y la validación de cupo (RN-FA-02) queda
+  desactivada de hecho para el perfil que más la necesita. Mientras tanto, este change deja la
+  alerta de cupo sobre fuente mixta (facturas reales × autorizaciones de fixture) con
+  `AvisoModeloDatos` visible en `AlertaCupo.tsx`, no bloqueada — ver `CHANGES.md` §C-06.
+  **Decisor**: backend / quien mantiene el docx.
+
+**Actualización de conteo de pgTAP, sin cambios respecto de lo ya registrado arriba**: las dos
+funciones de este change (`crear_factura_completa`, `actualizar_factura_completa`) ya están
+sumadas al conteo acumulado en el bloque "Preguntas técnicas abiertas — `integracion-pacientes` /
+`integracion-obra-social`" de arriba: **4 changes / 5 funciones**
+(`crear_paciente_completo`, `crear_obra_social_completa`, `actualizar_obra_social_completa`,
+`crear_factura_completa`, `actualizar_factura_completa`) sin ningún harness automatizado, con
+**cinco** changes de integración por delante. No se encontró un conteo más alto de
+`presupuesto-prestaciones` en este archivo — si una rama paralela lo actualiza después, sumar ahí
+las 2 funciones de este change al número que encuentre, sin pisarlo.
+
+**Las 4 preguntas de negocio de prioridad Alta heredadas de `facturacion-ui` (tabla de arriba:
+identificador DNI/afiliado, año/período de facturación, plazos 90/60/45 y su precedencia,
+integración ARCA) siguen explícitamente SIN CERRAR tras este change** (`design.md` D13). El swap
+de `FacturaRepository`/`CobroRepository` a Supabase persiste el mismo default que ya tenía
+`facturacion-ui` — no lo confirma, no lo convierte en definitivo, y no agrega ninguna fuente nueva
+que lo resuelva. Sigue pendiente de **Cliente (Andrea Pastor) / equipo técnico**, igual que en el
+bloque "Defaults implementados por `facturacion-ui`" de arriba.
+
 ## Insumos pendientes del cliente
 
 - Logo (árbol de discapacidad) y colores de marca; fondo de pantalla de referencia.
