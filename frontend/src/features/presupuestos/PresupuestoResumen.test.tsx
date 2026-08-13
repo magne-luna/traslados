@@ -59,6 +59,63 @@ describe('PresupuestoResumen', () => {
   });
 });
 
+// presupuesto-prestacion (tasks.md 8.8, design.md D1/D5/D9): mostrar la prestación asociada
+// cuando prestacionId está presente, buscando el nombre en el catálogo del paciente.
+describe('PresupuestoResumen — prestación asociada (D9)', () => {
+  it('sin prestacionId (modalidad general): no muestra el stat "Prestación" ni el cartel de vínculo', () => {
+    render(<PresupuestoResumen presupuesto={presupuestoMartina} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.queryByText('Prestación')).not.toBeInTheDocument();
+  });
+
+  it('con prestacionId presente: muestra el nombre de la prestación buscado en el catálogo del paciente', () => {
+    const martinaConPrestaciones: Paciente = {
+      ...martina,
+      prestaciones: [{ id: 'prestacion-kine', pacienteId: martina.id, nombre: 'Kinesiología', activa: true }],
+    };
+    const presupuestoConPrestacion: Presupuesto = { ...presupuestoMartina, prestacionId: 'prestacion-kine' };
+
+    render(
+      <PresupuestoResumen
+        presupuesto={presupuestoConPrestacion}
+        paciente={martinaConPrestaciones}
+        obraSocial={osecac}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Prestación')).toBeInTheDocument();
+    expect(screen.getByText('Kinesiología')).toBeInTheDocument();
+  });
+
+  it('con prestacionId apuntando a una prestación ya inactiva (borrado lógico, D1): sigue mostrando su nombre, no "desconocida"', () => {
+    const martinaConPrestacionInactiva: Paciente = {
+      ...martina,
+      prestaciones: [{ id: 'prestacion-kine', pacienteId: martina.id, nombre: 'Kinesiología', activa: false }],
+    };
+    const presupuestoConPrestacion: Presupuesto = { ...presupuestoMartina, prestacionId: 'prestacion-kine' };
+
+    render(
+      <PresupuestoResumen
+        presupuesto={presupuestoConPrestacion}
+        paciente={martinaConPrestacionInactiva}
+        obraSocial={osecac}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Kinesiología')).toBeInTheDocument();
+  });
+
+  it('con prestacionId presente: muestra el AvisoModeloDatos referenciando que no reabre la discrepancia #13', () => {
+    const presupuestoConPrestacion: Presupuesto = { ...presupuestoMartina, prestacionId: 'prestacion-kine' };
+
+    render(<PresupuestoResumen presupuesto={presupuestoConPrestacion} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.getByRole('note')).toHaveTextContent(/discrepancia #13/i);
+  });
+});
+
 // Gateo de escritura (gateo-facturacion, tasks.md 2.2, design.md D1/D4). "Editar datos" queda
 // visible pero no activable sin permiso de escritura; los datos siguen legibles (mismo criterio
 // que PacienteResumen/gateo-pacientes).

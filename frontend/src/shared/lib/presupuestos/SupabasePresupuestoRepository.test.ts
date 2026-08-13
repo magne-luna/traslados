@@ -205,6 +205,80 @@ describe('supabasePresupuestoRepository.create() (3.6)', () => {
   });
 });
 
+describe('supabasePresupuestoRepository.createLote() (6.1/6.2 — presupuesto-prestaciones PR 2)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const LOTE = [
+    { pacienteId: 'pac1', obraSocialId: 'os1', monto: 1000, fechaEmision: '2026-01-15', prestacionId: 'prest1' },
+    { pacienteId: 'pac1', obraSocialId: 'os1', monto: 2000, fechaEmision: '2026-01-15', prestacionId: 'prest2' },
+  ];
+
+  it('invoca POST /presupuestos una sola vez con el arreglo de payloads (uno por prestación), y mapea la respuesta con parsePresupuestoApi', async () => {
+    functionsInvoke.mockResolvedValue({
+      data: [
+        { ...PRESUPUESTO_API_COMPLETO, id: 'p1', monto: 1000, prestacionId: 'prest1' },
+        { ...PRESUPUESTO_API_COMPLETO, id: 'p2', monto: 2000, prestacionId: 'prest2' },
+      ],
+      error: null,
+    });
+
+    const creados = await supabasePresupuestoRepository.createLote(LOTE);
+
+    expect(functionsInvoke).toHaveBeenCalledTimes(1);
+    expect(functionsInvoke).toHaveBeenCalledWith('presupuestos', {
+      method: 'POST',
+      body: [
+        { pacienteId: 'pac1', obraSocialId: 'os1', monto: 1000, fechaEmision: '2026-01-15', prestacionId: 'prest1' },
+        { pacienteId: 'pac1', obraSocialId: 'os1', monto: 2000, fechaEmision: '2026-01-15', prestacionId: 'prest2' },
+      ],
+    });
+    expect(creados).toHaveLength(2);
+    expect(creados.map((p) => p.id)).toEqual(['p1', 'p2']);
+    expect(creados.map((p) => p.prestacionId)).toEqual(['prest1', 'prest2']);
+  });
+
+  it('un error del servidor (falla parcial del lote) rechaza con Error en castellano, sin texto técnico (mismo contrato que create())', async () => {
+    functionsInvoke.mockResolvedValue({
+      data: null,
+      error: { context: new Response(JSON.stringify({ error: 'RAISE EXCEPTION algo técnico interno' }), { status: 400 }) },
+    });
+
+    await expect(supabasePresupuestoRepository.createLote(LOTE)).rejects.toThrow(
+      'No se pudo guardar el presupuesto.',
+    );
+  });
+
+  it('403 lanza con el mensaje de falta de permiso de escritura (mismo contrato de errores que create())', async () => {
+    functionsInvoke.mockResolvedValue({ data: null, error: { context: new Response(null, { status: 403 }) } });
+
+    await expect(supabasePresupuestoRepository.createLote(LOTE)).rejects.toThrow(
+      'No tenés permiso para modificar presupuestos.',
+    );
+  });
+
+  it('respuesta con una fila malformada lanza en vez de devolver un lote parcial (nunca se "completa" en el cliente lo que el servidor no confirmó)', async () => {
+    functionsInvoke.mockResolvedValue({
+      data: [{ ...PRESUPUESTO_API_COMPLETO, id: 'p1' }, { esto: 'no tiene forma de Presupuesto' }],
+      error: null,
+    });
+
+    await expect(supabasePresupuestoRepository.createLote(LOTE)).rejects.toThrow(
+      'No se pudo guardar el presupuesto.',
+    );
+  });
+
+  it('respuesta con menos filas que ítems enviados (servidor confirmó menos de lo pedido) lanza en vez de devolver un lote parcial', async () => {
+    functionsInvoke.mockResolvedValue({
+      data: [{ ...PRESUPUESTO_API_COMPLETO, id: 'p1' }],
+      error: null,
+    });
+
+    await expect(supabasePresupuestoRepository.createLote(LOTE)).rejects.toThrow(
+      'No se pudo guardar el presupuesto.',
+    );
+  });
+});
+
 describe('supabasePresupuestoRepository.update() (3.7 — OJO: asimetría con 3.5, acá el 404 SÍ lanza)', () => {
   beforeEach(() => vi.clearAllMocks());
 

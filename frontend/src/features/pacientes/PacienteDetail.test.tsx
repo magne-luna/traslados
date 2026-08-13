@@ -4,8 +4,10 @@ import userEvent from '@testing-library/user-event';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { RequisitosActividadRepository } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
+import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
+import type { Prestacion } from '../../shared/types/prestacion';
 import { PacienteDetail } from './PacienteDetail';
 
 function buildFakeObraSocialRepository(): ObraSocialRepository {
@@ -785,5 +787,83 @@ describe('PacienteDetail — aviso sobre el supuesto de ítems por tipo de activ
 
     // No repite el texto del AvisoModeloDatos ya existente (direccion_id) — distinto tema.
     expect(avisoSupuesto?.textContent ?? '').not.toMatch(/direccion_id/);
+  });
+});
+
+// presupuesto-prestaciones (design.md D1/D7, tasks.md 4.4 — PR 1 de la serie encadenada): sección
+// nueva "Catálogo de prestaciones", gateada por el módulo `pacientes` (mismo `CamposSoloLectura`
+// que Direcciones/Personas a cargo, vía PrestacionesEditor).
+describe('PacienteDetail — sección Catálogo de prestaciones (tasks.md 4.4)', () => {
+  it('agregar una prestación persiste vía actualizar()', async () => {
+    const user = userEvent.setup();
+    const actualizar = vi.fn().mockResolvedValue(basePaciente);
+
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={actualizar}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    const tituloPrestaciones = await screen.findByRole('heading', { name: /catálogo de prestaciones/i });
+    const seccionPrestaciones = tituloPrestaciones.closest('section');
+    if (!seccionPrestaciones) throw new Error('No se encontró la <section> de "Catálogo de prestaciones"');
+
+    await user.type(within(seccionPrestaciones).getByLabelText(/nombre de la prestación/i), 'Kinesiología');
+    await user.click(within(seccionPrestaciones).getByRole('button', { name: /agregar prestación/i }));
+
+    expect(actualizar).toHaveBeenCalledWith(
+      'paciente-martina',
+      { prestaciones: [expect.objectContaining({ pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true })] },
+    );
+  });
+
+  it('sin permiso de escritura, la sección de prestaciones queda de solo lectura, pero las prestaciones cargadas siguen legibles', () => {
+    const conPrestacion: Paciente = {
+      ...basePaciente,
+      prestaciones: [{ id: 'prest-1', pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true } satisfies Prestacion],
+    };
+
+    render(
+      <PuedeEscribirContext.Provider value={false}>
+        <PacienteDetail
+          paciente={conPrestacion}
+          crear={vi.fn()}
+          actualizar={vi.fn()}
+          obrasSociales={[]}
+          obraSocialRepository={buildFakeObraSocialRepository()}
+          documentoRepository={buildFakeDocumentoRepository()}
+          onCreated={vi.fn()}
+          onBack={vi.fn()}
+        />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    expect(screen.getByText('Kinesiología')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /agregar prestación/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /editar kinesiología/i })).toBeDisabled();
+  });
+
+  it('sin paciente.prestaciones (undefined, backend sin extender todavía), la sección se muestra vacía sin romper', () => {
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/no hay prestaciones/i)).toBeInTheDocument();
   });
 });

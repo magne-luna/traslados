@@ -17,13 +17,17 @@ import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ActualizacionPresupuesto, Autorizacion, NuevoPresupuesto, Presupuesto } from '../../shared/types/presupuesto';
 import { AutorizacionForm, type AutorizacionFormValues } from './AutorizacionForm';
-import { PresupuestoForm, type PresupuestoFormValues } from './PresupuestoForm';
+import { PresupuestoForm, type PresupuestoFormSubmission, type PresupuestoFormValues } from './PresupuestoForm';
 import { PresupuestoResumen } from './PresupuestoResumen';
 
 interface PresupuestoDetailProps {
   /** null = alta de un presupuesto nuevo; la sección de autorización solo aplica en edición. */
   presupuesto: Presupuesto | null;
   crear: (data: NuevoPresupuesto) => Promise<Presupuesto>;
+  /** Alta atómica de N presupuestos (presupuesto-prestaciones, tasks.md Fase 8, design.md D9):
+   * solo se invoca desde el submit `modo: 'lote'` de PresupuestoForm — la rama por-prestacion en
+   * ALTA. La edición nunca produce este modo (D9: "la edición no bifurca"). */
+  crearLote: (datas: NuevoPresupuesto[]) => Promise<Presupuesto[]>;
   actualizar: (id: string, data: ActualizacionPresupuesto) => Promise<Presupuesto>;
   /** Se puebla desde PacienteRepository.list() en el composition root — solo lectura (design.md Decisión 8). */
   pacientes: Paciente[];
@@ -54,6 +58,7 @@ function toPersistedValues(values: PresupuestoFormValues): NuevoPresupuesto {
     monto: values.monto,
     fechaEmision: values.fechaEmision,
     archivo: values.archivo,
+    prestacionId: values.prestacionId,
   };
 }
 
@@ -67,6 +72,7 @@ function toPersistedValues(values: PresupuestoFormValues): NuevoPresupuesto {
 export function PresupuestoDetail({
   presupuesto,
   crear,
+  crearLote,
   actualizar,
   pacientes,
   obrasSociales,
@@ -110,11 +116,23 @@ export function PresupuestoDetail({
     };
   }, [presupuesto, autorizacionRepository]);
 
-  async function handleSubmitGeneral(values: PresupuestoFormValues) {
+  // Dispatch de la bifurcación (design.md D9, tasks.md Fase 8): PresupuestoForm ya resolvió qué
+  // rama corresponde — acá solo se traduce el `modo` del submit a la llamada de repository
+  // correcta. `modo: 'lote'` SOLO puede llegar en alta (`presupuesto === null`): D9 dice
+  // explícitamente que la edición nunca bifurca, así que PresupuestoForm nunca lo produce con
+  // `initial` presente. Tras un alta en lote no hay un único presupuesto al que navegar — se
+  // vuelve al listado (`onBack`), donde los N presupuestos nuevos ya aparecen.
+  async function handleSubmit(submission: PresupuestoFormSubmission) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const persisted = toPersistedValues(values);
+      if (submission.modo === 'lote') {
+        await crearLote(submission.items.map(toPersistedValues));
+        onBack();
+        return;
+      }
+
+      const persisted = toPersistedValues(submission.values);
       if (presupuesto === null) {
         const creado = await crear(persisted);
         onCreated(creado);
@@ -191,7 +209,7 @@ export function PresupuestoDetail({
             }
             pacientes={pacientes}
             obrasSociales={obrasSociales}
-            onSubmit={handleSubmitGeneral}
+            onSubmit={handleSubmit}
             onCancel={presupuesto ? () => setEditing(false) : onBack}
             submitting={submitting}
             submitError={submitError}
