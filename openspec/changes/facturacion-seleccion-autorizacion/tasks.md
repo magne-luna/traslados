@@ -186,10 +186,14 @@
       (siguen `SECURITY INVOKER`, no aparecen en la lista). **Comparar este baseline (15 WARN)
       contra la corrida posterior a 1B.4** para confirmar que el `db push` no introduce hallazgos
       nuevos.
-- [ ] 1B.4 **Aplicar las dos migraciones** — **la usuaria / Enzo**. Bloquea la §3 (el swap del
+- [x] 1B.4 **Aplicar las dos migraciones** — **la usuaria / Enzo**. Bloquea la §3 (el swap del
       wizard). Registrar el resultado del `db push` y cualquier hallazgo de
       `supabase db advisors --linked --type security` (delta contra el baseline de 1B.4a de este
       change, y contra el ya conocido de `integracion-facturacion` 1B.6).
+      **Aplicado 2026-08-13** por Enzo vía `supabase db push --linked` — ambas migraciones aplicadas
+      sin error. Seguridad reconfirmada: `select proname, prosecdef from pg_proc where proname in
+      ('crear_factura_completa', 'actualizar_factura_completa')` → `false` en ambas
+      (`SECURITY INVOKER`).
 - [ ] 1B.5 Verificación manual: alta de una factura con una autorización elegida en el paso 2 →
       `facturas.autorizacion_id` queda persistido con ese id. **Pendiente — la hace la usuaria.**
 - [ ] 1B.6 Verificación manual del caso que puede borrar el vínculo: editar **solo el estado** de una
