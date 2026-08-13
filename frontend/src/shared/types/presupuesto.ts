@@ -32,11 +32,22 @@ export interface Presupuesto {
   pacienteId: string;
   /** Referencia por id a la obra social (FE-2) a la que se dirige el presupuesto, nunca embebida. */
   obraSocialId: string;
-  /** Importe único propuesto (docx: `Monto`). NO es un desglose por prestación (design.md Discrepancia 4). */
+  /** Importe único propuesto (docx: `Monto`). NO es un desglose por prestación (design.md Discrepancia 4).
+   * Agregar `prestacionId` (PR 2 de `presupuesto-prestaciones`) NO cambia esto: `monto` sigue siendo
+   * un único valor numérico en las dos modalidades (KB discrepancia #13, no reabierta — design.md D5). */
   monto: number;
   /** ISO date. */
   fechaEmision: string;
   archivo?: ArchivoAdjunto;
+  /**
+   * Referencia opcional a `pacientes.prestaciones` (`presupuesto-prestaciones`, design.md D1/D5/D9).
+   * Poblado únicamente cuando la obra social del presupuesto tiene `modalidadFacturacion ===
+   * 'por-prestacion'` (un presupuesto por prestación, alta vía `createLote`). En modalidad `general`
+   * queda SIEMPRE `undefined` — el desglose por prestación de esa modalidad vive solo en el
+   * formulario (`PresupuestoLineasEditor`, PR 3), nunca en la base. NO reabre la #13: `monto` no
+   * cambia de tipo, nullability ni semántica al agregar este campo.
+   */
+  prestacionId?: string;
 }
 
 export interface Autorizacion {

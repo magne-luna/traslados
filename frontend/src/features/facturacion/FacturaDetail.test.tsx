@@ -67,6 +67,7 @@ function buildPresupuestoRepository(): PresupuestoRepository {
     list: vi.fn().mockResolvedValue([]),
     getById: vi.fn(),
     create: vi.fn(),
+    createLote: vi.fn(),
     update: vi.fn(),
   };
 }

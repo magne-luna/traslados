@@ -6,6 +6,7 @@ import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSo
 import type { RequisitosActividadRepository } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ActualizacionPaciente, Cud, Direccion, NuevoPaciente, Paciente, PersonaACargo } from '../../shared/types/paciente';
+import type { Prestacion } from '../../shared/types/prestacion';
 import { CUD_CHIP_KIND, CUD_CHIP_LABEL } from '../../shared/lib/pacientes/cudCopy';
 import { estadoCud } from '../../shared/lib/pacientes/estadoCud';
 import { CudFields } from './CudFields';
@@ -14,6 +15,7 @@ import { PacienteDocumentos } from './PacienteDocumentos';
 import { PacienteForm, type PacienteFormValues } from './PacienteForm';
 import { nombreCompleto, PacienteResumen } from './PacienteResumen';
 import { PersonasACargoEditor } from './PersonasACargoEditor';
+import { PrestacionesEditor } from './PrestacionesEditor';
 
 interface PacienteDetailProps {
   /** null = alta de un paciente nuevo; el resto de las secciones solo aplica en edición. */
@@ -140,6 +142,22 @@ export function PacienteDetail({
     }
   }
 
+  // presupuesto-prestaciones (design.md D1/D7, tasks.md 4.4 — PR 1 de la serie encadenada): mismo
+  // patrón que handleDireccionesChange, para la sección de gateo/UI. `SupabasePacienteRepository`
+  // real todavía no lee ni escribe la clave `prestaciones` (la tabla se crea en Fase 3 de
+  // tasks.md, sin aplicar todavía) — esta sección persiste en memoria por ahora; el wiring de
+  // persistencia real llega en un PR posterior, una vez aplicada la migración. Ver comentario en
+  // `shared/types/paciente.ts` (campo `prestaciones` opcional) y en `PrestacionesEditor.tsx`.
+  async function handlePrestacionesChange(prestaciones: Prestacion[]) {
+    if (paciente === null) return;
+    setSectionError(null);
+    try {
+      await actualizar(paciente.id, { prestaciones });
+    } catch (err) {
+      setSectionError(toErrorMessage(err));
+    }
+  }
+
   const estado = paciente?.cud ? estadoCud(paciente.cud, new Date()) : null;
 
   return (
@@ -249,6 +267,24 @@ export function PacienteDetail({
               direcciones={paciente.direcciones}
               onChange={handleDireccionesChange}
               documentosPorDireccion={documentosPorDireccion}
+            />
+          </Section>
+
+          <Section label="Prestaciones" title="Catálogo de prestaciones">
+            {/* presupuesto-prestaciones (design.md D1, tasks.md Fase 4 — PR 1 de la serie
+                encadenada): catálogo nuevo, sin equivalente en el docx (§Discrepancias, entrada
+                nueva pendiente de D5 hasta PR 2). Se agrega para que un presupuesto (PR 2) pueda
+                asociarse a UNA prestación puntual cuando la obra social factura "por-prestación". */}
+            <AvisoModeloDatos>
+              Catálogo nuevo, sin equivalente en el docx: cada prestación pertenece a{' '}
+              <strong>este paciente</strong> (no es un catálogo global). Sirve para asociar un
+              presupuesto a una prestación puntual cuando la obra social factura por prestación —
+              ver `knowledge-base/04_modelo_de_datos.md` §Discrepancias.
+            </AvisoModeloDatos>
+            <PrestacionesEditor
+              pacienteId={paciente.id}
+              prestaciones={paciente.prestaciones ?? []}
+              onChange={handlePrestacionesChange}
             />
           </Section>
 

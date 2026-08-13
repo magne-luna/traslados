@@ -8,6 +8,7 @@ function buildFakeRepository(): PresupuestoRepository {
     list: vi.fn().mockResolvedValue([]),
     getById: vi.fn().mockResolvedValue(null),
     create: vi.fn(),
+    createLote: vi.fn(),
     update: vi.fn(),
   };
 }

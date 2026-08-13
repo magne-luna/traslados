@@ -61,6 +61,54 @@ describe('mockPresupuestoRepository', () => {
     expect(presupuestos.map((p) => p.monto)).toContain(999);
   });
 
+  it('createLote() persiste los N presupuestos del lote de una sola vez (6.3, semántica atómica simulada)', async () => {
+    await flushLatency(mockPresupuestoRepository.list());
+
+    const lote = [
+      buildNuevoPresupuesto({ monto: 100, prestacionId: 'prest1' }),
+      buildNuevoPresupuesto({ monto: 200, prestacionId: 'prest2' }),
+      buildNuevoPresupuesto({ monto: 300, prestacionId: 'prest3' }),
+    ];
+
+    const creados = await flushLatency(mockPresupuestoRepository.createLote(lote));
+
+    expect(creados).toHaveLength(3);
+    expect(new Set(creados.map((p) => p.id)).size).toBe(3);
+
+    const presupuestos = await flushLatency(mockPresupuestoRepository.list());
+    expect(presupuestos.map((p) => p.monto)).toEqual(expect.arrayContaining([100, 200, 300]));
+  });
+
+  it('createLote() con un lote vacío rechaza sin persistir nada (defensa en profundidad, D9)', async () => {
+    await flushLatency(mockPresupuestoRepository.list());
+    const antes = await flushLatency(mockPresupuestoRepository.list());
+
+    await expect(mockPresupuestoRepository.createLote([])).rejects.toThrow();
+
+    const despues = await flushLatency(mockPresupuestoRepository.list());
+    expect(despues).toHaveLength(antes.length);
+  });
+
+  it('createLote() con un ítem inválido no persiste ningún presupuesto del lote, ni siquiera los válidos anteriores (semántica atómica)', async () => {
+    await flushLatency(mockPresupuestoRepository.list());
+    const antes = await flushLatency(mockPresupuestoRepository.list());
+
+    const loteConUnoInvalido = [
+      buildNuevoPresupuesto({ monto: 111 }),
+      buildNuevoPresupuesto({ monto: 222 }),
+      // @ts-expect-error -- ítem inválido a propósito: monto no numérico, simula la fila 3 que
+      // rompe una restricción en la implementación real.
+      buildNuevoPresupuesto({ monto: 'no-es-un-numero' }),
+    ];
+
+    await expect(mockPresupuestoRepository.createLote(loteConUnoInvalido)).rejects.toThrow();
+
+    const despues = await flushLatency(mockPresupuestoRepository.list());
+    expect(despues).toHaveLength(antes.length);
+    expect(despues.map((p) => p.monto)).not.toContain(111);
+    expect(despues.map((p) => p.monto)).not.toContain(222);
+  });
+
   it('getById resuelve null cuando el id no existe', async () => {
     const found = await flushLatency(mockPresupuestoRepository.getById('no-existe'));
 

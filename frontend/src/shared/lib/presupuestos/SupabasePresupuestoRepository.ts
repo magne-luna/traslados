@@ -56,6 +56,29 @@ export const supabasePresupuestoRepository: PresupuestoRepository = {
     return creado;
   },
 
+  async createLote(nuevos) {
+    const { data, error } = await supabase.functions.invoke('presupuestos', {
+      method: 'POST',
+      body: nuevos.map(toCrearPresupuestoPayload),
+    });
+    if (error) {
+      throw await mapearErrorEdgeFunction(error, { entidad: 'presupuesto', operacion: 'crear' });
+    }
+
+    const filas = Array.isArray(data) ? data : [];
+    const creados = [];
+    for (const fila of filas) {
+      const parseado = parsePresupuestoApi(fila);
+      if (!parseado) throw new Error('No se pudo guardar el presupuesto.');
+      creados.push(parseado);
+    }
+    // El servidor SIEMPRE confirma exactamente N filas para un lote de N ítems (atomicidad de
+    // crear_presupuestos_lote, D2): si confirma menos, algo se perdió entre el request y la
+    // respuesta — nunca se devuelve un lote parcial silenciosamente.
+    if (creados.length !== nuevos.length) throw new Error('No se pudo guardar el presupuesto.');
+    return creados;
+  },
+
   async update(id, cambios) {
     const { data, error } = await supabase.functions.invoke(`presupuestos/${id}`, {
       method: 'PATCH',
