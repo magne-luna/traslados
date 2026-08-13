@@ -45,6 +45,17 @@ describe('FacturaDocumentos', () => {
     expect(screen.queryByText(/C-07.*debe crear/i)).not.toBeInTheDocument();
   });
 
+  // integracion-facturacion, design.md D8, tasks.md 6.3: después del swap (5.2), Factura ya NO usa
+  // datos mock — el aviso de que "Factura todavía usa datos mock" quedó desactualizado. El aviso
+  // tiene que remitir explícitamente al futuro change transversal de documentos/storage.
+  it('remite explícitamente al futuro change de documentos/storage, no a que Factura use mocks', () => {
+    render(<FacturaDocumentos facturaId="factura-1" items={items} repository={buildFakeRepository()} />);
+    expect(screen.queryByText(/factura todav.a usa datos mock/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/swap parcial/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/documentos\/storage/i)).toBeInTheDocument();
+    expect(screen.getByText(/los adjuntos de la factura todavía no se persisten/i)).toBeInTheDocument();
+  });
+
   it('no bloquea nada visualmente aunque falten documentos requeridos (solo informa el estado)', async () => {
     render(<FacturaDocumentos facturaId="factura-1" items={items} repository={buildFakeRepository()} />);
     await waitFor(() => expect(screen.getAllByText(/falta/i).length).toBeGreaterThan(0));

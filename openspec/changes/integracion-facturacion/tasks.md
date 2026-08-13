@@ -449,20 +449,43 @@
 
 ## 6. Carteles de discrepancia y de fuente mixta
 
-- [ ] 6.1 **RED** — actualizar `FacturaAvisoDiscrepancias.tsx`: **retirar** las 4 discrepancias que el
-      schema real ya cerró (no existe `asistencia_prestacion`, no existe `documento_factura`, no
-      existe `fecha_estimada_cobro`, no existe `cantidad_km`). Dejar de afirmar como faltante algo que
-      existe es tan importante como señalar lo que falta.
-- [ ] 6.2 **RED** — **sumar** las discrepancias vigentes: el enum real tiene un estado que la app no
-      modela (N2), la fecha de emisión es un agregado sobre el docx (N1), y la factura **no congela**
-      la obra social con la que se emitió (§Open Questions).
-- [ ] 6.3 **RED** — `AvisoModeloDatos` en `FacturaDocumentos.tsx` (D8): los adjuntos de la factura
-      todavía no se persisten junto con la factura; remite al change de documentos/storage (fila 8 del
-      plan de integración).
-- [ ] 6.4 **RED** — `AvisoModeloDatos` en `AlertaCupo.tsx` (D9, **solo si la usuaria eligió la opción
-      A** en 0.4): la validación de cupo opera sobre fuente mixta hasta que Presupuestos se integre.
-- [ ] 6.5 Verificar que ningún cartel usa `style={{}}` y que todos reusan `AvisoModeloDatos` del
-      design system en vez de markup propio.
+- [x] 6.1 **RED → GREEN, hecho 2026-08-12.** `FacturaAvisoDiscrepancias.tsx`: **retiradas** las 4
+      discrepancias que el schema real ya cerró (`asistencia_prestacion`, `documento_factura`,
+      `fecha_estimada_cobro`, `cantidad_km` — las cuatro existen, verificado contra
+      `information_schema.columns` en 1.3). RED confirmado: se actualizó
+      `FacturaAvisoDiscrepancias.test.tsx` primero (6 tests nuevos afirmando ausencia del texto
+      viejo/presencia del nuevo) y falló contra el componente sin tocar (6 failed); luego se
+      reescribió el componente y los 9 tests del archivo pasaron.
+- [x] 6.2 **RED → GREEN, hecho 2026-08-12.** Mismo commit/archivo que 6.1: **sumadas** las
+      discrepancias vigentes en el mismo cartel único — el enum real conserva el literal
+      `'pendiente'` que la app no modela por separado (N2, se lee como sinónimo de `a-facturar`,
+      nunca se escribe), `fecha_factura` es un campo agregado sobre el docx (N1), y la factura no
+      congela la obra social con la que se emitió (§Open Questions).
+- [x] 6.3 **RED → GREEN, hecho 2026-08-12.** `AvisoModeloDatos` en `FacturaDocumentos.tsx` (D8)
+      actualizado: ya no dice que "Factura todavía usa datos mock" (quedó desactualizado tras el
+      swap de 5.2) — ahora dice explícitamente que los adjuntos de la factura todavía no se
+      persisten junto con la factura real y remite al futuro change transversal de
+      documentos/storage (mismo que Pacientes/Conductores/Vehículos). RED confirmado: test nuevo
+      en `FacturaDocumentos.test.tsx` falló contra el texto viejo (1 failed) antes de reescribir el
+      componente; GREEN con los 7 tests del archivo en verde.
+- [x] 6.4 **RED → GREEN, hecho 2026-08-12.** `AvisoModeloDatos` sumado en `AlertaCupo.tsx` (D9,
+      opción A confirmada en 0.4): mensaje en castellano sin tecnicismos internos ("el cupo
+      autorizado que se compara acá puede no reflejar autorizaciones recientes… hasta que
+      Presupuestos y Autorizaciones se integren con la base real…"), sin mencionar "fixture" ni
+      "localStorage" — con test dedicado que lo verifica. RED confirmado: 2 tests nuevos fallaron
+      contra el componente sin tocar; GREEN con los 7 tests del archivo en verde. Se verificó
+      además que los dos consumidores reales (`FacturaForm.tsx`, `FacturaAccionesEmision.tsx`)
+      siguen pasando sus tests íntegros tras envolver el status existente.
+- [x] 6.5 **Verificado 2026-08-12.** `rg 'style=\{\{' ` sobre los 3 archivos tocados → sin
+      resultados. Los 3 (`FacturaAvisoDiscrepancias.tsx`, `FacturaDocumentos.tsx`, `AlertaCupo.tsx`)
+      importan y usan `AvisoModeloDatos` de `design-system/components.tsx`, ningún markup propio de
+      cartel. `npx tsc -b --noEmit` y `oxlint` limpios sobre los 6 archivos (3 componentes + 3
+      tests). Suite focalizada: `FacturaAvisoDiscrepancias.test.tsx` (9),
+      `FacturaDocumentos.test.tsx` (7), `AlertaCupo.test.tsx` (7) = **23/23 verdes**;
+      `FacturaForm.test.tsx` (18) y `FacturaAccionesEmision.test.tsx` (3) también verdes
+      individualmente (una corrida conjunta de toda `features/facturacion/` mostró 8 timeouts
+      transitorios de carga de máquina en `FacturaForm.test.tsx`, no reproducibles corriendo el
+      archivo solo — mismo patrón de flakiness ya documentado en 5.5, no regresión de esta tarea).
 
 ## 7. Documentación (obligatoria, no opcional)
 

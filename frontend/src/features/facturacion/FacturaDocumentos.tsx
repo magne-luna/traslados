@@ -40,9 +40,10 @@ export function FacturaDocumentos({ facturaId, items, repository }: FacturaDocum
   return (
     <div className="flex flex-col gap-sm">
       <AvisoModeloDatos>
-        La tabla <code>documento_factura</code> ya existe (C-03), pero la subida real de
-        documentos de Factura sigue siendo simulada porque <code>Factura</code> todavía usa datos
-        mock (swap parcial, 2026-08-05).
+        La tabla <code>documento_factura</code> ya existe en la base real (con FK a la factura,
+        RLS y auditoría), pero los adjuntos de la factura todavía no se persisten junto con ella:
+        la carga sigue siendo simulada. Se resuelve en el futuro change transversal de
+        documentos/storage (mismo que Pacientes, Conductores y Vehículos), no en este.
       </AvisoModeloDatos>
       <DocumentChecklist
         items={items}
