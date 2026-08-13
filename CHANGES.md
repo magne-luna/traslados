@@ -38,7 +38,7 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 | 1 | Pacientes (C-05) | ✅ `integracion-pacientes` archivado (2026-08-07), 64/66 — solo falta un pase visual en navegador, ver `archive/2026-08-06-integracion-pacientes/PENDIENTE.md` | Ver bullet ✅ en §C-05 más abajo |
 | 2 | Obra Social (C-04) | ✅ `integracion-obra-social` archivado (2026-08-07), 69/70 — solo falta un pase visual en navegador, ver `archive/2026-08-06-integracion-obra-social/PENDIENTE.md` | Ver bullet ✅ en §C-04 más abajo. Hallazgo del apply: el schema real ya tenía casi todo lo que `design.md` planeaba (nombres/tipos distintos). D12 (RN-ID-02) se revirtió y luego se restauró el mismo día — la "confirmación" que la revertía nunca pasó, ver §C-04 |
 | 3 | Conductores + Vehículos (C-08/C-09) | 🔶 **reconciliado (2026-08-01), bloqueado en 1 gap** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). `openspec/changes/integracion-conductores-vehiculos/` (mock→Supabase de Vehículos+Conductores) se escribió en paralelo con `C-08-vehiculos-mantenimiento` de Enzo (ya mergeado a `main`, commit `f840a96`), sin que ninguno de los dos supiera del otro. **Vehículos**: reconciliado contra el backend real de Enzo (gasto, habilitaciones y kilometraje adoptan su implementación) — ver bullet ⚠️ en §C-08 más abajo, **bloqueado en un gap real** (falta fuente de datos para `mantenimientos`, necesita decisión de Enzo). **Conductores**: sin conflicto con lo que Enzo mergeó (confirmado, ninguna de sus 15 migraciones toca `conductores.conductores`/`conductores_vehiculos`); tanda de mapeo puro (`conductorMapping.ts`, `semanaIso.ts`) completa; el repository real (§7) queda bloqueado porque las migraciones de asignación semanal/estado (`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`) todavía no las escribió nadie |
-| 4 | Facturación (C-07) | ✅ **swap real completo (`integracion-facturacion`, 2026-08-12)** — las 5 decisiones de governance de §0 aprobadas, migraciones aplicadas, `FacturacionRoute.tsx` lee/escribe contra `SupabaseFacturaRepository`/`SupabaseCobroRepository` reales; falta solo la verificación manual en navegador con las 3 cuentas (`tasks.md` §8) | Ver bullet ✅ en §C-07 más abajo. Discrepancias N1-N6 y salvedad D9 (cupo sobre fuente mixta, autorizaciones de fixture) documentadas, no bloquean el swap |
+| 4 | Facturación (C-07) | ✅ **swap real completo (`integracion-facturacion`, 2026-08-12)** — las 5 decisiones de governance de §0 aprobadas, migraciones aplicadas, `FacturacionRoute.tsx` lee/escribe contra `SupabaseFacturaRepository`/`SupabaseCobroRepository` reales; falta solo la verificación manual en navegador con las 3 cuentas (`tasks.md` §8). 🔶 Además, `facturacion-seleccion-autorizacion` (2026-08-13) en progreso: reemplaza el prestador de texto libre del paso 2 por selección de autorización pendiente (`facturas.autorizacion_id`, N:1); governance y tipos/mapeo completos, migraciones escritas sin aplicar, swap del wizard bloqueado hasta que se apliquen | Ver bullet ✅ en §C-07 más abajo. Discrepancias N1-N6 y salvedad D9 (cupo sobre fuente mixta, autorizaciones de fixture) documentadas, no bloquean el swap. N7 (nueva, `facturacion-seleccion-autorizacion`) documentada, no bloquea |
 | 5 | Presupuestos (C-06) | ✅ **completo y archivado (2026-08-06)** (`integracion-presupuestos`, ahora en `openspec/changes/archive/2026-08-06-integracion-presupuestos/`) — las 8 secciones de `tasks.md` completas, `PresupuestosRoute.tsx` lee/escribe contra las Edge Functions reales | Verificación con 3 cuentas reales corrida por `curl` directo (no por navegador, decisión de la usuaria) y RN-GL-02 parcialmente cumplida (`usuario_id` null en auditoría, gap aceptado) — dos desviaciones deliberadas y documentadas, ver bullet ✅ en §C-06 más abajo |
 | 6 | Hojas de Ruta (C-10) | 🔶 en progreso (apply `integracion-hojas-de-ruta`, 2026-08-04 — WU5a, documentación, completada) | Ver bullet ⚠️ en §C-10 más abajo |
 | 7 | Dashboard (C-11) | ⏳ pendiente | Va último — agrega datos de todos los repos reales de arriba |
@@ -1015,6 +1015,29 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `AlertaCupo.tsx`) — la alerta de cupo sigue operando sobre autorizaciones de fixture hasta que
   `integracion-presupuestos` se cablee acá, ver bullet siguiente y §C-06 más abajo. Queda pendiente
   únicamente la verificación manual en navegador con las tres cuentas reales (`tasks.md` §8).
+- **🔶 En progreso — `facturacion-seleccion-autorizacion`** (propose 2026-08-13, mismo dominio
+  CRÍTICO, gobernanza propia aprobada 2026-08-13): reemplaza el paso 2 del wizard de alta de
+  factura ("Obra social / Prestador", dos `Input` de texto libre sin entidad detrás) por la
+  **selección explícita de una autorización pendiente de facturar** del paciente elegido en el
+  paso 1, derivada client-side (`PresupuestoRepository.list()` + `AutorizacionRepository
+  .getByPresupuestoId()`, mismo patrón O(N) que ya paga hoy `resolverCupoAutorizado`, sin
+  endpoints ni métodos de repository nuevos). Agrega `facturas.autorizacion_id UUID REFERENCES
+  facturacion.autorizacion(id)` (nullable, **sin `UNIQUE`**: la relación es **N:1** — una
+  autorización habilita varias facturas en el tiempo, una por período, coherente con que
+  `cupoMensualDias`/`cupoMensualKm` son un cupo mensual recurrente) y reemplaza
+  (`CREATE OR REPLACE FUNCTION`) las dos RPC vivas de facturación para leer/escribir ese vínculo.
+  `AlertaCupo`/`resolverCupoAutorizado` dejan de adivinar la autorización (la primera con cupo
+  cargado) y pasan a derivar el cupo de la autorización **elegida**. De paso retira
+  `prestadorNombre`/`prestadorDomicilio` del alta (remanente sin columna real del change ya
+  revertido `sacar-prestadores`, no una discrepancia con el docx). **Riesgo aceptado y explícito**:
+  no hay control de doble facturación del mismo período — el picker no lleva lógica de período, se
+  confía en que la usuaria no elige la misma autorización dos veces para el mismo mes; es una
+  asunción de negocio confirmada con la usuaria, documentada como riesgo, no como garantía del
+  sistema (ver `10_preguntas_abiertas.md`). Discrepancia N7 documentada en
+  `04_modelo_de_datos.md` §Discrepancias. **Estado a la fecha**: governance (§0) y tipos/mapeo
+  aditivos (§2) completos con TDD (340 tests verdes); migraciones escritas pero **no aplicadas**
+  (§1B, las aplica la usuaria/Enzo); el swap real del wizard (§3) sigue **bloqueado** hasta que se
+  apliquen. Detalle completo en `openspec/changes/facturacion-seleccion-autorizacion/`.
 - **Historial de la decisión de governance (a cargo de Enzo/backend, ya resuelto)** — portón §0 de
   `tasks.md`, gobernanza CRITICO, las 5 decisiones que bloqueaban el apply:
   - **D3** — agregar `facturacion.facturas.fecha_factura DATE` (nullable). Única modificación de

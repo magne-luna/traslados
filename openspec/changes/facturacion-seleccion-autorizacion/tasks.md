@@ -319,16 +319,29 @@
 
 ## 4. Documentación (obligatoria, no opcional)
 
-- [ ] 4.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias — nueva entrada **N7**:
+- [x] 4.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias — nueva entrada **N7**:
       `facturas.autorizacion_id` es un agregado sobre el docx (el docx no prevé ninguna referencia
       de la Factura a la Autorización), marcada para confirmar con el cliente / quien mantiene el
       docx, no resuelta unilateralmente.
-- [ ] 4.2 `CHANGES.md` §C-07: registrar el cambio del paso 2 (prestador → autorización), la columna
+      **Hecho 2026-08-13**: entrada N7 agregada después de N6 (bloque "Facturación vs. esquema real
+      de `C-07`"), documentando también que `prestadorNombre`/`prestadorDomicilio` se retiran del
+      alta de factura por ser remanente de `sacar-prestadores` sin columna real, no una discrepancia
+      con el docx.
+- [x] 4.2 `CHANGES.md` §C-07: registrar el cambio del paso 2 (prestador → autorización), la columna
       nueva `autorizacion_id`, el reemplazo de las dos RPC, y el riesgo aceptado de "sin control de
       doble facturación del mismo período" como asunción de negocio explícita, no como garantía del
       sistema.
+      **Hecho 2026-08-13**: bullet nuevo agregado en §C-07 (después del bullet ✅ de
+      `integracion-facturacion`, antes del "Historial de la decisión de governance") + fila
+      actualizada en la tabla resumen (§Plan de integración, dominio Facturación C-07), con el
+      estado real a la fecha: governance y §2 completos, migraciones escritas sin aplicar, §3
+      bloqueada.
 - [ ] 4.3 `AvisoModeloDatos` (design-system) en el paso 2 del wizard o en el detalle de factura,
       señalando la discrepancia N7 — mismo patrón ya usado en `integracion-facturacion` §6.
+      **Diferida 2026-08-13**: requiere editar `FacturaForm.tsx` (o el detalle de factura), que es
+      código de aplicación de la §3 — bloqueada por §1B.4 (migraciones sin aplicar). La
+      documentación textual (4.1/4.2) alcanza para esta fase; el cartel de UI se agrega junto con el
+      selector real de autorizaciones cuando la §3 se desbloquee, no antes.
 
 ---
 

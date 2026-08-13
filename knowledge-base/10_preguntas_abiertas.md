@@ -390,6 +390,41 @@ change — se registra acá y queda para confirmar.
   catálogo clínico (tipado, por paciente)? **No se resuelve acá.** **Decisor**: cliente + backend,
   en el change de Facturación.
 
+## Preguntas nuevas — `facturacion-seleccion-autorizacion` (2026-08-13)
+
+Surgidas de `design.md` §Open Questions (`openspec/changes/facturacion-seleccion-autorizacion/`).
+Ninguna se cierra en este change (§4 de `tasks.md`, alcance acotado a lo ya aprobado) — se
+registran acá y quedan para confirmar.
+
+- **¿Hace falta un aviso visual cuando la autorización elegida ya tiene una factura del mismo mes?**
+  Pregunta heredada del proposal. **Decisión tomada explícitamente: NO se agrega en este change** —
+  agregarlo exigiría lógica de período en el picker que D3 excluye a propósito (`autorizacionesPendientes`
+  no filtra por mes ya facturado). Sigue **NO resuelta**, se puede pedir como change aparte.
+  **Decisor**: usuaria.
+- **¿La factura debe poder facturarse dos veces contra la misma autorización en el mismo período?**
+  Hoy el sistema **no lo impide ni lo detecta** (D3, riesgo de negocio aceptado explícitamente por la
+  usuaria, no un bug). Si el negocio dice que no, es un `UNIQUE (autorizacion_id, mes_facturado,
+  anio_facturado)` parcial + una validación — change propio. **Decisor**: cliente / usuaria.
+- **¿`facturas.autorizacion_id` debería ser `NOT NULL` a futuro?** Requeriría backfill de las
+  facturas ya creadas (misma clase de pregunta que N3 de `integracion-facturacion`, ver bloque
+  arriba). Hoy no hay fuente que lo pida. **Decisor**: backend.
+- **⚠️ Corrección de proceso, no una pregunta nueva**: `design.md` §Context de este change registra
+  un hallazgo que **corrige al proposal y al plan aprobado** — la cita original ("varias
+  autorizaciones simultáneas, una por prestación, confirmado en `Presupuesto.prestacionId` y
+  `openspec/changes/presupuesto-prestaciones/design.md` L434") no pudo verificarse en el momento en
+  que se escribió ese `design.md`: un grep sobre `frontend/src` no encontró `prestacionId` y la
+  carpeta `openspec/changes/presupuesto-prestaciones/` no aparecía. **Verificado de nuevo el mismo
+  día (2026-08-13), en esta sesión de documentación**: `Presupuesto.prestacionId?: string` **sí
+  existe** (`frontend/src/shared/types/presupuesto.ts`), y `presupuesto-prestaciones` **sí existe**
+  como change y **ya se aplicó** (`CHANGES.md` §C-06, bullet "Reapertura post-archivo", 2026-08-12 —
+  un día antes de que este change abriera su propio governance). La discrepancia N8 del `design.md`
+  de este change (que da por cerrado "el campo no existe, la etiqueta se arma con datos reales") por
+  lo tanto **queda desactualizada**: cuando se implemente la §3 (bloqueada por §1B), conviene
+  reverificar si el selector puede etiquetar cada autorización por `Presupuesto.prestacionId` real
+  en vez de (o además de) fecha/monto/cupos, antes de asumir que el campo sigue sin existir.
+  **Decisor**: quien implemente la §3 de este change, revisando el estado real de
+  `presupuesto-prestaciones` antes de empezar.
+
 ## Insumos pendientes del cliente
 
 - Logo (árbol de discapacidad) y colores de marca; fondo de pantalla de referencia.

@@ -461,6 +461,22 @@ así que queda anotado acá hasta que se construya esa feature.
      resuelve acá** — es un problema de proceso, no de este change: quien clone el repo y corra
      `supabase db reset` obtiene un schema `facturacion` incapaz de sostener la app. Elevado a
      `10_preguntas_abiertas.md`.
+  N7. **`facturas.autorizacion_id` es un agregado sobre el docx** (detalle completo en
+     `openspec/changes/facturacion-seleccion-autorizacion/design.md` D1/D5, propose 2026-08-13): el
+     docx **no prevé** ninguna referencia de la Factura a la Autorización. Se agrega igual —
+     `facturas.autorizacion_id UUID REFERENCES facturacion.autorizacion(id)`, nullable, sin
+     `UNIQUE` — para que la factura registre qué autorización la habilitó (relación **N:1**: una
+     autorización genera una factura por período, sin filtro de "ya facturado este mes" — riesgo de
+     negocio aceptado explícitamente, no un bug; ver `CHANGES.md §C-07`). **No se resuelve
+     unilateralmente**: queda marcada para confirmar con el cliente / quien mantiene el docx. Cartel
+     pendiente con `AvisoModeloDatos` en el paso 2 del wizard, a agregar junto con el selector real
+     (bloqueado por la aplicación de las migraciones, ver `tasks.md` §1B/§3 del change).
+
+     De paso, este change **retira** `prestadorNombre`/`prestadorDomicilio` del alta de factura:
+     nunca fueron una discrepancia real con el docx (no tienen columna real en producción, ni en
+     `facturaMapping.ts` ni en las RPC) — eran un remanente de un change ya revertido
+     (`sacar-prestadores`) sin backend real detrás. Su baja es limpieza de frontend, no cambio de
+     schema.
 
 - **Panel principal y reportes** (detalle completo en `openspec/changes/dashboard-ui/design.md`
   §Discrepancias, propose validado 2026-07-25): comparación entre US-800 (`06_funcionalidades.md`
