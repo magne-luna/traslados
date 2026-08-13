@@ -142,13 +142,14 @@
 > El agente **escribe** los `.sql`; **la usuaria / Enzo los aplica**. La verificación manual es un
 > checklist de coordinación, no un paso automatizado.
 
-- [ ] 1B.1 `supabase/migrations/2026XXXXXXXXXX_factura_autorizacion_id.sql` (D1): `ALTER TABLE
+- [x] 1B.1 `supabase/migrations/20260813090000_factura_autorizacion_id.sql` (D1): `ALTER TABLE
       facturacion.facturas ADD COLUMN autorizacion_id UUID REFERENCES facturacion.autorizacion(id)`
       (nullable, sin `UNIQUE`, `ON DELETE` default) + `CREATE INDEX IF NOT EXISTS
-      idx_facturas_autorizacion_id ON facturacion.facturas (autorizacion_id)` — **con o sin
-      `CONCURRENTLY` según lo que haya resuelto 0.3**. Cabecera con qué agrega, por qué, y rollback
+      idx_facturas_autorizacion_id ON facturacion.facturas (autorizacion_id)` — sin `CONCURRENTLY`
+      per 0.3 (`count(*) = 0` verificado 2026-08-13). Cabecera con qué agrega, por qué, y rollback
       explícito (`DROP INDEX` + `DROP COLUMN`). No toca ninguna columna, policy ni tabla existente.
-- [ ] 1B.2 `supabase/migrations/2026XXXXXXXXXX_factura_rpc_autorizacion.sql` (D2): `CREATE OR
+      **Escrita 2026-08-13. No aplicada — la aplica la usuaria/Enzo (1B.4).**
+- [x] 1B.2 `supabase/migrations/20260813090001_factura_rpc_autorizacion.sql` (D2): `CREATE OR
       REPLACE FUNCTION` sobre `facturacion.crear_factura_completa` y
       `facturacion.actualizar_factura_completa`. En `crear_…`: una columna más en el `INSERT`,
       `(p_factura ->> 'autorizacion_id')::uuid`. En `actualizar_…`: el **mismo patrón `p_cambios ?
@@ -156,17 +157,39 @@
       (confundirlo con `->>` borraría `autorizacion_id` en cada cambio de estado). Se conservan
       **byte por byte**: `SECURITY INVOKER` explícito, `SET search_path = ''`, los códigos
       `452xx` existentes, la semántica de reemplazo completo de asistencias y la cabecera de
-      advertencia ⚠️⚠️ `NUNCA SECURITY DEFINER`.
-- [ ] 1B.3 **RED → GREEN.** Test de código fuente (`node:fs`, mismo patrón que
-      `facturaMigrations.test.ts` de `integracion-facturacion`) que verifica que las dos funciones
-      reemplazadas siguen declarando `SECURITY INVOKER` y no `SECURITY DEFINER`, y que
-      `actualizar_factura_completa` usa el operador `?` (no `->>`) para `autorizacion_id`. RED real:
-      forzar temporalmente `SECURITY DEFINER` o `->>` en el `.sql` y confirmar que el test falla,
-      revertir, confirmar GREEN.
+      advertencia ⚠️⚠️ `NUNCA SECURITY DEFINER`. **Escrita 2026-08-13. No aplicada — la aplica la
+      usuaria/Enzo (1B.4).**
+- [x] 1B.3 **RED → GREEN.** Test de código fuente extendido en
+      `frontend/src/shared/lib/facturacion/facturaMigrations.test.ts` (mismo patrón `node:fs` ya
+      usado ahí para `20260812160000_factura_rpc.sql`/`20260812150000_...indices.sql`) — 2 describe
+      blocks nuevos, 8 tests nuevos, que verifican que las dos funciones reemplazadas siguen
+      declarando `SECURITY INVOKER` y no `SECURITY DEFINER`, que `actualizar_factura_completa` usa
+      el operador `?` (no `->>`) para `autorizacion_id`, que `crear_factura_completa` lee
+      `autorizacion_id` como columna opcional del `INSERT`, que la columna nueva de D1 es nullable
+      sin `UNIQUE`/`NOT NULL`, y que el índice de D1 no usa `CONCURRENTLY`.
+      **RED real confirmado 2026-08-13**: se forzó temporalmente `SECURITY DEFINER` en
+      `crear_factura_completa` dentro de `20260813090001_factura_rpc_autorizacion.sql` (sed sobre
+      la primera ocurrencia) → el test `declara SECURITY INVOKER...` falló (`expected 1 to be 2`),
+      confirmando que detecta la regresión. Se revirtió el archivo desde backup y se re-corrió:
+      **GREEN, 20/20 tests en verde** (`facturaMigrations.test.ts` completo, incluye los 12 tests
+      preexistentes de `integracion-facturacion`).
+- [x] 1B.4a **Baseline de `supabase db advisors --linked --type security`, previo a la aplicación
+      (no se aplica esta sesión).** Corrido 2026-08-13 contra el proyecto vinculado
+      (`pkryfoljypuzfifofdwp`), **antes** de que exista `facturas.autorizacion_id` ni la RPC nueva:
+      **15 hallazgos, todos `WARN`** — 7 `anon_security_definer_function_executable` +
+      7 `authenticated_security_definer_function_executable` sobre las mismas 7 funciones
+      `SECURITY DEFINER` ya conocidas y aceptadas (`auditoria.log_action`,
+      `facturacion.validar_autorizacion_monto`, `modulos.tiene_permiso`, `usuarios.handle_new_user`,
+      `usuarios.prevent_rol_tampering`, `usuarios.track_egreso`, `usuarios.track_ingreso`) + 1
+      `auth_leaked_password_protection` (ya conocido, sin relación con este change). **Ningún
+      hallazgo nuevo** relacionado con `crear_factura_completa`/`actualizar_factura_completa`
+      (siguen `SECURITY INVOKER`, no aparecen en la lista). **Comparar este baseline (15 WARN)
+      contra la corrida posterior a 1B.4** para confirmar que el `db push` no introduce hallazgos
+      nuevos.
 - [ ] 1B.4 **Aplicar las dos migraciones** — **la usuaria / Enzo**. Bloquea la §3 (el swap del
       wizard). Registrar el resultado del `db push` y cualquier hallazgo de
-      `supabase db advisors --linked --type security` (delta contra el baseline ya conocido de
-      `integracion-facturacion` 1B.6).
+      `supabase db advisors --linked --type security` (delta contra el baseline de 1B.4a de este
+      change, y contra el ya conocido de `integracion-facturacion` 1B.6).
 - [ ] 1B.5 Verificación manual: alta de una factura con una autorización elegida en el paso 2 →
       `facturas.autorizacion_id` queda persistido con ese id. **Pendiente — la hace la usuaria.**
 - [ ] 1B.6 Verificación manual del caso que puede borrar el vínculo: editar **solo el estado** de una

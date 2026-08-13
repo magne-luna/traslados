@@ -135,3 +135,88 @@ describe('migración 20260812150000_factura_fecha_emision_indices.sql (1B.1)', (
     expect(fuente).not.toMatch(/^\s*ALTER TABLE.*DROP COLUMN/m);
   });
 });
+
+describe('migración 20260813090000_factura_autorizacion_id.sql (1B.1, facturacion-seleccion-autorizacion)', () => {
+  it('agrega autorizacion_id como columna nullable, referenciando facturacion.autorizacion, sin UNIQUE', () => {
+    const fuente = leerMigracion('20260813090000_factura_autorizacion_id.sql');
+    const codigoActivo = quitarComentariosYStrings(fuente);
+
+    expect(fuente).toContain(
+      'ADD COLUMN autorizacion_id UUID REFERENCES facturacion.autorizacion(id)',
+    );
+    expect(codigoActivo).not.toContain('NOT NULL');
+    expect(codigoActivo).not.toContain('UNIQUE');
+  });
+
+  it('crea el índice de la columna con IF NOT EXISTS y sin CONCURRENTLY (0.3: count(*) = 0 verificado)', () => {
+    const fuente = leerMigracion('20260813090000_factura_autorizacion_id.sql');
+    const codigoActivo = quitarComentariosYStrings(fuente);
+
+    expect(fuente).toContain(
+      'CREATE INDEX IF NOT EXISTS idx_facturas_autorizacion_id\n  ON facturacion.facturas (autorizacion_id)',
+    );
+    expect(codigoActivo).not.toContain('CONCURRENTLY');
+  });
+
+  it('no toca ninguna tabla, columna o policy existente de forma destructiva', () => {
+    const fuente = leerMigracion('20260813090000_factura_autorizacion_id.sql');
+    expect(fuente).not.toMatch(/^\s*DROP TABLE/m);
+    expect(fuente).not.toMatch(/^\s*ALTER TABLE.*DROP COLUMN/m);
+    expect(fuente).not.toMatch(/^\s*DROP POLICY/m);
+  });
+});
+
+describe('migración 20260813090001_factura_rpc_autorizacion.sql (1B.2/1B.3, facturacion-seleccion-autorizacion)', () => {
+  it('declara SECURITY INVOKER en las dos funciones reemplazadas y la cláusula activa nunca es SECURITY DEFINER', () => {
+    const fuente = leerMigracion('20260813090001_factura_rpc_autorizacion.sql');
+    const codigoActivo = quitarComentariosYStrings(fuente);
+
+    const ocurrenciasInvoker = codigoActivo.match(/SECURITY INVOKER/g) ?? [];
+    expect(ocurrenciasInvoker.length).toBe(2); // crear_factura_completa + actualizar_factura_completa
+    expect(codigoActivo).not.toContain('SECURITY DEFINER');
+  });
+
+  it('fija SET search_path a vacío en las dos funciones reemplazadas', () => {
+    const fuente = leerMigracion('20260813090001_factura_rpc_autorizacion.sql');
+    const codigoActivo = quitarComentariosYStrings(fuente);
+    const ocurrencias = codigoActivo.match(/SET search_path = ''/g) ?? [];
+    expect(ocurrencias.length).toBe(2);
+  });
+
+  it('usa CREATE OR REPLACE FUNCTION sobre las dos RPC vivas, sin DROP FUNCTION previo', () => {
+    const fuente = leerMigracion('20260813090001_factura_rpc_autorizacion.sql');
+
+    expect(fuente).toContain('CREATE OR REPLACE FUNCTION facturacion.crear_factura_completa(p_factura jsonb)');
+    expect(fuente).toContain(
+      'CREATE OR REPLACE FUNCTION facturacion.actualizar_factura_completa(p_id uuid, p_cambios jsonb)',
+    );
+    expect(fuente).not.toMatch(/^\s*DROP FUNCTION/m);
+  });
+
+  it('crear_factura_completa lee autorizacion_id del jsonb como columna opcional del INSERT', () => {
+    const fuente = leerMigracion('20260813090001_factura_rpc_autorizacion.sql');
+    expect(fuente).toContain("(p_factura ->> 'autorizacion_id')::uuid");
+  });
+
+  it('actualizar_factura_completa usa el operador jsonb `?` (no `->>` suelto) para autorizacion_id — la trampa central de este change', () => {
+    const fuente = leerMigracion('20260813090001_factura_rpc_autorizacion.sql');
+    expect(fuente).toContain("p_cambios ? 'autorizacion_id'");
+  });
+
+  it('conserva los 4 códigos de error 452xx existentes sin agregar ni quitar ninguno', () => {
+    const fuente = leerMigracion('20260813090001_factura_rpc_autorizacion.sql');
+
+    expect(fuente).toContain("USING ERRCODE = '45201'");
+    expect(fuente).toContain("USING ERRCODE = '45202'");
+    expect(fuente).toContain("USING ERRCODE = '45203'");
+    expect(fuente).toContain("USING ERRCODE = '45204'");
+  });
+
+  it('el COMMENT ON FUNCTION de las dos funciones deja escrita la prohibición de SECURITY DEFINER', () => {
+    const fuente = leerMigracion('20260813090001_factura_rpc_autorizacion.sql');
+    const bloqueComentarios = fuente.slice(fuente.indexOf('COMMENT ON FUNCTION'));
+
+    expect(bloqueComentarios).toContain('SECURITY DEFINER');
+    expect(bloqueComentarios.toLowerCase()).toContain('nunca');
+  });
+});
