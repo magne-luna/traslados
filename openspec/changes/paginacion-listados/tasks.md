@@ -595,6 +595,7 @@
       selectores como el próximo paso si el padrón de pacientes sigue creciendo.
       **→ Documentado: nota completa bajo §C-05 (`pacientes-fichas-clinicas`), referencias cruzadas
       cortas bajo §C-04, §C-09 y §C-10.**
-- [ ] 19.5 Pase visual final en navegador con la usuaria sobre las 4 pantallas tocadas.
+- [x] 19.5 Pase visual final en navegador con la usuaria sobre las 4 pantallas tocadas.
+      **→ Confirmado por la usuaria (2026-08-12), da luz verde para archivar.**
 - [ ] 19.6 `/opsx:archive paginacion-listados`.
 </content>
