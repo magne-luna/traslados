@@ -164,18 +164,19 @@ describe('FacturaDetail', () => {
     expect(screen.getByText('A facturar')).toBeInTheDocument();
   });
 
-  it('agrupa las 5 discrepancias de impacto backend en un único AvisoModeloDatos', () => {
+  it('agrupa las discrepancias vigentes contra el docx en un único AvisoModeloDatos', () => {
+    // Tras integracion-facturacion (tasks.md 1.3/6.1), las 4 discrepancias originales de C-07
+    // (AsistenciaPrestacion, documento_factura, fecha_estimada_cobro, cantidad_km) quedaron
+    // CERRADAS: existen de verdad en el schema real. El cartel ahora lista las vigentes (D12
+    // N1/N2/Open Questions) — ver FacturaAvisoDiscrepancias.tsx.
     renderDetail();
     const avisos = screen.getAllByRole('note');
-    // El AvisoModeloDatos general (Decisión 14) es uno solo; puede haber otro específico en la
-    // sección de documentos (10.4) — se verifica que exista al menos el agrupado con las 5 claves.
-    const agrupado = avisos.find((aviso) => aviso.textContent?.includes('AsistenciaPrestacion'));
+    const agrupado = avisos.find((aviso) => aviso.textContent?.includes('Traslados-Modelo-Datos.docx'));
     expect(agrupado).toBeTruthy();
     const texto = agrupado?.textContent ?? '';
-    expect(texto).toMatch(/documento_factura|documentos por factura/i);
-    expect(texto).toMatch(/fecha_estimada_cobro|fecha estimada de cobro/i);
-    expect(texto).toMatch(/cantidad_km|cantidad de km/i);
-    expect(texto).toMatch(/estado/i);
+    expect(texto).toMatch(/pendiente/i);
+    expect(texto).toMatch(/fecha_factura|fecha de emisión/i);
+    expect(texto).toMatch(/obra social/i);
   });
 
   it('emite la factura (a-facturar → facturado): congela descripción, identificador y calcula fecha estimada de cobro', async () => {

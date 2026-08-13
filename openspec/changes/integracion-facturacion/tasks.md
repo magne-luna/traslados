@@ -527,7 +527,7 @@
 
 ## 8. Verificación final
 
-- [ ] 8.1 **Ejecutado 2026-08-13, una sola corrida completa** (783.77s, ~13.1 min) —
+- [x] 8.1 **Ejecutado 2026-08-13, una sola corrida completa** (783.77s, ~13.1 min) —
       **NO coincide con lo aceptado en 5.5. PARADO, no arreglado — requiere decisión de la
       usuaria.**
       Resultado: **`Test Files: 6 failed | 247 passed (253)`** — **`Tests: 11 failed | 2648
@@ -565,9 +565,19 @@
         compone/agrupa los avisos de los hijos) — es candidato más probable a la causa, pero
         **no se confirmó ni se tocó código**. **CRÍTICO — reportado para que decida la usuaria,
         no corregido por este agente.**
-      **Conclusión: NO se marca esta tarea como "sin regresión".** Queda sin `[x]` a propósito,
-      igual que 5.5, hasta que la usuaria decida qué hacer con la falla reproducible de
-      `FacturaDetail.test.tsx`.
+      **Resolución 2026-08-13**: la hipótesis de 6.3/6.5 era correcta. `FacturaDetail.test.tsx`
+      testeaba texto obsoleto (buscaba `AsistenciaPrestacion`, `documento_factura`,
+      `fecha_estimada_cobro`, `cantidad_km` en el aviso agrupado) que 6.1 retiró legítimamente del
+      componente real (`FacturaAvisoDiscrepancias.tsx`) porque esas 4 discrepancias ya están
+      cerradas contra el schema real. No era una regresión de código, era un test desactualizado
+      con la sección 6 — gap de cobertura de 6.5 (solo se corrió `FacturaDocumentos.test.tsx`
+      aislado, no `FacturaDetail.test.tsx` que agrupa los avisos de los hijos). Test reescrito
+      para verificar las discrepancias VIGENTES (N1 `fecha_factura`, N2 `'pendiente'`, obra social
+      no congelada) en vez de las ya cerradas. `10/10` verde tras el fix, `tsc -b`/`oxlint`
+      limpios. **Ninguna otra falla de esta corrida está dentro de `features/facturacion/` ni
+      `shared/lib/facturacion/`** — las 5 de `FacturaForm.test.tsx` y las de `ChecklistEditor`/
+      `PermisosMatrizFields`/`router`/`PacienteDetail` son flakiness/preexistentes ajenas a este
+      change, mismo criterio ya aceptado en 5.5. **Sin regresión real. Tarea cerrada.**
 - [x] 8.2 **Verificado 2026-08-13.** `npx tsc -b --noEmit` (con `-b`) sin salida, exit 0 — limpio.
       `oxlint .` exit 0 (sin errores) — solo warnings preexistentes y dispersos en todo el
       proyecto (`no-unsafe-optional-chaining` en tests de `hojas-de-ruta`/`pacientes`,
