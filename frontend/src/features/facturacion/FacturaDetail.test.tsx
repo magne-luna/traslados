@@ -165,18 +165,19 @@ describe('FacturaDetail', () => {
     expect(screen.getByText('A facturar')).toBeInTheDocument();
   });
 
-  it('agrupa las 5 discrepancias de impacto backend en un único AvisoModeloDatos', () => {
+  it('agrupa las discrepancias vigentes contra el docx en un único AvisoModeloDatos', () => {
+    // Tras integracion-facturacion (tasks.md 1.3/6.1), las 4 discrepancias originales de C-07
+    // (AsistenciaPrestacion, documento_factura, fecha_estimada_cobro, cantidad_km) quedaron
+    // CERRADAS: existen de verdad en el schema real. El cartel ahora lista las vigentes (D12
+    // N1/N2/Open Questions) — ver FacturaAvisoDiscrepancias.tsx.
     renderDetail();
     const avisos = screen.getAllByRole('note');
-    // El AvisoModeloDatos general (Decisión 14) es uno solo; puede haber otro específico en la
-    // sección de documentos (10.4) — se verifica que exista al menos el agrupado con las 5 claves.
-    const agrupado = avisos.find((aviso) => aviso.textContent?.includes('AsistenciaPrestacion'));
+    const agrupado = avisos.find((aviso) => aviso.textContent?.includes('Traslados-Modelo-Datos.docx'));
     expect(agrupado).toBeTruthy();
     const texto = agrupado?.textContent ?? '';
-    expect(texto).toMatch(/documento_factura|documentos por factura/i);
-    expect(texto).toMatch(/fecha_estimada_cobro|fecha estimada de cobro/i);
-    expect(texto).toMatch(/cantidad_km|cantidad de km/i);
-    expect(texto).toMatch(/estado/i);
+    expect(texto).toMatch(/pendiente/i);
+    expect(texto).toMatch(/fecha_factura|fecha de emisión/i);
+    expect(texto).toMatch(/obra social/i);
   });
 
   it('emite la factura (a-facturar → facturado): congela descripción, identificador y calcula fecha estimada de cobro', async () => {
@@ -193,10 +194,14 @@ describe('FacturaDetail', () => {
     expect(payload.identificadorFactura).toEqual({ origen: 'paciente.numeroAfiliado', valor: '45123456' });
   });
 
+  // `resolverCupoAutorizado` deriva el cupo de la autorización ELEGIDA (change
+  // `facturacion-seleccion-autorizacion`, design.md D6, tasks.md 3.6): ya no adivina vía
+  // `presupuestoRepository.list()` + `getByPresupuestoId` — la factura necesita `autorizacionId` y
+  // el repository resuelve por `getById`.
   it('exige confirmación explícita antes de emitir si excede el cupo autorizado, sin bloquear', async () => {
     const autorizacionRepository: AutorizacionRepository = {
       ...buildAutorizacionRepository(),
-      getByPresupuestoId: vi.fn().mockResolvedValue({
+      getById: vi.fn().mockResolvedValue({
         id: 'auth-1',
         presupuestoId: 'pres-1',
         estado: 'autorizada',
@@ -204,12 +209,12 @@ describe('FacturaDetail', () => {
         cupoMensualKm: 5,
       }),
     };
-    const presupuestoRepository: PresupuestoRepository = {
-      ...buildPresupuestoRepository(),
-      list: vi.fn().mockResolvedValue([{ id: 'pres-1', pacienteId: 'paciente-martina', obraSocialId: 'osecac', monto: 1000, fechaEmision: '2026-01-01' }]),
-    };
 
-    const { actualizar } = renderDetail({ presupuestoRepository, autorizacionRepository });
+    const { actualizar } = renderDetail({
+      factura: facturaAFacturar({ autorizacionId: 'auth-1' }),
+      facturasExistentes: [facturaAFacturar({ autorizacionId: 'auth-1' })],
+      autorizacionRepository,
+    });
 
     await userEvent.click(screen.getByRole('button', { name: /^emitir/i }));
 
@@ -271,17 +276,27 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
   });
 
   // Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`): "Nueva factura" arranca
-  // en el Paso 1 (solo Paciente) — AsistenciasEditor vive en el Paso 3, hay que elegir paciente y
-  // (esta obra social es "por-prestacion") completar nombre y domicilio del prestador (texto
-  // libre, change `sacar-prestadores`) antes de llegar a verlo.
+  // en el Paso 1 (solo Paciente) — AsistenciasEditor vive en el Paso 3, hay que elegir paciente,
+  // elegir una autorización pendiente en el Paso 2 (change `facturacion-seleccion-autorizacion`,
+  // design.md D4, tasks.md 3.3: "Siguiente" queda bloqueado sin elegir una) y avanzar antes de
+  // llegar a verlo.
   it('con write (sin admin): editar asistencias está activable (en modo edición del form)', async () => {
-    renderDetailConPermiso(true, { factura: null });
+    const presupuestoRepository: PresupuestoRepository = {
+      ...buildPresupuestoRepository(),
+      list: vi.fn().mockResolvedValue([{ id: 'pres-1', pacienteId: 'paciente-martina', obraSocialId: 'osecac', monto: 1000, fechaEmision: '2026-01-01' }]),
+    };
+    const autorizacionRepository: AutorizacionRepository = {
+      ...buildAutorizacionRepository(),
+      getByPresupuestoId: vi.fn().mockResolvedValue({ id: 'auth-1', presupuestoId: 'pres-1', estado: 'autorizada' }),
+    };
+
+    renderDetailConPermiso(true, { factura: null, presupuestoRepository, autorizacionRepository });
 
     await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
-    await userEvent.type(await screen.findByLabelText(/^nombre$/i), 'Traslados Andrea Pastor');
-    await userEvent.type(screen.getByLabelText(/^domicilio$/i, { selector: 'input' }), 'Av. Rivadavia 4500, CABA');
+    const autorizacion = await screen.findByLabelText(/^autorización$/i);
+    await userEvent.selectOptions(autorizacion, 'auth-1');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     // "Prestación" existe dos veces en el Paso 3: FacturaFormDatosBasicos (gateo tasks.md 4.3) y

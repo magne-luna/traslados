@@ -383,6 +383,101 @@ así que queda anotado acá hasta que se construya esa feature.
   mantiene el docx **antes** de cerrar el esquema de `factura`, `asistencia_prestacion`, `cobro` y
   `documento_factura` (governance CRITICO, `CHANGES.md §C-07`).
 
+- **Facturación vs. esquema real de `C-07`** (detalle completo en
+  `openspec/changes/integracion-facturacion/design.md` D12, propose 2026-08-12): comparación entre
+  las 5 discrepancias bloqueantes declaradas arriba (bullet "Facturación y Cobros") y el schema
+  `facturacion` real, verificado en vivo (`supabase db query --linked`, solo lectura, 2026-07-31)
+  antes del swap de `SupabaseFacturaRepository`/`SupabaseCobroRepository`.
+
+  **Cuatro de las cinco discrepancias declaradas ya no existen — la base las tenía resueltas antes
+  de que este change empezara:**
+  1. `asistencia_prestacion` — ✅ **CERRADA**: la tabla existe
+     (`facturacion.asistencia_prestacion`, FK `factura_id → facturas ON DELETE CASCADE`, columnas
+     `fecha`, `prestacion`, `dependencia`, `retorno`, `factura_sabados`), con RLS y trigger de
+     auditoría.
+  2. `documento_factura` — ✅ **CERRADA**: la tabla existe (`facturacion.documento_factura`, FK
+     `factura_id → facturas ON DELETE CASCADE` + FK `id_tipo_documento → obra_social.tipos_documento
+     ON DELETE RESTRICT`, `archivo_url NOT NULL`), con RLS y trigger de auditoría. El schema está
+     resuelto; lo que sigue pendiente es el swap del repository (ver D8 más abajo).
+  3. `fecha_estimada_cobro` — ✅ **CERRADA**: `facturacion.facturas.fecha_estimada_cobro DATE`
+     existe como columna propia.
+  4. `cantidad_km` — ✅ **CERRADA**: `facturacion.facturas.cantidad_km NUMERIC` existe como columna
+     propia (junto a `valor_km`, que ya existía).
+
+  **La quinta queda parcial:**
+  5. El enum de `estado` — 🟡 **PARCIAL**: `facturacion.estado_factura` **sí** incluye `'facturado'`
+     (el hueco original que motivaba la discrepancia), pero además conserva `'pendiente'` — un
+     literal que el frontend nunca modeló (`EstadoFactura` tiene 4 valores, no 5). Se resuelve por
+     mapeo, no por schema: `estadoDesdeBase('pendiente') → 'a-facturar'` en la lectura (tratándolo
+     como sinónimo, igual que ya decidía `facturacion-ui`), y `estadoHaciaBase` nunca emite
+     `'pendiente'` en la escritura. El enum real de la base **no se toca** — es governance CRÍTICO y
+     los 5 literales (con espacios, no guiones) son los del docx.
+
+  **Seis discrepancias NUEVAS, descubiertas al verificar el schema real antes de escribir el mapeo
+  (ninguna estaba anticipada por el `design.md` de `facturacion-ui`):**
+
+  N1. **`Factura.fechaFactura` sin columna** — el tipo del frontend tiene `fechaFactura?: string`
+     (fecha de emisión) desde `facturacion-ui`, pero la base no tenía ninguna columna para
+     persistirla. **Resuelta por este change**: `ALTER TABLE facturacion.facturas ADD COLUMN
+     fecha_factura DATE` (nullable, sin default — una factura en `a-facturar` no tiene fecha de
+     emisión, y eso es su significado, no un dato faltante). Sin esta columna,
+     `estadoVencimientoFactura` (RF-406, alerta de vencida a los 60 días) perdía su punto de partida
+     en cada recarga del navegador.
+  N2. **El enum de `EstadoFactura` no coincide en formato ni cardinalidad con
+     `facturacion.estado_factura`** — 4 literales con guiones vs. 5 con espacios. Ver el punto 5
+     (parcial) arriba; es la misma discrepancia, elevada acá porque el `design.md` de
+     `facturacion-ui` no la había registrado como estructural.
+  N3. **13 campos que el tipo `Factura`/`AsistenciaPrestacion` declara requeridos son nullable en la
+     base** (17 de las 19 columnas de `facturas`, todas menos `id` y `paciente_id`; además
+     `asistencia_prestacion.dependencia`/`.retorno`). **No se resuelve con `NOT NULL`** — sería
+     contract-breaking sobre un dominio CRÍTICO y requeriría backfill coordinado con backend. Se
+     absorbe en el mapeo de lectura (`parseFacturaRow` aplica defaults explícitos: `?? ''` para
+     texto, `?? 0` para numéricos) y se reporta a backend como decisión pendiente (ver
+     `10_preguntas_abiertas.md`).
+  N4. **`facturacion.presupuesto` y `facturacion.autorizacion` están gateadas por el módulo
+     `presupuestos`, no `facturacion`, pese a que la migración commiteada
+     (`20260724100005_schema_facturacion.sql`) dice explícitamente lo contrario** (con un comentario
+     largo citando el docx). Verificado contra `pg_policies` en vivo. **No se resuelve acá** — es un
+     hallazgo de D9, documentado también en `CHANGES.md` §C-06 porque bloquea
+     `integracion-presupuestos`: sin resolverlo, cualquier cuenta con `facturacion: read/write` y sin
+     `presupuestos: read` va a ver 0 autorizaciones en silencio, sin ningún error, y la validación de
+     cupo (RN-FA-02) va a quedar desactivada de hecho para el perfil que más la necesita.
+  N5. **Ninguna de las 9 foreign keys del schema `facturacion` tenía índice** (7 índices totales en
+     el schema, las 7 primary keys, cero sobre FK) — viola la regla dura de indexar toda columna FK.
+     **Se resuelve parcialmente**: este change agrega 6 índices sobre las FK de su propio dominio
+     (`facturas.paciente_id`, `facturas.domicilio_id`, `asistencia_prestacion.factura_id`,
+     `cobros.facturas_id`, `documento_factura.factura_id`, `documento_factura.id_tipo_documento`),
+     sin `CONCURRENTLY` porque las 6 tablas tenían 0 filas al verificar (condición a re-chequear
+     antes de aplicar cualquier migración futura sobre estas tablas). Las FK de `presupuesto` /
+     `autorizacion` (`C-06`) y `gastos_vehiculos` (`C-08`) quedan fuera de alcance, reportadas pero
+     no resueltas — mismo precedente que las FK hijas de Pacientes.
+  N6. **10+ columnas y 2 tablas completas del schema `facturacion` (`cantidad_km`,
+     `fecha_estimada_cobro`, `prestacion`, `mes_facturado`, `anio_facturado`,
+     `dependencia_y_retorno`, `domicilio_id`, `identificador_origen`, `identificador_valor`,
+     `asistencia_prestacion`, `documento_factura`) están aplicadas en la base real sin ninguna
+     migración commiteada en el repo que las cree.** Es la **tercera vez consecutiva** que esta serie
+     de changes encuentra este patrón (`integracion-pacientes` 1B.3, `integracion-obra-social` 1.3, y
+     ahora este, con el dominio más crítico del sistema y el gap más grande hasta ahora). **No se
+     resuelve acá** — es un problema de proceso, no de este change: quien clone el repo y corra
+     `supabase db reset` obtiene un schema `facturacion` incapaz de sostener la app. Elevado a
+     `10_preguntas_abiertas.md`.
+  N7. **`facturas.autorizacion_id` es un agregado sobre el docx** (detalle completo en
+     `openspec/changes/facturacion-seleccion-autorizacion/design.md` D1/D5, propose 2026-08-13): el
+     docx **no prevé** ninguna referencia de la Factura a la Autorización. Se agrega igual —
+     `facturas.autorizacion_id UUID REFERENCES facturacion.autorizacion(id)`, nullable, sin
+     `UNIQUE` — para que la factura registre qué autorización la habilitó (relación **N:1**: una
+     autorización genera una factura por período, sin filtro de "ya facturado este mes" — riesgo de
+     negocio aceptado explícitamente, no un bug; ver `CHANGES.md §C-07`). **No se resuelve
+     unilateralmente**: queda marcada para confirmar con el cliente / quien mantiene el docx. Cartel
+     pendiente con `AvisoModeloDatos` en el paso 2 del wizard, a agregar junto con el selector real
+     (bloqueado por la aplicación de las migraciones, ver `tasks.md` §1B/§3 del change).
+
+     De paso, este change **retira** `prestadorNombre`/`prestadorDomicilio` del alta de factura:
+     nunca fueron una discrepancia real con el docx (no tienen columna real en producción, ni en
+     `facturaMapping.ts` ni en las RPC) — eran un remanente de un change ya revertido
+     (`sacar-prestadores`) sin backend real detrás. Su baja es limpieza de frontend, no cambio de
+     schema.
+
 - **Panel principal y reportes** (detalle completo en `openspec/changes/dashboard-ui/design.md`
   §Discrepancias, propose validado 2026-07-25): comparación entre US-800 (`06_funcionalidades.md`
   §Épica 9) y `docs/core/Traslados-Modelo-Datos.docx` (áreas 3 Pacientes/CUD, 5 Facturación,

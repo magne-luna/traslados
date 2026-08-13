@@ -33,10 +33,12 @@ function mesesAtras(meses: number): { mes: number; anio: number } {
   return { mes: fecha.getMonth() + 1, anio: fecha.getFullYear() };
 }
 
-// `prestadorNombre`/`prestadorDomicilio` (change `sacar-prestadores`, revierte
-// `factura-por-prestador`): texto libre de ejemplo, sin entidad ni repository detrás — antes
-// estas facturas referenciaban `PRESTADOR_ID_TRASLADOS_ANDREA_PASTOR` (`prestadoresFixture.ts`,
-// ya borrado).
+// `prestadorNombre`/`prestadorDomicilio` se retiraron por completo (change
+// `facturacion-seleccion-autorizacion`, design.md D5): nunca tuvieron columna real en producción,
+// eran un remanente de `sacar-prestadores` (que a su vez revertía `factura-por-prestador`) sin
+// entidad ni repository detrás. `autorizacionId` (D1/D3) todavía no se puebla acá — el picker que
+// lo consume vive en la sección 3 de `facturacion-seleccion-autorizacion`, bloqueada hasta que se
+// apliquen las migraciones.
 
 export function buildFacturasFixture(): Factura[] {
   const [martina, facundo] = buildPacientesFixture();
@@ -79,8 +81,6 @@ export function buildFacturasFixture(): Factura[] {
     fechaInicial: isoDate(primerDiaDelMes(periodoActual.anio, periodoActual.mes)),
     fechaTope: isoDate(ultimoDiaDelMes(periodoActual.anio, periodoActual.mes)),
     tipoComprobante: TIPO_COMPROBANTE_DEFAULT,
-    prestadorNombre: 'Traslados Andrea Pastor',
-    prestadorDomicilio: 'Av. Rivadavia 4500, CABA',
     cantidadKm: 40,
     prestacion: 'Kinesiología',
     mesFacturado: periodoActual.mes,
@@ -123,8 +123,6 @@ export function buildFacturasFixture(): Factura[] {
     fechaInicial: isoDate(primerDiaDelMes(periodoFacturado.anio, periodoFacturado.mes)),
     fechaTope: isoDate(ultimoDiaDelMes(periodoFacturado.anio, periodoFacturado.mes)),
     tipoComprobante: TIPO_COMPROBANTE_DEFAULT,
-    prestadorNombre: 'Traslados Andrea Pastor',
-    prestadorDomicilio: 'Av. Rivadavia 4500, CABA',
     cantidadKm: datosDescripcionFacundo.cantidadKm,
     fechaFactura: fechaFacturaFacundo,
     fechaEstimadaCobro: calcularFechaEstimadaCobro({

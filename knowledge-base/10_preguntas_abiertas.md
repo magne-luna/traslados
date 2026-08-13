@@ -308,6 +308,69 @@ adjuntos) sigue **sin cerrar del todo**:
   administración?) pasa de "housekeeping" a "necesaria antes de que crezca sin control" ahora que hay
   uso real detrás.
 
+## Preguntas nuevas — `integracion-facturacion` (2026-08-12)
+
+`openspec/changes/integracion-facturacion/` (mock→Supabase de Facturación y Cobros, dominio
+CRÍTICO) swapea `FacturaRepository`/`CobroRepository` a datos reales. Ninguna pregunta de negocio
+se cierra — ver el bullet siguiente y `design.md` D13. Se registran acá las preguntas técnicas
+nuevas que abre (`design.md` §Open Questions):
+
+- **¿La factura debe congelar su obra social, o se re-resuelve desde el paciente?** Hoy `facturas`
+  **no tiene** `obra_social_id`: la obra social se alcanza vía la cobertura vigente del paciente.
+  RN-FA-06 dice que una factura emitida no se ajusta retroactivamente, y hoy eso se cumple **a
+  medias**: `descripcion` e `identificadorFactura` **sí** quedan congelados (columnas propias de
+  `facturas`), pero `plazoCobroDias` y la plantilla se re-resuelven en cada lectura contra la
+  obra social actual del paciente. Si un paciente cambia de obra social, sus facturas viejas
+  empiezan a mostrar la configuración de la obra social nueva. ¿`facturas.obra_social_id` como
+  snapshot? **No se resuelve en este change** — es una columna nueva sobre un dominio CRÍTICO y
+  ninguna fuente la pide. **Decisor**: cliente / quien mantiene el docx.
+- **¿Las policies `FOR ALL` de `facturacion` deberían tener `WITH CHECK` explícito?** Hoy las 14
+  policies del schema usan `USING` sin `WITH CHECK` (funciona porque PostgreSQL reusa `USING`
+  como check de `INSERT`, verificado), pero la intención no queda legible en el diff. Este change
+  **no las toca** — tocar RLS de un dominio financiero sin necesidad es riesgo puro. **Decisor**:
+  backend.
+- **¿Se agregan `NOT NULL` a las columnas de `facturas` que el frontend trata como requeridas?**
+  (N3 de `04_modelo_de_datos.md` §Discrepancias, bloque "Facturación vs. esquema real de `C-07`").
+  Hoy 17 de 19 columnas son nullable. Requiere backfill coordinado y una migración expand/contract
+  en dos pasos. **Decisor**: backend.
+- **¿Cómo se reconcilia el schema real de `facturacion` con las migraciones del repo?** (N6).
+  **Tercer change consecutivo** que encuentra columnas y tablas en producción sin migración
+  commiteada — esta vez, **2 tablas y 10+ columnas del dominio más crítico** del sistema. Un
+  `supabase db reset` sobre el repo actual produce un schema `facturacion` incapaz de sostener la
+  app. ¿Se genera una migración de reconciliación (`supabase db diff`) y se hace
+  `migration repair`? **Decisor**: backend / equipo técnico. Es un problema de proceso, no de este
+  change — mismo patrón que `integracion-pacientes` 1B.3 e `integracion-obra-social` 1.3.
+- **¿Por qué `facturacion.presupuesto` y `facturacion.autorizacion` quedaron gateadas por el
+  módulo `presupuestos` si la migración commiteada dice `facturacion`?** (N4, D9 de `design.md`).
+  La migración (`20260724100005_schema_facturacion.sql`) tiene un comentario largo argumentando
+  explícitamente lo contrario, citando el docx. O el comentario está mal, o el cambio en
+  producción fue involuntario. Verificado empíricamente contra `pg_policies` en vivo (2026-07-31):
+  la cuenta *Facturación* de `VITE_TEST_ACCOUNTS` tiene `facturacion: read/write` y **no** tiene
+  `presupuestos: read`. **Bloquea `integracion-presupuestos`**: sin resolverlo, ese perfil ve 0
+  autorizaciones en silencio, sin ningún error, y la validación de cupo (RN-FA-02) queda
+  desactivada de hecho para el perfil que más la necesita. Mientras tanto, este change deja la
+  alerta de cupo sobre fuente mixta (facturas reales × autorizaciones de fixture) con
+  `AvisoModeloDatos` visible en `AlertaCupo.tsx`, no bloqueada — ver `CHANGES.md` §C-06.
+  **Decisor**: backend / quien mantiene el docx.
+
+**Actualización de conteo de pgTAP, sin cambios respecto de lo ya registrado arriba**: las dos
+funciones de este change (`crear_factura_completa`, `actualizar_factura_completa`) ya están
+sumadas al conteo acumulado en el bloque "Preguntas técnicas abiertas — `integracion-pacientes` /
+`integracion-obra-social`" de arriba: **4 changes / 5 funciones**
+(`crear_paciente_completo`, `crear_obra_social_completa`, `actualizar_obra_social_completa`,
+`crear_factura_completa`, `actualizar_factura_completa`) sin ningún harness automatizado, con
+**cinco** changes de integración por delante. No se encontró un conteo más alto de
+`presupuesto-prestaciones` en este archivo — si una rama paralela lo actualiza después, sumar ahí
+las 2 funciones de este change al número que encuentre, sin pisarlo.
+
+**Las 4 preguntas de negocio de prioridad Alta heredadas de `facturacion-ui` (tabla de arriba:
+identificador DNI/afiliado, año/período de facturación, plazos 90/60/45 y su precedencia,
+integración ARCA) siguen explícitamente SIN CERRAR tras este change** (`design.md` D13). El swap
+de `FacturaRepository`/`CobroRepository` a Supabase persiste el mismo default que ya tenía
+`facturacion-ui` — no lo confirma, no lo convierte en definitivo, y no agrega ninguna fuente nueva
+que lo resuelva. Sigue pendiente de **Cliente (Andrea Pastor) / equipo técnico**, igual que en el
+bloque "Defaults implementados por `facturacion-ui`" de arriba.
+
 ## Preguntas nuevas — `presupuesto-prestaciones` (2026-08-12)
 
 Surgida de `design.md` §D8 (`openspec/changes/presupuesto-prestaciones/`). No se cierra en este
@@ -326,6 +389,41 @@ change — se registra acá y queda para confirmar.
   conceptos separados a propósito — uno de negocio/facturación (texto libre, por factura), otro de
   catálogo clínico (tipado, por paciente)? **No se resuelve acá.** **Decisor**: cliente + backend,
   en el change de Facturación.
+
+## Preguntas nuevas — `facturacion-seleccion-autorizacion` (2026-08-13)
+
+Surgidas de `design.md` §Open Questions (`openspec/changes/facturacion-seleccion-autorizacion/`).
+Ninguna se cierra en este change (§4 de `tasks.md`, alcance acotado a lo ya aprobado) — se
+registran acá y quedan para confirmar.
+
+- **¿Hace falta un aviso visual cuando la autorización elegida ya tiene una factura del mismo mes?**
+  Pregunta heredada del proposal. **Decisión tomada explícitamente: NO se agrega en este change** —
+  agregarlo exigiría lógica de período en el picker que D3 excluye a propósito (`autorizacionesPendientes`
+  no filtra por mes ya facturado). Sigue **NO resuelta**, se puede pedir como change aparte.
+  **Decisor**: usuaria.
+- **¿La factura debe poder facturarse dos veces contra la misma autorización en el mismo período?**
+  Hoy el sistema **no lo impide ni lo detecta** (D3, riesgo de negocio aceptado explícitamente por la
+  usuaria, no un bug). Si el negocio dice que no, es un `UNIQUE (autorizacion_id, mes_facturado,
+  anio_facturado)` parcial + una validación — change propio. **Decisor**: cliente / usuaria.
+- **¿`facturas.autorizacion_id` debería ser `NOT NULL` a futuro?** Requeriría backfill de las
+  facturas ya creadas (misma clase de pregunta que N3 de `integracion-facturacion`, ver bloque
+  arriba). Hoy no hay fuente que lo pida. **Decisor**: backend.
+- **⚠️ Corrección de proceso, no una pregunta nueva**: `design.md` §Context de este change registra
+  un hallazgo que **corrige al proposal y al plan aprobado** — la cita original ("varias
+  autorizaciones simultáneas, una por prestación, confirmado en `Presupuesto.prestacionId` y
+  `openspec/changes/presupuesto-prestaciones/design.md` L434") no pudo verificarse en el momento en
+  que se escribió ese `design.md`: un grep sobre `frontend/src` no encontró `prestacionId` y la
+  carpeta `openspec/changes/presupuesto-prestaciones/` no aparecía. **Verificado de nuevo el mismo
+  día (2026-08-13), en esta sesión de documentación**: `Presupuesto.prestacionId?: string` **sí
+  existe** (`frontend/src/shared/types/presupuesto.ts`), y `presupuesto-prestaciones` **sí existe**
+  como change y **ya se aplicó** (`CHANGES.md` §C-06, bullet "Reapertura post-archivo", 2026-08-12 —
+  un día antes de que este change abriera su propio governance). La discrepancia N8 del `design.md`
+  de este change (que da por cerrado "el campo no existe, la etiqueta se arma con datos reales") por
+  lo tanto **queda desactualizada**: cuando se implemente la §3 (bloqueada por §1B), conviene
+  reverificar si el selector puede etiquetar cada autorización por `Presupuesto.prestacionId` real
+  en vez de (o además de) fecha/monto/cupos, antes de asumir que el campo sigue sin existir.
+  **Decisor**: quien implemente la §3 de este change, revisando el estado real de
+  `presupuesto-prestaciones` antes de empezar.
 
 ## Insumos pendientes del cliente
 
