@@ -3,6 +3,7 @@ import { AvisoModeloDatos, AvisoPendienteCliente, Chip, Section, VolverAlListado
 import { Alert } from '../../design-system/feedback';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { RequisitosActividadRepository } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ActualizacionPaciente, Cud, Direccion, NuevoPaciente, Paciente, PersonaACargo } from '../../shared/types/paciente';
@@ -16,6 +17,7 @@ import { PacienteForm, type PacienteFormValues } from './PacienteForm';
 import { nombreCompleto, PacienteResumen } from './PacienteResumen';
 import { PersonasACargoEditor } from './PersonasACargoEditor';
 import { PrestacionesEditor } from './PrestacionesEditor';
+import { RecorridosHabitualesEditor } from './RecorridosHabitualesEditor';
 
 interface PacienteDetailProps {
   /** null = alta de un paciente nuevo; el resto de las secciones solo aplica en edición. */
@@ -29,6 +31,10 @@ interface PacienteDetailProps {
    * reenviado tal cual a `PacienteDocumentos` — opcional, mismo criterio que las otras dos
    * dependencias de esa sección (`design.md` D2: sin este prop, comportamiento actual sin cambios). */
   requisitosActividadRepository?: RequisitosActividadRepository;
+  /** RF-110 (destinos habituales, `pacientes.recorridos`): opcional, mismo criterio que
+   * `requisitosActividadRepository` — sin este prop la sección "Destinos habituales" no se
+   * muestra (en vez de romper con un repository undefined). */
+  recorridoHabitualRepository?: RecorridoHabitualRepository;
   onCreated: (paciente: Paciente) => void;
   onBack: () => void;
 }
@@ -51,6 +57,7 @@ export function PacienteDetail({
   obraSocialRepository,
   documentoRepository,
   requisitosActividadRepository,
+  recorridoHabitualRepository,
   onCreated,
   onBack,
 }: PacienteDetailProps) {
@@ -267,6 +274,22 @@ export function PacienteDetail({
               documentosPorDireccion={documentosPorDireccion}
             />
           </Section>
+
+          {recorridoHabitualRepository && (
+            <Section label="Traslados" title="Destinos habituales">
+              <AvisoModeloDatos>
+                El docx modela "Recorridos" como entidad aparte de "Direcciones": día de la semana y
+                hora habituales (escuela, terapias, CET) entre dos direcciones de este mismo
+                catálogo. Sin vehículo ni conductor asociado — no confundir con el recorrido
+                operativo del día de una hoja de ruta.
+              </AvisoModeloDatos>
+              <RecorridosHabitualesEditor
+                pacienteId={paciente.id}
+                direcciones={paciente.direcciones}
+                repository={recorridoHabitualRepository}
+              />
+            </Section>
+          )}
 
           <Section label="Prestaciones" title="Catálogo de prestaciones">
             {/* presupuesto-prestaciones (design.md D1, tasks.md Fase 4 — PR 1 de la serie

@@ -1,6 +1,7 @@
 import { supabaseDocumentoRepository } from '../../shared/lib/documentos/SupabaseDocumentoRepository';
 import { supabaseObraSocialRepository } from '../../shared/lib/obrasSociales/SupabaseObraSocialRepository';
 import { supabasePacienteRepository } from '../../shared/lib/pacientes/SupabasePacienteRepository';
+import { supabaseRecorridoHabitualRepository } from '../../shared/lib/pacientes/SupabaseRecorridoHabitualRepository';
 import { supabaseRequisitosActividadRepository } from '../../shared/lib/requisitosActividad/SupabaseRequisitosActividadRepository';
 import { PacientesDocumentacionTabs } from '../../shared/components/PacientesDocumentacionTabs';
 import { PacienteRepositoryProvider } from './PacienteRepositoryContext';
@@ -15,8 +16,11 @@ import { PacientesPage } from './PacientesPage';
 // `entidadId` real hoy; Vehículos/Conductores/Facturación siguen en `mockDocumentoRepository` hasta
 // que sus propias entidades sean reales) y, ahora, la configuración de ítems por tipo de actividad
 // (tabla `obra_social.requisitos_actividad`, gateada por el mismo módulo `obra_social` que
-// `requisitos_os`, veredicto 1.2). El resto de la feature solo conoce las interfaces de los
-// repositories, así que este es el único archivo que cambia (mismo criterio que CuentasRoute.tsx).
+// `requisitos_os`, veredicto 1.2). También `supabaseRecorridoHabitualRepository` (RF-110,
+// `pacientes.recorridos`): tabla real ya existe (sin pantalla que la use hasta este change), así
+// que se wirea directo, sin paso intermedio por mock. El resto de la feature solo conoce las
+// interfaces de los repositories, así que este es el único archivo que cambia (mismo criterio que
+// CuentasRoute.tsx).
 // `PacientesDocumentacionTabs` se monta acá, no dentro de `PacientesPage` (pacientes-docs-
 // actividad-tabs): usa `useLocation`/`useNavigate`/`usePermiso`, que exigen Router y AuthProvider
 // — `PacientesPage`/`PacientesPage.test.tsx` se mantienen deliberadamente libres de esa
@@ -30,6 +34,7 @@ export function PacientesRoute() {
         obraSocialRepository={supabaseObraSocialRepository}
         documentoRepository={supabaseDocumentoRepository}
         requisitosActividadRepository={supabaseRequisitosActividadRepository}
+        recorridoHabitualRepository={supabaseRecorridoHabitualRepository}
       />
     </PacienteRepositoryProvider>
   );

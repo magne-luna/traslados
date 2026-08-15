@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { AvisoSoloLectura } from '../../design-system/components';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { RequisitosActividadRepository } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
 import type { ActualizacionPaciente, Paciente } from '../../shared/types/paciente';
 import { useObrasSociales } from '../obras-sociales/useObrasSociales';
@@ -25,6 +26,9 @@ interface PacientesPageProps {
   /** documentos-checklist-items-por-actividad (tasks.md §6): reenviado tal cual a `PacienteDetail`
    * → `PacienteDocumentos` — opcional, mismo criterio que las otras dos dependencias de arriba. */
   requisitosActividadRepository?: RequisitosActividadRepository;
+  /** RF-110 (destinos habituales): reenviado tal cual a `PacienteDetail` — opcional, mismo
+   * criterio que `requisitosActividadRepository`. */
+  recorridoHabitualRepository?: RecorridoHabitualRepository;
 }
 
 // Composición raíz de la feature (tasks.md 4.2, 10.1; paginacion-listados Fase 2 tasks.md 13.2):
@@ -33,7 +37,12 @@ interface PacientesPageProps {
 // completo) NO se usa acá — sigue existiendo tal cual para los selectores de otras pantallas
 // (PresupuestosPage/FacturacionPage/HojaDeRutaPage) y el dashboard. No hay router anidado — mismo
 // patrón que ObraSocialesPage/VehiculosPage (FE-2).
-export function PacientesPage({ obraSocialRepository, documentoRepository, requisitosActividadRepository }: PacientesPageProps) {
+export function PacientesPage({
+  obraSocialRepository,
+  documentoRepository,
+  requisitosActividadRepository,
+  recorridoHabitualRepository,
+}: PacientesPageProps) {
   const pacienteRepository = usePacienteRepository();
   const listado = usePacientesPaginado(pacienteRepository);
   const { obrasSociales } = useObrasSociales(obraSocialRepository);
@@ -76,6 +85,7 @@ export function PacientesPage({ obraSocialRepository, documentoRepository, requi
           obraSocialRepository={obraSocialRepository}
           documentoRepository={documentoRepository}
           requisitosActividadRepository={requisitosActividadRepository}
+          recorridoHabitualRepository={recorridoHabitualRepository}
           onCreated={(creado) => setView({ kind: 'detail', paciente: creado })}
           onBack={() => setView({ kind: 'list' })}
         />

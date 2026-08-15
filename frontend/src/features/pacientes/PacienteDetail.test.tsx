@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { RequisitosActividadRepository } from '../../shared/lib/requisitosActividad/RequisitosActividadRepository';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
@@ -36,6 +37,16 @@ function buildFakeRequisitosActividadRepository(): RequisitosActividadRepository
   return {
     listAll: vi.fn().mockResolvedValue({}),
     actualizar: vi.fn(),
+  };
+}
+
+// RF-110 (destinos habituales): repository opcional — mismo criterio que
+// buildFakeRequisitosActividadRepository (arriba).
+function buildFakeRecorridoHabitualRepository(): RecorridoHabitualRepository {
+  return {
+    list: vi.fn().mockResolvedValue([]),
+    create: vi.fn(),
+    remove: vi.fn(),
   };
 }
 
@@ -754,6 +765,65 @@ describe('PacienteDetail — reenvía requisitosActividadRepository a PacienteDo
     );
 
     expect(await screen.findByRole('heading', { name: /checklist documental/i })).toBeInTheDocument();
+  });
+});
+
+describe('PacienteDetail — sección Destinos habituales (RF-110)', () => {
+  it('con recorridoHabitualRepository provisto, se muestra la sección y lista() se llama con el paciente activo', async () => {
+    const recorridoHabitualRepository = buildFakeRecorridoHabitualRepository();
+
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        recorridoHabitualRepository={recorridoHabitualRepository}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByRole('heading', { name: /destinos habituales/i })).toBeInTheDocument();
+    await waitFor(() => expect(recorridoHabitualRepository.list).toHaveBeenCalledWith('paciente-martina'));
+  });
+
+  it('sin recorridoHabitualRepository (prop opcional): la sección no se muestra, el resto de la ficha no se rompe', async () => {
+    render(
+      <PacienteDetail
+        paciente={basePaciente}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    await screen.findByRole('heading', { name: /checklist documental/i });
+    expect(screen.queryByRole('heading', { name: /destinos habituales/i })).not.toBeInTheDocument();
+  });
+
+  it('en alta (paciente null) la sección no se muestra aunque haya recorridoHabitualRepository', () => {
+    render(
+      <PacienteDetail
+        paciente={null}
+        crear={vi.fn()}
+        actualizar={vi.fn()}
+        obrasSociales={[]}
+        obraSocialRepository={buildFakeObraSocialRepository()}
+        documentoRepository={buildFakeDocumentoRepository()}
+        recorridoHabitualRepository={buildFakeRecorridoHabitualRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('heading', { name: /destinos habituales/i })).not.toBeInTheDocument();
   });
 });
 
