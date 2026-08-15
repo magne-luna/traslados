@@ -50,7 +50,7 @@ function formatearFechaLarga(fechaIso: string): string {
 // convención de UI del proyecto: bloques de "Total cobrado"/"Saldo pendiente" destacados con
 // ícono y color semántico (success/warning), historial como filas de transacción (ícono + fecha
 // legible + monto en verde + botón de quitar), y alta con fecha/monto (con signo $) + botón
-// alineados en fila (excepción de botón pegado al input, mismo criterio que AsistenciasEditor).
+// alineados en fila (excepción de botón pegado al input).
 // No se ofrece registrar cobros en facturas `a-facturar` — recién tienen sentido una vez emitida
 // (design.md Decisión 10: la transición dispara el circuito de cobros).
 //

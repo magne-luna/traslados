@@ -292,11 +292,13 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
   });
 
   // Wizard de 3 pasos (change `facturacion-wizard-paciente-prestador`): "Nueva factura" arranca
-  // en el Paso 1 (solo Paciente) — AsistenciasEditor vive en el Paso 3, hay que elegir paciente,
-  // elegir una autorización pendiente en el Paso 2 (change `facturacion-seleccion-autorizacion`,
-  // design.md D4, tasks.md 3.3: "Siguiente" queda bloqueado sin elegir una) y avanzar antes de
-  // llegar a verlo.
-  it('con write (sin admin): editar asistencias está activable (en modo edición del form)', async () => {
+  // en el Paso 1 (solo Paciente) — hay que elegir paciente, elegir una autorización pendiente en el
+  // Paso 2 (change `facturacion-seleccion-autorizacion`, design.md D4, tasks.md 3.3: "Siguiente"
+  // queda bloqueado sin elegir una) y avanzar antes de llegar al Paso 3.
+  // WU2 (2026-08-16): la UI de asistencias (tarjeta AsistenciasEditor + campo de alta de
+  // prestación) se elimina del Paso 3 — con write y wizard atravesado, el Paso 3 no muestra ni la
+  // tarjeta ni ningún input de prestación.
+  it('con write: el Paso 3 ya no muestra la tarjeta de asistencias ni ningún campo de prestación', async () => {
     const presupuestoRepository: PresupuestoRepository = {
       ...buildPresupuestoRepository(),
       list: vi.fn().mockResolvedValue([{ id: 'pres-1', pacienteId: 'paciente-martina', obraSocialId: 'osecac', monto: 1000, fechaEmision: '2026-01-01' }]),
@@ -315,11 +317,8 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
     await userEvent.selectOptions(autorizacion, 'auth-1');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
-    // "Prestación" existe dos veces en el Paso 3: FacturaFormDatosBasicos (gateo tasks.md 4.3) y
-    // el alta de AsistenciasEditor (gateo propio, tasks.md 5.4) — se toma la segunda, la de
-    // asistencias.
-    const camposPrestacion = screen.getAllByLabelText(/^prestación$/i, { selector: 'input' });
-    expect(camposPrestacion[1]).toBeEnabled();
+    expect(screen.queryAllByLabelText(/^prestación$/i, { selector: 'input' })).toHaveLength(0);
+    expect(screen.queryByText(/asistencias \/ prestaciones declaradas/i)).not.toBeInTheDocument();
   });
 
   it('sin permiso de escritura (solo read): las cuatro acciones quedan bloqueadas', async () => {
@@ -335,9 +334,9 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
 
     // Wizard + gateo (change `facturacion-wizard-paciente-prestador`): con el Paciente del Paso 1
     // deshabilitado, `pacienteId` nunca puede setearse, así que "Siguiente" nunca se habilita y el
-    // Paso 3 (donde vive AsistenciasEditor) nunca se monta — un bloqueo más fuerte que "campo
-    // deshabilitado": la acción de dinero #4 (editar asistencias) queda directamente inalcanzable
-    // para una cuenta de solo lectura que está dando de alta una factura nueva.
+    // Paso 3 nunca se monta — un bloqueo más fuerte que "campo deshabilitado": el contenido del
+    // Paso 3 queda directamente inalcanzable para una cuenta de solo lectura que está dando de
+    // alta una factura nueva.
     renderDetailConPermiso(false, { factura: null });
     expect(screen.getByLabelText(/^paciente$/i)).toBeDisabled();
     expect(screen.getByRole('button', { name: /siguiente/i })).toBeDisabled();

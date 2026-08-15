@@ -16,6 +16,9 @@ export interface CamposParaDescripcion {
   cantidadKm: number;
   monto: number;
   domicilioId: string;
+  /** WU2 (2026-08-16): prestaciones ya resueltas a nombres por el caller (opción a — líneas del
+   * presupuesto de la autorización elegida). Ausente = por-prestacion/legacy → sin bloque. */
+  prestaciones?: string[];
 }
 
 export function construirDatosDescripcion(campos: CamposParaDescripcion, paciente: Paciente): DatosDescripcionFactura {
@@ -35,5 +38,6 @@ export function construirDatosDescripcion(campos: CamposParaDescripcion, pacient
     cantidadKm: campos.cantidadKm,
     total: campos.monto,
     valoresManuales: {},
+    prestaciones: campos.prestaciones ?? [],
   };
 }

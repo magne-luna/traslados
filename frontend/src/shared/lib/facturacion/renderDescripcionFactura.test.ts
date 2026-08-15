@@ -16,6 +16,7 @@ const datosBase: DatosDescripcionFactura = {
   cantidadKm: 12,
   total: 84_000,
   valoresManuales: {},
+  prestaciones: [],
 };
 
 describe('renderDescripcionFactura', () => {
@@ -110,5 +111,32 @@ describe('renderDescripcionFactura', () => {
     };
 
     expect(renderDescripcionFactura(plantilla, datosBase)).toBe(renderDescripcionFactura(plantilla, datosBase));
+  });
+
+  // WU2 de `facturacion-cambios-ui` (decisión usuaria 2026-08-16): modalidad `general` → la
+  // descripción agrega un bloque "Prestaciones:" al final, alimentado por las líneas del
+  // presupuesto de la autorización elegida (opción a — `prestacionesDePresupuesto`, resueltas
+  // client-side contra el catálogo del paciente). Siempre DESPUÉS de la plantilla.
+  it('con prestaciones (modalidad general): agrega el bloque "Prestaciones:" al final de la descripción', () => {
+    const plantilla: PlantillaFactura = {
+      identificadorOrigen: 'paciente.dni',
+      campos: [{ id: 'c-1', etiqueta: 'Período', origen: 'traslado.mesYAnio', orden: 0 }],
+    };
+
+    const resultado = renderDescripcionFactura(plantilla, { ...datosBase, prestaciones: ['Kinesiología', 'Fonoaudiología'] });
+
+    expect(resultado).toContain('Prestaciones: Kinesiología, Fonoaudiología');
+    expect(resultado.indexOf('Prestaciones:')).toBeGreaterThan(resultado.indexOf('Período'));
+  });
+
+  it('sin prestaciones (por-prestacion, presupuestos legacy sin líneas): no agrega el bloque', () => {
+    const plantilla: PlantillaFactura = {
+      identificadorOrigen: 'paciente.dni',
+      campos: [{ id: 'c-1', etiqueta: 'Prestación', origen: 'traslado.prestacion', orden: 0 }],
+    };
+
+    const resultado = renderDescripcionFactura(plantilla, datosBase);
+
+    expect(resultado).not.toContain('Prestaciones:');
   });
 });

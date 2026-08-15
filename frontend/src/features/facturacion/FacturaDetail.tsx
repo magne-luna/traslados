@@ -84,6 +84,7 @@ export function FacturaDetail({
     obraSocial,
     facturasExistentes,
     autorizacionRepository,
+    presupuestoRepository,
     actualizar,
     onError: setSubmitError,
   });

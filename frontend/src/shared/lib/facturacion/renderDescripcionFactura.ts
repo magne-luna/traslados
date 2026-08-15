@@ -20,6 +20,10 @@ export interface DatosDescripcionFactura {
   total: number;
   /** Valores de campos con `origen: 'valor-manual'`, indexados por el `id` del `PlantillaCampo`. */
   valoresManuales: Record<string, string>;
+  /** WU2 de `facturacion-cambios-ui` (2026-08-16): nombres de las prestaciones del bloque
+   * "Prestaciones:" (modalidad `general`), resueltos desde las líneas del presupuesto de la
+   * autorización elegida — ver `prestacionesDescripcion.ts`. Vacío = no hay bloque. */
+  prestaciones: string[];
 }
 
 function formatearMesYAnio(mes: number, anio: number): string {
@@ -61,7 +65,14 @@ function resolverValor(origen: OrigenCampoPlantilla, campoId: string, datos: Dat
 
 export function renderDescripcionFactura(plantilla: PlantillaFactura, datos: DatosDescripcionFactura): string {
   const camposOrdenados = [...plantilla.campos].sort((a, b) => a.orden - b.orden);
-  return camposOrdenados
+  const lineas = camposOrdenados
     .map((campo) => `${campo.etiqueta}: ${resolverValor(campo.origen, campo.id, datos)}`)
     .join('\n');
+
+  // WU2 (decisión usuaria 2026-08-16, opción a): el bloque "Prestaciones:" NO es un campo de
+  // plantilla (no existe `OrigenCampoPlantilla` para él) — se agrega SIEMPRE al final de la
+  // descripción cuando hay prestaciones resueltas, después de los campos de la plantilla.
+  if (datos.prestaciones.length === 0) return lineas;
+  const bloquePrestaciones = `Prestaciones: ${datos.prestaciones.join(', ')}`;
+  return lineas === '' ? bloquePrestaciones : `${lineas}\n${bloquePrestaciones}`;
 }

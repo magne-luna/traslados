@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import type { Autorizacion } from '../../shared/types/presupuesto';
+import type { Autorizacion, Presupuesto } from '../../shared/types/presupuesto';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { Factura } from '../../shared/types/factura';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
@@ -29,6 +30,27 @@ function fakeAutorizacionRepository(autorizaciones: Map<string, Autorizacion>): 
     getById: (id: string) => Promise.resolve(autorizaciones.get(id) ?? null),
     getByPresupuestoId: () => Promise.reject(new Error('no usado en este test')),
     create: () => Promise.reject(new Error('no usado en este test')),
+    update: () => Promise.reject(new Error('no usado en este test')),
+  };
+}
+
+function presupuesto(overrides: Partial<Presupuesto> = {}): Presupuesto {
+  return {
+    id: 'presupuesto-1',
+    pacienteId: 'paciente-martina',
+    obraSocialId: 'osecac',
+    monto: 45000,
+    fechaEmision: '2026-03-01',
+    ...overrides,
+  };
+}
+
+function fakePresupuestoRepository(presupuestos: Map<string, Presupuesto>): PresupuestoRepository {
+  return {
+    list: () => Promise.resolve([...presupuestos.values()]),
+    getById: (id: string) => Promise.resolve(presupuestos.get(id) ?? null),
+    create: () => Promise.reject(new Error('no usado en este test')),
+    createLote: () => Promise.reject(new Error('no usado en este test')),
     update: () => Promise.reject(new Error('no usado en este test')),
   };
 }
@@ -90,7 +112,7 @@ function obraSocial(overrides: Partial<ObraSocial> = {}): ObraSocial {
   };
 }
 
-function setup(autorizaciones: Map<string, Autorizacion>) {
+function setup(autorizaciones: Map<string, Autorizacion>, presupuestos: Map<string, Presupuesto> = new Map()) {
   return renderHook(() =>
     useEmisionFactura({
       factura: factura(),
@@ -98,6 +120,7 @@ function setup(autorizaciones: Map<string, Autorizacion>) {
       obraSocial: undefined,
       facturasExistentes: [],
       autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
       actualizar: vi.fn(),
       onError: vi.fn(),
     }),
@@ -159,6 +182,7 @@ describe('useEmisionFactura — resolverCupoAutorizado (D6, tasks.md 3.6)', () =
         obraSocial: undefined,
         facturasExistentes: [],
         autorizacionRepository: repo,
+        presupuestoRepository: fakePresupuestoRepository(new Map()),
         actualizar: vi.fn(),
         onError: vi.fn(),
       }),
@@ -195,6 +219,7 @@ describe('useEmisionFactura — emitirFactura usa el plazo real de la obra socia
         obraSocial: obraSocial({ plazoCobroDias: 60 }),
         facturasExistentes: [],
         autorizacionRepository: fakeAutorizacionRepository(new Map()),
+        presupuestoRepository: fakePresupuestoRepository(new Map()),
         actualizar,
         onError: vi.fn(),
       }),
@@ -214,6 +239,7 @@ describe('useEmisionFactura — emitirFactura usa el plazo real de la obra socia
         obraSocial: obraSocial({ plazoCobroDias: undefined }),
         facturasExistentes: [],
         autorizacionRepository: fakeAutorizacionRepository(new Map()),
+        presupuestoRepository: fakePresupuestoRepository(new Map()),
         actualizar,
         onError: vi.fn(),
       }),
@@ -233,6 +259,7 @@ describe('useEmisionFactura — emitirFactura usa el plazo real de la obra socia
         obraSocial: obraSocial({ plazoCobroDias: 60 }),
         facturasExistentes: [],
         autorizacionRepository: fakeAutorizacionRepository(new Map()),
+        presupuestoRepository: fakePresupuestoRepository(new Map()),
         actualizar,
         onError: vi.fn(),
       }),
@@ -242,5 +269,91 @@ describe('useEmisionFactura — emitirFactura usa el plazo real de la obra socia
 
     const llamada = actualizar.mock.calls[0]?.[1] as { fechaEstimadaCobro: string } | undefined;
     expect(llamada?.fechaEstimadaCobro).not.toBe('2026-10-09');
+  });
+});
+
+// WU2 de `facturacion-cambios-ui` (decisión usuaria 2026-08-16, opción a): la descripción que la
+// emisión congela en la factura incluye el bloque "Prestaciones:" con los nombres de las LÍNEAS
+// del presupuesto de la autorización elegida (`presupuesto.lineas` — REAPERTURA #13 — resueltas
+// client-side contra el catálogo del paciente, mismo criterio que `prestacionRealAutorizacion`).
+describe('useEmisionFactura — emitirFactura congela la descripción con el bloque Prestaciones (WU2)', () => {
+  function pacienteConCatalogo(): Paciente {
+    return paciente({
+      prestaciones: [
+        { id: 'prest-kine', pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true },
+        { id: 'prest-fono', pacienteId: 'paciente-martina', nombre: 'Fonoaudiología', activa: true },
+      ],
+    });
+  }
+
+  function obraSocialGeneral(): ObraSocial {
+    return obraSocial({
+      modalidadFacturacion: 'general',
+      plantillaFactura: {
+        identificadorOrigen: 'paciente.numeroAfiliado',
+        campos: [{ id: 'c-periodo', etiqueta: 'Período', origen: 'traslado.mesYAnio', orden: 0 }],
+      },
+    });
+  }
+
+  it('con autorización cuyo presupuesto tiene líneas: la descripción congelada termina con el bloque', async () => {
+    const actualizar = vi.fn().mockResolvedValue(factura());
+    const { result } = renderHook(() =>
+      useEmisionFactura({
+        factura: factura({ autorizacionId: 'autorizacion-general', dias: 1, cantidadKm: 1 }),
+        paciente: pacienteConCatalogo(),
+        obraSocial: obraSocialGeneral(),
+        facturasExistentes: [],
+        autorizacionRepository: fakeAutorizacionRepository(
+          new Map([['autorizacion-general', autorizacion({ id: 'autorizacion-general', presupuestoId: 'presupuesto-general' })]]),
+        ),
+        presupuestoRepository: fakePresupuestoRepository(
+          new Map([
+            [
+              'presupuesto-general',
+              presupuesto({
+                id: 'presupuesto-general',
+                lineas: [
+                  { id: 'linea-1', prestacionId: 'prest-kine', monto: 9000, orden: 1 },
+                  { id: 'linea-2', prestacionId: 'prest-fono', monto: 4500, orden: 2 },
+                ],
+              }),
+            ],
+          ]),
+        ),
+        actualizar,
+        onError: vi.fn(),
+      }),
+    );
+
+    await result.current.handleEmitirClick();
+
+    const llamada = actualizar.mock.calls[0]?.[1] as { descripcion: string } | undefined;
+    expect(llamada?.descripcion).toContain('Prestaciones: Kinesiología, Fonoaudiología');
+  });
+
+  it('autorización con presupuesto legacy sin líneas: la descripción NO tiene bloque (legajo previo a la REAPERTURA #13)', async () => {
+    const actualizar = vi.fn().mockResolvedValue(factura());
+    const { result } = renderHook(() =>
+      useEmisionFactura({
+        factura: factura({ autorizacionId: 'autorizacion-legacy', dias: 1, cantidadKm: 1 }),
+        paciente: pacienteConCatalogo(),
+        obraSocial: obraSocialGeneral(),
+        facturasExistentes: [],
+        autorizacionRepository: fakeAutorizacionRepository(
+          new Map([['autorizacion-legacy', autorizacion({ id: 'autorizacion-legacy', presupuestoId: 'presupuesto-legacy' })]]),
+        ),
+        presupuestoRepository: fakePresupuestoRepository(
+          new Map([['presupuesto-legacy', presupuesto({ id: 'presupuesto-legacy' })]]) as Map<string, Presupuesto>,
+        ),
+        actualizar,
+        onError: vi.fn(),
+      }),
+    );
+
+    await result.current.handleEmitirClick();
+
+    const llamada = actualizar.mock.calls[0]?.[1] as { descripcion: string } | undefined;
+    expect(llamada?.descripcion).not.toContain('Prestaciones:');
   });
 });

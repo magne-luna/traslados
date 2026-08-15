@@ -38,8 +38,7 @@ const ESTADO_CHIP: Record<EstadoFactura, 'secondary' | 'warning' | 'success' | '
 // clickeable en su totalidad + botón "Editar" con stopPropagation.
 //
 // Migrado a Input/Select/Label/Alert/Button (tasks.md 16.3): filtros son campos "sueltos" (no
-// Field, mismo criterio que AsistenciasEditor) con `fullWidth={false}` porque el sitio original
-// no tenía `w-full`; error → `Alert(tone="danger")` default (coincide byte a byte); botón
+// Field) con `fullWidth={false}` porque el sitio original no tenía `w-full`; error → `Alert(tone="danger")` default (coincide byte a byte); botón
 // "Editar" → `Button variant="secondary-accent" size="sm"` (design.md Decisión 8 — el mini botón
 // secundario). "Ver detalle" NO migra: es el patrón `VolverAlListadoLink` (texto sin borde), no
 // el "botón mini" con caja que Decisión 8 cubre. La tarjeta clickeable en sí (`rounded-md

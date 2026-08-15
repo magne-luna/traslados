@@ -10,19 +10,16 @@ interface FacturaFormDatosBasicosProps {
   errors: FacturaFormErrors;
   paciente: Paciente | undefined;
   set: <K extends keyof FacturaFormValues>(key: K, value: FacturaFormValues[K]) => void;
-  /** `true` cuando "Prestación" se derivó de una autorización con prestación real resuelta
-   * (feature `facturacion-derivar-prestacion`, modalidad `por-prestacion` — ver `FacturaForm.tsx`,
-   * reusa `prestacionRealAutorizacion`). El campo pasa a solo lectura, mismo patrón que ya usa el
-   * repo para campos derivados-bloqueados (`readOnly` del Input, ver "Monto" de
-   * `PresupuestoForm.tsx` cuando se cargan líneas por prestación). En modalidad `general` (sin
-   * prestación resuelta) sigue siendo `false` — el campo sigue siendo texto libre editable, sin
-   * ningún cambio de comportamiento. Default `false` para no romper otros callers. */
-  prestacionBloqueada?: boolean;
 }
 
 // Bloque de datos básicos del formulario de factura (tasks.md 7.1): período estructurado,
-// prestación, domicilio (guarda solo el id) y dependencia/retorno. Extraído de FacturaForm para
-// mantener ambos componentes bajo las ~200 líneas (tasks.md 12.3).
+// domicilio (guarda solo el id) y dependencia/retorno. Extraído de FacturaForm para mantener
+// ambos componentes bajo las ~200 líneas (tasks.md 12.3).
+//
+// WU2 de `facturacion-cambios-ui` (2026-08-16): se retira el campo "Prestación" (y con él la
+// prop `prestacionBloqueada` del change `facturacion-derivar-prestacion`). La prestación sigue
+// viviendo en `values.prestacion` (la deriva el form desde la autorización elegida), pero el
+// operador ya no la edita — el preview de la descripción la muestra donde aplica.
 //
 // Migrado a Field/Input/Select (tasks.md 16.1, design.md Decisión 3) — cero cambio de
 // comportamiento: cálculos, validaciones y armado de descripción por plantilla intactos.
@@ -41,7 +38,7 @@ interface FacturaFormDatosBasicosProps {
 // de domicilio con `paciente.direcciones`), que en el wizard de alta ya está resuelto para cuando
 // se llega al Paso 3 (el paciente se elige en el Paso 1, antes de montar este componente); en
 // modo edición (bypass del wizard, `FacturaForm.tsx`) también está disponible de entrada.
-export function FacturaFormDatosBasicos({ formId, values, errors, paciente, set, prestacionBloqueada = false }: FacturaFormDatosBasicosProps) {
+export function FacturaFormDatosBasicos({ formId, values, errors, paciente, set }: FacturaFormDatosBasicosProps) {
   return (
     <>
       <div className="md:col-span-2">
@@ -55,16 +52,6 @@ export function FacturaFormDatosBasicos({ formId, values, errors, paciente, set,
         <Input id={`${formId}-anio`} type="number" value={values.anioFacturado} onChange={(e) => set('anioFacturado', Number(e.target.value))} />
       </Field>
       {errors.periodo && <span className="font-body text-xs text-danger md:col-span-2">{errors.periodo}</span>}
-
-      <Field label="Prestación" htmlFor={`${formId}-prestacion`}>
-        <Input
-          id={`${formId}-prestacion`}
-          type="text"
-          readOnly={prestacionBloqueada}
-          value={values.prestacion}
-          onChange={(e) => set('prestacion', e.target.value)}
-        />
-      </Field>
 
       {/* Fix directo (sin change SDD): antes listaba TODAS las direcciones del paciente (escuela,
           terapia, cet, etc.), no solo las de tipo `domicilio` — este campo arma el domicilio del

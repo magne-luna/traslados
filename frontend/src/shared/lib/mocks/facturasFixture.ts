@@ -110,6 +110,7 @@ export function buildFacturasFixture(): Factura[] {
     cantidadKm: 55,
     total: calcularTotalFactura({ valorKm: 320, cantidadKm: 55, dias: 22 }),
     valoresManuales: {},
+    prestaciones: [],
   };
 
   const facturaFacundoFacturado: Factura = {
@@ -166,6 +167,7 @@ export function buildFacturasFixture(): Factura[] {
     cantidadKm: 45,
     total: calcularTotalFactura({ valorKm: 300, cantidadKm: 45, dias: 20 }),
     valoresManuales: {},
+    prestaciones: [],
   };
 
   const facturaMartinaCobrado: Factura = {
@@ -222,6 +224,7 @@ export function buildFacturasFixture(): Factura[] {
     cantidadKm: 48,
     total: calcularTotalFactura({ valorKm: 320, cantidadKm: 48, dias: 19 }),
     valoresManuales: {},
+    prestaciones: [],
   };
 
   const facturaFacundoParcial: Factura = {

@@ -22,11 +22,11 @@ const prestaciones: Prestacion[] = [kinesiologia, fonoaudiologia];
 
 const lineaKine: LineaPresupuesto = { id: 'linea-1', prestacionId: 'prestacion-kine', monto: 100 };
 
-// Componente controlado puro (tasks.md Fase 7, design.md D9/D10): mismo espíritu que
-// AsistenciasEditor.tsx de Facturación — agregar/quitar línea { prestacionId, monto }, total
-// calculado en vivo. Sin red — no invoca ningún repository, no lee el estado global de ningún
-// presupuesto. Las líneas NUNCA se persisten (design.md D9): solo viven acá y en el estado de
-// PresupuestoForm que las suma en el submit.
+// Componente controlado puro (tasks.md Fase 7, design.md D9/D10): mismo espíritu del editor de
+// líneas de Facturación (AsistenciasEditor, retirado en `facturacion-cambios-ui` WU2) —
+// agregar/quitar línea { prestacionId, monto }, total calculado en vivo. Sin red — no invoca
+// ningún repository, no lee el estado global de ningún presupuesto. Las líneas NUNCA se persisten
+// (design.md D9): solo viven acá y en el estado de PresupuestoForm que las suma en el submit.
 describe('PresupuestoLineasEditor', () => {
   it('muestra un aviso aclarando que se pueden cargar varias líneas, una por cada prestación', () => {
     render(<PresupuestoLineasEditor prestaciones={prestaciones} lineas={[]} onChange={vi.fn()} />);

@@ -4,7 +4,7 @@ import { Alert, EmptyState } from '../../design-system/feedback';
 import { Field, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import { Stepper, type StepperStep } from '../../design-system/stepper';
-import type { AsistenciaPrestacion, Factura } from '../../shared/types/factura';
+import type { Factura } from '../../shared/types/factura';
 import type { CupoAutorizado } from '../../shared/types/presupuesto';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
@@ -12,7 +12,6 @@ import type { PresupuestoRepository } from '../../shared/lib/presupuestos/Presup
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import { AlertaCupo } from './AlertaCupo';
 import { AlertaMontoAutorizado } from './AlertaMontoAutorizado';
-import { AsistenciasEditor } from './AsistenciasEditor';
 import { DiasFacturablesSelector } from './DiasFacturablesSelector';
 import { FacturaFormDatosBasicos } from './FacturaFormDatosBasicos';
 import { FacturaFormEconomicos } from './FacturaFormEconomicos';
@@ -25,6 +24,7 @@ import { calcularTotalFactura } from '../../shared/lib/facturacion/totalesFactur
 import { cupoConsumido } from '../../shared/lib/facturacion/cupoConsumido';
 import { etiquetaAutorizacion, prestacionRealAutorizacion } from '../../shared/lib/facturacion/etiquetaAutorizacion';
 import { montoConsumido } from '../../shared/lib/facturacion/montoConsumido';
+import { prestacionesDePresupuesto } from '../../shared/lib/facturacion/prestacionesDescripcion';
 import { renderDescripcionFactura } from '../../shared/lib/facturacion/renderDescripcionFactura';
 import { validarCupoFacturacion } from '../../shared/lib/facturacion/validarCupoFacturacion';
 import { validarMontoAutorizado } from '../../shared/lib/facturacion/validarMontoAutorizado';
@@ -95,18 +95,25 @@ const PASOS_WIZARD: StepperStep[] = [
 
 // Formulario de alta/edición de factura (tasks.md 7.1 a 7.6): selector de paciente y de domicilio
 // inyectados (guardan solo el id), período estructurado (design.md Decisión 4), económicos con
-// valor del km de carga manual (RN-FA-05), tipo de comprobante con default fijo, siempre editable
-// a mano (RN-FA-07 — ver TIPO_COMPROBANTE_DEFAULT), asistencias embebidas (AsistenciasEditor, RN-FA-01), días facturables
-// sugeridos (DiasFacturablesSelector) y alerta de cupo persistente (AlertaCupo). Componentes
-// pesados extraídos aparte para mantenerse bajo las ~200 líneas (tasks.md 12.3).
+// valor del km de carga manual (RN-FA-05), tipo de comprobante precargado de la obra social
+// (RN-FA-07 — ver TIPO_COMPROBANTE_DEFAULT), días facturables sugeridos (DiasFacturablesSelector)
+// y alerta de cupo persistente (AlertaCupo). Componentes pesados extraídos aparte para
+// mantenerse bajo las ~200 líneas (tasks.md 12.3).
+//
+// WU2 de `facturacion-cambios-ui` (decisión usuaria 2026-08-16): el campo "Prestación" del
+// bloque de datos básicos, el campo "Tipo de comprobante" del bloque económico y la tarjeta
+// "Asistencias / prestaciones declaradas" (AsistenciasEditor) se retiran del formulario — el
+// operador no los edita más. La prestación sigue derivando sola a nivel de datos desde la
+// autorización elegida (feature `facturacion-derivar-prestacion`) y el preview de la descripción
+// gana el bloque "Prestaciones:" (solo modalidad `general`) con las líneas del presupuesto de la
+// autorización.
 //
 // Migrado a CardForm/Alert (tasks.md 16.2, design.md Decisión 4/5): CardForm con sus defaults
 // (radius='sm', padding='lg', gap='md') reproduce `rounded-sm border border-border bg-surface
 // p-lg` + `gap-md` byte a byte; Alert(tone="danger") default reproduce la caja de error actual.
-// `labelClasses` sigue local: las dos leyendas de acá abajo ("Días facturables sugeridos",
-// "Asistencias / prestaciones declaradas") son `<span>` sueltos sin `htmlFor` — no son labels de
-// un control (Label del design system exige htmlFor y renderiza <label>) — cambiar el tag
-// cambiaría la semántica, y no está pedido por 16.2.
+// `labelClasses` sigue local: la leyenda "Días facturables sugeridos" es un `<span>` suelto sin
+// `htmlFor` — no es un label de un control (Label del design system exige htmlFor y renderiza
+// <label>) — cambiar el tag cambiaría la semántica, y no está pedido por 16.2.
 //
 // Wizard de 3 pasos en modo alta (change `facturacion-wizard-paciente-prestador`, design.md,
 // aprobado por Enzo): el mismo `values`/`set`/lógica de siempre, solo se reorganiza DÓNDE se
@@ -159,7 +166,7 @@ export function FacturaForm({
   // abiertas para no cambiar lo que se ve al montar — colapsar es una acción del operador, nunca
   // el estado inicial, así que ningún test ni comportamiento existente necesita interactuar para
   // ver un campo por primera vez.
-  const [seccionesAbiertas, setSeccionesAbiertas] = useState({ datos: true, dias: true, asistencias: true });
+  const [seccionesAbiertas, setSeccionesAbiertas] = useState({ datos: true, dias: true });
   function toggleSeccion(key: keyof typeof seccionesAbiertas) {
     setSeccionesAbiertas((prev) => ({ ...prev, [key]: !prev[key] }));
   }
@@ -217,8 +224,9 @@ export function FacturaForm({
   // Derivar "Prestación" desde la autorización elegida (feature `facturacion-derivar-prestacion`):
   // reusa `prestacionRealAutorizacion` (mismo criterio de resolución que ya usa
   // `etiquetaAutorizacion` en el selector del Paso 2) — solo modalidad `por-prestacion` resuelve
-  // una `Prestacion` real; `general` (o un catálogo desactualizado) devuelve `undefined` y el
-  // campo sigue siendo texto libre, sin ningún cambio de comportamiento.
+  // una `Prestacion` real; `general` (o un catálogo desactualizado) devuelve `undefined`. WU2
+  // (2026-08-16): el campo visible se retiró — la derivada vive solo a nivel de datos
+  // (`values.prestacion`, que alimenta el preview y el submit).
   const prestacionDerivada = autorizacionSeleccionada ? prestacionRealAutorizacion(autorizacionSeleccionada, paciente) : undefined;
 
   useEffect(() => {
@@ -268,10 +276,16 @@ export function FacturaForm({
   // Vista previa de la descripción (change `facturacion-seleccion-autorizacion`, design.md D4/D5):
   // ya no depende de ningún dato de prestador (`faltaCompletarPrestador` se retiró junto con
   // `prestadorNombre`/`prestadorDomicilio`, D5) — arma apenas hay paciente + obra social, igual en
-  // las dos modalidades, sin esperar a que se elija una autorización.
+  // las dos modalidades, sin esperar a que se elija una autorización. WU2 (2026-08-16, opción a):
+  // el bloque "Prestaciones:" (modalidad `general`) se arma de las LÍNEAS del presupuesto de la
+  // autorización elegida (`prestacionesDePresupuesto`) — reactivo: al cambiar la autorización en
+  // el Paso 2, `autorizacionSeleccionada` cambia y el bloque se recalcula. Presupuestos legacy
+  // sin líneas → `[]` → sin bloque.
+  const prestacionesPrevia =
+    autorizacionSeleccionada && paciente ? prestacionesDePresupuesto(autorizacionSeleccionada.presupuesto, paciente) : [];
   const previaDescripcion =
     esBorrador && obraSocial && paciente
-      ? renderDescripcionFactura(obraSocial.plantillaFactura, construirDatosDescripcion(values, paciente))
+      ? renderDescripcionFactura(obraSocial.plantillaFactura, construirDatosDescripcion({ ...values, prestaciones: prestacionesPrevia }, paciente))
       : null;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -371,8 +385,10 @@ export function FacturaForm({
   // y la vista plana (edición). `gateo-facturacion` (design.md D3, tasks.md 4.3): una sola
   // inserción sigue cubriendo los dos bloques de campos (FacturaFormDatosBasicos +
   // FacturaFormEconomicos) — ninguno de los dos recibe una prop nueva por este change. Las
-  // acciones no-CRUD de abajo (DiasFacturablesSelector, AsistenciasEditor) se gatean por separado
-  // en sus propios componentes (design.md D2, tasks.md sección 5) — este envoltorio NO las cubre.
+  // acciones no-CRUD de abajo (DiasFacturablesSelector) se gatean por separado en sus propios
+  // componentes (design.md D2, tasks.md sección 5) — este envoltorio NO las cubre. WU2
+  // (2026-08-16): AsistenciasEditor se retiró, "Días facturables sugeridos" queda como única
+  // sección no-CRUD del Paso 3.
   // Paso 3 (y edición) en la misma línea de concepto que los Pasos 1-2 (integración
   // 2026-08-05, feedback de la usuaria: "quiero mantener el wizard como está, integremos el
   // paso 3 con esa misma línea de concepto"): dos columnas, campos a la izquierda (siguen
@@ -398,7 +414,6 @@ export function FacturaForm({
                 errors={errors}
                 paciente={paciente}
                 set={set}
-                prestacionBloqueada={prestacionDerivada !== undefined}
               />
 
               <FacturaFormEconomicos formId={formId} values={values} errors={errors} set={set} />
@@ -421,20 +436,6 @@ export function FacturaForm({
               onChange={(dias) => set('dias', dias.length)}
             />
           )}
-        </SeccionPlegable>
-
-        <SeccionPlegable
-          titulo="Asistencias / prestaciones declaradas"
-          resumen={`${values.asistencias.length} cargadas`}
-          abierta={seccionesAbiertas.asistencias}
-          onToggle={() => toggleSeccion('asistencias')}
-        >
-          <AsistenciasEditor
-            asistencias={values.asistencias}
-            onChange={(asistencias: AsistenciaPrestacion[]) => set('asistencias', asistencias)}
-            prestaciones={paciente?.prestaciones?.filter((p) => p.activa) ?? []}
-            prestacionPreseleccionada={prestacionDerivada?.nombre}
-          />
         </SeccionPlegable>
       </div>
 

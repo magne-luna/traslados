@@ -33,12 +33,12 @@ function nombrePrestacion(prestaciones: Prestacion[], prestacionId: string): str
   return prestaciones.find((p) => p.id === prestacionId)?.nombre ?? 'Prestación desconocida';
 }
 
-// Componente controlado puro (tasks.md Fase 7, design.md D9/D10): mismo espíritu que
-// AsistenciasEditor.tsx de Facturación — alta/baja de líneas { prestacionId, monto } con total
-// calculado en vivo (useMemo/reduce). Sin red: no invoca ningún repository, no lee
-// PresupuestoRepository/PrestacionRepository — recibe todo por props. `NUMERIC(10,2)`: el total se
-// redondea a 2 decimales para evitar arrastre de errores de punto flotante; una línea sin monto
-// (0 o no numérico) no rompe el cálculo, simplemente no suma.
+// Componente controlado puro (tasks.md Fase 7, design.md D9/D10): mismo espíritu del editor de
+// líneas de Facturación (AsistenciasEditor, retirado en `facturacion-cambios-ui` WU2) — alta/baja
+// de líneas { prestacionId, monto } con total calculado en vivo (useMemo/reduce). Sin red: no
+// invoca ningún repository, no lee PresupuestoRepository/PrestacionRepository — recibe todo por
+// props. `NUMERIC(10,2)`: el total se redondea a 2 decimales para evitar arrastre de errores de
+// punto flotante; una línea sin monto (0 o no numérico) no rompe el cálculo, simplemente no suma.
 export function PresupuestoLineasEditor({ prestaciones, lineas, onChange }: PresupuestoLineasEditorProps) {
   const [prestacionId, setPrestacionId] = useState('');
   const [monto, setMonto] = useState('');
