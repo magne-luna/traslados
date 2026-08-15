@@ -474,6 +474,9 @@ function buildRowCompleto() {
     ],
     direcciones: [{ id: 'd-1', calle: 'San Martín', numero: '123', tipo_lugar: 'domicilio', localidad: 'CABA' }],
     accesorios_pacientes: [{ accesorios: { tipo: 'andador' } }],
+    prestaciones: [
+      { id: 'prest-1', paciente_id: 'p-1', nombre: 'Kinesiología', descripcion: 'Sesión semanal', activa: true },
+    ],
   };
 }
 
@@ -502,7 +505,32 @@ describe('ensamblarPaciente', () => {
       ],
       amparoJudicial: false,
       amparoJudicialAclaracion: undefined,
+      prestaciones: [
+        { id: 'prest-1', pacienteId: 'p-1', nombre: 'Kinesiología', descripcion: 'Sesión semanal', activa: true },
+      ],
     });
+  });
+
+  it('un paciente sin filas de prestaciones (columna ausente del embed) trae [], nunca undefined', () => {
+    const row = buildRowCompleto();
+    delete (row as Record<string, unknown>).prestaciones;
+
+    const paciente = ensamblarPaciente(row, null);
+
+    expect(paciente.prestaciones).toEqual([]);
+  });
+
+  it('robustez (2.10): una prestación malformada se descarta sin romper el paciente ni el resto de la lista', () => {
+    const row = buildRowCompleto();
+    row.prestaciones = [
+      { id: 'prest-bad', nombre: 'Sin paciente_id' } as unknown as (typeof row.prestaciones)[0],
+      ...row.prestaciones,
+    ];
+
+    expect(() => ensamblarPaciente(row, null)).not.toThrow();
+    const paciente = ensamblarPaciente(row, null);
+    expect(paciente.prestaciones).toHaveLength(1);
+    expect(paciente.prestaciones?.map((p) => p.id)).toEqual(['prest-1']);
   });
 
   it('discrepancia #2 (D9): coberturaRow null degrada a valor vacío, sin lanzar', () => {

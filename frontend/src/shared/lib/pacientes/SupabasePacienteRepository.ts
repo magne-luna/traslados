@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 import type { AccesorioMovilidad } from '../../types/vehiculo';
 import type { ActualizacionPaciente, Direccion, NuevoPaciente, Paciente } from '../../types/paciente';
+import type { Prestacion } from '../../types/prestacion';
 import type { Coordenada } from '../../types/hojaDeRuta';
 import type { Pagina, RangoPagina } from '../../types/paginacion';
 import type { FiltrosPaciente, PacienteRepository } from './PacienteRepository';
@@ -12,6 +13,7 @@ import {
   toDireccionRows,
   toPersonaACargoRows,
 } from './pacienteMapping';
+import { toPrestacionRows } from './prestacionMapping';
 import { geocodificarDireccion } from '../googleMapsClient';
 import { DEFAULT_FORMATO_AFILIADO } from '../../../features/pacientes/formatoAfiliadoOptions';
 import { construirFiltroBusqueda } from '../paginacion/construirFiltroBusqueda';
@@ -37,7 +39,8 @@ const SELECT_PACIENTE_COMPLETO = `
   clinicos ( diagnostico, condicion ),
   personas_a_cargo ( id, nombre, apellido, dni, parentesco, telefono, telefono_alternativo ),
   direcciones ( id, calle, numero, tipo_lugar, localidad, descripcion ),
-  accesorios_pacientes ( accesorios ( tipo ) )
+  accesorios_pacientes ( accesorios ( tipo ) ),
+  prestaciones ( id, paciente_id, nombre, descripcion, activa )
 `;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -450,6 +453,25 @@ async function aplicarDiffAccesorios(
   }
 }
 
+/** Diff de `pacientes.prestaciones` (D1 de la migración `20260812120000`): a diferencia de
+ * `aplicarDiffColeccion` (direcciones/personas a cargo), acá NUNCA hay un `delete` — la baja es
+ * SIEMPRE lógica (`activa = false`), porque un presupuesto ya emitido puede seguir referenciando
+ * una prestación inactiva sin romper su FK. Un id existente que ya no está en `entrantes` se
+ * reescribe con `activa: false` en vez de borrarse, usando los últimos datos conocidos de esa
+ * prestación (`existentes`) — el payload entrante no tiene por qué mandar la fila completa de algo
+ * que está quitando. Un único `upsert` con TODAS las filas (entrantes + bajas), igual criterio de
+ * "un solo round-trip" que el resto del módulo. */
+async function aplicarDiffPrestaciones(pacienteId: string, existentes: Prestacion[], entrantes: Prestacion[]): Promise<void> {
+  const entrantesSet = new Set(entrantes.map((p) => p.id));
+  const bajas = existentes.filter((p) => !entrantesSet.has(p.id)).map((p) => ({ ...p, activa: false }));
+
+  const filas = toPrestacionRows([...entrantes, ...bajas]).map((fila) => ({ ...fila, paciente_id: pacienteId }));
+  if (filas.length === 0) return;
+
+  const { error } = await supabase.schema('pacientes').from('prestaciones').upsert(filas);
+  if (error) throw mapearErrorPaciente(error, { operacion: 'actualizar' });
+}
+
 async function actualizarPaciente(id: string, data: ActualizacionPaciente): Promise<Paciente> {
   const existente = await getPacienteById(id);
   if (!existente) {
@@ -523,6 +545,10 @@ async function actualizarPaciente(id: string, data: ActualizacionPaciente): Prom
 
   if (data.accesorioMovilidad !== undefined) {
     await aplicarDiffAccesorios(id, existente.accesorioMovilidad, data.accesorioMovilidad);
+  }
+
+  if (data.prestaciones !== undefined) {
+    await aplicarDiffPrestaciones(id, existente.prestaciones ?? [], data.prestaciones);
   }
 
   // Cobertura (D3): se escribe si `numeroAfiliado.valor` cambió respecto de lo leído. Sigue

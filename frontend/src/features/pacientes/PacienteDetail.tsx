@@ -142,12 +142,10 @@ export function PacienteDetail({
     }
   }
 
-  // presupuesto-prestaciones (design.md D1/D7, tasks.md 4.4 — PR 1 de la serie encadenada): mismo
-  // patrón que handleDireccionesChange, para la sección de gateo/UI. `SupabasePacienteRepository`
-  // real todavía no lee ni escribe la clave `prestaciones` (la tabla se crea en Fase 3 de
-  // tasks.md, sin aplicar todavía) — esta sección persiste en memoria por ahora; el wiring de
-  // persistencia real llega en un PR posterior, una vez aplicada la migración. Ver comentario en
-  // `shared/types/paciente.ts` (campo `prestaciones` opcional) y en `PrestacionesEditor.tsx`.
+  // presupuesto-prestaciones (design.md D1/D7, tasks.md 4.4): mismo patrón que
+  // handleDireccionesChange. `SupabasePacienteRepository.actualizarPaciente` persiste el diff
+  // contra `pacientes.prestaciones` (fix/pacientes-prestaciones-persistencia) — la baja siempre es
+  // lógica (`activa: false`), nunca un DELETE físico.
   async function handlePrestacionesChange(prestaciones: Prestacion[]) {
     if (paciente === null) return;
     setSectionError(null);

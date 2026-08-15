@@ -109,13 +109,12 @@ export interface Paciente {
   amparoJudicial: boolean;
   amparoJudicialAclaracion?: string;
   /**
-   * Catálogo de prestaciones del paciente (presupuesto-prestaciones, design.md D1/D7, PR 1 de la
-   * serie encadenada). OPCIONAL a propósito, a diferencia de `direcciones`/`personasACargo`
-   * (siempre `[]`, nunca ausentes): la migración de `pacientes.prestaciones` (tasks.md Fase 3) es
-   * aditiva y `SupabasePacienteRepository`/`pacienteMapping.ts` todavía no la leen ni escriben en
-   * este PR (queda para un PR posterior, una vez aplicada) — forzar el campo a requerido hubiera
-   * obligado a tocar decenas de fixtures/tests de dominios sin relación con este change solo para
-   * satisfacer el tipo. `PacienteDetail` la trata como `paciente.prestaciones ?? []`.
+   * Catálogo de prestaciones del paciente (presupuesto-prestaciones, design.md D1/D7). Persiste
+   * contra `pacientes.prestaciones` vía `SupabasePacienteRepository`/`pacienteMapping.ts`
+   * (fix/pacientes-prestaciones-persistencia) — `ensamblarPaciente` siempre devuelve `[]`, nunca
+   * `undefined`. Sigue OPCIONAL a nivel de tipo (a diferencia de `direcciones`/`personasACargo`)
+   * para no obligar a tocar fixtures/tests de dominios sin relación con este change solo para
+   * satisfacer el tipo — `PacienteDetail` la trata igual como `paciente.prestaciones ?? []`.
    */
   prestaciones?: Prestacion[];
 }
