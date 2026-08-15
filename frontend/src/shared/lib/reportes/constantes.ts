@@ -1,8 +1,9 @@
 import type { PeriodoMeses } from '../../types/reportes';
 
 // Umbrales y opciones propios del dashboard (design.md Decisión 10, tasks.md 4.1): este archivo
-// NO redeclara ningún umbral que ya tenga dueño en otro módulo. `PLAZO_ALERTA_VENCIDA_DIAS`
-// (mora) vive en `shared/lib/facturacion/constantes.ts`; `KM_SERVICE` / `KM_ALERTA_INTERMEDIA` /
+// NO redeclara ningún umbral que ya tenga dueño en otro módulo. La mora (`estadoVencimientoFactura`)
+// ya no usa un plazo fijo en días — desde 2026-08-12 compara contra `fechaEstimadaCobro`, ver
+// `shared/lib/facturacion/estadoVencimientoFactura.ts`; `KM_SERVICE` / `KM_ALERTA_INTERMEDIA` /
 // `MESES_SERVICE` / `DIAS_AVISO_HABILITACION` (mantenimiento) viven en
 // `shared/lib/mantenimiento/constantes.ts`; el umbral de `estadoCud` resuelve su propio default
 // (60 días) en `shared/lib/pacientes/estadoCud.ts`. Solo se declara acá lo que no tiene dueño en

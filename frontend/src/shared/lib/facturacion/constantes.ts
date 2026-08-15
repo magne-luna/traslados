@@ -21,8 +21,10 @@ export const PLAZO_COBRO_DEFAULT_DIAS = 90;
 export const PLAZO_COBRO_AMPARO_DIAS = 45;
 
 /**
- * RF-406: días desde la fecha de factura a partir de los cuales, sin cobro, se alerta la factura
- * como vencida para hacer seguimiento ante la Superintendencia. A confirmar.
+ * @deprecated Huérfana desde el cambio confirmado con la usuaria (2026-08-12): RF-406 ya no
+ * compara contra un plazo fijo de días desde `fechaFactura`, sino contra la `fechaEstimadaCobro`
+ * puntual de cada factura (`estadoVencimientoFactura.ts`). No se borra el archivo por si algo
+ * la importa que no se vio en la revisión — confirmar con quien la use antes de eliminarla.
  */
 export const PLAZO_ALERTA_VENCIDA_DIAS = 60;
 

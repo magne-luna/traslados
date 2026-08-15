@@ -3,10 +3,13 @@ import { estadoVencimientoFactura } from '../facturacion/estadoVencimientoFactur
 import { saldoFactura } from '../facturacion/totalesFactura';
 import type { FacturaEnMora } from '../../types/reportes';
 
-// Función pura (design.md Decisión 5, tasks.md 4.3/4.4): la regla de mora y su umbral tienen un
-// solo dueño, `shared/lib/facturacion/` — esta función solo invoca `estadoVencimientoFactura` y
-// `saldoFactura`, nunca reimplementa el cálculo ni redeclara `PLAZO_ALERTA_VENCIDA_DIAS`. Una
-// factura sin `fechaFactura` (nunca emitida) no puede estar en mora.
+// Función pura (design.md Decisión 5, tasks.md 4.3/4.4): la regla de mora tiene un solo dueño,
+// `shared/lib/facturacion/` — esta función solo invoca `estadoVencimientoFactura` y
+// `saldoFactura`, nunca reimplementa el cálculo. Desde el cambio confirmado con la usuaria
+// (2026-08-12), "vencida" compara contra la `fechaEstimadaCobro` puntual de cada factura, no
+// contra un plazo fijo — `diasDeAtraso` igual se sigue informando desde `fechaFactura`, es una
+// métrica distinta (antigüedad de la factura, no el vencimiento del plazo de cobro). Una factura
+// sin `fechaFactura` (nunca emitida) no puede estar en mora.
 
 export interface FacturasEnMoraInput {
   facturas: Factura[];
@@ -21,7 +24,11 @@ export function facturasEnMora({ facturas, cobros, hoy }: FacturasEnMoraInput): 
   for (const factura of facturas) {
     if (!factura.fechaFactura) continue;
 
-    const vencida = estadoVencimientoFactura({ fechaFactura: factura.fechaFactura, hoy, estado: factura.estado });
+    const vencida = estadoVencimientoFactura({
+      fechaEstimadaCobro: factura.fechaEstimadaCobro,
+      hoy,
+      estado: factura.estado,
+    });
     if (!vencida) continue;
 
     const saldoPendiente = saldoFactura(factura, cobros);

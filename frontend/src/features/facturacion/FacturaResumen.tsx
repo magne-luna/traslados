@@ -71,13 +71,11 @@ function ResumenItem({ label, value }: { label: string; value: string }) {
 // fecha de factura/fecha estimada de cobro con el motivo del plazo aplicado (RF-406) al pie.
 // Extraído de FacturaDetail para mantener ambos componentes bajo las ~200 líneas (tasks.md 12.3).
 export function FacturaResumen({ factura, paciente }: { factura: Factura; paciente: Paciente | undefined }) {
-  const vencida =
-    factura.fechaFactura !== undefined &&
-    estadoVencimientoFactura({
-      fechaFactura: factura.fechaFactura,
-      hoy: new Date().toISOString().slice(0, 10),
-      estado: factura.estado,
-    });
+  const vencida = estadoVencimientoFactura({
+    fechaEstimadaCobro: factura.fechaEstimadaCobro,
+    hoy: new Date().toISOString().slice(0, 10),
+    estado: factura.estado,
+  });
 
   const identificador = factura.identificadorFactura?.valor ?? paciente?.numeroAfiliado.valor ?? '—';
 

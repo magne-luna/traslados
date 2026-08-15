@@ -67,3 +67,42 @@ describe('FacturaResumen — lectura preservada en modo solo lectura', () => {
     expect(screen.getByText(/gómez, martina/i)).toBeInTheDocument();
   });
 });
+
+// RF-406 (cambio confirmado con la usuaria 2026-08-12): el wiring pasa `fechaEstimadaCobro`, no
+// `fechaFactura`, a `estadoVencimientoFactura` — una factura con `fechaFactura` muy vieja pero
+// `fechaEstimadaCobro` todavía no vencida NO debe mostrar el chip "Vencida".
+describe('FacturaResumen — chip "Vencida" usa fechaEstimadaCobro, no fechaFactura', () => {
+  it('fechaFactura muy vieja pero fechaEstimadaCobro futura: no muestra "Vencida"', () => {
+    const facturaNoVencida: Factura = {
+      ...factura,
+      estado: 'facturado',
+      fechaFactura: '2000-01-01',
+      fechaEstimadaCobro: '2999-01-01',
+    };
+
+    render(
+      <PuedeEscribirContext.Provider value={false}>
+        <FacturaResumen factura={facturaNoVencida} paciente={paciente} />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    expect(screen.queryByText('Vencida')).not.toBeInTheDocument();
+  });
+
+  it('fechaEstimadaCobro ya pasada: muestra "Vencida"', () => {
+    const facturaVencida: Factura = {
+      ...factura,
+      estado: 'facturado',
+      fechaFactura: '2026-01-01',
+      fechaEstimadaCobro: '2026-01-02',
+    };
+
+    render(
+      <PuedeEscribirContext.Provider value={false}>
+        <FacturaResumen factura={facturaVencida} paciente={paciente} />
+      </PuedeEscribirContext.Provider>,
+    );
+
+    expect(screen.getByText('Vencida')).toBeInTheDocument();
+  });
+});
