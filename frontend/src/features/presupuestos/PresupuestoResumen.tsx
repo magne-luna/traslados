@@ -1,4 +1,4 @@
-import { AvisoModeloDatos, Button, InlineIcon } from '../../design-system/components';
+import { AvisoModeloDatos, Button, Chip, InlineIcon } from '../../design-system/components';
 import { Card } from '../../design-system/layout';
 import { iconCalendario, iconDocumento, iconMoneda } from '../../design-system/icons';
 import type { ObraSocial } from '../../shared/types/obraSocial';
@@ -23,6 +23,15 @@ function nombrePrestacion(paciente: Paciente | undefined, prestacionId: string):
   return paciente?.prestaciones?.find((prestacion) => prestacion.id === prestacionId)?.nombre ?? 'Prestación desconocida';
 }
 
+/** Corrección confirmada por la usuaria (2026-08-15): la modalidad del presupuesto (general vs.
+ * por-prestación) no era visible de un vistazo — había que inferirla de la presencia o ausencia
+ * del stat "Prestación". Reusa el mismo criterio de resolución que ese stat (`prestacionId` contra
+ * `paciente.prestaciones`), expuesto acá como chip para que se vea sin tener que interpretar nada. */
+function etiquetaModalidad(presupuesto: Presupuesto, paciente: Paciente | undefined): string {
+  if (!presupuesto.prestacionId) return 'Presupuesto general';
+  return `Presupuesto por prestación: ${nombrePrestacion(paciente, presupuesto.prestacionId)}`;
+}
+
 // Resumen de solo lectura del presupuesto, extraído de PresupuestoDetail (mismo criterio que
 // PacienteResumen/VehiculoDetail — 08_arquitectura_propuesta.md §Convenciones de UI): grid de
 // stats con todos los campos del form (obra social, monto, fecha de emisión, archivo) para no
@@ -30,7 +39,10 @@ function nombrePrestacion(paciente: Paciente | undefined, prestacionId: string):
 export function PresupuestoResumen({ presupuesto, paciente, obraSocial, onEdit }: PresupuestoResumenProps) {
   return (
     <Card>
-      <span className="font-body text-[14px] font-semibold text-ink">{nombrePaciente(paciente)}</span>
+      <div className="flex flex-wrap items-center justify-between gap-sm">
+        <span className="font-body text-[14px] font-semibold text-ink">{nombrePaciente(paciente)}</span>
+        <Chip kind="info">{etiquetaModalidad(presupuesto, paciente)}</Chip>
+      </div>
 
       <div className="grid grid-cols-2 gap-md border-y border-border py-md md:grid-cols-4">
         <div className="flex flex-col gap-0.5">

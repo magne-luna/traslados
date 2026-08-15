@@ -68,6 +68,31 @@ describe('PresupuestoResumen — prestación asociada (D9)', () => {
     expect(screen.queryByText('Prestación')).not.toBeInTheDocument();
   });
 
+  it('sin prestacionId (modalidad general): muestra el chip "Presupuesto general"', () => {
+    render(<PresupuestoResumen presupuesto={presupuestoMartina} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.getByText('Presupuesto general')).toBeInTheDocument();
+  });
+
+  it('con prestacionId presente: muestra el chip "Presupuesto por prestación: <nombre real>"', () => {
+    const martinaConPrestaciones: Paciente = {
+      ...martina,
+      prestaciones: [{ id: 'prestacion-kine', pacienteId: martina.id, nombre: 'Kinesiología', activa: true }],
+    };
+    const presupuestoConPrestacion: Presupuesto = { ...presupuestoMartina, prestacionId: 'prestacion-kine' };
+
+    render(
+      <PresupuestoResumen
+        presupuesto={presupuestoConPrestacion}
+        paciente={martinaConPrestaciones}
+        obraSocial={osecac}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Presupuesto por prestación: Kinesiología')).toBeInTheDocument();
+  });
+
   it('con prestacionId presente: muestra el nombre de la prestación buscado en el catálogo del paciente', () => {
     const martinaConPrestaciones: Paciente = {
       ...martina,
