@@ -425,6 +425,18 @@ registran acá y quedan para confirmar.
   **Decisor**: quien implemente la §3 de este change, revisando el estado real de
   `presupuesto-prestaciones` antes de empezar.
 
+## Preguntas nuevas — fixes directos de Facturación (2026-08-15)
+
+- **¿Qué significan exactamente "dependencia" y "retorno" (`Factura.dependenciaYRetorno`,
+  `AsistenciaPrestacion.dependencia`/`.retorno`)?** El usuario (Enzo, backend) confirmó que son
+  "dos sí/no" por paciente, pero no supo explicar qué representa cada uno ni si varía mes a mes o
+  es fijo en la ficha del paciente. Hoy siguen siendo texto libre, cargados a mano en el wizard de
+  factura (`FacturaFormDatosBasicos.tsx`) — no se tocó nada de este campo, sigue exactamente como
+  estaba. **No resolver adivinando**: no hay ningún campo equivalente en `Paciente` hoy, así que
+  además de aclarar el significado hace falta decidir dónde vive el dato (ficha del paciente,
+  configuración de la obra social, o se sigue cargando por factura). **Decisor**: cliente (Andrea
+  Pastor).
+
 ## Insumos pendientes del cliente
 
 - Logo (árbol de discapacidad) y colores de marca; fondo de pantalla de referencia.
