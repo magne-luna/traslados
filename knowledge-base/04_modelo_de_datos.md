@@ -802,8 +802,20 @@ así que queda anotado acá hasta que se construya esa feature.
       pantalla lo ofrece. Agregar borrado es funcionalidad nueva, no swap de backend — no se hace
       acá. Pregunta abierta con decisor nombrado en `10_preguntas_abiertas.md`.
   13. **`Presupuesto` = monto único vs. la lectura anterior de la KB ("estimación anual por
-      prestación") — NO SE REABRE**: ya se resolvió a favor del docx en `presupuestos-ui`
-      (2026-07-24); este change no vuelve sobre esa decisión.
+      prestación") — ⚠️ REABIERTA (decisión usuaria, 2026-08-16, change
+      `facturacion-cambios-ui` WU1)**: se había resuelto a favor del docx en `presupuestos-ui`
+      (2026-07-24) y `presupuesto-prestaciones` (2026-08-12) la re-citó como cerrada ("NO se
+      reabre"; desglose solo en el estado de `PresupuestoLineasEditor.tsx`, nunca en la base).
+      **La usuaria decidió reabrirla**: la modalidad `general` ahora SÍ persiste su desglose por
+      prestación en la tabla nueva `facturacion.presupuesto_linea` (migración
+      `20260816110000_presupuesto_lineas.sql`: tabla hija FK a `presupuesto` ON DELETE CASCADE y a
+      `pacientes.prestaciones` ON DELETE RESTRICT, RLS gateada por `presupuestos` read/write igual
+      que la madre, trigger `auditoria.log_action()`, alta vía `p_lineas` en
+      `crear_presupuesto_completo` y `lineas` opcionales por ítem del lote, mismo `SECURITY
+      INVOKER` + `search_path = ''` y códigos 45401-45403 intactos + 45404 nuevo). `monto` sigue
+      existiendo como importe único (la suma del desglose), el desglose ya no se descarta. El
+      `AvisoModeloDatos` de `PresupuestoForm.tsx`/`PresupuestoResumen.tsx` se actualiza en el
+      mismo change.
   14. **RN-GL-02 (rastro de alta/edición) solo parcialmente cumplida para este módulo — ABIERTA,
       hallazgo de la verificación con cuentas reales**: confirmado por `tasks.md` 1B.4(i)/7.6
       (2026-08-06) que `auditoria.logs` sí registra el `INSERT`/`UPDATE` de un presupuesto (el *qué*),
@@ -985,20 +997,25 @@ así que queda anotado acá hasta que se construya esa feature.
   `design.md` Checkpoint (e) de `documentos-transferencia-actividad` había dejado anotada como forma
   futura, implementada antes de archivar ese change.
 
-- **`presupuesto.prestacion_id` (columna nueva) — decidido, NO es reapertura de #13**
-  (`openspec/changes/presupuesto-prestaciones/design.md` §D5, propose+apply 2026-08-12): el docx no
-  vincula `Presupuesto` con ninguna prestación. Se agrega una FK **opcional**
+- **`presupuesto.prestacion_id` (columna nueva) — decidido; y la #13, REABIERTA por la usuaria**
+  (`openspec/changes/presupuesto-prestaciones/design.md` §D5, propose+apply 2026-08-12; reapertura
+  #13 por `facturacion-cambios-ui` WU1, decisión usuaria 2026-08-16): el docx no vincula
+  `Presupuesto` con ninguna prestación. Se agrega una FK **opcional**
   (`facturacion.presupuesto.prestacion_id UUID NULL REFERENCES pacientes.prestaciones(id)`) para
   soportar obras sociales con `modalidad_facturacion = 'por-prestacion'`, donde cada prestación
   genera su propio presupuesto (con su propio `monto` único y su propia autorización 1:1, sin
-  cambios). **`monto` sigue siendo un importe único y nunca un desglose persistido**, exactamente
-  como fijó la discrepancia **#13** de "Presupuestos / Autorizaciones vs. esquema real de `C-06`"
-  arriba — esta entrada **cita** la #13, no la edita ni la reabre. En modalidad `general` la columna
-  queda `NULL` y el desglose por prestación **solo existe en el estado del formulario**
-  (`PresupuestoLineasEditor.tsx`), nunca en la base. El catálogo nuevo `pacientes.prestaciones`
-  (tabla hija del paciente, calco de `pacientes.direcciones`, borrado lógico vía `activa`) es la
-  única estructura nueva; no hay tabla intermedia N:N. Cartel `AvisoModeloDatos` correspondiente en
-  `PresupuestoForm.tsx` y `PresupuestoResumen.tsx`.
+  cambios). **`monto` sigue siendo un importe único** (en `general`, la suma del desglose); el
+  cambio con respecto a lo que fijó la discrepancia **#13** de "Presupuestos / Autorizaciones vs.
+  esquema real de `C-06`" — **que esta entrada originalmente citaba sin reabrir** — es que la
+  usuaria la reabrió (2026-08-16): la modalidad `general` SÍ persiste ahora su desglose por
+  prestación en `facturacion.presupuesto_linea` (ver la #13 reabierta arriba y la migración
+  `20260816110000_presupuesto_lineas.sql`), y `presupuesto.prestacion_id` queda solo para la
+  modalidad `por-prestacion` (donde cada fila ES una prestación, sin desglose). El catálogo
+  `pacientes.prestaciones` (tabla hija del paciente, calco de `pacientes.direcciones`, borrado
+  lógico vía `activa`) es la única estructura nueva de `presupuesto-prestaciones`; la tabla
+  intermedia nueva es `facturacion.presupuesto_linea` (del WU1, N:1 a presupuesto). Cartel
+  `AvisoModeloDatos` correspondiente en `PresupuestoForm.tsx` y `PresupuestoResumen.tsx` —
+  actualizado en `facturacion-cambios-ui` para reflejar la persistencia del desglose.
 
 ### Presupuesto / Autorizacion — policies gateadas por `presupuestos`, no `facturacion`
 
