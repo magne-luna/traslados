@@ -135,17 +135,20 @@ Suggested split: 1 PR
 
 ## 5. Documentación
 
-- [-] 5.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: #11 → **CERRADA** con motivo
+- [x] 5.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: #11 → **CERRADA** con motivo
       ("el catálogo es la fuente de verdad; `AccesorioMovilidad` deja de ser unión cerrada; el
       frontend no descarta desconocidos").
-- [-] 5.2 `CHANGES.md`: bullet del change + referencia en la lista de puntos tocados.
-- [-] 5.3 Verificado: **sin** `AvisoModeloDatos` nuevo (cerrada #11 no deja mismatch; la
+- [x] 5.2 `CHANGES.md`: bullet del change + referencia en la lista de puntos tocados.
+- [x] 5.3 Verificado: **sin** `AvisoModeloDatos` nuevo (cerrada #11 no deja mismatch; la
       desactivación usa `Alert` del DS).
 
 ## 6. Verificación final
 
-- [-] 6.1 Suite completa en verde contra el baseline de 0.3, sin regresiones.
-- [-] 6.2 `cd frontend && npx tsc -b --noEmit` + `oxlint` limpios en todo el diff.
+- [x] 6.1 Suite completa en verde contra el baseline de 0.3, sin regresiones (en mis 7 suites del
+      diff: 102/102 verdes; fallos ajenos de la sesión concurrente — RecorridoCard mock de
+      `useMapsLibrary`, router/PacientesPage/ChecklistEditor — pre-existentes, confirmado con
+      stash-check; `PacienteForm` 1 timeout flaky 5s documentado).
+- [x] 6.2 `cd frontend && npx tsc -b --noEmit` + `oxlint` limpios en todo el diff.
 - [-] 6.3 Manual navegador: alta inline, edición, desactivar con aviso, reactivar, cuenta
       `vehiculos`-only sin gestión (pero ve el catálogo), icono desconocido → fallback, alta en
       Pacientes visible en Vehículos sin recompilar.
