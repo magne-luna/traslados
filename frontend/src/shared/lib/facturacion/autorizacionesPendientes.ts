@@ -12,9 +12,12 @@ import type { AutorizacionRepository } from '../presupuestos/AutorizacionReposit
 // `pacienteId` propio (solo `presupuestoId`), y ningún repository expone `listByPacienteId` — crear
 // uno tocaría dos interfaces, dos mocks y dos implementaciones Supabase para un dato ya alcanzable.
 //
-// "Pendiente" = `estado === 'autorizada'`, SIN filtrar por mes ya facturado (asunción de negocio
-// explícita, confirmada con la usuaria — riesgo aceptado, no garantía del sistema): esta función NO
-// recibe `facturasExistentes` ni ningún parámetro de período, a propósito.
+// "Pendiente" = `estado === 'autorizada' || estado === 'judicializada'` (corrección confirmada por
+// la usuaria 2026-08-15: una autorización judicializada sigue habilitando la facturación mientras
+// se resuelve el litigio), excluyendo explícitamente `'pendiente'` y `'rechazada'`. SIN filtrar por
+// mes ya facturado (asunción de negocio explícita, confirmada con la usuaria — riesgo aceptado, no
+// garantía del sistema): esta función NO recibe `facturasExistentes` ni ningún parámetro de
+// período, a propósito.
 
 export interface AutorizacionPendiente {
   autorizacion: Autorizacion;
@@ -32,7 +35,7 @@ export async function autorizacionesPendientes(
   const pendientes: AutorizacionPendiente[] = [];
   for (const presupuesto of propios) {
     const autorizacion = await autorizacionRepository.getByPresupuestoId(presupuesto.id);
-    if (autorizacion !== null && autorizacion.estado === 'autorizada') {
+    if (autorizacion !== null && (autorizacion.estado === 'autorizada' || autorizacion.estado === 'judicializada')) {
       pendientes.push({ autorizacion, presupuesto });
     }
   }

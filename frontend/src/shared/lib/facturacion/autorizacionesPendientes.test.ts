@@ -78,22 +78,28 @@ describe('autorizacionesPendientes (D3, tasks.md 2.6)', () => {
     expect(resultado).toEqual([]);
   });
 
-  it('solo el literal "autorizada" aparece — "judicializada" no cuenta como pendiente de facturar', async () => {
-    const p1 = presupuesto({ id: 'presupuesto-1' });
-    const p2 = presupuesto({ id: 'presupuesto-2' });
+  // Corrección confirmada por la usuaria (2026-08-15): "pendiente de facturar" también incluye
+  // `judicializada` — una autorización judicializada sigue habilitando la facturación mientras se
+  // resuelve el litigio. Solo `pendiente` y `rechazada` quedan excluidas.
+  it('"autorizada" y "judicializada" cuentan como pendiente de facturar — "pendiente" y "rechazada" no', async () => {
+    const pendiente = presupuesto({ id: 'presupuesto-pendiente' });
+    const autorizada = presupuesto({ id: 'presupuesto-autorizada' });
+    const judicializada = presupuesto({ id: 'presupuesto-judicializada' });
+    const rechazada = presupuesto({ id: 'presupuesto-rechazada' });
     const autorizaciones = new Map<string, Autorizacion>([
-      ['presupuesto-1', autorizacion({ id: 'autorizacion-1', presupuestoId: 'presupuesto-1', estado: 'autorizada' })],
-      ['presupuesto-2', autorizacion({ id: 'autorizacion-2', presupuestoId: 'presupuesto-2', estado: 'judicializada' })],
+      ['presupuesto-pendiente', autorizacion({ id: 'autorizacion-pendiente', presupuestoId: 'presupuesto-pendiente', estado: 'pendiente' })],
+      ['presupuesto-autorizada', autorizacion({ id: 'autorizacion-autorizada', presupuestoId: 'presupuesto-autorizada', estado: 'autorizada' })],
+      ['presupuesto-judicializada', autorizacion({ id: 'autorizacion-judicializada', presupuestoId: 'presupuesto-judicializada', estado: 'judicializada' })],
+      ['presupuesto-rechazada', autorizacion({ id: 'autorizacion-rechazada', presupuestoId: 'presupuesto-rechazada', estado: 'rechazada' })],
     ]);
 
     const resultado = await autorizacionesPendientes(
       'paciente-martina',
-      fakePresupuestoRepository([p1, p2]),
+      fakePresupuestoRepository([pendiente, autorizada, judicializada, rechazada]),
       fakeAutorizacionRepository(autorizaciones),
     );
 
-    expect(resultado).toHaveLength(1);
-    expect(resultado[0]?.autorizacion.id).toBe('autorizacion-1');
+    expect(resultado.map((r) => r.autorizacion.id).sort()).toEqual(['autorizacion-autorizada', 'autorizacion-judicializada']);
   });
 
   it('varias autorizaciones simultáneas del mismo paciente (caso por-prestacion): todas aparecen', async () => {
