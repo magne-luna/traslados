@@ -66,10 +66,13 @@ export function FacturaFormDatosBasicos({ formId, values, errors, paciente, set,
         />
       </Field>
 
+      {/* Fix directo (sin change SDD): antes listaba TODAS las direcciones del paciente (escuela,
+          terapia, cet, etc.), no solo las de tipo `domicilio` — este campo arma el domicilio del
+          traslado, no un selector genérico de direcciones. */}
       <Field label="Domicilio" htmlFor={`${formId}-domicilio`}>
         <Select id={`${formId}-domicilio`} value={values.domicilioId} onChange={(e) => set('domicilioId', e.target.value)}>
           <option value="">Seleccionar domicilio…</option>
-          {paciente?.direcciones.map((d) => (
+          {paciente?.direcciones.filter((d) => d.tipo === 'domicilio').map((d) => (
             <option key={d.id} value={d.id}>{d.calle}, {d.localidad}</option>
           ))}
         </Select>
