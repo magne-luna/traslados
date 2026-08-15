@@ -116,3 +116,56 @@ describe('migración 20260812130000_presupuesto_prestacion_id.sql', () => {
     expect(fuente).not.toMatch(/^\s*DROP TABLE/m);
   });
 });
+
+// Auto-creación de la autorización 'pendiente' al crear el presupuesto (requerimiento aprobado por
+// la usuaria 2026-08-15): mismo patrón de test que la migración base -- lee el archivo con node:fs
+// y confirma que la cláusula de seguridad activa nunca degrada a SECURITY DEFINER.
+describe('migración 20260815090000_presupuesto_autoriza_pendiente.sql', () => {
+  const NOMBRE = '20260815090000_presupuesto_autoriza_pendiente.sql';
+
+  it('declara SECURITY INVOKER en las dos funciones y la cláusula activa nunca es SECURITY DEFINER', () => {
+    const fuente = leerMigracion(NOMBRE);
+    const codigoActivo = quitarComentariosYStrings(fuente);
+
+    const ocurrenciasInvoker = codigoActivo.match(/SECURITY INVOKER/g) ?? [];
+    expect(ocurrenciasInvoker.length).toBe(2); // crear_presupuesto_completo + crear_presupuestos_lote
+    expect(codigoActivo).not.toContain('SECURITY DEFINER');
+  });
+
+  it('declara SET search_path = \'\' en las dos funciones (código activo)', () => {
+    const fuente = leerMigracion(NOMBRE);
+    const codigoActivo = quitarComentariosYStrings(fuente);
+
+    const ocurrencias = codigoActivo.match(/SET search_path = ''/g) ?? [];
+    expect(ocurrencias.length).toBe(2);
+  });
+
+  it('inserta una autorización pendiente por cada presupuesto creado (alta simple y alta en lote)', () => {
+    const fuente = leerMigracion(NOMBRE);
+
+    const ocurrencias = fuente.match(
+      /INSERT INTO facturacion\.autorizacion \(presupuesto_id, estado\) VALUES \(v_id, 'pendiente'\);/g,
+    ) ?? [];
+    expect(ocurrencias.length).toBe(2); // una en crear_presupuesto_completo, una en crear_presupuestos_lote (dentro del FOR)
+  });
+
+  it('mantiene la firma de las dos funciones (jsonb -> uuid / jsonb -> uuid[]) sin cambios', () => {
+    const fuente = leerMigracion(NOMBRE);
+
+    expect(fuente).toContain('CREATE OR REPLACE FUNCTION facturacion.crear_presupuesto_completo(p_presupuesto jsonb)');
+    expect(fuente).toContain('RETURNS uuid');
+    expect(fuente).toContain('CREATE OR REPLACE FUNCTION facturacion.crear_presupuestos_lote(p_presupuestos jsonb)');
+    expect(fuente).toContain('RETURNS uuid[]');
+  });
+
+  it('el INSERT de autorizacion en crear_presupuestos_lote está dentro del FOR (una autorización por ítem del lote)', () => {
+    const fuente = leerMigracion(NOMBRE);
+    const inicioFor = fuente.indexOf('FOR v_item IN SELECT value FROM jsonb_array_elements(p_presupuestos)');
+    const finFor = fuente.indexOf('END LOOP;');
+    expect(inicioFor).toBeGreaterThan(-1);
+    expect(finFor).toBeGreaterThan(inicioFor);
+
+    const cuerpoFor = fuente.slice(inicioFor, finFor);
+    expect(cuerpoFor).toContain("INSERT INTO facturacion.autorizacion (presupuesto_id, estado) VALUES (v_id, 'pendiente');");
+  });
+});

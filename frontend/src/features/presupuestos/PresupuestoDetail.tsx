@@ -103,6 +103,15 @@ export function PresupuestoDetail({
       .then((found) => {
         if (cancelled) return;
         setAutorizacion(found);
+        // Requerimiento aprobado 2026-08-15 (migración `20260815090000_presupuesto_autoriza_pendiente.sql`):
+        // `facturacion.crear_presupuesto_completo`/`crear_presupuestos_lote` ahora crean la
+        // autorización 1:1 en 'pendiente' en la MISMA transacción que el presupuesto, así que
+        // `found` prácticamente nunca es null para un presupuesto creado después de esa migración
+        // -- `autorizacionEditing` queda en `false` y el bloque de abajo muestra el resumen
+        // (Card + "Editar autorización"), nunca dispara AutorizacionForm en modo ALTA. `found ===
+        // null` solo puede ocurrir para presupuestos creados ANTES de esa migración (dato legacy
+        // sin autorización todavía) -- para ese caso puntual sí corresponde el estado vacío con el
+        // form de alta manual, cubierto en PresupuestoDetail.test.tsx.
         setAutorizacionEditing(found === null);
         setAutorizacionLoading(false);
       })
