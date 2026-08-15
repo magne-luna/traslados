@@ -28,6 +28,12 @@ const lineaKine: LineaPresupuesto = { id: 'linea-1', prestacionId: 'prestacion-k
 // presupuesto. Las líneas NUNCA se persisten (design.md D9): solo viven acá y en el estado de
 // PresupuestoForm que las suma en el submit.
 describe('PresupuestoLineasEditor', () => {
+  it('muestra un aviso aclarando que se pueden cargar varias líneas, una por cada prestación', () => {
+    render(<PresupuestoLineasEditor prestaciones={prestaciones} lineas={[]} onChange={vi.fn()} />);
+
+    expect(screen.getByText(/pod[eé]s cargar varias líneas/i)).toBeInTheDocument();
+  });
+
   it('muestra un estado vacío y total $0 cuando no hay líneas cargadas', () => {
     render(<PresupuestoLineasEditor prestaciones={prestaciones} lineas={[]} onChange={vi.fn()} />);
 

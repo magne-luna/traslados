@@ -63,6 +63,13 @@ export function PresupuestoLineasEditor({ prestaciones, lineas, onChange }: Pres
 
   return (
     <div className="flex flex-col gap-md">
+      {/* Corrección confirmada por la usuaria (2026-08-15): en modalidad `general` no quedaba
+          claro que se puede cargar más de una línea — se leía como un único monto por prestación.
+          Aclara que se admite una línea por cada prestación que compone el total. */}
+      <p className="m-0 font-body text-xs text-muted">
+        Podés cargar varias líneas: una por cada prestación que compone el total.
+      </p>
+
       {lineas.length === 0 ? (
         <p className="m-0 font-body text-sm text-muted">No hay líneas cargadas todavía.</p>
       ) : (
