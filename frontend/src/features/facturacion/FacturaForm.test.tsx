@@ -436,6 +436,112 @@ describe('FacturaForm — wizard de alta', () => {
   });
 });
 
+// Derivar "Prestación" desde la autorización elegida (feature `facturacion-derivar-prestacion`):
+// cuando la autorización tiene una prestación real resuelta (`presupuesto.prestacionId` →
+// `paciente.prestaciones`, modalidad `por-prestacion`), el campo del Paso 3 se prellena solo y
+// queda bloqueado — reusa `prestacionRealAutorizacion` (mismo criterio que ya usa el selector del
+// Paso 2). Cuando no hay una resuelta (modalidad `general`, catálogo desactualizado), el campo
+// sigue siendo texto libre editable, sin ningún cambio de comportamiento.
+describe('FacturaForm — derivar prestación desde la autorización', () => {
+  const pacienteConPrestaciones: Paciente = {
+    ...martina,
+    prestaciones: [{ id: 'prestacion-kine', pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true }],
+  };
+
+  function repositoriosConPrestacion() {
+    const presupuestos = [
+      presupuesto({ id: 'presupuesto-kine', pacienteId: 'paciente-martina', prestacionId: 'prestacion-kine' }),
+    ];
+    const autorizaciones = new Map([
+      ['presupuesto-kine', autorizacion({ id: 'autorizacion-kine', presupuestoId: 'presupuesto-kine' })],
+    ]);
+    return {
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
+      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+    };
+  }
+
+  it('autorización con prestación real: el campo se prellena solo y queda bloqueado', async () => {
+    const { presupuestoRepository, autorizacionRepository } = repositoriosConPrestacion();
+    renderForm({ pacientes: [pacienteConPrestaciones], presupuestoRepository, autorizacionRepository });
+
+    await avanzarHastaPaso3('paciente-martina');
+
+    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
+    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
+    await waitFor(() => expect(campoPrestacion).toHaveValue('Kinesiología'));
+    expect(campoPrestacion).toHaveAttribute('readonly');
+  });
+
+  it('autorización sin prestación real (modalidad general): el campo sigue vacío y editable', async () => {
+    renderForm();
+
+    await avanzarHastaPaso3('paciente-martina');
+
+    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
+    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
+    expect(campoPrestacion).toHaveValue('');
+    expect(campoPrestacion).not.toHaveAttribute('readonly');
+
+    await userEvent.type(campoPrestacion, 'Kinesiología a mano');
+    expect(campoPrestacion).toHaveValue('Kinesiología a mano');
+  });
+
+  it('cambiar de autorización vuelve a derivar el valor (no queda pegado al anterior)', async () => {
+    const fonoaudiologia = { id: 'prestacion-fono', pacienteId: 'paciente-martina', nombre: 'Fonoaudiología', activa: true };
+    const pacienteConDosPrestaciones: Paciente = {
+      ...martina,
+      prestaciones: [pacienteConPrestaciones.prestaciones![0]!, fonoaudiologia],
+    };
+    const presupuestos = [
+      presupuesto({ id: 'presupuesto-kine', pacienteId: 'paciente-martina', prestacionId: 'prestacion-kine' }),
+      presupuesto({ id: 'presupuesto-fono', pacienteId: 'paciente-martina', prestacionId: 'prestacion-fono' }),
+    ];
+    const autorizaciones = new Map([
+      ['presupuesto-kine', autorizacion({ id: 'autorizacion-kine', presupuestoId: 'presupuesto-kine' })],
+      ['presupuesto-fono', autorizacion({ id: 'autorizacion-fono', presupuestoId: 'presupuesto-fono' })],
+    ]);
+    renderForm({
+      pacientes: [pacienteConDosPrestaciones],
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
+      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+    });
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const selectAutorizacion = await screen.findByLabelText(/^autorización$/i);
+    await userEvent.selectOptions(selectAutorizacion, 'autorizacion-kine');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
+    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
+    await waitFor(() => expect(campoPrestacion).toHaveValue('Kinesiología'));
+
+    await userEvent.click(screen.getByRole('button', { name: /atrás/i }));
+    await userEvent.selectOptions(screen.getByLabelText(/^autorización$/i), 'autorizacion-fono');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const [campoPrestacionFinal] = screen.getAllByLabelText(/^prestación$/i);
+    await waitFor(() => expect(campoPrestacionFinal).toHaveValue('Fonoaudiología'));
+  });
+
+  it('edición de una factura ya guardada con prestación derivada mantiene el bloqueo', async () => {
+    const { presupuestoRepository, autorizacionRepository } = repositoriosConPrestacion();
+    renderForm({
+      pacientes: [pacienteConPrestaciones],
+      presupuestoRepository,
+      autorizacionRepository,
+      initial: valoresIniciales({ autorizacionId: 'autorizacion-kine', prestacion: 'Kinesiología' }),
+    });
+
+    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
+    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
+    await waitFor(() => expect(campoPrestacion).toHaveValue('Kinesiología'));
+    expect(campoPrestacion).toHaveAttribute('readonly');
+  });
+});
+
 // Gateo de escritura (gateo-facturacion, tasks.md 4.3/4.4, design.md D3), reorganizado para el
 // wizard (change `facturacion-wizard-paciente-prestador`): cada paso gatea su propio contenido
 // (antes era una sola inserción porque los dos bloques de campos vivían siempre montados juntos).

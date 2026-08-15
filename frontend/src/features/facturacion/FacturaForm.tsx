@@ -21,7 +21,7 @@ import { autorizacionesPendientes, type AutorizacionPendiente } from '../../shar
 import { construirDatosDescripcion } from '../../shared/lib/facturacion/construirDatosDescripcion';
 import { TIPO_COMPROBANTE_DEFAULT } from '../../shared/lib/facturacion/constantes';
 import { cupoConsumido } from '../../shared/lib/facturacion/cupoConsumido';
-import { etiquetaAutorizacion } from '../../shared/lib/facturacion/etiquetaAutorizacion';
+import { etiquetaAutorizacion, prestacionRealAutorizacion } from '../../shared/lib/facturacion/etiquetaAutorizacion';
 import { renderDescripcionFactura } from '../../shared/lib/facturacion/renderDescripcionFactura';
 import { validarCupoFacturacion } from '../../shared/lib/facturacion/validarCupoFacturacion';
 import { validateFacturaForm, type FacturaFormErrors } from './validateFacturaForm';
@@ -195,6 +195,20 @@ export function FacturaForm({
   // o si todavía no se eligió ninguna. En edición el paso no bifurca (D4) — nunca bloquea acá.
   const bloqueaAutorizacion = autorizaciones === null || autorizaciones.length === 0 || !values.autorizacionId;
 
+  // Derivar "Prestación" desde la autorización elegida (feature `facturacion-derivar-prestacion`):
+  // reusa `prestacionRealAutorizacion` (mismo criterio de resolución que ya usa
+  // `etiquetaAutorizacion` en el selector del Paso 2) — solo modalidad `por-prestacion` resuelve
+  // una `Prestacion` real; `general` (o un catálogo desactualizado) devuelve `undefined` y el
+  // campo sigue siendo texto libre, sin ningún cambio de comportamiento.
+  const prestacionDerivada = autorizacionSeleccionada ? prestacionRealAutorizacion(autorizacionSeleccionada, paciente) : undefined;
+
+  useEffect(() => {
+    if (!prestacionDerivada) return;
+    setValues((prev) => (prev.prestacion === prestacionDerivada.nombre ? prev : { ...prev, prestacion: prestacionDerivada.nombre }));
+    // Re-deriva cada vez que cambia la autorización elegida (o el paciente/catálogo detrás de
+    // ella) — nunca queda pegado al valor de una autorización anterior.
+  }, [values.autorizacionId, prestacionDerivada]);
+
   const resultadoCupo = useMemo(() => {
     const consumido = cupoConsumido(facturasExistentes, values.pacienteId, values.mesFacturado, values.anioFacturado, {
       excluirFacturaId: facturaIdEnEdicion ?? undefined,
@@ -333,7 +347,14 @@ export function FacturaForm({
         >
           <CamposSoloLectura>
             <div className="grid grid-cols-1 gap-md md:grid-cols-2">
-              <FacturaFormDatosBasicos formId={formId} values={values} errors={errors} paciente={paciente} set={set} />
+              <FacturaFormDatosBasicos
+                formId={formId}
+                values={values}
+                errors={errors}
+                paciente={paciente}
+                set={set}
+                prestacionBloqueada={prestacionDerivada !== undefined}
+              />
 
               <FacturaFormEconomicos formId={formId} values={values} errors={errors} set={set} />
             </div>

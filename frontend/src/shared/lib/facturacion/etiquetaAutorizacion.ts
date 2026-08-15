@@ -1,5 +1,18 @@
 import type { Paciente } from '../../types/paciente';
+import type { Prestacion } from '../../types/prestacion';
 import type { AutorizacionPendiente } from './autorizacionesPendientes';
+
+// Resuelve la `Prestacion` real de una autorización pendiente contra el catálogo del paciente
+// (`presupuesto.prestacionId` → `paciente.prestaciones`), o `undefined` cuando no hay una
+// resuelta (modalidad `general`, sin `prestacionId`, o un catálogo desactualizado que ya no
+// tiene esa prestación). Extraído de `etiquetaAutorizacion` (feature
+// `facturacion-derivar-prestacion`) para reusar el mismo criterio de resolución en dos lugares
+// que necesitan cosas distintas: acá el objeto real (para derivar/bloquear el campo "Prestación"
+// del Paso 3 de `FacturaForm`), en `etiquetaAutorizacion` el string ya formateado con fallback
+// (para el selector del Paso 2).
+export function prestacionRealAutorizacion(item: AutorizacionPendiente, paciente: Paciente | undefined): Prestacion | undefined {
+  return paciente?.prestaciones?.find((p) => p.id === item.presupuesto.prestacionId);
+}
 
 // Etiqueta de cada opción del selector de autorizaciones del Paso 2 del wizard (change
 // `facturacion-seleccion-autorizacion`, design.md D4). `design.md` proponía un fallback por
@@ -11,7 +24,7 @@ import type { AutorizacionPendiente } from './autorizacionesPendientes';
 // (fecha de emisión + monto + cupos) solo cuando no hay `prestacionId` o no se encuentra en el
 // catálogo del paciente (modalidad `general`, o un catálogo desactualizado).
 export function etiquetaAutorizacion(item: AutorizacionPendiente, paciente: Paciente | undefined): string {
-  const prestacion = paciente?.prestaciones?.find((p) => p.id === item.presupuesto.prestacionId);
+  const prestacion = prestacionRealAutorizacion(item, paciente);
   if (prestacion) return prestacion.nombre;
 
   const partes: string[] = [`Presupuesto del ${item.presupuesto.fechaEmision}`, `$${item.presupuesto.monto.toLocaleString('es-AR')}`];

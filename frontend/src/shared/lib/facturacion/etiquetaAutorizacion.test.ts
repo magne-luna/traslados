@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Autorizacion, Presupuesto } from '../../types/presupuesto';
 import type { Paciente } from '../../types/paciente';
 import type { AutorizacionPendiente } from './autorizacionesPendientes';
-import { etiquetaAutorizacion } from './etiquetaAutorizacion';
+import { etiquetaAutorizacion, prestacionRealAutorizacion } from './etiquetaAutorizacion';
 
 function presupuesto(overrides: Partial<Presupuesto> = {}): Presupuesto {
   return {
@@ -77,5 +77,43 @@ describe('etiquetaAutorizacion (D4, tasks.md 3.2)', () => {
     const item: AutorizacionPendiente = { autorizacion: autorizacion(), presupuesto: presupuesto({ prestacionId: 'prestacion-1' }) };
 
     expect(etiquetaAutorizacion(item, undefined)).toBe('Presupuesto del 2026-03-01 · $45.000');
+  });
+});
+
+// `prestacionRealAutorizacion` (feature `facturacion-derivar-prestacion`): mismo criterio de
+// resolución que `etiquetaAutorizacion` (extraído para reusarse), pero devuelve la `Prestacion`
+// real (o `undefined`) en vez de un string ya formateado — lo necesita `FacturaForm` para saber
+// si tiene que derivar y bloquear el campo "Prestación" del Paso 3, sin reimplementar el criterio
+// de resolución ni parsear el fallback.
+describe('prestacionRealAutorizacion', () => {
+  it('devuelve la Prestacion del catálogo del paciente cuando prestacionId resuelve', () => {
+    const kinesiologia = { id: 'prestacion-1', pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true };
+    const item: AutorizacionPendiente = {
+      autorizacion: autorizacion(),
+      presupuesto: presupuesto({ prestacionId: 'prestacion-1' }),
+    };
+
+    expect(prestacionRealAutorizacion(item, paciente({ prestaciones: [kinesiologia] }))).toEqual(kinesiologia);
+  });
+
+  it('devuelve undefined cuando prestacionId está ausente (modalidad general)', () => {
+    const item: AutorizacionPendiente = { autorizacion: autorizacion(), presupuesto: presupuesto({ prestacionId: undefined }) };
+
+    expect(prestacionRealAutorizacion(item, paciente())).toBeUndefined();
+  });
+
+  it('devuelve undefined cuando prestacionId no se encuentra en el catálogo del paciente', () => {
+    const item: AutorizacionPendiente = {
+      autorizacion: autorizacion(),
+      presupuesto: presupuesto({ prestacionId: 'prestacion-inexistente' }),
+    };
+
+    expect(prestacionRealAutorizacion(item, paciente({ prestaciones: [] }))).toBeUndefined();
+  });
+
+  it('devuelve undefined cuando no hay paciente resuelto todavía', () => {
+    const item: AutorizacionPendiente = { autorizacion: autorizacion(), presupuesto: presupuesto({ prestacionId: 'prestacion-1' }) };
+
+    expect(prestacionRealAutorizacion(item, undefined)).toBeUndefined();
   });
 });
