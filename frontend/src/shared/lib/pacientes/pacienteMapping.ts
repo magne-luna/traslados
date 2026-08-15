@@ -15,6 +15,11 @@ import type {
   TipoDireccion,
 } from '../../types/paciente';
 import type { AccesorioMovilidad } from '../../types/vehiculo';
+import type { Prestacion } from '../../types/prestacion';
+// presupuesto-prestaciones: módulo standalone dedicado (design.md D1), se reusa tal cual, sin
+// reinventar el parseo acá — mismo criterio de "cero patrón nuevo que revisar" que documenta
+// `prestacionMapping.ts`.
+import { parsePrestacionRow } from './prestacionMapping';
 // `Coordenada` vive en hojaDeRuta.ts (no en paciente.ts) — no hay ciclo: paciente.ts nunca importa
 // de hojaDeRuta.ts, es al revés. Se reusa acá en vez de duplicar `{ lat, lng }` porque es la misma
 // forma que consume `ParadaRecorrido.coordenadaOrigen` (change hojas-de-ruta-geocoding, RF-701).
@@ -367,6 +372,15 @@ export function ensamblarPaciente(row: unknown, coberturaRow: unknown): Paciente
     .map((p) => parsePersonaACargoRow(p))
     .filter((p): p is PersonaACargo => p !== null);
 
+  // presupuesto-prestaciones (design.md D1/D7, PR de wiring): embed `prestaciones ( ... )` de
+  // `SELECT_PACIENTE_COMPLETO`. Mismo criterio de robustez que direcciones/personasACargo — filas
+  // malformadas se descartan en silencio, y la ausencia de la columna (o de filas) nunca deja
+  // `prestaciones` en `undefined`, siempre `[]`.
+  const prestacionesRaw = Array.isArray(record.prestaciones) ? record.prestaciones : [];
+  const prestaciones = prestacionesRaw
+    .map((p) => parsePrestacionRow(p))
+    .filter((p): p is Prestacion => p !== null);
+
   return {
     id: base.id,
     nombre: base.nombre,
@@ -388,6 +402,7 @@ export function ensamblarPaciente(row: unknown, coberturaRow: unknown): Paciente
     personasACargo,
     amparoJudicial: base.amparoJudicial,
     amparoJudicialAclaracion: undefined,
+    prestaciones,
   };
 }
 

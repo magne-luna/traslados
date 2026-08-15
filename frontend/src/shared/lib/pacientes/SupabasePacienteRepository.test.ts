@@ -244,6 +244,7 @@ function filaPaciente(overrides: Record<string, unknown> = {}): Record<string, u
     ],
     direcciones: [{ id: 'd-1', calle: 'San Martín', numero: '123', tipo_lugar: 'domicilio' }],
     accesorios_pacientes: [{ accesorios: { tipo: 'andador' } }],
+    prestaciones: [{ id: 'prest-1', paciente_id: 'p-1', nombre: 'Kinesiología', descripcion: null, activa: true }],
     ...overrides,
   };
 }
@@ -906,6 +907,152 @@ describe('supabasePacienteRepository.update — diff de colecciones (3.9)', () =
     expect(upserts).toHaveLength(1);
     const borrados = calls.filter((c) => c.table === 'personas_a_cargo' && c.op === 'delete');
     expect(borrados).toHaveLength(0);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// fix/pacientes-prestaciones-persistencia — lectura (SELECT_PACIENTE_COMPLETO trae el embed) y
+// escritura (diff + baja lógica, nunca DELETE físico) de pacientes.prestaciones.
+// -------------------------------------------------------------------------------------------
+
+describe('supabasePacienteRepository — lectura de prestaciones', () => {
+  it('SELECT_PACIENTE_COMPLETO incluye el embed de prestaciones', () => {
+    expect(supabasePacienteRepositorySource).toMatch(/prestaciones\s*\(/);
+  });
+
+  it('getById trae las prestaciones reales del paciente', async () => {
+    const fila = filaPaciente({
+      prestaciones: [
+        { id: 'prest-1', paciente_id: 'p-1', nombre: 'Kinesiología', descripcion: 'Sesión semanal', activa: true },
+        { id: 'prest-2', paciente_id: 'p-1', nombre: 'Fonoaudiología', descripcion: null, activa: false },
+      ],
+    });
+    configurar('pacientes', 'paciente', 'select', () => ok([fila]));
+
+    const paciente = await supabasePacienteRepository.getById('p-1');
+
+    expect(paciente?.prestaciones).toEqual([
+      { id: 'prest-1', pacienteId: 'p-1', nombre: 'Kinesiología', descripcion: 'Sesión semanal', activa: true },
+      { id: 'prest-2', pacienteId: 'p-1', nombre: 'Fonoaudiología', descripcion: undefined, activa: false },
+    ]);
+  });
+
+  it('un paciente sin prestaciones trae [], nunca undefined', async () => {
+    const fila = filaPaciente({ prestaciones: [] });
+    configurar('pacientes', 'paciente', 'select', () => ok([fila]));
+
+    const paciente = await supabasePacienteRepository.getById('p-1');
+
+    expect(paciente?.prestaciones).toEqual([]);
+  });
+});
+
+describe('supabasePacienteRepository.update — diff de prestaciones (baja lógica)', () => {
+  it('da de alta una prestación nueva con un upsert (sin id previo)', async () => {
+    const filaExistente = filaPaciente({ prestaciones: [] });
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistente]));
+
+    await supabasePacienteRepository.update('p-1', {
+      prestaciones: [{ id: 'prest-nueva', pacienteId: 'p-1', nombre: 'Kinesiología', activa: true }],
+    });
+
+    const upserts = calls.filter((c) => c.table === 'prestaciones' && c.op === 'upsert');
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0]?.payload).toEqual([
+      { id: 'prest-nueva', paciente_id: 'p-1', nombre: 'Kinesiología', descripcion: null, activa: true },
+    ]);
+    expect(calls.filter((c) => c.table === 'prestaciones' && c.op === 'delete')).toHaveLength(0);
+  });
+
+  it('edita una prestación existente por id, sin borrarla ni reinsertarla', async () => {
+    const filaExistente = filaPaciente({
+      prestaciones: [{ id: 'prest-1', paciente_id: 'p-1', nombre: 'Kinesiología', descripcion: null, activa: true }],
+    });
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistente]));
+
+    await supabasePacienteRepository.update('p-1', {
+      prestaciones: [
+        { id: 'prest-1', pacienteId: 'p-1', nombre: 'Kinesiología', descripcion: 'Dos veces por semana', activa: true },
+      ],
+    });
+
+    const upserts = calls.filter((c) => c.table === 'prestaciones' && c.op === 'upsert');
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0]?.payload).toEqual([
+      { id: 'prest-1', paciente_id: 'p-1', nombre: 'Kinesiología', descripcion: 'Dos veces por semana', activa: true },
+    ]);
+    expect(calls.filter((c) => c.table === 'prestaciones' && c.op === 'delete')).toHaveLength(0);
+  });
+
+  it('quitar una prestación con activa: false en el payload entrante hace upsert, nunca DELETE', async () => {
+    const filaExistente = filaPaciente({
+      prestaciones: [{ id: 'prest-1', paciente_id: 'p-1', nombre: 'Kinesiología', descripcion: null, activa: true }],
+    });
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistente]));
+
+    await supabasePacienteRepository.update('p-1', {
+      prestaciones: [{ id: 'prest-1', pacienteId: 'p-1', nombre: 'Kinesiología', activa: false }],
+    });
+
+    const upserts = calls.filter((c) => c.table === 'prestaciones' && c.op === 'upsert');
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0]?.payload).toEqual([
+      { id: 'prest-1', paciente_id: 'p-1', nombre: 'Kinesiología', descripcion: null, activa: false },
+    ]);
+    expect(calls.filter((c) => c.table === 'prestaciones' && c.op === 'delete')).toHaveLength(0);
+  });
+
+  it('una prestación existente que desaparece del payload entrante se da de baja lógica (activa: false), nunca DELETE', async () => {
+    const filaExistente = filaPaciente({
+      prestaciones: [
+        { id: 'prest-1', paciente_id: 'p-1', nombre: 'Kinesiología', descripcion: null, activa: true },
+        { id: 'prest-2', paciente_id: 'p-1', nombre: 'Fonoaudiología', descripcion: null, activa: true },
+      ],
+    });
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistente]));
+
+    await supabasePacienteRepository.update('p-1', {
+      prestaciones: [{ id: 'prest-1', pacienteId: 'p-1', nombre: 'Kinesiología', activa: true }],
+    });
+
+    const upserts = calls.filter((c) => c.table === 'prestaciones' && c.op === 'upsert');
+    expect(upserts).toHaveLength(1);
+    expect(upserts[0]?.payload).toEqual(
+      expect.arrayContaining([
+        { id: 'prest-1', paciente_id: 'p-1', nombre: 'Kinesiología', descripcion: null, activa: true },
+        { id: 'prest-2', paciente_id: 'p-1', nombre: 'Fonoaudiología', descripcion: null, activa: false },
+      ]),
+    );
+    expect(calls.filter((c) => c.table === 'prestaciones' && c.op === 'delete')).toHaveLength(0);
+  });
+
+  it('sin la clave prestaciones en el payload, no toca la tabla', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente()]));
+
+    await supabasePacienteRepository.update('p-1', { apellido: 'Nuevo' });
+
+    expect(calls.filter((c) => c.table === 'prestaciones' && c.op !== 'select')).toHaveLength(0);
+  });
+
+  it('sin prestaciones (ni existentes ni entrantes), no hace ningún upsert', async () => {
+    const filaExistente = filaPaciente({ prestaciones: [] });
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistente]));
+
+    await supabasePacienteRepository.update('p-1', { prestaciones: [] });
+
+    expect(calls.filter((c) => c.table === 'prestaciones' && c.op !== 'select')).toHaveLength(0);
+  });
+
+  it('si el upsert falla, propaga un error traducido', async () => {
+    const filaExistente = filaPaciente({ prestaciones: [] });
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistente]));
+    configurar('pacientes', 'prestaciones', 'upsert', () => fail({ code: '55000', message: 'boom' }));
+
+    await expect(
+      supabasePacienteRepository.update('p-1', {
+        prestaciones: [{ id: 'prest-1', pacienteId: 'p-1', nombre: 'Kinesiología', activa: true }],
+      }),
+    ).rejects.toThrow('No se pudo guardar el paciente.');
   });
 });
 

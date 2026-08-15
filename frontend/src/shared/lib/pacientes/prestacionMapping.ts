@@ -2,11 +2,10 @@
 // (presupuesto-prestaciones, design.md D1, tasks.md Fase 2 — PR 1 de la serie encadenada). Sin
 // red, sin `any`, sin `as` sobre datos externos, mismo criterio que `pacienteMapping.ts`.
 //
-// Módulo standalone y por ahora SIN llamador (tasks.md Fase 2/4): `pacienteMapping.ts` y
-// `SupabasePacienteRepository.ts` todavía no lo consumen — la migración
-// `pacientes.prestaciones` (Fase 3) recién existe como `.sql` sin aplicar, y `Paciente.prestaciones`
-// es opcional exactamente por eso (ver `shared/types/paciente.ts`). Queda listo para wirearse en un
-// PR posterior una vez que la tabla esté aplicada, sin reescribir esta lógica.
+// Consumido por `pacienteMapping.ts` (lectura, `ensamblarPaciente`) y por
+// `SupabasePacienteRepository.ts` (escritura, `aplicarDiffPrestaciones`) —
+// fix/pacientes-prestaciones-persistencia. `Paciente.prestaciones` sigue opcional a nivel de tipo
+// (ver `shared/types/paciente.ts`) por motivos ajenos a este módulo, no porque falte wiring.
 
 import type { NuevaPrestacion, Prestacion } from '../../types/prestacion';
 
