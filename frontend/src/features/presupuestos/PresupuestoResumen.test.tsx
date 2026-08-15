@@ -132,12 +132,14 @@ describe('PresupuestoResumen — prestación asociada (D9)', () => {
     expect(screen.getByText('Kinesiología')).toBeInTheDocument();
   });
 
-  it('con prestacionId presente: muestra el AvisoModeloDatos referenciando que no reabre la discrepancia #13', () => {
+  it('con prestacionId presente: muestra el AvisoModeloDatos referenciando la discrepancia #13 reabierta (2026-08-16) — por-prestacion sin desglose, general con desglose', () => {
     const presupuestoConPrestacion: Presupuesto = { ...presupuestoMartina, prestacionId: 'prestacion-kine' };
 
     render(<PresupuestoResumen presupuesto={presupuestoConPrestacion} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
 
     expect(screen.getByRole('note')).toHaveTextContent(/discrepancia #13/i);
+    expect(screen.getByRole('note')).toHaveTextContent(/por prestación/i);
+    expect(screen.getByRole('note')).toHaveTextContent(/general/i);
   });
 });
 
@@ -171,5 +173,65 @@ describe('PresupuestoResumen — gateo de escritura', () => {
     expect(editar).toBeEnabled();
     await user.click(editar);
     expect(onEdit).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Reapertura #13 (decisión usuaria 2026-08-16): la modalidad `general` ahora PERSISTE su desglose
+// por prestación (`facturacion.presupuesto_linea`, migración 20260816110000). El resumen muestra
+// las líneas persistidas, con nombres resueltos contra el catálogo del paciente.
+describe('PresupuestoResumen — líneas de modalidad general (reapertura #13)', () => {
+  const martinaConPrestaciones: Paciente = {
+    ...martina,
+    prestaciones: [
+      { id: 'prestacion-kine', pacienteId: martina.id, nombre: 'Kinesiología', activa: true },
+      { id: 'prestacion-fono', pacienteId: martina.id, nombre: 'Fonoaudiología', activa: true },
+    ],
+  };
+
+  it('con lineas presentes: muestra el bloque "Líneas" con el nombre de cada prestación y su monto', () => {
+    const presupuestoConLineas: Presupuesto = {
+      ...presupuestoMartina,
+      lineas: [
+        { id: 'linea-1', prestacionId: 'prestacion-kine', monto: 100, orden: 1 },
+        { id: 'linea-2', prestacionId: 'prestacion-fono', monto: 200, orden: 2 },
+      ],
+    };
+
+    render(
+      <PresupuestoResumen
+        presupuesto={presupuestoConLineas}
+        paciente={martinaConPrestaciones}
+        obraSocial={osecac}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Líneas')).toBeInTheDocument();
+    expect(screen.getByText('Kinesiología')).toBeInTheDocument();
+    expect(screen.getByText('Fonoaudiología')).toBeInTheDocument();
+  });
+
+  it('con lineas cuyo id de prestación ya no está en el catálogo del paciente: muestra "Prestación desconocida", sin romper', () => {
+    const presupuestoConLineaHuérfana: Presupuesto = {
+      ...presupuestoMartina,
+      lineas: [{ id: 'linea-1', prestacionId: 'prestacion-inexistente', monto: 100, orden: 1 }],
+    };
+
+    render(
+      <PresupuestoResumen
+        presupuesto={presupuestoConLineaHuérfana}
+        paciente={martina}
+        obraSocial={osecac}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Prestación desconocida')).toBeInTheDocument();
+  });
+
+  it('sin lineas: no muestra el bloque "Líneas"', () => {
+    render(<PresupuestoResumen presupuesto={presupuestoMartina} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.queryByText('Líneas')).not.toBeInTheDocument();
   });
 });
