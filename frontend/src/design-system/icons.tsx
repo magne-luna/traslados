@@ -229,3 +229,13 @@ export const iconTripode: ReactNode = (
     <line x1={12} y1={15} x2={12} y2={22} strokeLinecap="round" />
   </>
 );
+
+// Fallback defensivo del catálogo (design.md D4): un accesorio cuyo `icono` no está en
+// `iconoAccesorioMap` (p. ej. fila creada en otra base) renderiza este glifo neutro — nunca emoji.
+export const iconAccesorioGenerico: ReactNode = (
+  <>
+    <circle cx={12} cy={10} r={3} />
+    <path d="M7 20c1.2-3 9.8-3 10 0" strokeLinecap="round" strokeLinejoin="round" />
+    <line x1={12} y1={2} x2={12} y2={7} strokeLinecap="round" />
+  </>
+);

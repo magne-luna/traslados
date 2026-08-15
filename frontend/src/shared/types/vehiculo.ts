@@ -4,8 +4,15 @@
 // de servicio (RN-VE-02). Contrato "tipos primero" (ver design.md de vehiculos-ui) — cuando el
 // backend real (C-08) se archive, estos tipos no deberían necesitar reescritura.
 
-/** Conjunto cerrado de accesorios de movilidad compatibles (RN-VE-01). No usar `string` libre. */
-export type AccesorioMovilidad = 'silla-plegable' | 'silla-rigida' | 'silla-postural' | 'andador' | 'tripode';
+import type { TipoAccesorio } from './catalogoAccesorios';
+
+/**
+ * Accesorios de movilidad compatibles (RN-VE-01). Antes union cerrada de 5 literales; hoy alias
+ * del catalogo global gestionable (`pacientes.accesorios`): valores del maestro, no string libre
+ * pero tampoco union cerrada — el catalogo es la fuente de verdad (discrepancia #11 cerrada).
+ * `TipoAccesorio` es `string`; la referencia por valor se valida contra el catalogo en runtime.
+ */
+export type AccesorioMovilidad = TipoAccesorio;
 
 /** RN-VE-02: un vehículo fuera de servicio queda excluido de las hojas de ruta (lo aplica FE-5). */
 export type EstadoVehiculo = 'habilitado' | 'fuera-de-servicio';

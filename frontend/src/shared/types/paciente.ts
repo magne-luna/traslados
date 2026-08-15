@@ -3,7 +3,7 @@
 // Facturación (FE-6). Contrato "tipos primero" (ver design.md de pacientes-ui) — cuando el
 // backend real (C-05) se archive, estos tipos no deberían necesitar reescritura.
 
-import type { AccesorioMovilidad } from './vehiculo';
+import type { TipoAccesorio } from './catalogoAccesorios';
 import type { Prestacion } from './prestacion';
 
 /**
@@ -93,11 +93,12 @@ export interface Paciente {
   /** Condición clínica (docx: campo separado de Diagnóstico dentro de "Datos Clínicos"). */
   condicion?: string;
   /**
-   * Reutiliza el tipo de FE-2 (`shared/types/vehiculo.ts`) — no se redefine acá. Lista: el docx
-   * modela esto como relación N a N (tabla de vínculo, igual que Vehiculo-Accesorio) — un
-   * paciente puede requerir varios accesorios a la vez. Array vacío = ninguno cargado.
+   * Reutiliza el tipo del catalogo global (`shared/types/catalogoAccesorios.ts`) — no se redefine
+   * acá. Lista: el docx modela esto como relación N a N (tabla de vínculo, igual que
+   * Vehiculo-Accesorio) — un paciente puede requerir varios accesorios a la vez. Array vacío =
+   * ninguno cargado.
    */
-  accesorioMovilidad: AccesorioMovilidad[];
+  accesorioMovilidad: TipoAccesorio[];
   /** Referencia por id al maestro de FE-2, nunca embebida (design.md Decisión 4). */
   obraSocialId: string | null;
   /** Identificador de afiliado adaptable por obra social (design.md Decisión 1). */
