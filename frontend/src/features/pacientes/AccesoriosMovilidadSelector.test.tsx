@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -125,6 +125,40 @@ describe('AccesoriosMovilidadSelector', () => {
     const ultimaLlamada = onChange.mock.calls.at(-1)?.[0] as string[];
     expect(ultimaLlamada).toContain('Silla eléctrica');
     expect(await screen.findByRole('checkbox', { name: /silla eléctrica/i })).toBeInTheDocument();
+  });
+
+  it('regresión: no anida un <form> dentro del <form> del alta de paciente/vehículo (recarga completa de página)', async () => {
+    // El selector vive dentro del <form> de PacienteForm/VehiculoForm (vía CardForm). Un <form>
+    // anidado es HTML inválido y el navegador terminaba disparando el submit del formulario
+    // grande al hacer click en "Guardar" del alta de accesorio — recarga completa de página, y el
+    // accesorio nunca llegaba a persistirse (el guardado real quedaba interrumpido a mitad).
+    const authRepository = createMockAuthRepository({ usuario: EMPLEADO, permisos: { pacientes: 'write' } });
+    const repository = crearRepository(seed);
+    const onSubmitExterno = vi.fn((event: FormEvent) => event.preventDefault());
+    const onChange = vi.fn();
+
+    render(
+      <AuthProvider repository={authRepository}>
+        <CatalogoAccesoriosRepositoryProvider repository={repository}>
+          <form onSubmit={onSubmitExterno}>
+            <AccesoriosMovilidadSelector idBase="acc" titulo="Accesorios de movilidad" seleccion={[]} onChange={onChange} />
+          </form>
+        </CatalogoAccesoriosRepositoryProvider>
+      </AuthProvider>,
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /agregar accesorio/i }));
+
+    // Ningún <form> anidado dentro del <form> externo.
+    const formularios = document.querySelectorAll('form');
+    expect(formularios).toHaveLength(1);
+
+    await userEvent.type(screen.getByLabelText(/nombre/i), 'Silla eléctrica');
+    await userEvent.click(screen.getByRole('button', { name: /guardar/i }));
+
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    // El submit del formulario grande (paciente/vehículo) nunca se dispara por guardar un accesorio.
+    expect(onSubmitExterno).not.toHaveBeenCalled();
   });
 
   it('duplicado: muestra el error accionable del repository bajo el form y el form sigue abierto', async () => {

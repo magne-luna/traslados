@@ -89,14 +89,17 @@ function aAccesorioCatalogo(filas: unknown): AccesorioCatalogo[] {
   });
 }
 
-async function leer(filtroActivas: boolean): Promise<AccesorioCatalogo[]> {
-  const {
-    data,
-    error,
-  } = await supabase.schema('pacientes').from('accesorios').select('id, tipo, descripcion, icono, activa').eq(
-    'activa',
-    filtroActivas,
-  ).order('tipo', ORDEN);
+// `soloActivas === true` filtra `activa = true` (selectores de asignación); `undefined` no
+// filtra, trae activos E inactivos (gestión del catálogo, para poder reactivar). Antes esta
+// función recibía un `boolean` sin la opción "sin filtro", y `listarTodos()` terminaba pidiendo
+// `leer(false)` — es decir, filtraba por `activa = false` (solo inactivos) en vez de traer todo,
+// dejando la lista vacía en cualquier base donde no hubiera accesorios desactivados.
+async function leer(soloActivas: boolean | undefined): Promise<AccesorioCatalogo[]> {
+  let query = supabase.schema('pacientes').from('accesorios').select('id, tipo, descripcion, icono, activa');
+  if (soloActivas !== undefined) {
+    query = query.eq('activa', soloActivas);
+  }
+  const { data, error } = await query.order('tipo', ORDEN);
   if (error) throw mapearErrorCatalogo(error);
   return aAccesorioCatalogo(data);
 }
@@ -108,7 +111,7 @@ export const SupabaseCatalogoAccesoriosRepository: CatalogoAccesoriosRepository 
   },
 
   listarTodos(): Promise<AccesorioCatalogo[]> {
-    cacheTodos ??= leer(false);
+    cacheTodos ??= leer(undefined);
     return cacheTodos;
   },
 

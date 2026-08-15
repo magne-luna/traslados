@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { usePermiso } from '../../shared/auth/usePermiso';
 import { Button, ChecklistOption, Overlay } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
@@ -61,8 +61,7 @@ export function AccesoriosMovilidadSelector({ idBase, titulo, seleccion, onChang
     setMenuAbiertoId(null);
   }
 
-  async function guardar(event: FormEvent) {
-    event.preventDefault();
+  async function guardar() {
     if (guardando) return;
     const tipo = form.nombre.trim();
     if (!tipo) {
@@ -191,7 +190,12 @@ export function AccesoriosMovilidadSelector({ idBase, titulo, seleccion, onChang
       {puedeGestionar && (
         <div className="flex flex-col gap-md border-t border-border pt-md">
           {formAbierto ? (
-            <form onSubmit={guardar} className="flex flex-col gap-md" noValidate>
+            // No es un <form>: este bloque vive dentro del <form> del alta de paciente/vehículo
+            // (PacienteForm/VehiculoForm vía CardForm) — un <form> anidado es HTML inválido y el
+            // navegador terminaba disparando el submit del formulario grande (recarga completa
+            // de página) en vez de este guardado puntual, y el accesorio nunca llegaba a
+            // persistirse. `guardar` se dispara por click, no por onSubmit.
+            <div className="flex flex-col gap-md">
               {errorForm && (
                 <Alert tone="danger" role="alert">
                   {errorForm}
@@ -227,11 +231,11 @@ export function AccesoriosMovilidadSelector({ idBase, titulo, seleccion, onChang
                 <Button variant="secondary" onClick={() => setFormAbierto(null)}>
                   Cancelar
                 </Button>
-                <Button type="submit" variant="primary" disabled={guardando}>
+                <Button variant="primary" disabled={guardando} onClick={guardar}>
                   {formAbierto.modo === 'editar' ? 'Guardar cambios' : 'Guardar'}
                 </Button>
               </div>
-            </form>
+            </div>
           ) : (
             <div className="flex justify-start">
               <Button variant="secondary" onClick={abrirCrear}>
