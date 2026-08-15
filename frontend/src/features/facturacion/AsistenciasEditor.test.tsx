@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { AsistenciaPrestacion } from '../../shared/types/factura';
+import type { Prestacion } from '../../shared/types/prestacion';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { AsistenciasEditor } from './AsistenciasEditor';
 
@@ -17,6 +18,11 @@ const asistencia: AsistenciaPrestacion = {
   retorno: 'Domicilio',
   facturaSabados: false,
 };
+
+const catalogoPrestaciones: Prestacion[] = [
+  { id: 'prestacion-1', pacienteId: 'paciente-1', nombre: 'Kinesiología', activa: true },
+  { id: 'prestacion-2', pacienteId: 'paciente-1', nombre: 'Fonoaudiología', activa: true },
+];
 
 describe('AsistenciasEditor', () => {
   it('muestra un estado vacío cuando no hay asistencias cargadas', () => {
@@ -102,5 +108,73 @@ describe('AsistenciasEditor — gateo de escritura', () => {
     await userEvent.click(screen.getByRole('button', { name: /agregar/i }));
 
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Selector de prestación del catálogo del paciente (bugfix UX: re-tipear el nombre 20 veces en
+// altas de asistencias por día). Decisión confirmada con la usuaria: aplica a AMBAS modalidades
+// cuando el paciente tiene catálogo activo (`prestaciones.filter(p => p.activa)`, filtrado por el
+// caller — este componente no conoce el criterio de "activa"). Sin catálogo, fallback a texto
+// libre para no romper pacientes sin prestaciones cargadas.
+describe('AsistenciasEditor — selector de prestación del catálogo', () => {
+  it('con catálogo: muestra un <select> con las prestaciones del paciente como opciones', () => {
+    render(<AsistenciasEditor asistencias={[]} onChange={vi.fn()} prestaciones={catalogoPrestaciones} />);
+
+    const select = screen.getByLabelText(/prestación/i);
+    expect(select.tagName).toBe('SELECT');
+    expect(screen.getByRole('option', { name: 'Kinesiología' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Fonoaudiología' })).toBeInTheDocument();
+  });
+
+  it('sin catálogo (prestaciones=[]): hace fallback al <input> de texto libre de siempre', () => {
+    render(<AsistenciasEditor asistencias={[]} onChange={vi.fn()} prestaciones={[]} />);
+
+    const campo = screen.getByLabelText(/prestación/i);
+    expect(campo.tagName).toBe('INPUT');
+  });
+
+  it('sin prop prestaciones (no provista): hace fallback al <input> de texto libre, igual que antes', () => {
+    render(<AsistenciasEditor asistencias={[]} onChange={vi.fn()} />);
+
+    const campo = screen.getByLabelText(/prestación/i);
+    expect(campo.tagName).toBe('INPUT');
+  });
+
+  it('con catálogo: al elegir una opción y agregar, guarda el nombre (no el id) en la nueva asistencia', async () => {
+    const onChange = vi.fn();
+    render(<AsistenciasEditor asistencias={[]} onChange={onChange} prestaciones={catalogoPrestaciones} />);
+
+    await userEvent.type(screen.getByLabelText(/fecha/i), '2026-08-10');
+    await userEvent.selectOptions(screen.getByLabelText(/prestación/i), 'Fonoaudiología');
+    await userEvent.type(screen.getByLabelText(/dependencia/i), 'Terapia');
+    await userEvent.type(screen.getByLabelText(/retorno/i), 'Domicilio');
+    await userEvent.click(screen.getByRole('button', { name: /agregar/i }));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const nuevaLista = onChange.mock.calls[0]?.[0] as AsistenciaPrestacion[];
+    expect(nuevaLista[0]).toMatchObject({ prestacion: 'Fonoaudiología' });
+  });
+
+  it('con derivada seteada (modalidad por-prestacion): la fila nueva viene preseleccionada con esa prestación, pero se puede cambiar', async () => {
+    const onChange = vi.fn();
+    render(
+      <AsistenciasEditor
+        asistencias={[]}
+        onChange={onChange}
+        prestaciones={catalogoPrestaciones}
+        prestacionPreseleccionada="Kinesiología"
+      />,
+    );
+
+    expect(screen.getByLabelText(/prestación/i)).toHaveValue('prestacion-1');
+
+    await userEvent.type(screen.getByLabelText(/fecha/i), '2026-08-10');
+    await userEvent.selectOptions(screen.getByLabelText(/prestación/i), 'Fonoaudiología');
+    await userEvent.type(screen.getByLabelText(/dependencia/i), 'Terapia');
+    await userEvent.type(screen.getByLabelText(/retorno/i), 'Domicilio');
+    await userEvent.click(screen.getByRole('button', { name: /agregar/i }));
+
+    const nuevaLista = onChange.mock.calls[0]?.[0] as AsistenciaPrestacion[];
+    expect(nuevaLista[0]).toMatchObject({ prestacion: 'Fonoaudiología' });
   });
 });

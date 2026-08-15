@@ -1,12 +1,22 @@
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Button, CamposSoloLectura } from '../../design-system/components';
-import { Input, Label } from '../../design-system/form';
+import { Input, Label, Select } from '../../design-system/form';
 import type { AsistenciaPrestacion } from '../../shared/types/factura';
+import type { Prestacion } from '../../shared/types/prestacion';
 import { generateId } from '../../shared/lib/id';
 
 interface AsistenciasEditorProps {
   asistencias: AsistenciaPrestacion[];
   onChange: (asistencias: AsistenciaPrestacion[]) => void;
+  /** Catálogo del paciente, ya filtrado por `activa` por el caller (FacturaForm) — este
+   * componente no conoce el criterio de "activa" (mismo patrón que PresupuestoLineasEditor).
+   * Sin catálogo (`undefined` o `[]`), el campo hace fallback al `<input>` de texto libre de
+   * siempre para no romper pacientes sin prestaciones cargadas. */
+  prestaciones?: Prestacion[];
+  /** Nombre de la prestación derivada de la autorización elegida (modalidad `por-prestacion`,
+   * ver `FacturaForm.prestacionDerivada`). Preselecciona el `<select>` en filas NUEVAS — nunca
+   * fuerza el valor de filas ya cargadas, y sigue siendo editable. */
+  prestacionPreseleccionada?: string;
 }
 
 const DEFAULT_FORM = { fecha: '', prestacion: '', dependencia: '', retorno: '', facturaSabados: false };
@@ -26,16 +36,25 @@ const DEFAULT_FORM = { fecha: '', prestacion: '', dependencia: '', retorno: '', 
 // grid-cols-1 gap-md md:grid-cols-2` que ya usan FacturaFormDatosBasicos/FacturaFormEconomicos:
 // 2 campos por fila, previsible sea cual sea el ancho disponible, en vez de depender de cuánto
 // entre por content-width.
-export function AsistenciasEditor({ asistencias, onChange }: AsistenciasEditorProps) {
-  const [form, setForm] = useState(DEFAULT_FORM);
+export function AsistenciasEditor({ asistencias, onChange, prestaciones, prestacionPreseleccionada }: AsistenciasEditorProps) {
+  const [form, setForm] = useState(() => ({ ...DEFAULT_FORM, prestacion: prestacionPreseleccionada ?? '' }));
   const formId = useId();
+  const hayCatalogo = (prestaciones?.length ?? 0) > 0;
+
+  // Preselecciona la fila NUEVA con la prestación derivada de la autorización (modalidad
+  // por-prestacion, FacturaForm.prestacionDerivada) sin forzar filas ya cargadas: solo pisa el
+  // valor si el campo sigue vacío (mismo criterio "no forzar en filas ya cargadas" del prompt).
+  useEffect(() => {
+    if (!prestacionPreseleccionada) return;
+    setForm((prev) => (prev.prestacion === '' ? { ...prev, prestacion: prestacionPreseleccionada } : prev));
+  }, [prestacionPreseleccionada]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!form.fecha || !form.prestacion) return;
     const nueva: AsistenciaPrestacion = { id: generateId('asistencia'), ...form };
     onChange([...asistencias, nueva]);
-    setForm(DEFAULT_FORM);
+    setForm({ ...DEFAULT_FORM, prestacion: prestacionPreseleccionada ?? '' });
   }
 
   function handleQuitar(id: string) {
@@ -98,12 +117,34 @@ export function AsistenciasEditor({ asistencias, onChange }: AsistenciasEditorPr
 
         <div className="flex flex-col gap-xs">
           <Label htmlFor={`${formId}-prestacion`}>Prestación</Label>
-          <Input
-            id={`${formId}-prestacion`}
-            type="text"
-            value={form.prestacion}
-            onChange={(event) => setForm((prev) => ({ ...prev, prestacion: event.target.value }))}
-          />
+          {hayCatalogo ? (
+            // Mismo patrón que PresupuestoLineasEditor.tsx: <select> con las opciones del
+            // catálogo del paciente. `AsistenciaPrestacion.prestacion` sigue siendo el NOMBRE
+            // (string), no el id — el value del <select> es el id (para poder distinguir
+            // prestaciones homónimas) y onChange resuelve y guarda el nombre.
+            <Select
+              id={`${formId}-prestacion`}
+              value={prestaciones?.find((p) => p.nombre === form.prestacion)?.id ?? ''}
+              onChange={(event) => {
+                const nombre = prestaciones?.find((p) => p.id === event.target.value)?.nombre ?? '';
+                setForm((prev) => ({ ...prev, prestacion: nombre }));
+              }}
+            >
+              <option value="">Seleccionar prestación…</option>
+              {prestaciones?.map((prestacion) => (
+                <option key={prestacion.id} value={prestacion.id}>
+                  {prestacion.nombre}
+                </option>
+              ))}
+            </Select>
+          ) : (
+            <Input
+              id={`${formId}-prestacion`}
+              type="text"
+              value={form.prestacion}
+              onChange={(event) => setForm((prev) => ({ ...prev, prestacion: event.target.value }))}
+            />
+          )}
         </div>
 
         <div className="flex flex-col gap-xs">

@@ -414,7 +414,12 @@ export function FacturaForm({
           abierta={seccionesAbiertas.asistencias}
           onToggle={() => toggleSeccion('asistencias')}
         >
-          <AsistenciasEditor asistencias={values.asistencias} onChange={(asistencias: AsistenciaPrestacion[]) => set('asistencias', asistencias)} />
+          <AsistenciasEditor
+            asistencias={values.asistencias}
+            onChange={(asistencias: AsistenciaPrestacion[]) => set('asistencias', asistencias)}
+            prestaciones={paciente?.prestaciones?.filter((p) => p.activa) ?? []}
+            prestacionPreseleccionada={prestacionDerivada?.nombre}
+          />
         </SeccionPlegable>
       </div>
 
