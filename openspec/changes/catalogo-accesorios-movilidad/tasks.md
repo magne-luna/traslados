@@ -59,7 +59,7 @@ Suggested split: 1 PR
       — el schema real manda sobre el repo.
 - [x] 0.2 Confirmación explícita del **PR único con `size:exception`** (decisión de la usuaria:
       plan recortado, sin RPC ni EF nuevas).
-- [ ] 0.3 **Safety net / baseline** — suite completa corrida antes de tocar archivos existentes,
+- [-] 0.3 **Safety net / baseline** — suite completa corrida antes de tocar archivos existentes,
       baseline registrado.
 
 ## 1. Migración + policy + EF (escrita por el agente, NO aplicada)
@@ -76,7 +76,7 @@ Suggested split: 1 PR
 - [x] 1.3 Modificar `supabase/functions/pacientes-accesorios/index.ts:12`:
       `ACCESORIOS_VALIDOS` → consulta real `SELECT id FROM pacientes.accesorios WHERE
       tipo = ANY(…) AND activa = true`; inválidos = ausentes, error accionable que los nombra.
-- [ ] 1.4 Verificación real post-aplicación (bloqueada por aplicación de 1.1 por Enzo): alta/edición/
+- [-] 1.4 Verificación real post-aplicación (bloqueada por aplicación de 1.1 por Enzo): alta/edición/
       desactivación con cuenta `pacientes: write`; cuenta `vehiculos`-only lee el catálogo sin poder
       escribir. **Pendiente — requiere cuentas reales (`VITE_TEST_ACCOUNTS`).**
 
@@ -112,8 +112,8 @@ Suggested split: 1 PR
 
 ## 4. Selector UI + integración (TDD — swap en commit único y revertible)
 
-- [ ] 4.1 **RED** — `design-system/icons.tsx`: `iconAccesorioGenerico` (SVG nuevo, trazo/currentColor).
-- [ ] 4.2 **RED** — `AccesoriosMovilidadSelector.tsx` (owner `features/pacientes/`): grid
+- [-] 4.1 **RED** — `design-system/icons.tsx`: `iconAccesorioGenerico` (SVG nuevo, trazo/currentColor).
+- [-] 4.2 **RED** — `AccesoriosMovilidadSelector.tsx` (owner `features/pacientes/`): grid
       `ChecklistOption` con `labelAccesorio` + `iconoAccesorioMap ?? fallback`; "+ Agregar
       accesorio" inline (nombre + picker de lista fija) → `crear()` → queda seleccionado en el
       mismo render; menú ⋮ por opción (editar/desactivar) SOLO con `usePermiso('pacientes','write')`
@@ -123,29 +123,29 @@ Suggested split: 1 PR
       `PrestacionesEditor`); duplicado con error accionable bajo el form, form abierto. Tests RTL
       con context stub: alta inline queda seleccionada, menú, aviso, read-only (sin botón ni menús),
       icono desconocido → fallback. **GREEN → REFACTOR.**
-- [ ] 4.3 **Swap en commit único y revertible** — `PacienteDatosPersonalesFields.tsx:145-162` y
+- [-] 4.3 **Swap en commit único y revertible** — `PacienteDatosPersonalesFields.tsx:145-162` y
       `VehiculoForm.tsx:162-179` (import cross-feature desde `features/pacientes/`) → ambos usan
       `<AccesoriosMovilidadSelector>`. Tests de integración con repository stub (catálogo activo,
       no lista estática).
-- [ ] 4.4 **RED** — migrar los 7 consumidores de `ACCESORIO_MOVILIDAD_LABELS/ICONS`
+- [-] 4.4 **RED** — migrar los 7 consumidores de `ACCESORIO_MOVILIDAD_LABELS/ICONS`
       (VehiculoDetail, VehiculosList, PacienteResumen, RequisitosPaciente,
       RecorridoVehiculoConductor, NuevoRecorridoForm) → `labelAccesorio`/`iconoAccesorioMap`.
-- [ ] 4.5 Eliminar `accesorioMovilidadOptions.ts` (últimos imports migrados); `tsc -b --noEmit` +
+- [-] 4.5 Eliminar `accesorioMovilidadOptions.ts` (últimos imports migrados); `tsc -b --noEmit` +
       `oxlint` + suites verdes.
 
 ## 5. Documentación
 
-- [ ] 5.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: #11 → **CERRADA** con motivo
+- [-] 5.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias: #11 → **CERRADA** con motivo
       ("el catálogo es la fuente de verdad; `AccesorioMovilidad` deja de ser unión cerrada; el
       frontend no descarta desconocidos").
-- [ ] 5.2 `CHANGES.md`: bullet del change + referencia en la lista de puntos tocados.
-- [ ] 5.3 Verificado: **sin** `AvisoModeloDatos` nuevo (cerrada #11 no deja mismatch; la
+- [-] 5.2 `CHANGES.md`: bullet del change + referencia en la lista de puntos tocados.
+- [-] 5.3 Verificado: **sin** `AvisoModeloDatos` nuevo (cerrada #11 no deja mismatch; la
       desactivación usa `Alert` del DS).
 
 ## 6. Verificación final
 
-- [ ] 6.1 Suite completa en verde contra el baseline de 0.3, sin regresiones.
-- [ ] 6.2 `cd frontend && npx tsc -b --noEmit` + `oxlint` limpios en todo el diff.
-- [ ] 6.3 Manual navegador: alta inline, edición, desactivar con aviso, reactivar, cuenta
+- [-] 6.1 Suite completa en verde contra el baseline de 0.3, sin regresiones.
+- [-] 6.2 `cd frontend && npx tsc -b --noEmit` + `oxlint` limpios en todo el diff.
+- [-] 6.3 Manual navegador: alta inline, edición, desactivar con aviso, reactivar, cuenta
       `vehiculos`-only sin gestión (pero ve el catálogo), icono desconocido → fallback, alta en
       Pacientes visible en Vehículos sin recompilar.
