@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Cobro, Factura } from '../../shared/types/factura';
+import type { ObraSocial } from '../../shared/types/obraSocial';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { CobrosPanel } from './CobrosPanel';
 
@@ -28,6 +29,20 @@ function factura(overrides: Partial<Factura> = {}): Factura {
     dependenciaYRetorno: '',
     domicilioId: 'dir-1',
     asistencias: [],
+    ...overrides,
+  };
+}
+
+function obraSocial(overrides: Partial<ObraSocial> = {}): ObraSocial {
+  return {
+    id: 'os-1',
+    nombre: 'OSECAC',
+    cuit: '30-54155200-6',
+    modalidadFacturacion: 'por-prestacion',
+    admitePagosParciales: true,
+    formatoAfiliado: 'numero-documento',
+    checklist: [],
+    plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
     ...overrides,
   };
 }
@@ -74,6 +89,43 @@ describe('CobrosPanel', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /quitar/i }));
     expect(eliminar).toHaveBeenCalledWith('c1');
+  });
+});
+
+// RF-306: wiring end-to-end — CobrosPanel resuelve `admitePagosParciales` desde la prop
+// `obraSocial` y bloquea el submit cuando corresponde.
+describe('CobrosPanel — RF-306 (obra social que no admite pagos parciales)', () => {
+  it('bloquea el submit de un cobro parcial cuando la obra social no admite pagos parciales', async () => {
+    const registrar = vi.fn().mockResolvedValue(undefined);
+    render(
+      <CobrosPanel
+        factura={factura()}
+        cobros={[]}
+        loading={false}
+        error={null}
+        registrar={registrar}
+        eliminar={vi.fn()}
+        obraSocial={obraSocial({ admitePagosParciales: false })}
+      />,
+    );
+
+    await userEvent.type(screen.getByLabelText(/fecha/i), '2026-08-15');
+    await userEvent.type(screen.getByLabelText(/monto/i), '1500');
+    await userEvent.click(screen.getByRole('button', { name: /registrar cobro/i }));
+
+    expect(registrar).not.toHaveBeenCalled();
+    expect(screen.getByText(/no admite pagos parciales/i)).toBeInTheDocument();
+  });
+
+  it('sin obra social resuelta (caso legacy), no bloquea (fallback seguro)', async () => {
+    const registrar = vi.fn().mockResolvedValue(undefined);
+    render(<CobrosPanel factura={factura()} cobros={[]} loading={false} error={null} registrar={registrar} eliminar={vi.fn()} />);
+
+    await userEvent.type(screen.getByLabelText(/fecha/i), '2026-08-15');
+    await userEvent.type(screen.getByLabelText(/monto/i), '1500');
+    await userEvent.click(screen.getByRole('button', { name: /registrar cobro/i }));
+
+    expect(registrar).toHaveBeenCalledWith({ facturaId: 'factura-1', fecha: '2026-08-15', montoPagado: 1500 });
   });
 });
 

@@ -5,6 +5,7 @@ import { Alert } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import { iconCalendario, iconMoneda, iconReloj, iconTacho } from '../../design-system/icons';
 import type { Cobro, Factura, NuevoCobro } from '../../shared/types/factura';
+import type { ObraSocial } from '../../shared/types/obraSocial';
 import { saldoFactura } from '../../shared/lib/facturacion/totalesFactura';
 import { validateCobroForm, type CobroFormErrors } from './validateCobroForm';
 
@@ -15,6 +16,12 @@ interface CobrosPanelProps {
   error: string | null;
   registrar: (data: NuevoCobro) => Promise<Cobro | void>;
   eliminar: (id: string) => Promise<void>;
+  /**
+   * Obra social del paciente de esta factura (RF-306: define si admite pagos parciales).
+   * `undefined` en casos legacy/dato faltante — se resuelve como si admitiera parciales
+   * (fallback seguro, no bloquear si no se sabe con certeza que no admite).
+   */
+  obraSocial?: ObraSocial;
 }
 
 // Campo "Monto" con prefijo `$` superpuesto (`pl-xl` deja lugar al símbolo): mismo caso que
@@ -51,7 +58,7 @@ function formatearFechaLarga(fechaIso: string): string {
 // gap="lg" elevated` reproduce `rounded-md border border-border bg-surface p-lg shadow-sm gap-lg`
 // byte a byte (confirmado por comparación de clases, el sitio ya usaba `rounded-md`, no
 // `rounded-sm`). Ver el comentario de `fieldClasses` arriba para el caso del campo Monto.
-export function CobrosPanel({ factura, cobros, loading, error, registrar, eliminar }: CobrosPanelProps) {
+export function CobrosPanel({ factura, cobros, loading, error, registrar, eliminar, obraSocial }: CobrosPanelProps) {
   const [fecha, setFecha] = useState('');
   const [monto, setMonto] = useState('');
   const [errors, setErrors] = useState<CobroFormErrors>({});
@@ -61,6 +68,9 @@ export function CobrosPanel({ factura, cobros, loading, error, registrar, elimin
   const totalCobrado = cobros.reduce((acumulado, cobro) => acumulado + cobro.montoPagado, 0);
   const saldo = saldoFactura(factura, cobros);
   const pctCobrado = factura.monto > 0 ? Math.round((totalCobrado / factura.monto) * 1000) / 10 : null;
+  // RF-306: fallback seguro `true` si no se puede resolver la obra social (caso legacy/dato
+  // faltante) — no bloquear si no se sabe con certeza que no admite pagos parciales.
+  const admitePagosParciales = obraSocial?.admitePagosParciales ?? true;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -70,9 +80,10 @@ export function CobrosPanel({ factura, cobros, loading, error, registrar, elimin
       fecha,
       montoFactura: factura.monto,
       totalCobradoActual: totalCobrado,
+      admitePagosParciales,
     });
     setErrors(validationErrors);
-    if (validationErrors.montoPagado || validationErrors.fecha) return;
+    if (validationErrors.montoPagado || validationErrors.fecha || validationErrors.pagoParcialNoAdmitido) return;
     void registrar({ facturaId: factura.id, fecha, montoPagado: montoNumerico });
     setFecha('');
     setMonto('');
@@ -164,7 +175,7 @@ export function CobrosPanel({ factura, cobros, loading, error, registrar, elimin
               <Field label="Fecha" htmlFor={`${formId}-fecha`} error={errors.fecha}>
                 <Input id={`${formId}-fecha`} type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
               </Field>
-              <Field label="Monto" htmlFor={`${formId}-monto`} error={errors.montoPagado}>
+              <Field label="Monto" htmlFor={`${formId}-monto`} error={errors.montoPagado ?? errors.pagoParcialNoAdmitido}>
                 <div className="relative">
                   <span className="pointer-events-none absolute inset-y-0 left-md flex items-center font-body text-[13px] text-muted">$</span>
                   <input

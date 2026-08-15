@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '../../design-system/components';
 import { Select } from '../../design-system/form';
 import type { Cobro, EstadoFactura, Factura, NuevoCobro } from '../../shared/types/factura';
+import type { ObraSocial } from '../../shared/types/obraSocial';
 import { estadoDerivadoFactura } from '../../shared/lib/facturacion/estadoDerivadoFactura';
 import { CobrosPanel } from './CobrosPanel';
 
@@ -13,6 +14,8 @@ interface FacturaCobrosSectionProps {
   registrar: (data: NuevoCobro) => Promise<Cobro | void>;
   eliminar: (id: string) => Promise<void>;
   onCorregirEstado: (estado: EstadoFactura) => void;
+  /** Obra social del paciente de la factura (RF-306), reenviada a `CobrosPanel`. */
+  obraSocial?: ObraSocial;
 }
 
 const ESTADOS: EstadoFactura[] = ['a-facturar', 'facturado', 'cobrado', 'pagado-parcialmente'];
@@ -32,7 +35,7 @@ const ESTADOS: EstadoFactura[] = ['a-facturar', 'facturado', 'cobrado', 'pagado-
 // banner además necesita `flex flex-wrap items-center gap-sm` para acomodar 3 hijos (texto,
 // select, botón) en fila, clases que `Alert` no puede recibir (`className` no es prop pública).
 // Migrarlo igual cambiaría tamaño de fuente y layout — viola la Regla 0. Se deja nativo.
-export function FacturaCobrosSection({ factura, cobros, loading, error, registrar, eliminar, onCorregirEstado }: FacturaCobrosSectionProps) {
+export function FacturaCobrosSection({ factura, cobros, loading, error, registrar, eliminar, onCorregirEstado, obraSocial }: FacturaCobrosSectionProps) {
   const [estadoManual, setEstadoManual] = useState<EstadoFactura | ''>('');
 
   const estadoDerivadoActual = factura.estado !== 'a-facturar' ? estadoDerivadoFactura(factura, cobros) : null;
@@ -61,7 +64,7 @@ export function FacturaCobrosSection({ factura, cobros, loading, error, registra
           <Button variant="secondary" requiereEscritura onClick={() => estadoManual && onCorregirEstado(estadoManual)}>Aplicar</Button>
         </div>
       )}
-      <CobrosPanel factura={factura} cobros={cobros} loading={loading} error={error} registrar={registrar} eliminar={eliminar} />
+      <CobrosPanel factura={factura} cobros={cobros} loading={loading} error={error} registrar={registrar} eliminar={eliminar} obraSocial={obraSocial} />
     </div>
   );
 }

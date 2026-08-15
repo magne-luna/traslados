@@ -208,6 +208,7 @@ export function FacturaDetail({
               registrar={handleRegistrarCobro}
               eliminar={handleEliminarCobro}
               onCorregirEstado={(estado) => void actualizar(factura.id, { estado })}
+              obraSocial={obraSocial}
             />
           </Section>
 
