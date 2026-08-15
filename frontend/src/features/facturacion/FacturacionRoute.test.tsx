@@ -1,15 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-// `FacturacionRoute` inyecta `supabasePacienteRepository`/`supabaseObraSocialRepository`
-// (reales, 2026-08-05: swap parcial pedido por Enzo — Factura/Cobro siguen en mock) — mismo
-// criterio que `PacientesRoute.test.tsx`: mockear `shared/lib/
-// supabaseClient` para no depender de red ni de `SUPABASE_URL`/`SUPABASE_ANON_KEY` en el entorno
-// de test. El `select()` mockeado resuelve `{ data: [], error: null }` para cualquier tabla.
+// `FacturacionRoute` inyecta `supabaseFacturaRepository`/`supabaseCobroRepository`
+// (`integracion-facturacion`, 2026-08-12), `supabasePacienteRepository`/
+// `supabaseObraSocialRepository` (2026-08-05) y `supabasePresupuestoRepository`/
+// `supabaseAutorizacionRepository` (fix directo 2026-08-15 — antes en mock, ver comentario del
+// composition root) — todos reales. Mismo criterio que `PacientesRoute.test.tsx`/
+// `PresupuestosRoute.test.tsx`: mockear `shared/lib/supabaseClient` para no depender de red ni de
+// `SUPABASE_URL`/`SUPABASE_ANON_KEY` en el entorno de test. `functions.invoke`
+// (factura/cobro/presupuesto/autorizacion, Edge Functions) y `schema().from().select()`
+// (paciente/obraSocial, PostgREST) resuelven `{ data: [], error: null }` para cualquier tabla.
 vi.mock('../../shared/lib/supabaseClient', () => ({
   supabase: {
     schema: () => ({ from: () => ({ select: () => Promise.resolve({ data: [], error: null }) }) }),
-    functions: { invoke: vi.fn() },
+    functions: { invoke: vi.fn().mockResolvedValue({ data: [], error: null }) },
   },
 }));
 
