@@ -102,13 +102,13 @@ Suggested split: 1 PR
 
 ## 3. Frontend core B — mappers limpios (TDD)
 
-- [ ] 3.1 **RED** — `vehiculoMapping.ts:292-309`: eliminar `ACCESORIOS_VALIDOS` +
+- [x] 3.1 **RED** — `vehiculoMapping.ts:292-309`: eliminar `ACCESORIOS_VALIDOS` +
       `esAccesorioMovilidad` + filtro de `parseAccesoriosRows` → `string[]` espejo del maestro.
       **GREEN → TRIANGULATE.**
-- [ ] 3.2 **RED** — `pacienteMapping.ts:317-339`: eliminar `ACCESORIOS_VALIDOS`; `parseAccesorios`
+- [x] 3.2 **RED** — `pacienteMapping.ts:317-339`: eliminar `ACCESORIOS_VALIDOS`; `parseAccesorios`
       conserva cualquier `tipo` del maestro (descarta solo filas malformadas). **GREEN** (cierra #11
       en código).
-- [ ] 3.3 `tsc -b --noEmit` + `oxlint`; suites de Pacientes (64 tests) y Vehículos verdes.
+- [x] 3.3 `tsc -b --noEmit` + `oxlint`; suites de Pacientes (64 tests) y Vehículos verdes.
 
 ## 4. Selector UI + integración (TDD — swap en commit único y revertible)
 
