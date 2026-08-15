@@ -52,7 +52,7 @@ export function FacturaFormEconomicos({ formId, values, errors, set }: FacturaFo
           type="number"
           value={values.monto}
           onChange={(e) => set('monto', Number(e.target.value))}
-          onFocus={() => { if (values.monto === 0) set('monto', calcularTotalFactura({ valorKm: values.valorKm, cantidadKm: values.cantidadKm })); }}
+          onFocus={() => { if (values.monto === 0) set('monto', calcularTotalFactura({ valorKm: values.valorKm, cantidadKm: values.cantidadKm, dias: values.dias })); }}
         />
       </Field>
       <Field label="Tipo de comprobante" htmlFor={`${formId}-tipo`}>

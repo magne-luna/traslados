@@ -76,7 +76,7 @@ export function buildFacturasFixture(): Factura[] {
     descripcion: '',
     dias: 18,
     valorKm: 300,
-    monto: calcularTotalFactura({ valorKm: 300, cantidadKm: 40 }),
+    monto: calcularTotalFactura({ valorKm: 300, cantidadKm: 40, dias: 18 }),
     estado: 'a-facturar',
     fechaInicial: isoDate(primerDiaDelMes(periodoActual.anio, periodoActual.mes)),
     fechaTope: isoDate(ultimoDiaDelMes(periodoActual.anio, periodoActual.mes)),
@@ -108,7 +108,7 @@ export function buildFacturasFixture(): Factura[] {
     dependenciaYRetorno: 'Escuela / domicilio',
     valorKm: 320,
     cantidadKm: 55,
-    total: calcularTotalFactura({ valorKm: 320, cantidadKm: 55 }),
+    total: calcularTotalFactura({ valorKm: 320, cantidadKm: 55, dias: 22 }),
     valoresManuales: {},
   };
 
@@ -164,7 +164,7 @@ export function buildFacturasFixture(): Factura[] {
     dependenciaYRetorno: 'Escuela N°12 / domicilio',
     valorKm: 300,
     cantidadKm: 45,
-    total: calcularTotalFactura({ valorKm: 300, cantidadKm: 45 }),
+    total: calcularTotalFactura({ valorKm: 300, cantidadKm: 45, dias: 20 }),
     valoresManuales: {},
   };
 
@@ -220,7 +220,7 @@ export function buildFacturasFixture(): Factura[] {
     dependenciaYRetorno: 'Escuela / domicilio',
     valorKm: 320,
     cantidadKm: 48,
-    total: calcularTotalFactura({ valorKm: 320, cantidadKm: 48 }),
+    total: calcularTotalFactura({ valorKm: 320, cantidadKm: 48, dias: 19 }),
     valoresManuales: {},
   };
 

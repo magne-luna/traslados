@@ -30,12 +30,20 @@ function cobro(overrides: Partial<Cobro> & Pick<Cobro, 'id' | 'facturaId' | 'mon
 }
 
 describe('calcularTotalFactura', () => {
-  it('devuelve el producto de valorKm por cantidadKm', () => {
-    expect(calcularTotalFactura({ valorKm: 350, cantidadKm: 12 })).toBe(4200);
+  it('devuelve el producto de dias por cantidadKm por valorKm', () => {
+    expect(calcularTotalFactura({ valorKm: 350, cantidadKm: 12, dias: 20 })).toBe(84000);
+  });
+
+  it('devuelve otro total distinto para otra combinación de valores (TRIANGULATE)', () => {
+    expect(calcularTotalFactura({ valorKm: 100, cantidadKm: 5, dias: 3 })).toBe(1500);
   });
 
   it('devuelve 0 cuando la cantidad de km es 0', () => {
-    expect(calcularTotalFactura({ valorKm: 350, cantidadKm: 0 })).toBe(0);
+    expect(calcularTotalFactura({ valorKm: 350, cantidadKm: 0, dias: 20 })).toBe(0);
+  });
+
+  it('devuelve 0 cuando los días son 0, sin dividir por cero ni romper', () => {
+    expect(calcularTotalFactura({ valorKm: 350, cantidadKm: 12, dias: 0 })).toBe(0);
   });
 });
 
