@@ -11,6 +11,7 @@ import type { Paciente } from '../../shared/types/paciente';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import { AlertaCupo } from './AlertaCupo';
+import { AlertaMontoAutorizado } from './AlertaMontoAutorizado';
 import { AsistenciasEditor } from './AsistenciasEditor';
 import { DiasFacturablesSelector } from './DiasFacturablesSelector';
 import { FacturaFormDatosBasicos } from './FacturaFormDatosBasicos';
@@ -20,10 +21,13 @@ import { SeccionPlegable } from './SeccionPlegable';
 import { autorizacionesPendientes, type AutorizacionPendiente } from '../../shared/lib/facturacion/autorizacionesPendientes';
 import { construirDatosDescripcion } from '../../shared/lib/facturacion/construirDatosDescripcion';
 import { TIPO_COMPROBANTE_DEFAULT } from '../../shared/lib/facturacion/constantes';
+import { calcularTotalFactura } from '../../shared/lib/facturacion/totalesFactura';
 import { cupoConsumido } from '../../shared/lib/facturacion/cupoConsumido';
 import { etiquetaAutorizacion, prestacionRealAutorizacion } from '../../shared/lib/facturacion/etiquetaAutorizacion';
+import { montoConsumido } from '../../shared/lib/facturacion/montoConsumido';
 import { renderDescripcionFactura } from '../../shared/lib/facturacion/renderDescripcionFactura';
 import { validarCupoFacturacion } from '../../shared/lib/facturacion/validarCupoFacturacion';
+import { validarMontoAutorizado } from '../../shared/lib/facturacion/validarMontoAutorizado';
 import { validateFacturaForm, type FacturaFormErrors } from './validateFacturaForm';
 
 export type FacturaFormValues = Omit<Factura, 'id' | 'estado' | 'identificadorFactura' | 'fechaFactura' | 'fechaEstimadaCobro'>;
@@ -220,6 +224,32 @@ export function FacturaForm({
     });
   }, [facturasExistentes, values.pacienteId, values.mesFacturado, values.anioFacturado, values.dias, values.cantidadKm, facturaIdEnEdicion, cupo]);
 
+  // Validación de monto autorizado ANUAL (fix directo, corrección del usuario a mitad de la tarea
+  // original — `Autorizacion.montoAutorizado` es un tope del AÑO, no de una sola factura): solo
+  // aplica cuando hay `autorizacionId` elegido — facturas legacy sin autorización asociada no
+  // tienen contra qué validar.
+  const resultadoMonto = useMemo(() => {
+    if (!values.autorizacionId) return null;
+    const consumido = montoConsumido(facturasExistentes, values.autorizacionId, values.anioFacturado, {
+      excluirFacturaId: facturaIdEnEdicion ?? undefined,
+    });
+    const montoNuevo = calcularTotalFactura({ dias: values.dias, cantidadKm: values.cantidadKm, valorKm: values.valorKm });
+    return validarMontoAutorizado({
+      montoConsumidoAnual: consumido,
+      montoNuevo,
+      montoAutorizado: autorizacionSeleccionada?.autorizacion.montoAutorizado,
+    });
+  }, [
+    facturasExistentes,
+    values.autorizacionId,
+    values.anioFacturado,
+    values.dias,
+    values.cantidadKm,
+    values.valorKm,
+    facturaIdEnEdicion,
+    autorizacionSeleccionada,
+  ]);
+
   // Vista previa de la descripción (change `facturacion-seleccion-autorizacion`, design.md D4/D5):
   // ya no depende de ningún dato de prestador (`faltaCompletarPrestador` se retiró junto con
   // `prestadorNombre`/`prestadorDomicilio`, D5) — arma apenas hay paciente + obra social, igual en
@@ -396,6 +426,7 @@ export function FacturaForm({
           datosFactura={{ dias: values.dias, total: values.monto }}
         />
         <AlertaCupo resultado={resultadoCupo} />
+        {resultadoMonto !== null && <AlertaMontoAutorizado resultado={resultadoMonto} />}
         {previaDescripcion !== null && (
           <div className="flex flex-col gap-xs rounded-sm border border-border bg-surface-soft p-md">
             <span className={labelClasses}>Vista previa de la descripción</span>

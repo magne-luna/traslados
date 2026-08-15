@@ -4,7 +4,9 @@ import type { EstadoFactura, Factura } from '../../types/factura';
 // kilómetros ya facturados del paciente en el período, para poder validar el cupo mensual
 // autorizado. Solo cuenta facturas que ya salieron de `a-facturar` — una factura todavía en
 // borrador no "consume" cupo.
-const ESTADOS_QUE_CONSUMEN_CUPO: readonly EstadoFactura[] = ['facturado', 'cobrado', 'pagado-parcialmente'];
+// Exportado (reusado por `montoConsumido.ts`, mismo criterio de "qué factura consume"): una
+// factura todavía en `a-facturar` tampoco consume monto autorizado anual, por la misma razón.
+export const ESTADOS_QUE_CONSUMEN_CUPO: readonly EstadoFactura[] = ['facturado', 'cobrado', 'pagado-parcialmente'];
 
 export interface CupoConsumidoOpciones {
   /** Excluye del cálculo la factura que se está editando (evita que se cuente a sí misma). */
