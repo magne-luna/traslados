@@ -1,11 +1,38 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { AuthProvider } from '../../shared/auth/AuthContext';
+import { createMockAuthRepository } from '../../shared/lib/auth/mockAuthRepository';
+import { mockCatalogoAccesoriosRepository } from '../../shared/lib/mocks/mockCatalogoAccesoriosRepository';
+import type { Usuario } from '../../shared/types/usuario';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
+import { CatalogoAccesoriosRepositoryProvider } from '../pacientes/CatalogoAccesoriosRepositoryContext';
 import { VehiculoForm, type VehiculoFormValues } from './VehiculoForm';
 
+const EMPLEADO: Usuario = { id: 'u2', nombre: 'Juan', apellido: 'Pérez', email: 'juan@x.com', rol: 'empleado' };
+
+// El form ahora compone <AccesoriosMovilidadSelector> (tasks.md 4.3), que usa
+// usePermiso('pacientes','write') y el repository del catálogo — el wrapper provee los tres
+// contextos necesarios (auth para usePermiso, catálogo para el selector, ruta para el gateo).
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
-  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+  const authRepository = createMockAuthRepository({
+    usuario: EMPLEADO,
+    permisos: {
+      vehiculos: puedeEscribir ? 'write' : 'read',
+      pacientes: puedeEscribir ? 'write' : 'read',
+    },
+  });
+  return render(
+    <AuthProvider repository={authRepository}>
+      <CatalogoAccesoriosRepositoryProvider repository={mockCatalogoAccesoriosRepository}>
+        <PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>
+      </CatalogoAccesoriosRepositoryProvider>
+    </AuthProvider>,
+  );
+}
+
+function renderForm(ui: React.ReactElement) {
+  return renderConPermiso(true, ui);
 }
 
 describe('VehiculoForm', () => {
@@ -13,7 +40,7 @@ describe('VehiculoForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.clear(screen.getByLabelText(/capacidad/i));
     await user.type(screen.getByLabelText(/capacidad/i), '0');
@@ -28,11 +55,11 @@ describe('VehiculoForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^patente$/i), 'AC123DE');
     await user.type(screen.getByLabelText(/^modelo$/i), 'Toyota Etios');
-    await user.click(screen.getByLabelText(/silla plegable/i));
+    await user.click(await screen.findByRole('checkbox', { name: /silla plegable/i }));
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(onSubmit).toHaveBeenCalledWith<[VehiculoFormValues]>({
@@ -53,7 +80,7 @@ describe('VehiculoForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^patente$/i), 'AC123DE');
     await user.type(screen.getByLabelText(/notas/i), 'Aire acondicionado con pérdida.');
@@ -64,8 +91,8 @@ describe('VehiculoForm', () => {
     );
   });
 
-  it('precarga los valores iniciales en modo edición, incluyendo accesorios, estado y notas', () => {
-    render(
+it('precarga los valores iniciales en modo edición, incluyendo accesorios, estado y notas', async () => {
+    renderForm(
       <VehiculoForm
         initial={{
           patente: 'AC123DE',
@@ -84,9 +111,9 @@ describe('VehiculoForm', () => {
 
     expect(screen.getByLabelText(/^patente$/i)).toHaveValue('AC123DE');
     expect(screen.getByLabelText(/kilometraje/i)).toHaveValue(85_000);
-    expect(screen.getByLabelText(/silla plegable/i)).toBeChecked();
-    expect(screen.getByLabelText(/andador/i)).toBeChecked();
-    expect(screen.getByLabelText(/silla rígida/i)).not.toBeChecked();
+    expect(await screen.findByRole('checkbox', { name: /silla plegable/i })).toBeChecked();
+    expect(await screen.findByRole('checkbox', { name: /andador/i })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /silla rígida/i })).not.toBeChecked();
     expect(screen.getByLabelText(/fuera de servicio/i)).toBeChecked();
     expect(screen.getByLabelText(/notas/i)).toHaveValue('Aire acondicionado con pérdida.');
   });
@@ -95,12 +122,12 @@ describe('VehiculoForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^patente$/i), 'AC123DE');
-    await user.click(screen.getByLabelText(/silla plegable/i));
-    await user.click(screen.getByLabelText(/andador/i));
-    await user.click(screen.getByLabelText(/silla plegable/i)); // destildar
+    await user.click(await screen.findByRole('checkbox', { name: /silla plegable/i }));
+    await user.click(await screen.findByRole('checkbox', { name: /andador/i }));
+    await user.click(screen.getByRole('checkbox', { name: /silla plegable/i })); // destildar
 
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
@@ -111,7 +138,7 @@ describe('VehiculoForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<VehiculoForm onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^patente$/i), 'AC123DE');
     await user.click(screen.getByLabelText(/fuera de servicio/i));
@@ -124,7 +151,7 @@ describe('VehiculoForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(
+    renderForm(
       <VehiculoForm
         initial={{
           patente: 'AC123DE',
@@ -151,7 +178,7 @@ describe('VehiculoForm', () => {
   });
 
   it('muestra el error del repository sin ocultar el formulario', () => {
-    render(<VehiculoForm onSubmit={vi.fn()} onCancel={vi.fn()} submitError="La patente ya existe" />);
+    renderForm(<VehiculoForm onSubmit={vi.fn()} onCancel={vi.fn()} submitError="La patente ya existe" />);
 
     expect(screen.getByText('La patente ya existe')).toBeInTheDocument();
     expect(screen.getByLabelText(/^patente$/i)).toBeInTheDocument();
@@ -161,7 +188,7 @@ describe('VehiculoForm', () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
 
-    render(<VehiculoForm onSubmit={vi.fn()} onCancel={onCancel} />);
+    renderForm(<VehiculoForm onSubmit={vi.fn()} onCancel={onCancel} />);
 
     await user.click(screen.getByRole('button', { name: /cancelar/i }));
     expect(onCancel).toHaveBeenCalledTimes(1);
@@ -182,7 +209,7 @@ describe('VehiculoForm — gateo de escritura', () => {
     expect(screen.getByLabelText(/^modelo$/i)).toBeDisabled();
     expect(screen.getByLabelText(/capacidad/i)).toBeDisabled();
     expect(screen.getByLabelText(/kilometraje/i)).toBeDisabled();
-    expect(screen.getByLabelText(/silla plegable/i)).toBeDisabled();
+    expect(await screen.findByRole('checkbox', { name: /silla plegable/i })).toBeDisabled();
     expect(screen.getByLabelText(/fuera de servicio/i)).toBeDisabled();
     expect(screen.getByLabelText(/notas/i)).toBeDisabled();
 

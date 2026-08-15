@@ -1,13 +1,8 @@
-import {
-  ACCESORIO_MOVILIDAD_ICONS,
-  ACCESORIO_MOVILIDAD_LABELS,
-  ACCESORIO_MOVILIDAD_OPTIONS,
-} from '../vehiculos/accesorioMovilidadOptions';
-import type { AccesorioMovilidad } from '../../shared/types/vehiculo';
-import { ChecklistOption, FieldGroupHeading } from '../../design-system/components';
+import { FieldGroupHeading } from '../../design-system/components';
 import { Field, Input, Textarea } from '../../design-system/form';
 import type { PacienteFormErrors } from './validatePacienteForm';
 import type { PacienteFormValues } from './PacienteForm';
+import { AccesoriosMovilidadSelector } from './AccesoriosMovilidadSelector';
 
 type DatosPersonales = Pick<
   PacienteFormValues,
@@ -33,18 +28,6 @@ interface PacienteDatosPersonalesFieldsProps {
 // Datos personales y clínicos del formulario de paciente (tasks.md 6.2), extraído de
 // PacienteForm para mantenerlo bajo ~200 líneas (react-best-practices).
 export function PacienteDatosPersonalesFields({ formId, values, errors, onChange }: PacienteDatosPersonalesFieldsProps) {
-  // Multi-selección (docx: tabla de vínculo Paciente-Accesorio, igual que Vehiculo-Accesorio en
-  // FE-2 — reutiliza el catálogo de `accesorioMovilidadOptions.ts` y el `ChecklistOption` del
-  // design system, mismo componente que usa `VehiculoForm.tsx` para su propio selector de
-  // accesorios).
-  function toggleAccesorio(accesorio: AccesorioMovilidad) {
-    onChange({
-      accesorioMovilidad: values.accesorioMovilidad.includes(accesorio)
-        ? values.accesorioMovilidad.filter((a) => a !== accesorio)
-        : [...values.accesorioMovilidad, accesorio],
-    });
-  }
-
   return (
     <>
       <div>
@@ -142,24 +125,16 @@ export function PacienteDatosPersonalesFields({ formId, values, errors, onChange
         </Field>
       </div>
 
-      <fieldset className="mt-md flex flex-col gap-xs border-none p-0">
-        <legend className="mb-lg flex w-full items-baseline gap-sm">
-          <span className="font-heading text-[15px] font-bold text-ink">Accesorios de movilidad</span>
-          <span className="h-px flex-1 bg-border" />
-        </legend>
-        <div className="grid grid-cols-2 gap-sm sm:grid-cols-3 lg:grid-cols-5">
-          {ACCESORIO_MOVILIDAD_OPTIONS.map((accesorio) => (
-            <ChecklistOption
-              key={accesorio}
-              id={`${formId}-accesorio-${accesorio}`}
-              label={ACCESORIO_MOVILIDAD_LABELS[accesorio]}
-              icon={ACCESORIO_MOVILIDAD_ICONS[accesorio]}
-              selected={values.accesorioMovilidad.includes(accesorio)}
-              onChange={() => toggleAccesorio(accesorio)}
-            />
-          ))}
-        </div>
-      </fieldset>
+      {/* Swap del catálogo (tasks.md 4.3): la lista estática de `accesorioMovilidadOptions.ts`
+          muere; el selector reutilizable se alimenta del catálogo activo del repository y permite
+          gestionarlo inline con `pacientes: write` (vehiculos-route: el PuedeEscribirContext de
+          ruta es vehiculos y no alcanza — por eso el gateo vive adentro del componente). */}
+      <AccesoriosMovilidadSelector
+        idBase={formId}
+        titulo="Accesorios de movilidad"
+        seleccion={values.accesorioMovilidad}
+        onChange={(seleccion) => onChange({ accesorioMovilidad: seleccion })}
+      />
       </div>
     </>
   );

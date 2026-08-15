@@ -2,11 +2,37 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ObraSocial } from '../../shared/types/obraSocial';
+import { AuthProvider } from '../../shared/auth/AuthContext';
+import { createMockAuthRepository } from '../../shared/lib/auth/mockAuthRepository';
+import { mockCatalogoAccesoriosRepository } from '../../shared/lib/mocks/mockCatalogoAccesoriosRepository';
+import type { Usuario } from '../../shared/types/usuario';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
+import { CatalogoAccesoriosRepositoryProvider } from './CatalogoAccesoriosRepositoryContext';
 import { PacienteForm, type PacienteFormValues } from './PacienteForm';
 
+const EMPLEADO: Usuario = { id: 'u2', nombre: 'Juan', apellido: 'Pérez', email: 'juan@x.com', rol: 'empleado' };
+
+// El form compone <AccesoriosMovilidadSelector> (tasks.md 4.3), que usa usePermiso y el
+// repository del catálogo — el wrapper provee los tres contextos necesarios.
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
-  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+  const authRepository = createMockAuthRepository({
+    usuario: EMPLEADO,
+    permisos: {
+      pacientes: puedeEscribir ? 'write' : 'read',
+      vehiculos: puedeEscribir ? 'write' : 'read',
+    },
+  });
+  return render(
+    <AuthProvider repository={authRepository}>
+      <CatalogoAccesoriosRepositoryProvider repository={mockCatalogoAccesoriosRepository}>
+        <PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>
+      </CatalogoAccesoriosRepositoryProvider>
+    </AuthProvider>,
+  );
+}
+
+function renderForm(ui: React.ReactElement) {
+  return renderConPermiso(true, ui);
 }
 
 const osecac: ObraSocial = {
@@ -25,7 +51,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(onSubmit).not.toHaveBeenCalled();
@@ -38,7 +64,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
@@ -62,7 +88,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
@@ -80,7 +106,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
@@ -95,7 +121,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
@@ -112,7 +138,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
@@ -127,7 +153,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/segundo apellido/i), 'Díaz');
@@ -144,7 +170,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
@@ -156,7 +182,7 @@ describe('PacienteForm', () => {
   });
 
   it('el select de obra social se puebla desde la lista recibida por props, no hardcodeada', () => {
-    render(<PacienteForm obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     expect(screen.getByRole('option', { name: 'OSECAC' })).toBeInTheDocument();
   });
@@ -167,7 +193,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
@@ -184,7 +210,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
@@ -199,15 +225,15 @@ describe('PacienteForm', () => {
   it('marcar amparo judicial revela el campo de aclaración', async () => {
     const user = userEvent.setup();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     expect(screen.queryByLabelText(/aclaración/i)).not.toBeInTheDocument();
     await user.click(screen.getByLabelText(/amparo judicial/i));
     expect(screen.getByLabelText(/aclaración/i)).toBeInTheDocument();
   });
 
-  it('precarga los valores iniciales en modo edición', () => {
-    render(
+  it('precarga los valores iniciales en modo edición', async () => {
+    renderForm(
       <PacienteForm
         obrasSociales={[osecac]}
         initial={{
@@ -229,13 +255,13 @@ describe('PacienteForm', () => {
 
     expect(screen.getByLabelText(/^apellido$/i)).toHaveValue('Gómez');
     expect(screen.getByLabelText(/^dni$/i)).toHaveValue('45123456');
-    expect(screen.getByLabelText(/silla plegable/i)).toBeChecked();
-    expect(screen.getByLabelText(/andador/i)).toBeChecked();
-    expect(screen.getByLabelText(/silla rígida/i)).not.toBeChecked();
+    expect(await screen.findByRole('checkbox', { name: /silla plegable/i })).toBeChecked();
+    expect(await screen.findByRole('checkbox', { name: /andador/i })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /silla rígida/i })).not.toBeChecked();
   });
 
   it('muestra el error del repository sin ocultar el formulario', () => {
-    render(<PacienteForm obrasSociales={[]} onSubmit={vi.fn()} onCancel={vi.fn()} submitError="DNI duplicado" />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={vi.fn()} onCancel={vi.fn()} submitError="DNI duplicado" />);
 
     expect(screen.getByText('DNI duplicado')).toBeInTheDocument();
     expect(screen.getByLabelText(/^apellido$/i)).toBeInTheDocument();
@@ -245,13 +271,13 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^apellido$/i), 'Gómez');
     await user.type(screen.getByLabelText(/^nombre$/i), 'Martina');
     await user.type(screen.getByLabelText(/^dni$/i), '45123456');
-    await user.click(screen.getByLabelText(/silla plegable/i));
-    await user.click(screen.getByLabelText(/andador/i));
+    await user.click(await screen.findByRole('checkbox', { name: /silla plegable/i }));
+    await user.click(await screen.findByRole('checkbox', { name: /andador/i }));
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(onSubmit).toHaveBeenCalledWith<[PacienteFormValues]>(
@@ -260,7 +286,7 @@ describe('PacienteForm', () => {
   });
 
   it('no tiene campo de teléfono alternativo (docx: pertenece a Personas a Cargo, no a Paciente)', () => {
-    render(<PacienteForm obrasSociales={[]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     expect(screen.queryByLabelText(/teléfono/i)).not.toBeInTheDocument();
   });
@@ -269,7 +295,7 @@ describe('PacienteForm', () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
 
-    render(<PacienteForm obrasSociales={[]} onSubmit={vi.fn()} onCancel={onCancel} />);
+    renderForm(<PacienteForm obrasSociales={[]} onSubmit={vi.fn()} onCancel={onCancel} />);
 
     await user.click(screen.getByRole('button', { name: /cancelar/i }));
     expect(onCancel).toHaveBeenCalledTimes(1);
