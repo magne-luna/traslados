@@ -6,9 +6,10 @@ import { generateId } from '../../shared/lib/id';
 
 /**
  * Línea `{ prestacionId, monto }` de la modalidad `general` (design.md D9/D10, tasks.md Fase 7).
- * Vive ÚNICAMENTE en el estado del formulario: `PresupuestoLineasEditor` no la persiste, y
- * `PresupuestoForm` tampoco — solo suma sus montos para completar el `monto` único que sí viaja
- * al servidor (design.md D9, spec `presupuesto-prestacion` "Modalidad general suma líneas…").
+ * REAPERTURA #13 (decisión usuaria 2026-08-16): el estado del formulario sigue viviendo acá,
+ * pero `PresupuestoForm` ahora SÍ persiste las líneas — las suma para completar el `monto` único
+ * (design.md D9) Y las envía en `values.lineas` (migración `20260816110000_presupuesto_lineas.sql`).
+ * `id` es local del editor (generateId); el servidor asigna los ids reales de las filas.
  */
 export interface LineaPresupuesto {
   id: string;

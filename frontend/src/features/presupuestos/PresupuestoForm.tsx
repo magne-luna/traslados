@@ -4,7 +4,7 @@ import { Alert, EmptyState } from '../../design-system/feedback';
 import { Field, FieldError, Select, Input } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import { iconSubirArchivo } from '../../design-system/icons';
-import type { ArchivoAdjunto } from '../../shared/types/presupuesto';
+import type { ArchivoAdjunto, PresupuestoLinea } from '../../shared/types/presupuesto';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import { PresupuestoLineasEditor, type LineaPresupuesto } from './PresupuestoLineasEditor';
@@ -24,9 +24,16 @@ export interface PresupuestoFormValues {
   /**
    * Solo se completa en el submit de la rama `por-prestacion` (uno por ítem del lote,
    * design.md D9). En las ramas `simple`/`general` queda SIEMPRE `undefined` — el desglose de
-   * `general` vive en `PresupuestoLineasEditor` y nunca llega a `values.prestacionId`.
+   * `general` vive en `lineas`.
    */
   prestacionId?: string;
+  /**
+   * Desglose de la rama `general` (REAPERTURA #13, decisión usuaria 2026-08-16): las líneas del
+   * `PresupuestoLineasEditor` SÍ se persisten ahora (antes solo sumaban su monto al campo simple
+   * y no viajaban). `orden` es la posición de carga (1-based). `undefined` en las ramas
+   * `simple`/`por-prestacion` — la clave queda ausente del payload, nunca se manda vacía.
+   */
+  lineas?: PresupuestoLinea[];
 }
 
 /**
@@ -86,7 +93,9 @@ function sumarLineas(lineas: LineaPresupuesto[]): number {
 //  - `modalidadFacturacion === 'general'` → el campo `monto` simple sigue presente (spec
 //    "Modalidad general sin líneas cargadas usa el campo simple") + `PresupuestoLineasEditor`
 //    debajo; en cuanto hay al menos una línea, el campo `monto` pasa a mostrar (solo lectura) la
-//    suma en vivo — las líneas NUNCA se persisten, `monto` es lo único que viaja.
+//    suma en vivo — y desde la REAPERTURA #13 (decisión usuaria 2026-08-16) las líneas SÍ viajan
+//    en `values.lineas` para persistirse con el presupuesto (antes solo sumaban al `monto` y se
+//    descartaban).
 //  - `modalidadFacturacion === 'por-prestacion'` → multi-select de `paciente.prestaciones.filter(p
 //    => p.activa)` + un monto por cada una marcada; sin prestaciones activas, empty state con
 //    enlace a la ficha del paciente y submit bloqueado (spec "Paciente sin prestaciones activas
@@ -194,7 +203,14 @@ export function PresupuestoForm({
     });
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
-    onSubmit({ modo: 'unico', values: { ...values, monto: montoFinal, prestacionId: undefined } });
+    // REAPERTURA #13 (2026-08-16): las líneas de la rama `general` SÍ se persisten — el desglose
+    // del editor viaja en `values.lineas` con `orden` = posición de carga (1-based). El id local
+    // de cada línea se conserva hasta el mapping (que lo descarta: el servidor asigna los suyos).
+    const lineasPayload: PresupuestoLinea[] | undefined =
+      modo === 'general' && lineas.length > 0
+        ? lineas.map((linea, indice) => ({ id: linea.id, prestacionId: linea.prestacionId, monto: linea.monto, orden: indice + 1 }))
+        : undefined;
+    onSubmit({ modo: 'unico', values: { ...values, monto: montoFinal, prestacionId: undefined, lineas: lineasPayload } });
   }
 
   function handleArchivoChange(event: ChangeEvent<HTMLInputElement>) {
