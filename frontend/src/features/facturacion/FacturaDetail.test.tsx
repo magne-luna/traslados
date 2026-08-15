@@ -235,6 +235,22 @@ describe('FacturaDetail', () => {
     });
     expect(screen.getByText(/vencida/i)).toBeInTheDocument();
   });
+
+  // RF-410 (fix directo 2026-08-15): el checklist documental de la factura es FIJO, independiente
+  // de la obra social del paciente — antes reusaba `obraSocial?.checklist` (RN-FA-08).
+  it('usa el checklist fijo de Facturación en "Documentación adjunta", no el checklist de la obra social del paciente', () => {
+    const osecacConChecklistDistinto: ObraSocial = {
+      ...osecac,
+      checklist: [{ id: 'item-solo-os', nombre: 'Ítem exclusivo de la obra social', requerido: true }],
+    };
+
+    renderDetail({ obrasSociales: [osecacConChecklistDistinto] });
+
+    expect(screen.getByText('Comprobante ARCA')).toBeInTheDocument();
+    expect(screen.getByText('Asistencia')).toBeInTheDocument();
+    expect(screen.getByText('CODEM')).toBeInTheDocument();
+    expect(screen.queryByText('Ítem exclusivo de la obra social')).not.toBeInTheDocument();
+  });
 });
 
 // Gateo de escritura (gateo-facturacion, tasks.md 4.2, design.md D1). "Editar" (:172) queda

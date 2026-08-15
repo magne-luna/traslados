@@ -9,6 +9,7 @@ import type { PresupuestoRepository } from '../../shared/lib/presupuestos/Presup
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
+import { CHECKLIST_DOCUMENTOS_FACTURA } from '../../shared/lib/facturacion/checklistDocumentosFactura';
 import { estadoDerivadoFactura } from '../../shared/lib/facturacion/estadoDerivadoFactura';
 import { FacturaAccionesEmision } from './FacturaAccionesEmision';
 import { FacturaAvisoDiscrepancias } from './FacturaAvisoDiscrepancias';
@@ -213,7 +214,7 @@ export function FacturaDetail({
           </Section>
 
           <Section label="Documentos" title="Documentación adjunta">
-            <FacturaDocumentos facturaId={factura.id} items={obraSocial?.checklist ?? []} repository={documentoRepository} />
+            <FacturaDocumentos facturaId={factura.id} items={CHECKLIST_DOCUMENTOS_FACTURA} repository={documentoRepository} />
           </Section>
         </>
       )}

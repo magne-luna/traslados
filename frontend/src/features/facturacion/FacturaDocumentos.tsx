@@ -7,7 +7,9 @@ import { usePuedeEscribir } from '../../shared/auth/usePuedeEscribir';
 
 interface FacturaDocumentosProps {
   facturaId: string;
-  /** `obraSocial.checklist` del paciente (RN-FA-08): el orden del array es significativo. */
+  /** `CHECKLIST_DOCUMENTOS_FACTURA` (fix directo RF-410, 2026-08-15): lista FIJA propia de
+   * Facturación, independiente del checklist configurable de la obra social del paciente — el
+   * orden del array es significativo. */
   items: ChecklistItem[];
   repository: DocumentoRepository;
 }
@@ -15,9 +17,11 @@ interface FacturaDocumentosProps {
 // Checklist documental por factura (tasks.md 10.1 a 10.4): reutiliza DocumentChecklist +
 // useDocumentChecklist + DocumentoRepository de C-03/FE-1 con entidad='factura' (ya presente en
 // EntidadDocumental), mismo patrón que PacienteDocumentosChecklist/ConductorDocumentos. Los
-// ítems salen del checklist de la obra social del paciente, respetando su orden (RN-FA-08); el
-// comprobante ARCA es un ítem más, sin cliente HTTP ni campo de modelo propio (design.md
-// Decisión 9) — solo se informa el estado de completitud, no bloquea la emisión.
+// ítems salen de `CHECKLIST_DOCUMENTOS_FACTURA` (fix directo 2026-08-15) — antes salían del
+// checklist de la obra social del paciente (RN-FA-08), dependencia incorrecta ya corregida: la
+// documentación de respaldo de una factura no depende de la obra social. El comprobante ARCA es
+// un ítem más, sin cliente HTTP ni campo de modelo propio (design.md Decisión 9) — solo se
+// informa el estado de completitud, no bloquea la emisión.
 // gateo-facturacion (design.md D4, tasks.md 6.3): solo la carga/baja se gatea, vía la prop
 // `readOnly` que `DocumentChecklist` ya expone — se reutiliza tal cual, sin tocar el componente
 // compartido. La consulta de `items`/`documentos` no pasa por acá, así que sigue disponible con
