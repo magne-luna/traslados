@@ -6,7 +6,7 @@ import { iconLlave, iconMoneda, iconVelocimetro } from '../../design-system/icon
 import { estadoHabilitacion } from '../../shared/lib/mantenimiento/estadoHabilitacion';
 import { estadoServicePreventivo } from '../../shared/lib/mantenimiento/estadoServicePreventivo';
 import type { Vehiculo } from '../../shared/types/vehiculo';
-import { ACCESORIO_MOVILIDAD_LABELS } from './accesorioMovilidadOptions';
+import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 import { ESTADO_TEXT_CLASS, HABILITACION_COPY, SERVICE_COPY, TIPO_HABILITACION_LABELS } from './mantenimientoCopy';
 
 interface VehiculosListProps {
@@ -166,7 +166,7 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
                     <span className="font-body text-[12px] text-muted">Sin accesorios de movilidad compatibles</span>
                   ) : (
                     vehiculo.accesoriosCompatibles.map((accesorio) => (
-                      <Pill key={accesorio}>{ACCESORIO_MOVILIDAD_LABELS[accesorio]}</Pill>
+                      <Pill key={accesorio}>{labelAccesorio(accesorio)}</Pill>
                     ))
                   )}
                 </div>

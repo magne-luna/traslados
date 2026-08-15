@@ -5,7 +5,7 @@ import { Paginador } from '../../design-system/paginador';
 import { CUD_CHIP_KIND, CUD_CHIP_LABEL } from '../../shared/lib/pacientes/cudCopy';
 import { estadoCud } from '../../shared/lib/pacientes/estadoCud';
 import type { Paciente } from '../../shared/types/paciente';
-import { ACCESORIO_MOVILIDAD_LABELS } from '../vehiculos/accesorioMovilidadOptions';
+import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 import { nombreCompleto } from './PacienteResumen';
 
 interface PacientesListProps {
@@ -154,7 +154,7 @@ export function PacientesList({
                 {paciente.accesorioMovilidad.length > 0 && (
                   <div className="flex flex-wrap items-center gap-xs">
                     {paciente.accesorioMovilidad.map((accesorio) => (
-                      <Pill key={accesorio}>{ACCESORIO_MOVILIDAD_LABELS[accesorio]}</Pill>
+                      <Pill key={accesorio}>{labelAccesorio(accesorio)}</Pill>
                     ))}
                   </div>
                 )}

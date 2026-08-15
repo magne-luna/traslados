@@ -4,7 +4,7 @@ import { CUD_CHIP_KIND, CUD_CHIP_LABEL } from '../../shared/lib/pacientes/cudCop
 import { estadoCud } from '../../shared/lib/pacientes/estadoCud';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
-import { ACCESORIO_MOVILIDAD_LABELS } from '../vehiculos/accesorioMovilidadOptions';
+import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 
 interface PacienteResumenProps {
   paciente: Paciente;
@@ -98,7 +98,7 @@ export function PacienteResumen({ paciente, obrasSociales, onEdit, ahora = new D
         <div className="flex flex-wrap gap-sm">
           {paciente.accesorioMovilidad.map((accesorio) => (
             <Chip key={accesorio} kind="info">
-              {ACCESORIO_MOVILIDAD_LABELS[accesorio]}
+              {labelAccesorio(accesorio)}
             </Chip>
           ))}
         </div>

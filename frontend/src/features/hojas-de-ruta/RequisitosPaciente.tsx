@@ -1,7 +1,7 @@
 import { Chip } from '../../design-system/components';
 import type { Paciente } from '../../shared/types/paciente';
 import type { Vehiculo } from '../../shared/types/vehiculo';
-import { ACCESORIO_MOVILIDAD_LABELS } from '../vehiculos/accesorioMovilidadOptions';
+import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 
 interface RequisitosPacienteProps {
   paciente: Paciente;
@@ -24,7 +24,7 @@ export function RequisitosPaciente({ paciente, vehiculo }: RequisitosPacientePro
           key={accesorio}
           kind={!vehiculo ? 'info' : vehiculo.accesoriosCompatibles.includes(accesorio) ? 'success' : 'danger'}
         >
-          {ACCESORIO_MOVILIDAD_LABELS[accesorio]}
+          {labelAccesorio(accesorio)}
         </Chip>
       ))}
     </div>

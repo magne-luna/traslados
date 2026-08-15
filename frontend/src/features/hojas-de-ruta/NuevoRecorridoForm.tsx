@@ -9,7 +9,7 @@ import type { Conductor } from '../../shared/types/conductor';
 import type { NuevaParadaRecorrido, Recorrido, Tramo } from '../../shared/types/hojaDeRuta';
 import type { Paciente } from '../../shared/types/paciente';
 import type { Vehiculo } from '../../shared/types/vehiculo';
-import { ACCESORIO_MOVILIDAD_LABELS } from '../vehiculos/accesorioMovilidadOptions';
+import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 import { CarIcon, PlusIcon, UserIcon } from './icons';
 import { PacienteTramoCampos } from './PacienteTramoCampos';
 import { RequisitosPaciente } from './RequisitosPaciente';
@@ -51,7 +51,7 @@ const boxedSelectFieldClasses = 'w-full border-none bg-transparent p-0 font-body
 const SIN_PACIENTE = '';
 
 function opcionVehiculo(vehiculo: Vehiculo): string {
-  const accesorios = vehiculo.accesoriosCompatibles.map((a) => ACCESORIO_MOVILIDAD_LABELS[a]).join(', ');
+  const accesorios = vehiculo.accesoriosCompatibles.map((a) => labelAccesorio(a)).join(', ');
   return `${vehiculo.patente} · ${vehiculo.modelo} · cap. ${vehiculo.capacidad}${accesorios ? ` · ${accesorios}` : ''}`;
 }
 

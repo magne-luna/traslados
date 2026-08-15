@@ -3,8 +3,31 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
+import { AuthProvider } from '../../shared/auth/AuthContext';
+import { createMockAuthRepository } from '../../shared/lib/auth/mockAuthRepository';
+import { mockCatalogoAccesoriosRepository } from '../../shared/lib/mocks/mockCatalogoAccesoriosRepository';
+import type { Usuario } from '../../shared/types/usuario';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
+import { CatalogoAccesoriosRepositoryProvider } from '../pacientes/CatalogoAccesoriosRepositoryContext';
 import { VehiculoDetail } from './VehiculoDetail';
+
+const EMPLEADO: Usuario = { id: 'u2', nombre: 'Juan', apellido: 'Pérez', email: 'juan@x.com', rol: 'empleado' };
+
+// VehiculoDetail compone VehiculoForm → AccesoriosMovilidadSelector (tasks.md 4.3): el wrapper
+// provee auth (usePermiso), catálogo (repository del selector) y ruta (gateo de escritura).
+function renderDetail(ui: React.ReactElement) {
+  const authRepository = createMockAuthRepository({
+    usuario: EMPLEADO,
+    permisos: { vehiculos: 'write', pacientes: 'write' },
+  });
+  return render(
+    <AuthProvider repository={authRepository}>
+      <CatalogoAccesoriosRepositoryProvider repository={mockCatalogoAccesoriosRepository}>
+        <PuedeEscribirContext.Provider value={true}>{ui}</PuedeEscribirContext.Provider>
+      </CatalogoAccesoriosRepositoryProvider>
+    </AuthProvider>,
+  );
+}
 
 // GastosVehiculo y HistorialMantenimiento comparten labels ("Fecha") y texto de botón
 // ("+ Registrar") — se escopea la query al form correspondiente por su encabezado, en vez de
@@ -44,7 +67,7 @@ function buildFakeDocumentoRepository(): DocumentoRepository {
 
 describe('VehiculoDetail — modo alta (vehiculo null)', () => {
   it('solo muestra el formulario general, sin mantenimiento, gastos ni documentos', () => {
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={null}
         crear={vi.fn()}
@@ -65,7 +88,7 @@ describe('VehiculoDetail — modo alta (vehiculo null)', () => {
     const crear = vi.fn().mockResolvedValue(creado);
     const onCreated = vi.fn();
 
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={null}
         crear={crear}
@@ -86,7 +109,7 @@ describe('VehiculoDetail — modo alta (vehiculo null)', () => {
 
 describe('VehiculoDetail — modo edición', () => {
   it('por defecto muestra un resumen de solo lectura (sin form) junto con mantenimiento, gastos y documentos', async () => {
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={etios}
         crear={vi.fn()}
@@ -108,7 +131,7 @@ describe('VehiculoDetail — modo edición', () => {
   it('al apretar "Editar datos" muestra el form precargado', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={etios}
         crear={vi.fn()}
@@ -128,7 +151,7 @@ describe('VehiculoDetail — modo edición', () => {
     const user = userEvent.setup();
     const actualizar = vi.fn().mockResolvedValue(etios);
 
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={etios}
         crear={vi.fn()}
@@ -150,7 +173,7 @@ describe('VehiculoDetail — modo edición', () => {
     const user = userEvent.setup();
     const actualizar = vi.fn().mockResolvedValue(etios);
 
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={etios}
         crear={vi.fn()}
@@ -176,7 +199,7 @@ describe('VehiculoDetail — modo edición', () => {
     const user = userEvent.setup();
     const actualizar = vi.fn().mockResolvedValue(etios);
 
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={etios}
         crear={vi.fn()}
@@ -210,7 +233,7 @@ describe('VehiculoDetail — modo edición', () => {
     const user = userEvent.setup();
     const actualizar = vi.fn().mockRejectedValue(new Error('no se pudo guardar el mantenimiento'));
 
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={etios}
         crear={vi.fn()}
@@ -235,7 +258,7 @@ describe('VehiculoDetail — modo edición', () => {
     const user = userEvent.setup();
     const actualizar = vi.fn().mockResolvedValue(etios);
 
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={etios}
         crear={vi.fn()}
@@ -267,7 +290,7 @@ describe('VehiculoDetail — modo edición', () => {
   // C-08: la columna `conductores.vehiculo.notas` existe en la base y nacía NULL para siempre
   // porque el frontend no la modelaba (tasks.md 2.5).
   it('muestra las notas en la ficha cuando el vehículo las tiene', () => {
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={{ ...etios, notas: 'Aire acondicionado con pérdida.' }}
         crear={vi.fn()}
@@ -282,7 +305,7 @@ describe('VehiculoDetail — modo edición', () => {
   });
 
   it('no renderiza ninguna sección de notas cuando el vehículo no las tiene (sin "—" inventado)', () => {
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={etios}
         crear={vi.fn()}
@@ -297,7 +320,7 @@ describe('VehiculoDetail — modo edición', () => {
   });
 
   it('muestra el cartel de discrepancia de modelo de datos en la sección de Mantenimiento, acotado a lo pendiente', () => {
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={etios}
         crear={vi.fn()}
@@ -315,7 +338,7 @@ describe('VehiculoDetail — modo edición', () => {
     const user = userEvent.setup();
     const actualizar = vi.fn().mockRejectedValue(new Error('patente duplicada'));
 
-    render(
+    renderDetail(
       <VehiculoDetail
         vehiculo={etios}
         crear={vi.fn()}
@@ -337,7 +360,7 @@ describe('VehiculoDetail — modo edición', () => {
 // y deshabilitado sin permiso de escritura.
 describe('VehiculoDetail — gateo de escritura', () => {
   it('sin permiso de escritura: "Editar datos" queda visible y no se puede activar', () => {
-    render(
+    renderDetail(
       <PuedeEscribirContext.Provider value={false}>
         <VehiculoDetail
           vehiculo={etios}
@@ -356,7 +379,7 @@ describe('VehiculoDetail — gateo de escritura', () => {
   });
 
   it('con permiso de escritura: "Editar datos" está activable (triangulación)', () => {
-    render(
+    renderDetail(
       <PuedeEscribirContext.Provider value={true}>
         <VehiculoDetail
           vehiculo={etios}

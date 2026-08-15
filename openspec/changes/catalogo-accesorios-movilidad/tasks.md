@@ -123,14 +123,14 @@ Suggested split: 1 PR
       `PrestacionesEditor`); duplicado con error accionable bajo el form, form abierto. Tests RTL
       con context stub: alta inline queda seleccionada, menú, aviso, read-only (sin botón ni menús),
       icono desconocido → fallback. **GREEN → REFACTOR.**
-- [-] 4.3 **Swap en commit único y revertible** — `PacienteDatosPersonalesFields.tsx:145-162` y
+- [x] 4.3 **Swap en commit único y revertible** — `PacienteDatosPersonalesFields.tsx:145-162` y
       `VehiculoForm.tsx:162-179` (import cross-feature desde `features/pacientes/`) → ambos usan
       `<AccesoriosMovilidadSelector>`. Tests de integración con repository stub (catálogo activo,
       no lista estática).
-- [-] 4.4 **RED** — migrar los 7 consumidores de `ACCESORIO_MOVILIDAD_LABELS/ICONS`
+- [x] 4.4 **RED** — migrar los 7 consumidores de `ACCESORIO_MOVILIDAD_LABELS/ICONS`
       (VehiculoDetail, VehiculosList, PacienteResumen, RequisitosPaciente,
       RecorridoVehiculoConductor, NuevoRecorridoForm) → `labelAccesorio`/`iconoAccesorioMap`.
-- [-] 4.5 Eliminar `accesorioMovilidadOptions.ts` (últimos imports migrados); `tsc -b --noEmit` +
+- [x] 4.5 Eliminar `accesorioMovilidadOptions.ts` (últimos imports migrados); `tsc -b --noEmit` +
       `oxlint` + suites verdes.
 
 ## 5. Documentación

@@ -14,7 +14,7 @@ import type {
   NuevoVehiculo,
   Vehiculo,
 } from '../../shared/types/vehiculo';
-import { ACCESORIO_MOVILIDAD_LABELS } from './accesorioMovilidadOptions';
+import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 import { GastosVehiculo, type NuevoGastoInput } from './GastosVehiculo';
 import { HistorialMantenimiento } from './HistorialMantenimiento';
 import { ESTADO_TEXT_CLASS, HABILITACION_COPY, SERVICE_COPY, TIPO_HABILITACION_LABELS } from './mantenimientoCopy';
@@ -187,7 +187,7 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
             {vehiculo.accesoriosCompatibles.length > 0 && (
               <div className="flex flex-wrap gap-sm">
                 {vehiculo.accesoriosCompatibles.map((accesorio) => (
-                  <Pill key={accesorio}>{ACCESORIO_MOVILIDAD_LABELS[accesorio]}</Pill>
+                  <Pill key={accesorio}>{labelAccesorio(accesorio)}</Pill>
                 ))}
               </div>
             )}
