@@ -44,6 +44,10 @@ describe('ObraSocialForm', () => {
       direccion: '',
       telefono: '',
       condicionIva: '',
+      // RF-306 (sacar-prestadores): opcionales — un alta sin completarlos se propaga undefined,
+      // nunca bloquea el submit.
+      plazoCobroDias: undefined,
+      tipoComprobante: undefined,
     });
   });
 
@@ -117,6 +121,58 @@ describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
         condicionIva: 'Responsable Inscripto',
       }),
     );
+  });
+
+  it('se editan y se propagan al submit', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<ObraSocialForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/nombre/i), 'Swiss Medical');
+    await user.type(screen.getByLabelText(/cuit/i), '30-11111111-1');
+    await user.type(screen.getByLabelText(/plazo de cobro/i), '60');
+    await user.selectOptions(screen.getByLabelText(/tipo de comprobante/i), 'B');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith<[ObraSocialFormValues]>(
+      expect.objectContaining({ plazoCobroDias: 60, tipoComprobante: 'B' }),
+    );
+  });
+
+  it('sin completar plazo de cobro ni tipo de comprobante: se propagan undefined (default lo aplica calcularFechaEstimadaCobro)', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<ObraSocialForm onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/nombre/i), 'Swiss Medical');
+    await user.type(screen.getByLabelText(/cuit/i), '30-11111111-1');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith<[ObraSocialFormValues]>(
+      expect.objectContaining({ plazoCobroDias: undefined, tipoComprobante: undefined }),
+    );
+  });
+
+  it('precarga plazoCobroDias/tipoComprobante en modo edición cuando ya están configurados', () => {
+    render(
+      <ObraSocialForm
+        initial={{
+          nombre: 'OSECAC',
+          cuit: '30-54155200-6',
+          modalidadFacturacion: 'por-prestacion',
+          admitePagosParciales: false,
+          plazoCobroDias: 45,
+          tipoComprobante: 'C',
+        }}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/plazo de cobro/i)).toHaveValue(45);
+    expect(screen.getByLabelText(/tipo de comprobante/i)).toHaveValue('C');
   });
 
   it('precarga los 4 campos en modo edición cuando la obra social ya los tiene completos', () => {

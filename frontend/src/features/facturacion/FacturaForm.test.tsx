@@ -244,6 +244,32 @@ describe('FacturaForm', () => {
     expect(tipoComprobante.value).toBe('B');
   });
 
+  // `sacar-prestadores` (RF-306): al elegir un paciente cuya obra social tiene `tipoComprobante`
+  // configurado, el Paso 3 precarga ese valor como default de la factura NUEVA — sigue siendo
+  // editable a mano después, sin bloquear ningún control (a diferencia de obra social/prestación,
+  // que sí quedan de solo lectura).
+  it('con tipoComprobante configurado en la obra social: se precarga como default en el alta, sigue editable', async () => {
+    renderForm({ obrasSociales: [{ ...osecac, tipoComprobante: 'B' }] });
+
+    await avanzarHastaPaso3('paciente-martina');
+
+    const tipoComprobante = screen.getByLabelText(/tipo de comprobante/i) as HTMLSelectElement;
+    expect(tipoComprobante.value).toBe('B');
+
+    await userEvent.selectOptions(tipoComprobante, 'C');
+    expect(tipoComprobante.value).toBe('C');
+  });
+
+  it('en modo edición no se precarga tipoComprobante desde la obra social: se respeta el valor ya guardado', () => {
+    renderForm({
+      obrasSociales: [{ ...osecac, tipoComprobante: 'B' }],
+      initial: valoresIniciales({ tipoComprobante: 'C' }),
+    });
+
+    const tipoComprobante = screen.getByLabelText(/tipo de comprobante/i) as HTMLSelectElement;
+    expect(tipoComprobante.value).toBe('C');
+  });
+
   it('el selector de domicilio se puebla con las direcciones del paciente seleccionado', async () => {
     renderForm();
     await avanzarHastaPaso3('paciente-martina');

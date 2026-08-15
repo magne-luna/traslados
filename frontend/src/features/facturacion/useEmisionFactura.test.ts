@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { Autorizacion } from '../../shared/types/presupuesto';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { Factura } from '../../shared/types/factura';
+import type { ObraSocial } from '../../shared/types/obraSocial';
+import type { Paciente } from '../../shared/types/paciente';
 import { useEmisionFactura } from './useEmisionFactura';
 
 // `resolverCupoAutorizado` deja de adivinar (change `facturacion-seleccion-autorizacion`,
@@ -50,6 +52,40 @@ function factura(overrides: Partial<Factura> = {}): Factura {
     dependenciaYRetorno: '',
     domicilioId: '',
     asistencias: [],
+    ...overrides,
+  };
+}
+
+function paciente(overrides: Partial<Paciente> = {}): Paciente {
+  return {
+    id: 'paciente-martina',
+    apellido: 'Gómez',
+    nombre: 'Martina',
+    fechaNacimiento: '2015-03-12',
+    dni: '45123456',
+    cuilTitular: '27-30111222-4',
+    diagnostico: 'Parálisis cerebral',
+    accesorioMovilidad: [],
+    obraSocialId: 'osecac',
+    numeroAfiliado: { valor: '45123456' },
+    cud: null,
+    direcciones: [],
+    personasACargo: [],
+    amparoJudicial: false,
+    ...overrides,
+  };
+}
+
+function obraSocial(overrides: Partial<ObraSocial> = {}): ObraSocial {
+  return {
+    id: 'osecac',
+    nombre: 'OSECAC',
+    cuit: '30-54155200-6',
+    modalidadFacturacion: 'por-prestacion',
+    admitePagosParciales: true,
+    formatoAfiliado: 'numero-documento',
+    checklist: [],
+    plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
     ...overrides,
   };
 }
@@ -133,5 +169,78 @@ describe('useEmisionFactura — resolverCupoAutorizado (D6, tasks.md 3.6)', () =
     expect(getById).toHaveBeenCalledWith('autorizacion-elegida');
     // 5 días facturados > 1 autorizado -> excede, se pide confirmación explícita en vez de emitir.
     await waitFor(() => expect(result.current.cupoParaConfirmar?.excedeDias).toBe(true));
+  });
+});
+
+// `sacar-prestadores` reexpone `ObraSocial.plazoCobroDias` (RF-306): `emitirFactura` deja de
+// pasar `plazoObraSocial: undefined` a mano — usa el dato real de la obra social del paciente.
+// `calcularFechaEstimadaCobro` (no se toca, ya tenía la precedencia completa) sigue resolviendo
+// amparo > plazoObraSocial > default.
+describe('useEmisionFactura — emitirFactura usa el plazo real de la obra social (RF-306)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-10T00:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('con plazoCobroDias configurado en la obra social: fechaEstimadaCobro se calcula con ESE plazo', async () => {
+    const actualizar = vi.fn().mockResolvedValue(factura());
+    const { result } = renderHook(() =>
+      useEmisionFactura({
+        factura: factura({ dias: 1, cantidadKm: 1 }),
+        paciente: paciente({ amparoJudicial: false }),
+        obraSocial: obraSocial({ plazoCobroDias: 60 }),
+        facturasExistentes: [],
+        autorizacionRepository: fakeAutorizacionRepository(new Map()),
+        actualizar,
+        onError: vi.fn(),
+      }),
+    );
+
+    await result.current.handleEmitirClick();
+
+    expect(actualizar).toHaveBeenCalledWith('factura-1', expect.objectContaining({ fechaEstimadaCobro: '2026-10-09' }));
+  });
+
+  it('sin plazoCobroDias configurado: cae al default general (90 días)', async () => {
+    const actualizar = vi.fn().mockResolvedValue(factura());
+    const { result } = renderHook(() =>
+      useEmisionFactura({
+        factura: factura({ dias: 1, cantidadKm: 1 }),
+        paciente: paciente({ amparoJudicial: false }),
+        obraSocial: obraSocial({ plazoCobroDias: undefined }),
+        facturasExistentes: [],
+        autorizacionRepository: fakeAutorizacionRepository(new Map()),
+        actualizar,
+        onError: vi.fn(),
+      }),
+    );
+
+    await result.current.handleEmitirClick();
+
+    expect(actualizar).toHaveBeenCalledWith('factura-1', expect.objectContaining({ fechaEstimadaCobro: '2026-11-08' }));
+  });
+
+  it('amparo judicial sigue ganando aunque la obra social tenga plazoCobroDias configurado', async () => {
+    const actualizar = vi.fn().mockResolvedValue(factura());
+    const { result } = renderHook(() =>
+      useEmisionFactura({
+        factura: factura({ dias: 1, cantidadKm: 1 }),
+        paciente: paciente({ amparoJudicial: true }),
+        obraSocial: obraSocial({ plazoCobroDias: 60 }),
+        facturasExistentes: [],
+        autorizacionRepository: fakeAutorizacionRepository(new Map()),
+        actualizar,
+        onError: vi.fn(),
+      }),
+    );
+
+    await result.current.handleEmitirClick();
+
+    const llamada = actualizar.mock.calls[0]?.[1] as { fechaEstimadaCobro: string } | undefined;
+    expect(llamada?.fechaEstimadaCobro).not.toBe('2026-10-09');
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert, EmptyState } from '../../design-system/feedback';
 import { Field, Select } from '../../design-system/form';
@@ -166,6 +166,21 @@ export function FacturaForm({
 
   const paciente = pacientes.find((p) => p.id === values.pacienteId);
   const obraSocial = obrasSociales.find((o) => o.id === paciente?.obraSocialId);
+
+  // Precarga de `tipoComprobante` desde la obra social (change `sacar-prestadores`, RF-306): solo
+  // en alta (nunca pisa una factura ya guardada) y solo una vez por obra social resuelta — el
+  // `ref` evita repetir la precarga en cada render y permite volver a aplicarla si el operador
+  // retrocede al Paso 1 y elige un paciente con OTRA obra social. Es una sugerencia editable, no
+  // una restricción: el operador puede cambiarla a mano después sin que el efecto la pise de nuevo
+  // (no vuelve a dispararse mientras `obraSocial.id` no cambie).
+  const tipoComprobanteDefault = obraSocial?.tipoComprobante;
+  const obraSocialIdPrecargada = useRef<string | null>(null);
+  useEffect(() => {
+    if (esEdicion || !obraSocial || !tipoComprobanteDefault) return;
+    if (obraSocialIdPrecargada.current === obraSocial.id) return;
+    obraSocialIdPrecargada.current = obraSocial.id;
+    setValues((prev) => ({ ...prev, tipoComprobante: tipoComprobanteDefault }));
+  }, [esEdicion, obraSocial, tipoComprobanteDefault]);
 
   useEffect(() => {
     let cancelled = false;

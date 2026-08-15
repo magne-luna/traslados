@@ -69,13 +69,6 @@ export interface ObraSocial {
    * §Discrepancias. No se resuelve acá.
    */
   cuit: string;
-  /**
-   * `plazoCobroDias`/`tipoComprobante` nunca volvieron a `ObraSocial` (change `sacar-prestadores`,
-   * que remueve el módulo `Prestador` al que `prestadores-crud` los había movido). Las columnas
-   * vestigiales `plazo_cobro_dias`/`tipo_comprobante` de `obra_social.obra_social` son anteriores
-   * a `Prestador` (`20260729110000_schema_obra_social_facturacion_config.sql`) y siguen sin uso
-   * desde el frontend — fuera de scope, no se re-exponen acá.
-   */
   modalidadFacturacion: ModalidadFacturacion;
   /** Si la obra social admite pagos parciales o por lote. */
   admitePagosParciales: boolean;
@@ -103,6 +96,19 @@ export interface ObraSocial {
    * `knowledge-base/10_preguntas_abiertas.md`.
    */
   condicionIva?: string;
+  /**
+   * Plazo de cobro propio de esta obra social, en días desde `fechaFactura` (columna
+   * `obra_social.plazo_cobro_dias`, ya existente — anterior al módulo `Prestador`, que la había
+   * dejado sin consumidor real; change `sacar-prestadores` la reexpone acá). Opcional: sin
+   * configurar, `calcularFechaEstimadaCobro` cae en `PLAZO_COBRO_DEFAULT_DIAS` (RN-FA-04).
+   */
+  plazoCobroDias?: number;
+  /**
+   * Tipo de comprobante que sugiere/precarga esta obra social al dar de alta una factura nueva
+   * (columna `obra_social.tipo_comprobante`, ya existente). Sugerencia editable, no una
+   * restricción dura (RN-FA-07 sigue permitiendo cambiarlo a mano en cualquier factura).
+   */
+  tipoComprobante?: TipoComprobante;
 }
 
 /** Payload de alta: todo lo de ObraSocial salvo el id, que asigna el repository. */

@@ -53,6 +53,8 @@ describe('parseObraSocialRow (3.1)', () => {
     expect(base.modalidadFacturacion).toBe('por-prestacion');
     expect(base.admitePagosParciales).toBe(false);
     expect(base.identificadorOrigen).toBe('paciente.numeroAfiliado');
+    expect(base.plazoCobroDias).toBe(90);
+    expect(base.tipoComprobante).toBe('A');
   });
 
   it('los 4 campos opcionales del docx en NULL no rompen el mapeo (quedan undefined)', () => {
@@ -64,6 +66,25 @@ describe('parseObraSocialRow (3.1)', () => {
     expect(base.direccion).toBeUndefined();
     expect(base.telefono).toBeUndefined();
     expect(base.condicionIva).toBeUndefined();
+  });
+
+  it('plazo_cobro_dias/tipo_comprobante en NULL quedan undefined (semántica parcial, RN-FA-04)', () => {
+    const base = parseObraSocialRow(filaObraSocialCompleta({ plazo_cobro_dias: null, tipo_comprobante: null }));
+
+    expect(base.plazoCobroDias).toBeUndefined();
+    expect(base.tipoComprobante).toBeUndefined();
+  });
+
+  it('tipo_comprobante fuera de la unión cerrada cae a undefined (no rompe el mapeo)', () => {
+    const base = parseObraSocialRow(filaObraSocialCompleta({ tipo_comprobante: 'algo-raro' }));
+
+    expect(base.tipoComprobante).toBeUndefined();
+  });
+
+  it('plazo_cobro_dias no numérico cae a undefined', () => {
+    const base = parseObraSocialRow(filaObraSocialCompleta({ plazo_cobro_dias: 'no-es-numero' }));
+
+    expect(base.plazoCobroDias).toBeUndefined();
   });
 
   it('modalidad_facturacion/identificador_origen desconocidos caen al default documentado', () => {
@@ -211,6 +232,8 @@ describe('ensamblarObraSocial (3.5)', () => {
       modalidadFacturacion: 'por-prestacion',
       admitePagosParciales: false,
       formatoAfiliado: 'numero-documento',
+      plazoCobroDias: 90,
+      tipoComprobante: 'A',
       checklist: [{ id: 't-1', nombre: 'RHC', requerido: true }],
       plantillaFactura: {
         identificadorOrigen: 'paciente.numeroAfiliado',
@@ -247,6 +270,8 @@ describe('ensamblarObraSocial (3.5)', () => {
       modalidadFacturacion: 'por-prestacion',
       admitePagosParciales: false,
       formatoAfiliado: 'numero-documento',
+      plazoCobroDias: undefined,
+      tipoComprobante: undefined,
       checklist: [],
       plantillaFactura: { identificadorOrigen: 'paciente.numeroAfiliado', campos: [] },
     });
@@ -296,6 +321,8 @@ describe('toCrearObraSocialPayload (3.6)', () => {
       modalidad_facturacion: 'por-prestacion',
       admite_pagos_parciales: false,
       formato_afiliado: 'numero-documento',
+      plazo_cobro_dias: null,
+      tipo_comprobante: null,
       checklist: [],
       plantilla_factura: { identificador_origen: 'paciente.numeroAfiliado', campos: [] },
     });
@@ -340,6 +367,24 @@ describe('toCrearObraSocialPayload (3.6)', () => {
     });
 
     expect(payload.plantilla_factura).toEqual({ identificador_origen: 'paciente.dni', campos: [] });
+  });
+
+  it('sin plazoCobroDias/tipoComprobante configurados: viajan como null (el default lo aplica la RPC)', () => {
+    const payload = toCrearObraSocialPayload(nuevaObraSocialMinima());
+
+    expect(payload.plazo_cobro_dias).toBeNull();
+    expect(payload.tipo_comprobante).toBeNull();
+  });
+
+  it('con plazoCobroDias/tipoComprobante configurados: viajan tal cual', () => {
+    const payload = toCrearObraSocialPayload({
+      ...nuevaObraSocialMinima(),
+      plazoCobroDias: 60,
+      tipoComprobante: 'B',
+    });
+
+    expect(payload.plazo_cobro_dias).toBe(60);
+    expect(payload.tipo_comprobante).toBe('B');
   });
 });
 
@@ -419,5 +464,18 @@ describe('toActualizarObraSocialPayload (3.7) — semántica parcial (D6)', () =
     expect(payload).toEqual({
       plantilla_factura: { identificador_origen: 'paciente.dni', campos: [{ etiqueta: 'Paciente', origen: 'paciente.nombre', orden: 0 }] },
     });
+  });
+
+  it('plazoCobroDias/tipoComprobante ausentes: ninguna de las dos claves viaja (no tocar)', () => {
+    const payload = toActualizarObraSocialPayload({ nombre: 'Otro' });
+
+    expect('plazo_cobro_dias' in payload).toBe(false);
+    expect('tipo_comprobante' in payload).toBe(false);
+  });
+
+  it('plazoCobroDias/tipoComprobante presentes: viajan tal cual', () => {
+    const payload = toActualizarObraSocialPayload({ plazoCobroDias: 60, tipoComprobante: 'C' });
+
+    expect(payload).toEqual({ plazo_cobro_dias: 60, tipo_comprobante: 'C' });
   });
 });

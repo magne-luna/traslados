@@ -24,6 +24,7 @@ import type {
   ObraSocial,
   OrigenCampoPlantilla,
   PlantillaCampo,
+  TipoComprobante,
 } from '../../types/obraSocial';
 import type { ChecklistItem } from '../../types/documento';
 
@@ -36,6 +37,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function readOptionalString(record: Record<string, unknown>, key: string): string | undefined {
   const value = record[key];
   return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+function readOptionalNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === 'number' ? value : undefined;
 }
 
 // -------------------------------------------------------------------------------------------
@@ -55,6 +61,19 @@ const DEFAULT_IDENTIFICADOR_ORIGEN: IdentificadorOrigenFactura = 'paciente.numer
 // que el enum real `obra_social.formato_afiliado`.
 const FORMATOS_AFILIADO_VALIDOS = new Set<FormatoAfiliado>(['numero-documento', 'alfanumerico', 'cuil-con-sufijo']);
 const DEFAULT_FORMATO_AFILIADO: FormatoAfiliado = 'numero-documento';
+
+// `plazoCobroDias`/`tipoComprobante` (sacar-prestadores, RF-306): a diferencia de modalidad/
+// identificador/formato, NO tienen default de mapeo — un valor desconocido o ausente cae en
+// `undefined`, nunca en un literal inventado. La RPC real ya aplica su propio default (90 días)
+// cuando el frontend no envía nada (ver 20260731120001_obra_social_rpc.sql), así que duplicarlo
+// acá sería una segunda fuente de verdad.
+const TIPOS_COMPROBANTE_VALIDOS = new Set<TipoComprobante>(['A', 'B', 'C']);
+
+function parseTipoComprobante(value: unknown): TipoComprobante | undefined {
+  return typeof value === 'string' && TIPOS_COMPROBANTE_VALIDOS.has(value as TipoComprobante)
+    ? (value as TipoComprobante)
+    : undefined;
+}
 
 const ORIGENES_CAMPO_VALIDOS = new Set<OrigenCampoPlantilla>([
   'paciente.nombre',
@@ -105,12 +124,15 @@ export interface ObraSocialCamposBase {
   admitePagosParciales: boolean;
   identificadorOrigen: IdentificadorOrigenFactura;
   formatoAfiliado: FormatoAfiliado;
+  plazoCobroDias?: number;
+  tipoComprobante?: TipoComprobante;
 }
 
 /** Fila plana de `obra_social.obra_social` -> campos base del dominio (discrepancia #1 de la
- * tabla D11: `razon_social`->`nombre`). `tipo_comprobante`/`plazo_cobro_dias` de esta tabla no se
- * mapean acá: son columnas vestigiales anteriores al módulo `Prestador` (ya removido, change
- * `sacar-prestadores`), sin uso desde el frontend — fuera de scope. */
+ * tabla D11: `razon_social`->`nombre`). `tipo_comprobante`/`plazo_cobro_dias` (change
+ * `sacar-prestadores`, RF-306): columnas ya existentes en la base real, reexpuestas acá como
+ * configuración real por obra social — semántica parcial, igual criterio que los 4 campos del
+ * docx (undefined si vienen NULL o fuera de la unión cerrada). */
 export function parseObraSocialRow(row: unknown): ObraSocialCamposBase {
   const record = isRecord(row) ? row : {};
 
@@ -126,6 +148,8 @@ export function parseObraSocialRow(row: unknown): ObraSocialCamposBase {
     admitePagosParciales: typeof record.admite_pagos_parciales === 'boolean' ? record.admite_pagos_parciales : false,
     identificadorOrigen: parseIdentificadorOrigen(record.identificador_origen),
     formatoAfiliado: parseFormatoAfiliado(record.formato_afiliado),
+    plazoCobroDias: readOptionalNumber(record, 'plazo_cobro_dias'),
+    tipoComprobante: parseTipoComprobante(record.tipo_comprobante),
   };
 }
 
@@ -237,6 +261,8 @@ export function ensamblarObraSocial(row: unknown): ObraSocial {
     modalidadFacturacion: base.modalidadFacturacion,
     admitePagosParciales: base.admitePagosParciales,
     formatoAfiliado: base.formatoAfiliado,
+    plazoCobroDias: base.plazoCobroDias,
+    tipoComprobante: base.tipoComprobante,
     checklist: parseChecklist(record.requisitos_os),
     plantillaFactura: {
       identificadorOrigen: base.identificadorOrigen,
@@ -276,6 +302,10 @@ export interface CrearObraSocialPayload {
   modalidad_facturacion: ModalidadFacturacion;
   admite_pagos_parciales: boolean;
   formato_afiliado: FormatoAfiliado;
+  // Sin configurar: viajan `null` — la RPC real aplica su propio default (90 días, sin tipo)
+  // cuando recibe `null` (ver 20260731120001_obra_social_rpc.sql), nunca se duplica ese default acá.
+  plazo_cobro_dias: number | null;
+  tipo_comprobante: TipoComprobante | null;
   // El orden se deriva SIEMPRE del índice del array — nunca de una columna que el frontend no
   // conoce todavía. El id de un ChecklistItem NO viaja: lo resuelve el get-or-create del servidor
   // sobre `tipos_documento` (D3), normalizando por nombre.
@@ -308,6 +338,8 @@ export function toCrearObraSocialPayload(nueva: NuevaObraSocial): CrearObraSocia
     modalidad_facturacion: nueva.modalidadFacturacion,
     admite_pagos_parciales: nueva.admitePagosParciales,
     formato_afiliado: nueva.formatoAfiliado,
+    plazo_cobro_dias: nueva.plazoCobroDias ?? null,
+    tipo_comprobante: nueva.tipoComprobante ?? null,
     checklist: checklistAPayload(nueva.checklist),
     plantilla_factura: {
       identificador_origen: nueva.plantillaFactura.identificadorOrigen,
@@ -337,6 +369,8 @@ export function toActualizarObraSocialPayload(cambios: ActualizacionObraSocial):
   if (cambios.modalidadFacturacion !== undefined) payload.modalidad_facturacion = cambios.modalidadFacturacion;
   if (cambios.admitePagosParciales !== undefined) payload.admite_pagos_parciales = cambios.admitePagosParciales;
   if (cambios.formatoAfiliado !== undefined) payload.formato_afiliado = cambios.formatoAfiliado;
+  if (cambios.plazoCobroDias !== undefined) payload.plazo_cobro_dias = cambios.plazoCobroDias;
+  if (cambios.tipoComprobante !== undefined) payload.tipo_comprobante = cambios.tipoComprobante;
   if (cambios.checklist !== undefined) payload.checklist = checklistAPayload(cambios.checklist);
   if (cambios.plantillaFactura !== undefined) {
     payload.plantilla_factura = {

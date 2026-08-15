@@ -70,11 +70,11 @@ export function useEmisionFactura({
       const fechaEstimadaCobro = calcularFechaEstimadaCobro({
         fechaFactura,
         amparoJudicial: paciente.amparoJudicial,
-        // Sin ninguna fuente de plazo propio por obra social todavía (change `sacar-prestadores`,
-        // design.md D1: confirmado que `Prestador.plazoCobroDias` nunca tuvo un consumidor real
-        // fuera de sus propias pantallas, ya borradas) — siempre se pasa `undefined` —
-        // `calcularFechaEstimadaCobro` cae en `PLAZO_COBRO_DEFAULT_DIAS` por esa misma rama.
-        plazoObraSocial: undefined,
+        // `ObraSocial.plazoCobroDias` (change `sacar-prestadores`, RF-306): dato real por obra
+        // social, columna ya existente en la base (`obra_social.plazo_cobro_dias`) reexpuesta
+        // vía `obraSocialMapping.ts`. Sin configurar (`undefined`), `calcularFechaEstimadaCobro`
+        // cae en `PLAZO_COBRO_DEFAULT_DIAS` por su propia precedencia — sin duplicarla acá.
+        plazoObraSocial: obraSocial?.plazoCobroDias,
       });
       const descripcion = obraSocial
         ? renderDescripcionFactura(obraSocial.plantillaFactura, construirDatosDescripcion(factura, paciente))

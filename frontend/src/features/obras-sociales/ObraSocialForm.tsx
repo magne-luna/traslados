@@ -3,7 +3,7 @@ import { Button, CamposSoloLectura, FieldGroupHeading } from '../../design-syste
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
-import type { FormatoAfiliado, ModalidadFacturacion } from '../../shared/types/obraSocial';
+import type { FormatoAfiliado, ModalidadFacturacion, TipoComprobante } from '../../shared/types/obraSocial';
 import { DEFAULT_FORMATO_AFILIADO, FORMATO_AFILIADO_LABELS, FORMATO_AFILIADO_OPTIONS } from '../pacientes/formatoAfiliadoOptions';
 import { validateObraSocialForm, type ObraSocialFormErrors } from './validateObraSocialForm';
 
@@ -22,6 +22,17 @@ export interface ObraSocialFormValues {
   direccion: string;
   telefono: string;
   condicionIva: string;
+  /**
+   * Plazo de cobro propio de esta obra social, en días (RF-306, change `sacar-prestadores`).
+   * `undefined` = sin configurar — `calcularFechaEstimadaCobro` cae en el default general
+   * (`PLAZO_COBRO_DEFAULT_DIAS`), nunca se duplica ese default acá.
+   */
+  plazoCobroDias: number | undefined;
+  /**
+   * Tipo de comprobante que esta obra social sugiere/precarga al dar de alta una factura nueva
+   * (RF-306). `undefined` = "Sin definir" — sugerencia editable, nunca una restricción dura.
+   */
+  tipoComprobante: TipoComprobante | undefined;
 }
 
 const DEFAULT_VALUES: ObraSocialFormValues = {
@@ -34,6 +45,8 @@ const DEFAULT_VALUES: ObraSocialFormValues = {
   direccion: '',
   telefono: '',
   condicionIva: '',
+  plazoCobroDias: undefined,
+  tipoComprobante: undefined,
 };
 
 interface ObraSocialFormProps {
@@ -182,6 +195,42 @@ export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false
             />
             Admite pagos parciales / por lote
           </label>
+
+          <Field label="Plazo de cobro (días)" htmlFor={`${formId}-plazo-cobro`}>
+            <Input
+              id={`${formId}-plazo-cobro`}
+              type="number"
+              min={0}
+              density="comfortable"
+              placeholder="90 (default)"
+              value={values.plazoCobroDias ?? ''}
+              onChange={(event) =>
+                setValues((prev) => ({
+                  ...prev,
+                  plazoCobroDias: event.target.value === '' ? undefined : Number(event.target.value),
+                }))
+              }
+            />
+          </Field>
+
+          <Field label="Tipo de comprobante por defecto" htmlFor={`${formId}-tipo-comprobante`}>
+            <Select
+              id={`${formId}-tipo-comprobante`}
+              density="comfortable"
+              value={values.tipoComprobante ?? ''}
+              onChange={(event) =>
+                setValues((prev) => ({
+                  ...prev,
+                  tipoComprobante: event.target.value === '' ? undefined : (event.target.value as TipoComprobante),
+                }))
+              }
+            >
+              <option value="">Sin definir</option>
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+            </Select>
+          </Field>
         </div>
       </div>
       </div>
