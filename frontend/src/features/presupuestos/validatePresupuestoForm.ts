@@ -21,6 +21,13 @@ export function validatePresupuestoForm(input: PresupuestoFormInput): Presupuest
     errors.pacienteId = 'El paciente es obligatorio.';
   }
 
+  // Fix "la obra social debe derivarse del paciente, no elegirse aparte": `obraSocialId` ya no es
+  // un campo que el usuario tipea en este form — PresupuestoForm lo deriva solo de
+  // `paciente.obraSocialId` (ver el efecto dedicado en el componente) y bloquea el botón Guardar
+  // cuando el paciente elegido no tiene obra social asignada. Este chequeo queda como red de
+  // seguridad genérica (cubre también "todavía no se eligió ningún paciente"), no como la fuente
+  // primaria del bloqueo — esa vive en el componente (`bloqueadoSinObraSocial`), con el mensaje
+  // específico ("Asignala en la ficha del paciente…") que sí orienta a resolverlo.
   if (input.obraSocialId === null) {
     errors.obraSocialId = 'La obra social es obligatoria.';
   }

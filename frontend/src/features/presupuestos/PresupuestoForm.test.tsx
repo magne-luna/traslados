@@ -28,6 +28,10 @@ const martina: Paciente = {
   amparoJudicial: false,
 };
 
+// Fix "la obra social debe derivarse del paciente": paciente sin obra social asignada —
+// obraSocialId: null, mismo criterio de estado vacío que el resto del repo.
+const pacienteSinObraSocial: Paciente = { ...martina, id: 'paciente-sin-os', apellido: 'Ruiz', nombre: 'Tomás', obraSocialId: null };
+
 // Fixture base: modalidad `general` — la rama que, sin líneas cargadas, se comporta byte a byte
 // como el campo `monto` simple histórico (spec "Modalidad general sin líneas cargadas usa el
 // campo simple"). Los tests genéricos de este archivo (validación, wiring de selects, cartel de
@@ -69,8 +73,14 @@ const fonoaudiologiaInactiva: Prestacion = {
   activa: false,
 };
 
+// obraSocialId 'osecac' (modalidad "general") — usada por los tests de la rama general.
 const martinaConPrestaciones: Paciente = { ...martina, prestaciones: [kinesiologia, fonoaudiologiaInactiva] };
+// Fix "la obra social debe derivarse del paciente": ya no se puede "elegir" Swiss Medical desde un
+// select independiente del de OSECAC — para ejercitar la rama `por-prestacion` el paciente en sí
+// tiene que tener esa obra social asignada.
+const martinaSwiss: Paciente = { ...martina, obraSocialId: 'swiss-medical', prestaciones: [kinesiologia, fonoaudiologiaInactiva] };
 const facundo: Paciente = { ...martina, id: 'paciente-facundo', apellido: 'Pérez', nombre: 'Facundo', prestaciones: [] };
+const facundoSwiss: Paciente = { ...facundo, obraSocialId: 'swiss-medical' };
 
 describe('PresupuestoForm', () => {
   it('bloquea el guardado y señala paciente/obra social/monto faltantes cuando se envía vacío', async () => {
@@ -93,10 +103,66 @@ describe('PresupuestoForm', () => {
     expect(screen.getByRole('option', { name: /gómez, martina/i })).toBeInTheDocument();
   });
 
-  it('el selector de obra social ofrece las opciones inyectadas por ObraSocialRepository', () => {
+  // Fix "la obra social debe derivarse del paciente, no elegirse aparte": ya no hay un <select>
+  // independiente — elegir un paciente completa `obraSocialId` solo, y se muestra de solo lectura
+  // (mismo patrón que FacturaForm Paso 2).
+  it('al elegir un paciente, la obra social se deriva sola y se muestra de solo lectura (sin selector propio)', async () => {
+    const user = userEvent.setup();
+
     render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
-    expect(screen.getByRole('option', { name: 'OSECAC' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /obra social/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/elegí un paciente para ver su obra social/i)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+
+    expect(screen.getByText('OSECAC')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /obra social/i })).not.toBeInTheDocument();
+  });
+
+  // Fix "la obra social debe derivarse del paciente": paciente sin obra social asignada bloquea el
+  // alta con un mensaje explícito, en vez de dejar elegir una obra social cualquiera.
+  it('paciente sin obra social asignada: bloquea el alta con mensaje explícito y Guardar deshabilitado', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <PresupuestoForm pacientes={[pacienteSinObraSocial]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-sin-os');
+
+    expect(
+      screen.getByText(/este paciente no tiene obra social asignada\. asignala en la ficha del paciente/i),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /ficha del paciente/i })).toBeInTheDocument();
+
+    const guardar = screen.getByRole('button', { name: /guardar/i });
+    expect(guardar).toBeDisabled();
+    await user.click(guardar);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // Fix "la obra social debe derivarse del paciente": cambiar de paciente cambia la obra social
+  // derivada (no queda "pegada" a la anterior).
+  it('cambiar de paciente cambia la obra social derivada', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PresupuestoForm
+        pacientes={[martina, { ...facundo, obraSocialId: 'swiss-medical' }]}
+        obrasSociales={[osecac, swissMedical]}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    expect(screen.getByText('OSECAC')).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-facundo');
+    expect(screen.queryByText('OSECAC')).not.toBeInTheDocument();
+    expect(screen.getByText('Swiss Medical')).toBeInTheDocument();
   });
 
   it('llama a onSubmit (modo "unico") guardando solo los ids de paciente/obra social (no los objetos embebidos)', async () => {
@@ -106,7 +172,6 @@ describe('PresupuestoForm', () => {
     render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac');
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
@@ -180,7 +245,7 @@ describe('PresupuestoForm', () => {
     );
 
     expect(screen.getByLabelText(/paciente/i)).toHaveValue('paciente-martina');
-    expect(screen.getByLabelText(/obra social/i)).toHaveValue('osecac');
+    expect(screen.getByText('OSECAC')).toBeInTheDocument();
     expect(screen.getByLabelText(/^monto \(estimaci/i)).toHaveValue(150_000);
   });
 
@@ -221,14 +286,13 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
   });
 
   // 8.2 + 8.3
-  it('obra social "general": ofrece PresupuestoLineasEditor y, sin líneas, el submit usa monto = 0 (modo "unico") — cae al campo simple', async () => {
+  it('obra social "general" (derivada del paciente): ofrece PresupuestoLineasEditor y, sin líneas, el submit usa monto = 0 (modo "unico") — cae al campo simple', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
 
     render(<PresupuestoForm pacientes={[martinaConPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac');
 
     // PresupuestoLineasEditor está presente, pero el campo monto simple sigue siendo la
     // alternativa válida sin líneas (spec "Modalidad general sin líneas cargadas usa el campo simple").
@@ -252,7 +316,6 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     render(<PresupuestoForm pacientes={[martinaConPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac');
 
     await user.selectOptions(screen.getByLabelText(/prestación/i), 'prestacion-kine');
     await user.type(screen.getByLabelText(/^monto de la línea$/i), '100');
@@ -270,16 +333,13 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
   });
 
   // 8.4
-  it('obra social "por-prestacion": multi-select de prestaciones activas del paciente + monto por cada una; submit usa createLote() (modo "lote")', async () => {
+  it('obra social "por-prestacion" (derivada del paciente): multi-select de prestaciones activas del paciente + monto por cada una; submit usa createLote() (modo "lote")', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
 
-    render(
-      <PresupuestoForm pacientes={[martinaConPrestaciones]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />,
-    );
+    render(<PresupuestoForm pacientes={[martinaSwiss]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'swiss-medical');
 
     // Solo la prestación activa aparece (spec "El selector de alta no ofrece prestaciones inactivas").
     expect(screen.getByText('Kinesiología')).toBeInTheDocument();
@@ -299,14 +359,13 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
     const martinaDosActivas: Paciente = {
-      ...martina,
+      ...martinaSwiss,
       prestaciones: [kinesiologia, { ...fonoaudiologiaInactiva, activa: true }],
     };
 
     render(<PresupuestoForm pacientes={[martinaDosActivas]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'swiss-medical');
 
     await user.click(screen.getByRole('checkbox', { name: /kinesiología/i }));
     await user.type(screen.getByLabelText(/monto para kinesiología/i), '150');
@@ -325,10 +384,9 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PresupuestoForm pacientes={[facundo]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(<PresupuestoForm pacientes={[facundoSwiss]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-facundo');
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'swiss-medical');
 
     expect(screen.getByText(/no tiene prestaciones activas/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /ficha del paciente/i })).toBeInTheDocument();
@@ -353,7 +411,6 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     );
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac');
     await user.selectOptions(screen.getByLabelText(/prestación/i), 'prestacion-kine');
     await user.type(screen.getByLabelText(/^monto de la línea$/i), '100');
     await user.click(screen.getByRole('button', { name: /agregar/i }));
@@ -366,24 +423,23 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     expect(screen.getByText(/se reinici[oó]/i)).toBeInTheDocument();
   });
 
-  it('cambiar de obra social con selección de prestaciones ya cargada resetea la selección con aviso explícito', async () => {
+  // Fix "la obra social debe derivarse del paciente": ya no existe un select de obra social
+  // independiente para "cambiar de obra social con el mismo paciente" — ese caso ahora solo puede
+  // pasar cambiando de paciente (cada paciente trae la suya). El reset sigue disparando igual.
+  it('cambiar de paciente a uno con otra obra social derivada resetea la selección de prestaciones con aviso explícito', async () => {
     const user = userEvent.setup();
 
     render(
-      <PresupuestoForm
-        pacientes={[martinaConPrestaciones]}
-        obrasSociales={[osecac, swissMedical]}
-        onSubmit={vi.fn()}
-        onCancel={vi.fn()}
-      />,
+      <PresupuestoForm pacientes={[martinaSwiss, facundo]} obrasSociales={[osecac, swissMedical]} onSubmit={vi.fn()} onCancel={vi.fn()} />,
     );
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'swiss-medical');
+    expect(screen.getByText('Swiss Medical')).toBeInTheDocument();
     await user.click(screen.getByRole('checkbox', { name: /kinesiología/i }));
 
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac');
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-facundo');
 
+    expect(screen.getByText('OSECAC')).toBeInTheDocument();
     expect(screen.getByText(/se reinici[oó]/i)).toBeInTheDocument();
   });
 });
@@ -394,7 +450,7 @@ describe('PresupuestoForm — edición no bifurca (design.md D9)', () => {
   it('editando un presupuesto de una obra social "por-prestacion", el formulario NO muestra el multi-select: sigue siendo el campo monto simple', () => {
     render(
       <PresupuestoForm
-        pacientes={[martinaConPrestaciones]}
+        pacientes={[martinaSwiss]}
         obrasSociales={[swissMedical]}
         initial={{
           pacienteId: 'paciente-martina',
@@ -448,7 +504,6 @@ describe('PresupuestoForm — gateo de escritura', () => {
     renderConPermiso(false, <PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     expect(screen.getByLabelText(/paciente/i)).toBeDisabled();
-    expect(screen.getByLabelText(/obra social/i)).toBeDisabled();
     expect(screen.getByLabelText(/^monto \(estimaci/i)).toBeDisabled();
     expect(screen.getByLabelText(/fecha de emisión/i)).toBeDisabled();
     expect(screen.getByLabelText(/archivo/i)).toBeDisabled();
@@ -478,7 +533,6 @@ describe('PresupuestoForm — gateo de escritura', () => {
     expect(screen.getByLabelText(/paciente/i)).toBeEnabled();
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac');
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 

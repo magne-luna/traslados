@@ -58,6 +58,11 @@ interface PresupuestoFormProps {
   submitError?: string | null;
 }
 
+// Mismo criterio que AutorizacionForm/FacturaForm: label suelto (no Label del design system, que
+// exige htmlFor sobre un control real) para el bloque de obra social, que a partir de este fix
+// (obra social derivada del paciente, ver comentario del componente) ya no es un <select>.
+const labelClasses = 'font-body text-[12px] font-semibold text-muted';
+
 function nombrePaciente(paciente: Paciente): string {
   return `${paciente.apellido}, ${paciente.nombre}`;
 }
@@ -68,11 +73,12 @@ function sumarLineas(lineas: LineaPresupuesto[]): number {
 }
 
 // Formulario de alta/edición de presupuesto (tasks.md 5.2 a 5.5, 8.1 a 8.9, design.md D9): la
-// bifurcación es de RENDER, no de dos formularios (D9) — se resuelve la obra social elegida
-// (`obrasSociales.find`) y se bifurca únicamente el bloque del monto. **La edición no bifurca
-// nunca** (D9): con `initial` presente, el bloque siempre es el campo `monto` simple, sin importar
-// la `modalidadFacturacion` de la obra social — editar un presupuesto existente edita `monto` y
-// `prestacionId` uno a uno, el lote es solo alta.
+// bifurcación es de RENDER, no de dos formularios (D9) — se resuelve la obra social del paciente
+// elegido (fix "la obra social debe derivarse del paciente", no un select propio — ver
+// `bloqueadoSinObraSocial`/el efecto que sincroniza `values.obraSocialId`) y se bifurca únicamente
+// el bloque del monto. **La edición no bifurca nunca** (D9): con `initial` presente, el bloque
+// siempre es el campo `monto` simple, sin importar la `modalidadFacturacion` de la obra social —
+// editar un presupuesto existente edita `monto` y `prestacionId` uno a uno, el lote es solo alta.
 //
 // En ALTA (`initial` ausente):
 //  - Sin obra social elegida → campo `monto` simple (comportamiento histórico sin cambios).
@@ -126,6 +132,24 @@ export function PresupuestoForm({
     () => (pacienteSeleccionado?.prestaciones ?? []).filter((prestacion) => prestacion.activa),
     [pacienteSeleccionado],
   );
+
+  // Fix "la obra social debe derivarse del paciente, no elegirse aparte": `obraSocialId` deja de
+  // ser un campo que el usuario tipea — se completa solo con `paciente.obraSocialId` (singular,
+  // sin histórico, ver shared/types/paciente.ts) apenas se elige un paciente, mismo patrón que
+  // FacturaForm Paso 2 ("obra social de solo lectura, derivada del paciente"). Solo corre en ALTA
+  // (`!isEditMode`): en edición el valor persistido no se re-deriva — D9 "la edición no bifurca"
+  // aplica también acá, el paciente.obraSocialId pudo cambiar desde que se cargó el presupuesto y
+  // no hay por qué pisar lo que ya se guardó.
+  useEffect(() => {
+    if (isEditMode) return;
+    setValues((prev) => ({ ...prev, obraSocialId: pacienteSeleccionado?.obraSocialId ?? null }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, pacienteSeleccionado?.obraSocialId]);
+
+  // Paciente elegido sin obra social asignada (obraSocialId: null): el alta queda bloqueada — no
+  // hay nada que derivar, y no se ofrece un selector de reemplazo (ver comentario arriba). Solo
+  // aplica en alta: en edición el presupuesto ya tiene una obra social persistida.
+  const bloqueadoSinObraSocial = !isEditMode && pacienteSeleccionado !== undefined && pacienteSeleccionado.obraSocialId === null;
 
   const modo: 'simple' | 'general' | 'por-prestacion' =
     !isEditMode && obraSocialSeleccionada?.modalidadFacturacion === 'por-prestacion'
@@ -228,21 +252,31 @@ export function PresupuestoForm({
           </Select>
         </Field>
 
-        <Field label="Obra social" htmlFor={`${formId}-obra-social`} error={errors.obraSocialId}>
-          <Select
-            id={`${formId}-obra-social`}
-            density="comfortable"
-            value={values.obraSocialId ?? ''}
-            onChange={(event) => setValues((prev) => ({ ...prev, obraSocialId: event.target.value || null }))}
-          >
-            <option value="">Seleccionar obra social…</option>
-            {obrasSociales.map((obraSocial) => (
-              <option key={obraSocial.id} value={obraSocial.id}>
-                {obraSocial.nombre}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        {/* Fix "la obra social debe derivarse del paciente": ya no es un <select> propio — se
+            muestra de solo lectura, derivada de `pacienteSeleccionado.obraSocialId` (mismo patrón
+            que FacturaForm Paso 2, "obra social de solo lectura, derivada del paciente"). Sin
+            paciente elegido, un texto neutro invita a elegirlo primero; con paciente pero sin
+            obra social asignada, un EmptyState bloqueante con enlace a su ficha. */}
+        <div className="flex flex-col gap-xs">
+          <span className={labelClasses}>Obra social</span>
+          {!pacienteSeleccionado ? (
+            <p className="m-0 font-body text-[13px] text-muted">Elegí un paciente para ver su obra social.</p>
+          ) : pacienteSeleccionado.obraSocialId === null ? (
+            <EmptyState
+              message="Este paciente no tiene obra social asignada. Asignala en la ficha del paciente antes de crear un presupuesto."
+              action={
+                <a href="/pacientes" className="font-body text-[13px] font-semibold text-primary">
+                  Ir a la ficha del paciente
+                </a>
+              }
+            />
+          ) : (
+            <p className="m-0 font-body text-[13px] text-text">
+              {obraSocialSeleccionada?.nombre ?? 'No se pudo resolver la obra social del paciente.'}
+            </p>
+          )}
+          <FieldError id={`${formId}-obra-social-error`}>{errors.obraSocialId}</FieldError>
+        </div>
 
         {modo === 'por-prestacion' ? (
           <div className="md:col-span-2 flex flex-col gap-md">
@@ -362,7 +396,7 @@ export function PresupuestoForm({
         <Button variant="secondary" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" variant="primary" requiereEscritura>
+        <Button type="submit" variant="primary" requiereEscritura disabled={bloqueadoSinObraSocial}>
           {submitting ? 'Guardando…' : 'Guardar'}
         </Button>
       </div>

@@ -111,7 +111,8 @@ describe('PresupuestoDetail — modo alta (presupuesto null)', () => {
     );
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
-    await user.selectOptions(screen.getByLabelText(/obra social/i), 'osecac');
+    // Fix "la obra social debe derivarse del paciente": ya no hay selector propio — se completa
+    // sola con martina.obraSocialId ('osecac') al elegir el paciente.
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
