@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { AccesorioCatalogo } from '../../shared/types/catalogoAccesorios';
 import type { CatalogoAccesoriosRepository } from '../../shared/lib/accesorios/CatalogoAccesoriosRepository';
 import { usePermiso } from '../../shared/auth/usePermiso';
@@ -38,6 +38,9 @@ export interface CatalogoAccesoriosVista {
   /** Inactivos visibles solo con `pacientes: write` (la gestión es SOLO pacientes, sea cual sea
    * el módulo de la ruta — en VehiculoForm el writable de ruta es vehiculos, no alcanza). */
   incluyeInactivos: boolean;
+  /** Recarga el catálogo tras una escritura del gestor inline (el alta/edición/baja se refleja
+   * sin recargar la página — spec "Alta visible sin recompilar"). */
+  refrescar: () => Promise<void>;
 }
 
 // useCatalogoAccesorios: carga el catálogo (activos siempre; todos si `pacientes: write` — design
@@ -50,6 +53,22 @@ export function useCatalogoAccesorios(): CatalogoAccesoriosVista {
   const [accesorios, setAccesorios] = useState<AccesorioCatalogo[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const cargar = useCallback(() => {
+    setCargando(true);
+    const promesa = puedeGestionar ? repository.listarTodos() : repository.listarActivos();
+    return promesa.then(
+      (lista) => {
+        setAccesorios(lista);
+        setCargando(false);
+        setError(null);
+      },
+      (e: unknown) => {
+        setError(e instanceof Error ? e.message : 'No se pudo cargar el catálogo de accesorios.');
+        setCargando(false);
+      },
+    );
+  }, [repository, puedeGestionar]);
 
   useEffect(() => {
     let activo = true;
@@ -75,5 +94,7 @@ export function useCatalogoAccesorios(): CatalogoAccesoriosVista {
     };
   }, [repository, puedeGestionar]);
 
-  return { accesorios, cargando, error, incluyeInactivos: puedeGestionar };
+  const refrescar = useCallback(() => cargar(), [cargar]);
+
+  return { accesorios, cargando, error, incluyeInactivos: puedeGestionar, refrescar };
 }

@@ -112,8 +112,8 @@ Suggested split: 1 PR
 
 ## 4. Selector UI + integración (TDD — swap en commit único y revertible)
 
-- [-] 4.1 **RED** — `design-system/icons.tsx`: `iconAccesorioGenerico` (SVG nuevo, trazo/currentColor).
-- [-] 4.2 **RED** — `AccesoriosMovilidadSelector.tsx` (owner `features/pacientes/`): grid
+- [x] 4.1 **RED** — `design-system/icons.tsx`: `iconAccesorioGenerico` (SVG nuevo, trazo/currentColor).
+- [x] 4.2 **RED** — `AccesoriosMovilidadSelector.tsx` (owner `features/pacientes/`): grid
       `ChecklistOption` con `labelAccesorio` + `iconoAccesorioMap ?? fallback`; "+ Agregar
       accesorio" inline (nombre + picker de lista fija) → `crear()` → queda seleccionado en el
       mismo render; menú ⋮ por opción (editar/desactivar) SOLO con `usePermiso('pacientes','write')`
