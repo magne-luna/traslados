@@ -1,8 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { AvisoModeloDatos, Button, CamposSoloLectura } from '../../design-system/components';
+import { AvisoModeloDatos, Button, CamposSoloLectura, InlineIcon } from '../../design-system/components';
 import { Alert, EmptyState } from '../../design-system/feedback';
 import { Field, FieldError, Select, Input } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
+import { iconSubirArchivo } from '../../design-system/icons';
 import type { ArchivoAdjunto } from '../../shared/types/presupuesto';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
@@ -109,6 +110,7 @@ export function PresupuestoForm({
   const [errors, setErrors] = useState<PresupuestoFormErrors & PresupuestoLoteFormErrors>({});
   const [avisoReset, setAvisoReset] = useState(false);
   const formId = useId();
+  const archivoInputRef = useRef<HTMLInputElement>(null);
 
   const esPrimerRender = useRef(true);
   useEffect(() => {
@@ -368,8 +370,32 @@ export function PresupuestoForm({
         </Field>
 
         <div className="md:col-span-2">
-          <Field label="Archivo" htmlFor={`${formId}-archivo`}>
-            <input id={`${formId}-archivo`} type="file" onChange={handleArchivoChange} className="font-body text-[13px] text-text" />
+          {/* Fix "input de subir archivo sin estilizar": mismo patrón que AutorizacionForm.tsx
+              (dropzone con InlineIcon + botón "Subir un archivo") — el <input type="file"> real
+              queda sr-only y se dispara con archivoInputRef.current?.click() desde el div
+              estilizado, en vez del <input> nativo suelto de antes. */}
+          <div className="flex flex-col gap-xs">
+            <label htmlFor={`${formId}-archivo`} className={labelClasses}>
+              Archivo
+            </label>
+            <input
+              ref={archivoInputRef}
+              id={`${formId}-archivo`}
+              type="file"
+              onChange={handleArchivoChange}
+              className="sr-only"
+            />
+            <div
+              onClick={() => archivoInputRef.current?.click()}
+              className="flex cursor-pointer flex-col items-center gap-xs rounded-sm border-2 border-dashed border-border-strong bg-surface-soft px-lg py-xl text-center"
+            >
+              <InlineIcon size={32}>{iconSubirArchivo}</InlineIcon>
+              <span className="font-body text-[13px]">
+                <span className="font-semibold text-primary">Subir un archivo</span>{' '}
+                <span className="text-muted">o arrastrar y soltar</span>
+              </span>
+              <span className="font-body text-[11px] text-muted">PDF, JPG o PNG hasta 10MB</span>
+            </div>
             {values.archivo && (
               <span className="font-body text-xs text-muted">
                 {values.archivo.nombre} (cargado {values.archivo.cargadoEn})
@@ -387,7 +413,7 @@ export function PresupuestoForm({
               Además, el modelo real (docx) tiene un solo archivo por presupuesto, no un checklist
               multi-documento.
             </AvisoModeloDatos>
-          </Field>
+          </div>
         </div>
       </div>
       </CamposSoloLectura>

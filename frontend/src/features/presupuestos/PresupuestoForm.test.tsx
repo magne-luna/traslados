@@ -233,6 +233,32 @@ describe('PresupuestoForm', () => {
     expect(input.multiple).toBe(false);
   });
 
+  // Fix "el input de subir archivo no sigue el patrón visual del resto del repo": el <input
+  // type="file"> real queda oculto (sr-only) y se dispara desde el dropzone estilizado, mismo
+  // patrón que AutorizacionForm.tsx.
+  it('el dropzone visible ("Subir un archivo") dispara la selección del input real de archivo', async () => {
+    const user = userEvent.setup();
+    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
+    await user.click(screen.getByText(/subir un archivo/i));
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    clickSpy.mockRestore();
+  });
+
+  // Fix "el input de subir archivo…": elegir un archivo real sigue disparando el mismo
+  // handleArchivoChange (setValues), ahora accesible vía el botón/dropzone visible en vez de un
+  // <input type="file"> nativo sin estilizar.
+  it('seleccionar un archivo desde el input real sigue actualizando el estado (accesible vía el botón visible)', async () => {
+    const user = userEvent.setup();
+    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    const archivo = new File(['contenido'], 'presupuesto.pdf', { type: 'application/pdf' });
+    await user.upload(screen.getByLabelText(/archivo/i), archivo);
+
+    expect(screen.getByText(/presupuesto\.pdf/i)).toBeInTheDocument();
+  });
+
   it('precarga los valores iniciales en modo edición', () => {
     render(
       <PresupuestoForm
