@@ -367,8 +367,9 @@ describe('parseAccesoriosRows — 4B.5 RECONCILIADO: array plano `accesoriosComp
     expect(parseAccesoriosRows(['andador', 'tripode'])).toEqual(['andador', 'tripode']);
   });
 
-  it('un tipo que no pertenece a la unión cerrada se descarta (no se castea), se conserva el resto', () => {
-    expect(parseAccesoriosRows(['andador', 'silla de oficina'])).toEqual(['andador']);
+  it('un tipo fuera de la unión cerrada se conserva (catalogo = fuente de verdad, discrepancia #11 cerrada)', () => {
+    expect(parseAccesoriosRows(['andador', 'silla de oficina'])).toEqual(['andador', 'silla de oficina']);
+    expect(parseAccesoriosRows(['cama-ortopedica'])).toEqual(['cama-ortopedica']);
   });
 
   it('un elemento no-string dentro del array (defensivo) se descarta sin romper el resto', () => {
@@ -596,10 +597,10 @@ describe('ensamblarVehiculo — 4B RECONCILIADO: consume la respuesta JSON de to
     expect(vehiculo?.accesoriosCompatibles).toEqual([]);
   });
 
-  it('4B.5: mapea accesorios del array plano `accesoriosCompatibles` junto con el resto del vehículo', () => {
+  it('4B.5: mapea accesorios del array plano `accesoriosCompatibles` conservando cualquier tipo del maestro', () => {
     const row = filaVehiculoCompleta({ accesoriosCompatibles: ['andador', 'tipo-invalido'] });
     const vehiculo = ensamblarVehiculo(row);
-    expect(vehiculo?.accesoriosCompatibles).toEqual(['andador']);
+    expect(vehiculo?.accesoriosCompatibles).toEqual(['andador', 'tipo-invalido']);
   });
 
   it('fila de vehículo inválida (sin id) -> null, no rompe el list() entero', () => {

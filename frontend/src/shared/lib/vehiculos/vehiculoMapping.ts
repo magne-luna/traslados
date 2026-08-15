@@ -289,24 +289,15 @@ export function toMantenimientoRows(registros: MantenimientoRegistro[]): Manteni
 // plano de `tipo` — el mapeo consume ese array directo, no reconstruye un embed.
 // -------------------------------------------------------------------------------------------
 
-const ACCESORIOS_VALIDOS: readonly AccesorioMovilidad[] = [
-  'silla-plegable',
-  'silla-rigida',
-  'silla-postural',
-  'andador',
-  'tripode',
-];
-
-const esAccesorioMovilidad = esValorDe(ACCESORIOS_VALIDOS);
-
-/** `accesoriosCompatibles: string[]` ya resuelto por la Edge Function -> `AccesorioMovilidad[]`.
- * Un valor que no pertenece a la unión cerrada se descarta (nunca se castea), sin romper el resto
- * de la colección. Valor no-array -> `[]` **sin distinguir todavía** si es "no tiene accesorios" o
- * "RLS lo ocultó entero" — esa distinción la agrega el repository con un flag de degradación (D10,
- * §5.4), no el mapeo puro. */
+/** `accesoriosCompatibles: string[]` ya resuelto por la Edge Function -> `TipoAccesorio[]`
+ * (espejo del maestro, discrepania #11 cerrada: el catalogo es la fuente de verdad, no hay unión
+ * cerrada que descarte desconocidos). Descartar solo elementos no-string (defensivo); el resto se
+ * conserva tal cual. Valor no-array -> `[]` **sin distinguir todavía** si es "no tiene accesorios"
+ * o "RLS lo ocultó entero" — esa distinción la agrega el repository con un flag de degradación
+ * (D10, §5.4), no el mapeo puro. */
 export function parseAccesoriosRows(value: unknown): AccesorioMovilidad[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(esAccesorioMovilidad);
+  return value.filter((item): item is string => typeof item === 'string');
 }
 
 // -------------------------------------------------------------------------------------------

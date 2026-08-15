@@ -428,9 +428,9 @@ describe('toPersonaACargoRows', () => {
 });
 
 describe('parseAccesorios', () => {
-  // Discrepancia #11 (D9): pacientes.accesorios.tipo es TEXT libre; el dominio modela una unión
-  // cerrada AccesorioMovilidad. Los tipo desconocidos se descartan en silencio.
-  it('mapea los accesorios_pacientes embebidos a la unión cerrada', () => {
+  // Discrepancia #11 CERRADA: el catálogo es la fuente de verdad; los tipo desconocidos se
+  // conservan (ya no hay unión cerrada que descarte). Se descartan solo filas malformadas.
+  it('mapea los accesorios_pacientes embebidos como strings del maestro', () => {
     const rows = [
       { accesorios: { tipo: 'silla-plegable' } },
       { accesorios: { tipo: 'andador' } },
@@ -439,14 +439,14 @@ describe('parseAccesorios', () => {
     expect(parseAccesorios(rows)).toEqual(['silla-plegable', 'andador']);
   });
 
-  it('descarta en silencio los tipo desconocidos, conservando el resto', () => {
+  it('conserva los tipo desconocidos (catalogo = fuente de verdad, sin descarte silencioso)', () => {
     const rows = [
       { accesorios: { tipo: 'silla-plegable' } },
       { accesorios: { tipo: 'muleta-experimental' } },
       { accesorios: { tipo: 'tripode' } },
     ];
 
-    expect(parseAccesorios(rows)).toEqual(['silla-plegable', 'tripode']);
+    expect(parseAccesorios(rows)).toEqual(['silla-plegable', 'muleta-experimental', 'tripode']);
   });
 
   it('robustez: entrada no-array o filas malformadas no rompen, devuelven []', () => {
@@ -563,7 +563,7 @@ describe('ensamblarPaciente', () => {
     expect(ensamblarPaciente(row, null).personasACargo).toHaveLength(1);
   });
 
-  it('robustez (2.10): un accesorio con tipo desconocido se descarta sin romper el paciente', () => {
+  it('robustez (2.10): un accesorio con tipo desconocido se conserva (catalogo = fuente de verdad) sin romper el paciente', () => {
     const row = buildRowCompleto();
     row.accesorios_pacientes = [
       { accesorios: { tipo: 'algo-inventado' } },
@@ -571,7 +571,7 @@ describe('ensamblarPaciente', () => {
     ];
 
     expect(() => ensamblarPaciente(row, null)).not.toThrow();
-    expect(ensamblarPaciente(row, null).accesorioMovilidad).toEqual(['andador']);
+    expect(ensamblarPaciente(row, null).accesorioMovilidad).toEqual(['algo-inventado', 'andador']);
   });
 
   it('robustez (2.10): fila de CUD malformada se descarta y no rompe la selección', () => {

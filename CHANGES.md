@@ -688,6 +688,20 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   server-side para los selectores que hoy siguen usando `list()` completo. Página 20 fija sin
   selector y `?pagina=N` sin persistir en la URL, ambos por decisión explícita de la usuaria, a
   reevaluar con uso real. Detalle completo en `openspec/changes/paginacion-listados/design.md`.
+- **Refinamiento posterior (`catalogo-accesorios-movilidad`, propose+apply 2026-08-16)**: el
+  catálogo de accesorios de movilidad (dueño de este change, `C-05`, tabla `pacientes.accesorios`)
+  pasa de semilla estática a **catálogo gestionable** — baja la discrepancia #11 de
+  `04_modelo_de_datos.md` §Discrepancias (unión cerrada en el frontend vs. `tipo` libre): el nuevo
+  selector reutilizable `AccesoriosMovilidadSelector` (feature `pacientes`, usado por el form de
+  Paciente y el de Vehículo `C-08`) permite alta/edición/baja lógica inline del catálogo, gateado
+  por `pacientes:write`. Migración `20260816090000_catalogo_accesorios_icono_activa.sql` (aditiva,
+  **la aplica la usuaria/Enzo**): columnas `icono` (clave del design system, backfill `icono = tipo`)
+  y `activa` (baja lógica), y ampliación de la policy de LECTURA del catálogo a los módulos
+  `vehiculos`/`conductores` (docx: catálogo compartido por el Área de Conductores) — la escritura
+  sigue SOLO para `pacientes`; sin RPC ni Edge Function (plan recortado). Frontend: 7 consumidores
+  migrados de la lista estática `ACCESORIO_MOVILIDAD_LABELS` a `labelAccesorio(tipo)`/`iconoAccesorioMap`,
+  se elimina `accesorioMovilidadOptions.ts`; vehículo/forma de pago intactos. Detalle en
+  `openspec/changes/catalogo-accesorios-movilidad/`.
 
 ### [C-09] `conductores`
 - **Estado**: `[ ]` pendiente

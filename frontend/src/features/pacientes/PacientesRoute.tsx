@@ -3,8 +3,10 @@ import { supabaseObraSocialRepository } from '../../shared/lib/obrasSociales/Sup
 import { supabasePacienteRepository } from '../../shared/lib/pacientes/SupabasePacienteRepository';
 import { supabaseRecorridoHabitualRepository } from '../../shared/lib/pacientes/SupabaseRecorridoHabitualRepository';
 import { supabaseRequisitosActividadRepository } from '../../shared/lib/requisitosActividad/SupabaseRequisitosActividadRepository';
+import { SupabaseCatalogoAccesoriosRepository } from '../../shared/lib/accesorios/SupabaseCatalogoAccesoriosRepository';
 import { PacientesDocumentacionTabs } from '../../shared/components/PacientesDocumentacionTabs';
 import { PacienteRepositoryProvider } from './PacienteRepositoryContext';
+import { CatalogoAccesoriosRepositoryProvider } from './CatalogoAccesoriosRepositoryContext';
 import { PacientesPage } from './PacientesPage';
 
 // Único punto de composición que conoce supabasePacienteRepository, supabaseObraSocialRepository,
@@ -29,13 +31,15 @@ import { PacientesPage } from './PacientesPage';
 export function PacientesRoute() {
   return (
     <PacienteRepositoryProvider repository={supabasePacienteRepository}>
-      <PacientesDocumentacionTabs />
-      <PacientesPage
-        obraSocialRepository={supabaseObraSocialRepository}
-        documentoRepository={supabaseDocumentoRepository}
-        requisitosActividadRepository={supabaseRequisitosActividadRepository}
-        recorridoHabitualRepository={supabaseRecorridoHabitualRepository}
-      />
+      <CatalogoAccesoriosRepositoryProvider repository={SupabaseCatalogoAccesoriosRepository}>
+        <PacientesDocumentacionTabs />
+        <PacientesPage
+          obraSocialRepository={supabaseObraSocialRepository}
+          documentoRepository={supabaseDocumentoRepository}
+          requisitosActividadRepository={supabaseRequisitosActividadRepository}
+          recorridoHabitualRepository={supabaseRecorridoHabitualRepository}
+        />
+      </CatalogoAccesoriosRepositoryProvider>
     </PacienteRepositoryProvider>
   );
 }

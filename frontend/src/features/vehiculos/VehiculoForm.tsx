@@ -1,14 +1,10 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Button, CamposSoloLectura, ChecklistOption, FieldGroupHeading } from '../../design-system/components';
+import { Button, CamposSoloLectura, FieldGroupHeading } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Textarea } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import type { AccesorioMovilidad, EstadoVehiculo } from '../../shared/types/vehiculo';
-import {
-  ACCESORIO_MOVILIDAD_ICONS,
-  ACCESORIO_MOVILIDAD_LABELS,
-  ACCESORIO_MOVILIDAD_OPTIONS,
-} from './accesorioMovilidadOptions';
+import { AccesoriosMovilidadSelector } from '../pacientes/AccesoriosMovilidadSelector';
 import { validateVehiculoForm, type VehiculoFormErrors } from './validateVehiculoForm';
 
 export interface VehiculoFormValues {
@@ -71,15 +67,6 @@ export function VehiculoForm({
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
     onSubmit(values);
-  }
-
-  function toggleAccesorio(accesorio: AccesorioMovilidad) {
-    setValues((prev) => ({
-      ...prev,
-      accesoriosCompatibles: prev.accesoriosCompatibles.includes(accesorio)
-        ? prev.accesoriosCompatibles.filter((a) => a !== accesorio)
-        : [...prev.accesoriosCompatibles, accesorio],
-    }));
   }
 
   return (
@@ -159,24 +146,16 @@ export function VehiculoForm({
       </div>
       </div>
 
-      <fieldset className="flex flex-col gap-xs border-none p-0">
-        <legend className="mb-lg flex w-full items-baseline gap-sm">
-          <span className="font-heading text-[15px] font-bold text-ink">Accesorios de movilidad compatibles</span>
-          <span className="h-px flex-1 bg-border" />
-        </legend>
-        <div className="grid grid-cols-2 gap-sm sm:grid-cols-3 lg:grid-cols-5">
-          {ACCESORIO_MOVILIDAD_OPTIONS.map((accesorio) => (
-            <ChecklistOption
-              key={accesorio}
-              id={`${formId}-accesorio-${accesorio}`}
-              label={ACCESORIO_MOVILIDAD_LABELS[accesorio]}
-              icon={ACCESORIO_MOVILIDAD_ICONS[accesorio]}
-              selected={values.accesoriosCompatibles.includes(accesorio)}
-              onChange={() => toggleAccesorio(accesorio)}
-            />
-          ))}
-        </div>
-      </fieldset>
+      {/* Swap del catálogo (tasks.md 4.3): el selector reutilizable de `features/pacientes/` (import
+          cross-feature) reemplaza la lista estática; se alimenta del catálogo activo y gestiona
+          inline con `pacientes: write` — el PuedeEscribirContext de esta ruta es vehiculos y no
+          alcanza, por eso el gateo vive adentro del componente. */}
+      <AccesoriosMovilidadSelector
+        idBase={formId}
+        titulo="Accesorios de movilidad compatibles"
+        seleccion={values.accesoriosCompatibles}
+        onChange={(seleccion) => setValues((prev) => ({ ...prev, accesoriosCompatibles: seleccion }))}
+      />
 
       <Field label="Notas (opcional)" htmlFor={`${formId}-notas`}>
         <Textarea

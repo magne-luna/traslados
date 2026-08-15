@@ -314,18 +314,10 @@ export function toPersonaACargoRows(personas: PersonaACargo[]): PersonaACargoRow
   }));
 }
 
-const ACCESORIOS_VALIDOS = new Set<AccesorioMovilidad>([
-  'silla-plegable',
-  'silla-rigida',
-  'silla-postural',
-  'andador',
-  'tripode',
-]);
-
-/** `accesorios_pacientes ( accesorios ( tipo ) )` embebido (D2) → `AccesorioMovilidad[]`.
- * Discrepancia #11 (D9): `pacientes.accesorios.tipo` es `TEXT` libre y el dominio modela una
- * unión cerrada; los `tipo` desconocidos se descartan en silencio, se conserva el resto. Nunca
- * lanza ante filas malformadas (robustez, tarea 2.10). */
+/** `accesorios_pacientes ( accesorios ( tipo ) )` embebido (D2) → `AccesorioMovilidad[]`
+ * (= `TipoAccesorio[]`). Discrepancia #11 CERRADA: el catálogo es la fuente de verdad, ya no hay
+ * unión cerrada — se conserva cualquier `tipo` string del maestro, descartando solo filas
+ * malformadas (robustez, tarea 2.10). */
 export function parseAccesorios(rows: unknown): AccesorioMovilidad[] {
   if (!Array.isArray(rows)) return [];
 
@@ -333,8 +325,8 @@ export function parseAccesorios(rows: unknown): AccesorioMovilidad[] {
   for (const row of rows) {
     if (!isRecord(row) || !isRecord(row.accesorios)) continue;
     const tipo = row.accesorios.tipo;
-    if (typeof tipo === 'string' && ACCESORIOS_VALIDOS.has(tipo as AccesorioMovilidad)) {
-      tipos.push(tipo as AccesorioMovilidad);
+    if (typeof tipo === 'string') {
+      tipos.push(tipo);
     }
   }
   return tipos;

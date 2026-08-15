@@ -1,7 +1,7 @@
 import type { Conductor } from '../../shared/types/conductor';
 import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
-import { ACCESORIO_MOVILIDAD_LABELS } from '../vehiculos/accesorioMovilidadOptions';
+import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 import { Label } from '../../design-system/form';
 import { CarIcon, UserIcon } from './icons';
 import { RecorridoStat } from './RecorridoStat';
@@ -28,7 +28,7 @@ interface RecorridoVehiculoConductorProps {
 }
 
 function opcionVehiculo(v: Vehiculo): string {
-  const accesorios = v.accesoriosCompatibles.map((a) => ACCESORIO_MOVILIDAD_LABELS[a]).join(', ');
+  const accesorios = v.accesoriosCompatibles.map((a) => labelAccesorio(a)).join(', ');
   return `${v.patente} · ${v.modelo} · cap. ${v.capacidad}${accesorios ? ` · ${accesorios}` : ''}`;
 }
 

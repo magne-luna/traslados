@@ -1,6 +1,8 @@
 import { mockDocumentoRepository } from '../../shared/lib/documentos/mockDocumentoRepository';
 import { supabaseVehiculoRepository } from '../../shared/lib/vehiculos/SupabaseVehiculoRepository';
+import { SupabaseCatalogoAccesoriosRepository } from '../../shared/lib/accesorios/SupabaseCatalogoAccesoriosRepository';
 import { VehiculoRepositoryProvider } from './VehiculoRepositoryContext';
+import { CatalogoAccesoriosRepositoryProvider } from '../pacientes/CatalogoAccesoriosRepositoryContext';
 import { VehiculosPage } from './VehiculosPage';
 
 // Único punto de composición que conoce los repositories de la feature (design.md Decisión 7 y
@@ -12,7 +14,9 @@ import { VehiculosPage } from './VehiculosPage';
 export function VehiculosRoute() {
   return (
     <VehiculoRepositoryProvider repository={supabaseVehiculoRepository}>
-      <VehiculosPage documentoRepository={mockDocumentoRepository} />
+      <CatalogoAccesoriosRepositoryProvider repository={SupabaseCatalogoAccesoriosRepository}>
+        <VehiculosPage documentoRepository={mockDocumentoRepository} />
+      </CatalogoAccesoriosRepositoryProvider>
     </VehiculoRepositoryProvider>
   );
 }
