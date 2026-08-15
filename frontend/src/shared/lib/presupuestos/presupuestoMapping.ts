@@ -7,7 +7,7 @@
 // verificado en tasks.md 1.1 — no lo que este comentario o el design.md digan si algún día
 // cambia el contrato real.
 
-import type { ActualizacionPresupuesto, ArchivoAdjunto, NuevoPresupuesto, Presupuesto } from '../../types/presupuesto';
+import type { ActualizacionPresupuesto, ArchivoAdjunto, NuevoPresupuesto, Presupuesto, PresupuestoLinea } from '../../types/presupuesto';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -44,6 +44,41 @@ export function mapArchivoUrl(archivoUrl: unknown, cargadoEn: string): ArchivoAd
 }
 
 // -------------------------------------------------------------------------------------------
+// 2.7 — lineas (REAPERTURA #13, decisión usuaria 2026-08-16)
+// -------------------------------------------------------------------------------------------
+
+/** Fila de `lineas` del `toApi()` de la Edge Function `presupuestos` -> `PresupuestoLinea`, o
+ * `null` si no tiene la forma esperada (se descarta sola, sin tumbar la línea ni el presupuesto).
+ * `id`/`prestacionId`/`monto` son los campos reales de `facturacion.presupuesto_linea`; `orden`
+ * ausente se normaliza a 0 (el default real de la columna). */
+function parseLineaPresupuestoApi(value: unknown): PresupuestoLinea | null {
+  if (!isRecord(value)) return null;
+
+  const { id, prestacionId, monto, orden } = value;
+  if (typeof id !== 'string') return null;
+  if (typeof prestacionId !== 'string') return null;
+  if (typeof monto !== 'number') return null;
+
+  return { id, prestacionId, monto, orden: typeof orden === 'number' ? orden : 0 };
+}
+
+/** `lineas` del `toApi()` (arreglo) -> `PresupuestoLinea[]`. Solo respeta un arreglo: cualquier
+ * otra forma (clave ausente en presupuestos viejos o `por-prestacion`, contrato roto del
+ * servidor) se normaliza a `undefined`, nunca se deja pasar un `null` ni se inventa un `[]`.
+ * Las filas malformadas se descartan individualmente, sin tumbar las válidas (mismo criterio de
+ * tolerancia que `parsePresupuestoApi` con filas del listado). */
+function parseLineasApi(value: unknown): PresupuestoLinea[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  const lineas: PresupuestoLinea[] = [];
+  for (const fila of value) {
+    const linea = parseLineaPresupuestoApi(fila);
+    if (linea !== null) lineas.push(linea);
+  }
+  return lineas;
+}
+
+// -------------------------------------------------------------------------------------------
 // 2.1 — parsePresupuestoApi
 // -------------------------------------------------------------------------------------------
 
@@ -56,11 +91,14 @@ export function mapArchivoUrl(archivoUrl: unknown, cargadoEn: string): ArchivoAd
  * (`prestacion_id UUID NULL`), y `toApi()` de la Edge Function la expone como `prestacionId: string
  * | undefined` (nunca `null` — ver `supabase/functions/presupuestos/index.ts`). Esta función NO
  * descarta la fila si `prestacionId` no es un `string`: cualquier valor que no sea `string`
- * (`undefined`, `null`) se normaliza a `undefined`, nunca se deja pasar un `null` explícito. */
+ * (`undefined`, `null`) se normaliza a `undefined`, nunca se deja pasar un `null` explícito.
+ *
+ * `lineas` (2.7, REAPERTURA #13): arreglo opcional que la EF adjunta en GET; ausente en
+ * presupuestos `por-prestacion` y viejos. */
 export function parsePresupuestoApi(value: unknown): Presupuesto | null {
   if (!isRecord(value)) return null;
 
-  const { id, pacienteId, obraSocialId, monto, fechaEmision, archivoUrl, prestacionId } = value;
+  const { id, pacienteId, obraSocialId, monto, fechaEmision, archivoUrl, prestacionId, lineas } = value;
 
   if (typeof id !== 'string') return null;
   if (typeof pacienteId !== 'string') return null;
@@ -76,6 +114,7 @@ export function parsePresupuestoApi(value: unknown): Presupuesto | null {
     fechaEmision,
     archivo: mapArchivoUrl(archivoUrl, fechaEmision),
     prestacionId: typeof prestacionId === 'string' ? prestacionId : undefined,
+    lineas: parseLineasApi(lineas),
   };
 }
 
@@ -88,7 +127,17 @@ export function parsePresupuestoApi(value: unknown): Presupuesto | null {
  * completa: `ArchivoAdjunto` (dominio) no tiene ninguna URL de origen -sea que venga de una
  * lectura previa (round-trip) o de un archivo recién elegido en el input-, así que no hay de dónde
  * reconstruirla sin inventar un valor (D5). El adjunto elegido en el formulario no viaja al
- * servidor con este payload. */
+ * servidor con este payload.
+ *
+ * `lineas` (2.7, REAPERTURA #13): desglose de modalidad `general`. Cada línea viaja como
+ * `{ prestacionId, monto, orden }` — SIN el `id` local del formulario: el servidor persiste filas
+ * nuevas, el id de la línea se conoce recién en la respuesta (o en un GET posterior). */
+export interface LineaPresupuestoPayload {
+  prestacionId: string;
+  monto: number;
+  orden: number;
+}
+
 export interface CrearPresupuestoPayload {
   pacienteId: string;
   obraSocialId: string;
@@ -96,13 +145,18 @@ export interface CrearPresupuestoPayload {
   fechaEmision: string;
   archivoUrl?: string;
   prestacionId?: string;
+  lineas?: LineaPresupuestoPayload[];
 }
 
 /** `prestacionId` (PR 2, 2.5): se incluye la clave únicamente cuando `nuevo.prestacionId` está
  * presente (modalidad `por-prestacion`, alta vía `createLote`) — cuando está `undefined`
  * (modalidad `general`) la clave queda directamente ausente del body, nunca se manda `undefined`
  * explícito. Mismo criterio que el resto de este archivo (D5/D6b): la ausencia de una clave es una
- * decisión, no un accidente de serialización. */
+ * decisión, no un accidente de serialización.
+ *
+ * `lineas` (2.7, REAPERTURA #13): mismo criterio — se incluye solo cuando `nuevo.lineas` está
+ * presente (modalidad `general` con desglose cargado), mapeando al contrato del servidor
+ * (`{ prestacionId, monto, orden }`, sin el id local). */
 export function toCrearPresupuestoPayload(nuevo: NuevoPresupuesto): CrearPresupuestoPayload {
   const payload: CrearPresupuestoPayload = {
     pacienteId: nuevo.pacienteId,
@@ -112,6 +166,9 @@ export function toCrearPresupuestoPayload(nuevo: NuevoPresupuesto): CrearPresupu
   };
 
   if (nuevo.prestacionId !== undefined) payload.prestacionId = nuevo.prestacionId;
+  if (nuevo.lineas !== undefined) {
+    payload.lineas = nuevo.lineas.map((linea) => ({ prestacionId: linea.prestacionId, monto: linea.monto, orden: linea.orden }));
+  }
 
   return payload;
 }
@@ -136,6 +193,11 @@ export function toActualizarPresupuestoPayload(cambios: ActualizacionPresupuesto
   // 2.6: misma trampa que D6b (integracion-obra-social D6) — clave ausente en `cambios` (nunca
   // tocada por el usuario) MUST NOT viajar como `undefined` explícito en el body.
   if (cambios.prestacionId !== undefined) payload.prestacionId = cambios.prestacionId;
+  // 2.7: `lineas` NUNCA viaja en una actualización, ni siquiera si viene en `cambios` — la
+  // edición no toca el desglose persistido (D9: "la edición no bifurca"; la edición solo muestra
+  // el campo `monto` simple). Aceptar lineas acá abriría un camino de reemplazo sin reemplazo
+  // atómico (la PATCH de PostgREST no puede borrar+reinsertar en una transacción).
+  // payload.lineas queda deliberadamente ausente.
 
   return payload;
 }

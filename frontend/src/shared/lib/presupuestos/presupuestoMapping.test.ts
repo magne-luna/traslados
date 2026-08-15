@@ -228,3 +228,98 @@ describe('toActualizarPresupuestoPayload (2.4) — clave ausente no viaja', () =
     expect('prestacionId' in payload).toBe(false);
   });
 });
+
+// -----------------------------------------------------------------------------------------------
+// 2.7 — lineas (REAPERTURA #13, decisión usuaria 2026-08-16): la modalidad `general` ahora SÍ
+// persiste su desglose por prestación (`facturacion.presupuesto_linea`, migración
+// `20260816110000_presupuesto_lineas.sql`) — antes el desglose vivía solo en el estado del
+// formulario. El contrato de la EF `presupuestos` expone `lineas: [{ id, prestacionId, monto,
+// orden }]` (camelCase, mismo criterio que prestacionId); `id` es el id de la fila real de la
+// tabla, `prestacionId` la referencia al catálogo del paciente (el nombre se resuelve client-side
+// contra `paciente.prestaciones`, igual que prestacionId hoy).
+// -----------------------------------------------------------------------------------------------
+
+describe('parsePresupuestoApi — lineas (2.7)', () => {
+  it('lineas presentes (modalidad general): se mapean a PresupuestoLinea[]', () => {
+    const presupuesto = parsePresupuestoApi(
+      presupuestoApiCompleto({
+        lineas: [
+          { id: 'linea-1', prestacionId: 'prestacion-kine', monto: 100, orden: 1 },
+          { id: 'linea-2', prestacionId: 'prestacion-fono', monto: 200, orden: 2 },
+        ],
+      }),
+    );
+
+    expect(presupuesto?.lineas).toEqual([
+      { id: 'linea-1', prestacionId: 'prestacion-kine', monto: 100, orden: 1 },
+      { id: 'linea-2', prestacionId: 'prestacion-fono', monto: 200, orden: 2 },
+    ]);
+  });
+
+  it('lineas ausentes (modalidad por-prestacion o presupuesto viejo): lineas queda undefined, no se descarta la fila', () => {
+    const record = presupuestoApiCompleto();
+    delete record.lineas;
+
+    const presupuesto = parsePresupuestoApi(record);
+
+    expect(presupuesto).not.toBeNull();
+    expect(presupuesto?.lineas).toBeUndefined();
+  });
+
+  it('lineas con filas malformadas: se descartan solo esas filas, las válidas sobreviven', () => {
+    const presupuesto = parsePresupuestoApi(
+      presupuestoApiCompleto({
+        lineas: [
+          { id: 'linea-1', prestacionId: 'prestacion-kine', monto: 100, orden: 1 },
+          { id: 'linea-rota', monto: 50, orden: 2 },
+          'no soy una línea',
+        ],
+      }),
+    );
+
+    expect(presupuesto?.lineas).toEqual([{ id: 'linea-1', prestacionId: 'prestacion-kine', monto: 100, orden: 1 }]);
+  });
+
+  it('lineas que no es un arreglo (contrato del servidor roto): lineas queda undefined, sin descartar la fila', () => {
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto({ lineas: { algo: 'raro' } }));
+
+    expect(presupuesto).not.toBeNull();
+    expect(presupuesto?.lineas).toBeUndefined();
+  });
+});
+
+describe('toCrearPresupuestoPayload — lineas (2.7)', () => {
+  it('lineas presentes (modalidad general): viajan como [{ prestacionId, monto, orden }] SIN el id local de la línea', () => {
+    const payload = toCrearPresupuestoPayload(
+      nuevoPresupuestoMinimo({
+        lineas: [
+          { id: 'linea-local-1', prestacionId: 'prestacion-kine', monto: 100, orden: 1 },
+          { id: 'linea-local-2', prestacionId: 'prestacion-fono', monto: 200, orden: 2 },
+        ],
+      }),
+    );
+
+    expect(payload.lineas).toEqual([
+      { prestacionId: 'prestacion-kine', monto: 100, orden: 1 },
+      { prestacionId: 'prestacion-fono', monto: 200, orden: 2 },
+    ]);
+  });
+
+  it('lineas ausentes (modalidad simple/por-prestacion): la clave no aparece en el body', () => {
+    const payload = toCrearPresupuestoPayload(nuevoPresupuestoMinimo());
+
+    expect('lineas' in payload).toBe(false);
+  });
+});
+
+describe('toActualizarPresupuestoPayload — lineas (2.7)', () => {
+  it('lineas nunca viajan en una actualización: la edición no toca el desglose persistido (D9, "la edición no bifurca")', () => {
+    const payload = toActualizarPresupuestoPayload({
+      monto: 999,
+      lineas: [{ id: 'linea-1', prestacionId: 'prestacion-kine', monto: 999, orden: 1 }],
+    });
+
+    expect(payload).toEqual({ monto: 999 });
+    expect('lineas' in payload).toBe(false);
+  });
+});

@@ -329,3 +329,114 @@ describe('supabasePresupuestoRepository.update() (3.7 — OJO: asimetría con 3.
     );
   });
 });
+
+// -----------------------------------------------------------------------------------------------
+// 2.7 — lineas (REAPERTURA #13, decisión usuaria 2026-08-16): modalidad `general` persiste su
+// desglose por prestación. La EF devuelve `lineas` en GET y la acepta en POST; este repository
+// solo las reenvía/parsea, sin lógica propia (mismo criterio que prestacionId).
+// -----------------------------------------------------------------------------------------------
+
+describe('supabasePresupuestoRepository — lineas (2.7)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('list() parsea las lineas que la EF devuelve por cada fila (modalidad general)', async () => {
+    functionsInvoke.mockResolvedValue({
+      data: [
+        {
+          ...PRESUPUESTO_API_COMPLETO,
+          lineas: [
+            { id: 'l1', prestacionId: 'prest1', monto: 100, orden: 1 },
+            { id: 'l2', prestacionId: 'prest2', monto: 200, orden: 2 },
+          ],
+        },
+      ],
+      error: null,
+    });
+
+    const presupuestos = await supabasePresupuestoRepository.list();
+
+    expect(presupuestos[0]?.lineas).toEqual([
+      { id: 'l1', prestacionId: 'prest1', monto: 100, orden: 1 },
+      { id: 'l2', prestacionId: 'prest2', monto: 200, orden: 2 },
+    ]);
+  });
+
+  it('getById() parsea las lineas de la respuesta (la EF las adjunta al detalle)', async () => {
+    functionsInvoke.mockResolvedValue({
+      data: {
+        ...PRESUPUESTO_API_COMPLETO,
+        lineas: [{ id: 'l1', prestacionId: 'prest1', monto: 100, orden: 1 }],
+      },
+      error: null,
+    });
+
+    const presupuesto = await supabasePresupuestoRepository.getById('p1');
+
+    expect(presupuesto?.lineas).toEqual([{ id: 'l1', prestacionId: 'prest1', monto: 100, orden: 1 }]);
+  });
+
+  it('create() con lineas (modalidad general): el body viaja con lineas [{ prestacionId, monto, orden }] sin id local', async () => {
+    functionsInvoke.mockResolvedValue({
+      data: { ...PRESUPUESTO_API_COMPLETO, id: 'nuevo', lineas: [{ id: 'l1', prestacionId: 'prest1', monto: 100, orden: 1 }] },
+      error: null,
+    });
+
+    const creado = await supabasePresupuestoRepository.create({
+      ...NUEVO_PRESUPUESTO,
+      monto: 100,
+      lineas: [{ id: 'local-1', prestacionId: 'prest1', monto: 100, orden: 1 }],
+    });
+
+    expect(functionsInvoke).toHaveBeenCalledWith('presupuestos', {
+      method: 'POST',
+      body: {
+        pacienteId: 'pac1',
+        obraSocialId: 'os1',
+        monto: 100,
+        fechaEmision: '2026-01-15',
+        lineas: [{ prestacionId: 'prest1', monto: 100, orden: 1 }],
+      },
+    });
+    expect(creado.lineas).toEqual([{ id: 'l1', prestacionId: 'prest1', monto: 100, orden: 1 }]);
+  });
+
+  it('createLote() con items que incluyen lineas: cada item del body las lleva (contrato de la RPC)', async () => {
+    functionsInvoke.mockResolvedValue({
+      data: [
+        { ...PRESUPUESTO_API_COMPLETO, id: 'p1', monto: 100 },
+        { ...PRESUPUESTO_API_COMPLETO, id: 'p2', monto: 200 },
+      ],
+      error: null,
+    });
+
+    await supabasePresupuestoRepository.createLote([
+      {
+        ...NUEVO_PRESUPUESTO,
+        monto: 100,
+        lineas: [{ id: 'local-1', prestacionId: 'prest1', monto: 100, orden: 1 }],
+      },
+      { ...NUEVO_PRESUPUESTO, monto: 200, lineas: undefined },
+    ]);
+
+    const [, opciones] = functionsInvoke.mock.calls[0] ?? [];
+    const body = opciones && typeof opciones === 'object' && 'body' in opciones ? opciones.body : undefined;
+    expect(Array.isArray(body)).toBe(true);
+    const items = body as Record<string, unknown>[];
+    expect(items[0]?.lineas).toEqual([{ prestacionId: 'prest1', monto: 100, orden: 1 }]);
+    // El item sin líneas no lleva la clave (modalidad por-prestacion).
+    expect(items[1] !== undefined && 'lineas' in items[1]).toBe(false);
+  });
+
+  it('update() nunca envía lineas en el body (la edición no toca el desglose, D9)', async () => {
+    functionsInvoke.mockResolvedValue({ data: PRESUPUESTO_API_COMPLETO, error: null });
+
+    await supabasePresupuestoRepository.update('p1', {
+      monto: 999,
+      lineas: [{ id: 'l1', prestacionId: 'prest1', monto: 999, orden: 1 }],
+    });
+
+    const [, opciones] = functionsInvoke.mock.calls[0] ?? [];
+    const body = opciones && typeof opciones === 'object' && 'body' in opciones ? opciones.body : undefined;
+    expect(body && typeof body === 'object' ? 'lineas' in body : true).toBe(false);
+  });
+});
