@@ -9,9 +9,6 @@ import { requirePermiso, isAuthorized, jsonResponse, CORS_HEADERS } from '../_sh
 
 const MODULO = 'pacientes';
 
-const ACCESORIOS_VALIDOS = ['silla-plegable', 'silla-rigida', 'silla-postural', 'andador', 'tripode'] as const;
-type AccesorioMovilidad = (typeof ACCESORIOS_VALIDOS)[number];
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
 
@@ -31,7 +28,9 @@ Deno.serve(async (req) => {
       .select('accesorios(tipo)')
       .eq('paciente_id', pacienteId);
     if (error) return jsonResponse(400, { error: error.message });
-    const tipos = (data as { accesorios: { tipo: string } | null }[]).map((row) => row.accesorios?.tipo).filter(Boolean);
+    const tipos = (data as { accesorios: { tipo: string }[] }[]).flatMap((row) =>
+      row.accesorios?.map((a) => a.tipo) ?? [],
+    );
     return jsonResponse(200, { pacienteId, accesorios: tipos });
   }
 
@@ -45,17 +44,24 @@ Deno.serve(async (req) => {
     if (!Array.isArray(body.accesorios)) {
       return jsonResponse(400, { error: 'falta el array "accesorios"' });
     }
-    const invalidos = body.accesorios.filter((a) => !ACCESORIOS_VALIDOS.includes(a as AccesorioMovilidad));
-    if (invalidos.length > 0) {
-      return jsonResponse(400, { error: `valores invalidos: ${invalidos.join(', ')}` });
-    }
 
+    // El catalogo real (pacientes.accesorios, activa = true) es la fuente de verdad; los tipos
+    // ausentes o desactivados son invalidos y se nombran en el error.
     const { data: catalogo, error: catalogoError } = await userClient
       .schema('pacientes')
       .from('accesorios')
       .select('id, tipo')
-      .in('tipo', body.accesorios);
+      .in('tipo', body.accesorios)
+      .eq('activa', true);
     if (catalogoError) return jsonResponse(400, { error: catalogoError.message });
+
+    const tiposValidos = new Set((catalogo as { tipo: string }[]).map((c) => c.tipo));
+    const invalidos = body.accesorios.filter((tipo) => !tiposValidos.has(tipo));
+    if (invalidos.length > 0) {
+      return jsonResponse(400, {
+        error: `el catalogo no tiene activo${invalidos.length > 1 ? 's' : ''} los accesorios: ${invalidos.join(', ')}`,
+      });
+    }
 
     const { error: deleteError } = await userClient
       .schema('pacientes')
