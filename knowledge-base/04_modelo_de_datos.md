@@ -567,10 +567,18 @@ así que queda anotado acá hasta que se construya esa feature.
   10. **`fechaNacimiento`, `cuilTitular`, `PersonaACargo.dni`** son requeridos en el frontend pero
       las columnas son NULLables en la base (nullabilidad invertida) — `NULL` se mapea a `''` al
       leer, nunca se descarta el paciente ni se lanza error.
-  11. **`accesorioMovilidad: AccesorioMovilidad[]`** (unión cerrada en el frontend) vs.
-      `pacientes.accesorios.tipo TEXT` libre + tabla de vínculo N:N — los `tipo` conocidos se
-      mapean, los desconocidos se descartan en silencio (con cartel); escribir un accesorio
-      inexistente en el maestro aborta el alta con un error accionable en vez de guardar basura.
+11. **`accesorioMovilidad: AccesorioMovilidad[]`** vs. `pacientes.accesorios.tipo TEXT` libre +
+       tabla de vínculo N:N, **resuelto por `catalogo-accesorios-movilidad` (2026-08-16)**: el
+       catálogo maestro dejó de ser solo semilla y pasó a ser **gestionable** — el selector
+       reutilizable (`AccesoriosMovilidadSelector`) da alta/edición/baja lógica inline; la migración
+       `20260816090000_catalogo_accesorios_icono_activa.sql` agrega `icono` (clave del mapeo de
+       iconos del design system, backfill `icono = tipo` por ser las 5 claves del seed) y `activa`
+       (baja lógica, mismo criterio que `pacientes.prestaciones`), y amplía la policy de LECTURA del
+       catálogo a los módulos `vehiculos` y `conductores` (docx: catálogo compartido por el Área de
+       Conductores) manteniendo la escritura SOLO para pacientes. Los `tipo` desconocidos ya no se
+       descartan en silencio: los selectores consumen el catálogo activo, y escribir un accesorio
+       inexistente en el maestro aborta el alta con un error accionable en vez de guardar basura
+       (contrato de `crear_paciente_completo`, `45001`).
 
   **Columnas que el backend debería agregar** para cerrar el punto 8 (ver también `CHANGES.md`
   §`C-05`): `amparo_judicial_aclaracion` (en `paciente` o en `clinicos`, a definir). Los puntos 1 y
