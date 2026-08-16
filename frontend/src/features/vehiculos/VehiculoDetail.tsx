@@ -237,11 +237,13 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
 
           <Section label="Mantenimiento" title="Service y habilitaciones">
             <AvisoModeloDatos>
-              Las habilitaciones VTV/RTO de arriba se derivan del historial de abajo (una
-              intervención preventiva con subtipo VTV o RTO define el próximo vencimiento) — no son
-              un dato aparte. El kilometraje y el último service sí siguen siendo campos propios de
-              Vehículo, no derivados del historial: esa es la parte de la divergencia con el docx
-              que no se resolvió.
+              Las habilitaciones VTV/RTO de arriba viven en su propia tabla (`habilitaciones_vehiculo`),
+              separada del historial de abajo — no se derivan de una intervención preventiva con
+              subtipo VTV/RTO, aunque un vencimiento pueda quedar duplicado en las dos si se cargan
+              ambas cosas. Hoy ninguna pantalla permite cargar una habilitación (gap real, ver
+              historial de mantenimiento). El kilometraje y el último service sí siguen siendo
+              campos propios de Vehículo, no derivados del historial: esa es la parte de la
+              divergencia con el docx que persiste.
             </AvisoModeloDatos>
             <VehiculoMantenimiento vehiculo={vehiculo} />
           </Section>
