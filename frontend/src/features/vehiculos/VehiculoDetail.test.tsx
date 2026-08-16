@@ -331,7 +331,7 @@ describe('VehiculoDetail — modo edición', () => {
       />,
     );
 
-    expect(screen.getByText(/habilitaciones.*viven en su propia tabla/i)).toBeInTheDocument();
+    expect(screen.getByText(/habilitaciones.*se derivan del historial/i)).toBeInTheDocument();
     expect(screen.getByText(/kilometraje y el último service.*no derivados/i)).toBeInTheDocument();
   });
 

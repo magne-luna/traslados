@@ -59,19 +59,16 @@ describe('VehiculoMantenimiento', () => {
     expect(screen.getByText(/vencida/i)).toBeInTheDocument();
   });
 
-  // Corregido 2026-08-16: el estado vacío decía "se registran como intervención preventiva con
-  // sub-tipo VTV/RTO en el historial de mantenimiento" — falso para el repository real
-  // (`habilitaciones_vehiculo` es una tabla propia, `replaceHabilitaciones()`, sin ningún path de
-  // escritura desde el frontend hoy; ver design.md §D3-SUPERSEDED). Esa instrucción llevaba a un
-  // callejón sin salida: cargar un mantenimiento VTV/RTO nunca poblaba esta sección. El estado
-  // vacío pasa a decir la verdad — es un gap real, no una carga pendiente de esta ficha.
-  it('el estado vacío de habilitaciones explica que hoy no hay forma de cargarlas desde la app', () => {
+  // D3-B (tasks.md 2B.3): el estado vacío deja de decir "Sin habilitaciones registradas" a secas
+  // y pasa a explicar de dónde salen — se cargan como intervención preventiva VTV/RTO en el
+  // historial de abajo, no en un alta propia.
+  it('el estado vacío de habilitaciones explica que se cargan como intervención preventiva del historial', () => {
     const vehiculo = buildVehiculo({ habilitaciones: [] });
 
     render(<VehiculoMantenimiento vehiculo={vehiculo} ahora={ahora} />);
 
-    expect(screen.getByText(/hoy no hay forma de cargarlas/i)).toBeInTheDocument();
-    expect(screen.queryByText(/se registran como intervención preventiva/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/se registran como intervención preventiva/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^sin habilitaciones registradas\.?$/i)).not.toBeInTheDocument();
   });
 
   it('VTV y RTO se muestran de forma independiente aunque una esté vencida y la otra vigente', () => {

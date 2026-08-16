@@ -40,9 +40,8 @@ export function VehiculoMantenimiento({ vehiculo, ahora = new Date() }: Vehiculo
 
         {vehiculo.habilitaciones.length === 0 ? (
           <p className="font-body text-sm text-muted">
-            Sin habilitaciones registradas. Hoy no hay forma de cargarlas desde esta pantalla ni
-            desde el historial de mantenimiento de abajo — es un gap real del backend, no una
-            carga pendiente de esta ficha.
+            Sin habilitaciones. Se registran como intervención preventiva con sub-tipo VTV/RTO en
+            el historial de mantenimiento de abajo.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-md">
