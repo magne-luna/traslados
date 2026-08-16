@@ -987,19 +987,32 @@ en `CHANGES.md` §C-08 (regla dura del proyecto), y con un `AvisoModeloDatos` en
 `VehiculoMantenimiento.tsx` cuando se implemente el swap real, hasta que Enzo confirme cuál de los
 dos caminos toma.
 
-#### Gap abierto: `estado` puede llegar con doble conversión desde la Edge Function
+#### Gap cerrado: `estado` llegaba con doble conversión desde la Edge Function — ✅ RESUELTO (2026-08-16)
 
-`parseVehiculoRow` (§4, sin tocar en §4B por estar fuera de su alcance) llama a
-`parseEstadoVehiculo(row.estado)`, que espera el valor **crudo de la base**
-(`'fuera de servicio'`, con espacio) y lo convierte a la forma de dominio
+`parseVehiculoRow` (§4) llamaba a `parseEstadoVehiculo(row.estado)`, que espera el valor **crudo de
+la base** (`'fuera de servicio'`, con espacio) y lo convierte a la forma de dominio
 (`'fuera-de-servicio'`, con guión). Pero `vehiculos/index.ts::toApi()` **ya devuelve `estado`
-convertido** a la forma de API (con guión). Si la respuesta de la Edge Function se pasa tal cual a
-`parseEstadoVehiculo` en §5, un vehículo realmente fuera de servicio no matchea ningún valor
-conocido y degrada silenciosamente a `'habilitado'` — el comportamiento por defecto de la función
-ante un valor desconocido. Detectado en batch 4B (2026-08-01), sin corregir todavía porque 4.2/
-`parseEstadoVehiculo` no estaba en el alcance de esa tarea. **Bloquea §5** igual que el gap de
-mantenimientos: hay que decidir si `parseEstadoVehiculo` gana una segunda forma de entrada, o si
-§5 la evita pasando `row.estado` ya convertido directo al dominio sin reprocesarlo.
+convertido** a la forma de API (con guión) — la respuesta real de la Edge Function se pasaba tal
+cual a `parseEstadoVehiculo`, así que un vehículo realmente fuera de servicio no matcheaba ningún
+valor conocido y degradaba silenciosamente a `'habilitado'`.
+
+Detectado en batch 4B (2026-08-01) y documentado como gap abierto, pero **§5 (completada
+2026-08-10) no lo corrigió** — quedó vivo en el código shippeado, sin ningún test que ejercitara el
+read path con el shape real de la API (los fixtures de test solo usaban `estado: 'habilitado'`).
+Encontrado en producción-reachable code recién el 2026-08-16, al auditar el código para la
+documentación de cierre de este change (§9) — no por un reporte de bug. **Impacto real**: un
+vehículo fuera de servicio en la base se mostraba como habilitado en toda la app, incluida la
+exclusión/aviso de Hojas de Ruta (RN-VE-02, `RecorridoCard.tsx`/`VistaGlobalHojaDeRuta.tsx`).
+
+**Fix**: se agregó `parseEstadoVehiculoApi(value)`, que espera el valor **ya en formato de
+dominio** (tal como lo manda `estadoToApi()`) y no vuelve a convertirlo — `parseVehiculoRow` la usa
+en vez de `parseEstadoVehiculo`. `parseEstadoVehiculo`/`toEstadoVehiculoRow` (conversión base↔dominio)
+quedan vivas sin cambios, documentadas como relevantes solo para `toCrearVehiculoPayload` (la RPC
+SUPERSEDED de D9/D11, nunca escrita) y sus tests — no para el read/write path real, que ya no pasa
+por conversión de `estado` en ninguno de los dos sentidos (el lado de escritura, en
+`SupabaseVehiculoRepository.ts`, ya mandaba `estado` sin convertir desde antes). Test dedicado con
+el shape real de la Edge Function (`estado: 'fuera-de-servicio'`) en
+`SupabaseVehiculoRepository.test.ts`, que hasta ahora no existía.
 
 #### Gap abierto: `notas` no viaja en la respuesta de la Edge Function
 

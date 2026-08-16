@@ -93,7 +93,15 @@ const DEFAULT_ESTADO_VEHICULO: EstadoVehiculo = 'habilitado';
  * Función **total**, no un `.replace(' ', '-')`: un replace es silenciosamente correcto hoy y
  * silenciosamente incorrecto en cuanto aparezca un tercer valor de estado. Un valor desconocido
  * (o no-string) degrada al default del dominio, misma política que las filas hijas malformadas —
- * nunca lanza. */
+ * nunca lanza.
+ *
+ * **No usar para leer la respuesta real de la Edge Function** (bug encontrado 2026-08-16): esta
+ * función espera el valor crudo de la base. `vehiculos/index.ts::estadoToApi()` ya hace esta
+ * misma conversión server-side antes de responder, así que `parseVehiculoRow` aplicarla de nuevo
+ * es una doble conversión — un vehículo real `'fuera-de-servicio'` no matchea ningún caso acá y
+ * degrada en silencio a `'habilitado'`. Queda viva solo por `toCrearVehiculoPayload` (RPC
+ * SUPERSEDED, D9/D11, nunca escrita) y sus tests; para la respuesta real usar
+ * `parseEstadoVehiculoApi`. */
 export function parseEstadoVehiculo(value: unknown): EstadoVehiculo {
   if (value === 'fuera de servicio') return 'fuera-de-servicio';
   if (value === 'habilitado') return 'habilitado';
@@ -102,6 +110,13 @@ export function parseEstadoVehiculo(value: unknown): EstadoVehiculo {
 
 export function toEstadoVehiculoRow(estado: EstadoVehiculo): string {
   return estado === 'fuera-de-servicio' ? 'fuera de servicio' : 'habilitado';
+}
+
+/** `estado` tal como lo manda `vehiculos/index.ts::estadoToApi()`: ya en formato de dominio
+ * (`'fuera-de-servicio'`, con guion), no el valor crudo de la base. Un valor desconocido (o
+ * no-string) degrada a `'habilitado'`, misma política que `parseEstadoVehiculo`. */
+export function parseEstadoVehiculoApi(value: unknown): EstadoVehiculo {
+  return value === 'fuera-de-servicio' ? 'fuera-de-servicio' : DEFAULT_ESTADO_VEHICULO;
 }
 
 // -------------------------------------------------------------------------------------------
@@ -148,7 +163,7 @@ export function parseVehiculoRow(row: unknown): VehiculoCamposBase | null {
     modelo: readString(row, 'modelo'),
     tipo: readString(row, 'tipo'),
     capacidad: readNumber(row, 'capacidad'),
-    estado: parseEstadoVehiculo(row.estado),
+    estado: parseEstadoVehiculoApi(row.estado),
     kilometraje: readNumber(row, 'kilometraje'),
     kilometrajeUltimoService: readNumber(row, 'kilometrajeUltimoService'),
     fechaUltimoService: readString(row, 'fechaUltimoService'),

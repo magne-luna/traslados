@@ -516,12 +516,18 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `openspec/changes/integracion-conductores-vehiculos/design.md` §Reconciliación, bloque "Gap
   abierto". **Bloquea** §5/§4B de `integracion-conductores-vehiculos/tasks.md` hasta que Enzo elija
   un camino.
-- **⚠️ GAP ABIERTO — `estado` con doble conversión (detectado en batch 4B, 2026-08-01)**: la Edge
-  Function ya devuelve `estado` convertido a la forma de dominio (`'fuera-de-servicio'`, con guión),
-  pero `parseEstadoVehiculo` (§4) todavía espera el valor crudo de la base (con espacio) y ante un
-  valor desconocido degrada silenciosamente a `'habilitado'`. Un vehículo real fuera de servicio
-  podría mostrarse como habilitado si §5 pasa la respuesta de la Edge Function sin ajustar esto
-  antes. Bloquea §5 igual que el gap de mantenimientos. Detalle en `design.md` §Reconciliación.
+- **✅ RESUELTO (2026-08-16) — `estado` con doble conversión, bug real en producción, no solo un
+  gap**: detectado en batch 4B (2026-08-01) y documentado como gap abierto, pero §5 (completada
+  2026-08-10) no lo corrigió — quedó vivo en el código shippeado sin que ningún test lo ejercitara
+  (los fixtures de test solo usaban `estado: 'habilitado'`). La Edge Function ya devuelve `estado`
+  convertido a la forma de dominio (`'fuera-de-servicio'`, con guión), pero `parseEstadoVehiculo`
+  (§4), usada por el read path real, esperaba el valor crudo de la base (con espacio) y ante ese
+  desajuste degradaba en silencio a `'habilitado'`. **Impacto real**: un vehículo fuera de servicio
+  en la base se mostraba habilitado en toda la app, incluida la exclusión/aviso de Hojas de Ruta
+  (RN-VE-02). Encontrado el 2026-08-16 auditando el código para la documentación de cierre de este
+  change, no por un reporte de bug. Fix: `parseEstadoVehiculoApi` (nueva función, espera el valor
+  ya convertido) reemplaza a `parseEstadoVehiculo` en `parseVehiculoRow`; test dedicado con el
+  shape real de la Edge Function. Detalle completo en `design.md` §Gap cerrado.
 - **⚠️ GAP ABIERTO — `notas` no viaja (detectado en batch 4B, 2026-08-01)**: `toApi()` de
   `vehiculos/index.ts` nunca incluye la clave `notas` en la respuesta, aunque el campo existe en el
   dominio y en la base (`Vehiculo.notas`, §2). En producción este campo siempre volvería
