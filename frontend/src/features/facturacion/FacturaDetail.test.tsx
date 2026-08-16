@@ -8,7 +8,12 @@ import type { PresupuestoRepository } from '../../shared/lib/presupuestos/Presup
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
+import type { TiposDocumentoRepository } from '../../shared/lib/facturacion/TiposDocumentoRepository';
+import type { TipoDocumentoFactura } from '../../shared/types/tiposDocumento';
+import { AuthProvider } from '../../shared/auth/AuthContext';
+import { mockAuthRepository } from '../../shared/lib/auth/mockAuthRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
+import { TiposDocumentoRepositoryProvider } from './TiposDocumentoRepositoryContext';
 import { FacturaDetail } from './FacturaDetail';
 
 const martina: Paciente = {
@@ -101,6 +106,26 @@ function buildDocumentoRepository(): DocumentoRepository {
   };
 }
 
+// Catálogo de tipos de documento stub con el mismo seed que `CHECKLIST_DOCUMENTOS_FACTURA` (el
+// checklist del detalle es catalog-driven desde la migración 20260816120000 — el detalle
+// mapea { id, nombre: tipo, requerido }).
+const TIPOS_DOCUMENTO_STUB: TipoDocumentoFactura[] = [
+  { id: 'tipo-arca', tipo: 'Comprobante ARCA', requerido: true, activa: true },
+  { id: 'tipo-asistencia', tipo: 'Asistencia', requerido: true, activa: true },
+  { id: 'tipo-codem', tipo: 'CODEM', requerido: false, activa: true },
+];
+
+function buildTiposDocumentoRepository(): TiposDocumentoRepository {
+  return {
+    listarActivos: vi.fn().mockResolvedValue(TIPOS_DOCUMENTO_STUB),
+    listarTodos: vi.fn().mockResolvedValue(TIPOS_DOCUMENTO_STUB),
+    crear: vi.fn(),
+    editar: vi.fn(),
+    desactivar: vi.fn(),
+    reactivar: vi.fn(),
+  };
+}
+
 function renderDetail(overrides: Partial<React.ComponentProps<typeof FacturaDetail>> = {}) {
   const crear = vi.fn().mockResolvedValue(facturaAFacturar());
   const actualizar = vi.fn().mockResolvedValue(facturaAFacturar({ estado: 'facturado' }));
@@ -108,22 +133,26 @@ function renderDetail(overrides: Partial<React.ComponentProps<typeof FacturaDeta
   const onBack = vi.fn();
 
   render(
-    <FacturaDetail
-      factura={facturaAFacturar()}
-      crear={crear}
-      actualizar={actualizar}
-      facturasExistentes={[facturaAFacturar()]}
-      pacientes={[martina]}
-      obrasSociales={[osecac]}
-      feriados={[]}
-      presupuestoRepository={buildPresupuestoRepository()}
-      autorizacionRepository={buildAutorizacionRepository()}
-      cobroRepository={buildCobroRepository()}
-      documentoRepository={buildDocumentoRepository()}
-      onCreated={onCreated}
-      onBack={onBack}
-      {...overrides}
-    />,
+    <AuthProvider repository={mockAuthRepository}>
+      <TiposDocumentoRepositoryProvider repository={buildTiposDocumentoRepository()}>
+        <FacturaDetail
+          factura={facturaAFacturar()}
+          crear={crear}
+          actualizar={actualizar}
+          facturasExistentes={[facturaAFacturar()]}
+          pacientes={[martina]}
+          obrasSociales={[osecac]}
+          feriados={[]}
+          presupuestoRepository={buildPresupuestoRepository()}
+          autorizacionRepository={buildAutorizacionRepository()}
+          cobroRepository={buildCobroRepository()}
+          documentoRepository={buildDocumentoRepository()}
+          onCreated={onCreated}
+          onBack={onBack}
+          {...overrides}
+        />
+      </TiposDocumentoRepositoryProvider>
+    </AuthProvider>,
   );
   return { crear, actualizar, onCreated, onBack };
 }
@@ -135,24 +164,28 @@ function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React
   const onBack = vi.fn();
 
   render(
-    <PuedeEscribirContext.Provider value={puedeEscribir}>
-      <FacturaDetail
-        factura={facturaAFacturar()}
-        crear={crear}
-        actualizar={actualizar}
-        facturasExistentes={[facturaAFacturar()]}
-        pacientes={[martina]}
-        obrasSociales={[osecac]}
-        feriados={[]}
-        presupuestoRepository={buildPresupuestoRepository()}
-        autorizacionRepository={buildAutorizacionRepository()}
-        cobroRepository={buildCobroRepository()}
-        documentoRepository={buildDocumentoRepository()}
-        onCreated={onCreated}
-        onBack={onBack}
-        {...overrides}
-      />
-    </PuedeEscribirContext.Provider>,
+    <AuthProvider repository={mockAuthRepository}>
+      <PuedeEscribirContext.Provider value={puedeEscribir}>
+        <TiposDocumentoRepositoryProvider repository={buildTiposDocumentoRepository()}>
+          <FacturaDetail
+            factura={facturaAFacturar()}
+            crear={crear}
+            actualizar={actualizar}
+            facturasExistentes={[facturaAFacturar()]}
+            pacientes={[martina]}
+            obrasSociales={[osecac]}
+            feriados={[]}
+            presupuestoRepository={buildPresupuestoRepository()}
+            autorizacionRepository={buildAutorizacionRepository()}
+            cobroRepository={buildCobroRepository()}
+            documentoRepository={buildDocumentoRepository()}
+            onCreated={onCreated}
+            onBack={onBack}
+            {...overrides}
+          />
+        </TiposDocumentoRepositoryProvider>
+      </PuedeEscribirContext.Provider>
+    </AuthProvider>,
   );
   return { crear, actualizar, onCreated, onBack };
 }
@@ -238,7 +271,7 @@ describe('FacturaDetail', () => {
 
   // RF-410 (fix directo 2026-08-15): el checklist documental de la factura es FIJO, independiente
   // de la obra social del paciente — antes reusaba `obraSocial?.checklist` (RN-FA-08).
-  it('usa el checklist fijo de Facturación en "Documentación adjunta", no el checklist de la obra social del paciente', () => {
+  it('arma el checklist documental desde el catálogo de tipos de documento, no desde el checklist de la obra social del paciente', async () => {
     const osecacConChecklistDistinto: ObraSocial = {
       ...osecac,
       checklist: [{ id: 'item-solo-os', nombre: 'Ítem exclusivo de la obra social', requerido: true }],
@@ -246,9 +279,11 @@ describe('FacturaDetail', () => {
 
     renderDetail({ obrasSociales: [osecacConChecklistDistinto] });
 
-    expect(screen.getByText('Comprobante ARCA')).toBeInTheDocument();
-    expect(screen.getByText('Asistencia')).toBeInTheDocument();
-    expect(screen.getByText('CODEM')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Comprobante ARCA')).toBeInTheDocument();
+      expect(screen.getByText('Asistencia')).toBeInTheDocument();
+      expect(screen.getByText('CODEM')).toBeInTheDocument();
+    });
     expect(screen.queryByText('Ítem exclusivo de la obra social')).not.toBeInTheDocument();
   });
 });

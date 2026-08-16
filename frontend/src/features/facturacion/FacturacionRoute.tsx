@@ -6,8 +6,10 @@ import { supabaseObraSocialRepository } from '../../shared/lib/obrasSociales/Sup
 import { supabasePacienteRepository } from '../../shared/lib/pacientes/SupabasePacienteRepository';
 import { supabaseAutorizacionRepository } from '../../shared/lib/presupuestos/SupabaseAutorizacionRepository';
 import { supabasePresupuestoRepository } from '../../shared/lib/presupuestos/SupabasePresupuestoRepository';
+import { SupabaseTiposDocumentoRepository } from '../../shared/lib/facturacion/SupabaseTiposDocumentoRepository';
 import { CobroRepositoryProvider } from './CobroRepositoryContext';
 import { FacturaRepositoryProvider } from './FacturaRepositoryContext';
+import { TiposDocumentoRepositoryProvider } from './TiposDocumentoRepositoryContext';
 import { FacturacionPage } from './FacturacionPage';
 
 const FERIADOS = buildFeriadosFixture();
@@ -40,7 +42,8 @@ export function FacturacionRoute() {
   return (
     <FacturaRepositoryProvider repository={supabaseFacturaRepository}>
       <CobroRepositoryProvider repository={supabaseCobroRepository}>
-        <FacturacionPage
+        <TiposDocumentoRepositoryProvider repository={SupabaseTiposDocumentoRepository}>
+          <FacturacionPage
           pacienteRepository={supabasePacienteRepository}
           obraSocialRepository={supabaseObraSocialRepository}
           presupuestoRepository={supabasePresupuestoRepository}
@@ -48,6 +51,7 @@ export function FacturacionRoute() {
           documentoRepository={mockDocumentoRepository}
           feriados={FERIADOS}
         />
+        </TiposDocumentoRepositoryProvider>
       </CobroRepositoryProvider>
     </FacturaRepositoryProvider>
   );
