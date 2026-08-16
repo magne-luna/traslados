@@ -42,9 +42,10 @@ en silencio al mapear.)
 - THEN el resultado es siempre un `string` (cadena vacía si el valor era `NULL`)
 - AND al escribir, `diagnostico` se serializa a JSON válido para la columna
 
-#### Scenario: Un tipo del catálogo se conserva tal cual al mapear
+#### Scenario: Accesorios desconocidos en el maestro se descartan
 
-- GIVEN una fila de `pacientes.accesorios` con cualquier `tipo` existente en el maestro
+- GIVEN una fila de `pacientes.accesorios` con cualquier `tipo` existente en el maestro real
 - WHEN se mapea el paciente
 - THEN ese accesorio se conserva en `accesorioMovilidad`
-- AND no se descarta ninguno por estar fuera de una lista cerrada (no existe tal lista)
+- AND no se descarta ninguno por estar fuera de una unión cerrada en TypeScript (ya no existe tal unión; el maestro es la fuente de verdad)
+(Previously: un `tipo` fuera de la unión cerrada `AccesorioMovilidad` se descartaba en silencio.)

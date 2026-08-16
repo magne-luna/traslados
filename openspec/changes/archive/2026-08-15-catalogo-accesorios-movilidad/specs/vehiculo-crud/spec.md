@@ -10,9 +10,10 @@ cero o más (RN-VE-01, RF-501). Los valores MUST ser `TipoAccesorio` (`string` d
 nunca una lista estática en código.
 (Previously: el selector se restringía al conjunto cerrado de `AccesorioMovilidad` de 5 literales.)
 
-#### Scenario: Selección múltiple desde el catálogo activo
+#### Scenario: Selección múltiple de accesorios
 
 - GIVEN el catálogo con accesorios activos e inactivos
 - WHEN el usuario marca uno o más accesorios activos y guarda
 - THEN el vehículo persiste exactamente esos accesorios en `accesoriosCompatibles`
 - AND las opciones inactivas no se ofrecen en el selector
+(Previously: el selector se restringía al conjunto cerrado de `AccesorioMovilidad` de 5 literales, sin activo/inactivo.)

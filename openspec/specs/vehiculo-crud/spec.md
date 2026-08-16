@@ -1,5 +1,7 @@
-## ADDED Requirements
+## Purpose
 
+Pantallas y flujos CRUD del módulo Vehículos: listado, alta, edición y baja lógica.
+## Requirements
 ### Requirement: Listado de vehículos
 El sistema SHALL mostrar un listado de los vehículos existentes obtenido a través de `VehiculoRepository.list()`, con estados de carga, vacío y error visibles (US-500, RF-500). Cada fila MUST mostrar al menos patente, modelo, capacidad y estado (habilitado / fuera de servicio).
 
@@ -31,11 +33,20 @@ El sistema SHALL permitir crear y editar un vehículo capturando patente, modelo
 - **THEN** la UI muestra un mensaje de error y no deja la pantalla en un estado de carga infinito
 
 ### Requirement: Selector de accesorios de movilidad compatibles
-El sistema SHALL ofrecer un selector de accesorios de movilidad compatibles del vehículo, restringido al conjunto cerrado de `AccesorioMovilidad`, permitiendo seleccionar cero o más (RN-VE-01, RF-501).
+
+El sistema SHALL ofrecer un selector de accesorios de movilidad compatibles del vehículo, alimentado
+por el catálogo global activo (`pacientes.accesorios` con `activa = true`) y permitiendo seleccionar
+cero o más (RN-VE-01, RF-501). Los valores MUST ser `TipoAccesorio` (`string` del catálogo dinámico),
+nunca una lista estática en código.
+(Previously: el selector se restringía al conjunto cerrado de `AccesorioMovilidad` de 5 literales.)
 
 #### Scenario: Selección múltiple de accesorios
-- **WHEN** el usuario marca uno o más accesorios compatibles y guarda
-- **THEN** el vehículo persiste exactamente esos accesorios en `accesoriosCompatibles`
+
+- GIVEN el catálogo con accesorios activos e inactivos
+- WHEN el usuario marca uno o más accesorios activos y guarda
+- THEN el vehículo persiste exactamente esos accesorios en `accesoriosCompatibles`
+- AND las opciones inactivas no se ofrecen en el selector
+(Previously: el selector se restringía al conjunto cerrado de `AccesorioMovilidad` de 5 literales, sin activo/inactivo.)
 
 ### Requirement: Toggle habilitado / fuera de servicio
 El sistema SHALL permitir alternar el estado del vehículo entre habilitado y fuera de servicio, persistiendo el cambio vía `update()` (RN-VE-02, RF-503).
@@ -50,3 +61,4 @@ El sistema SHALL permitir actualizar manualmente el kilometraje del vehículo (U
 #### Scenario: Actualización de kilometraje
 - **WHEN** el usuario ingresa un kilometraje nuevo mayor o igual al registrado y confirma
 - **THEN** el kilometraje se persiste y las alertas de mantenimiento se recalculan sobre el nuevo valor
+

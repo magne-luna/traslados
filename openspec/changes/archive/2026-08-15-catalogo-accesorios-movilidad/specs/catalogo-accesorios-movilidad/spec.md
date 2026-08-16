@@ -1,12 +1,10 @@
-# Catálogo Accesorios Movilidad Specification
-
 ## Purpose
 
 Catálogo global gestionable de accesorios (`pacientes.accesorios`), compartido por Pacientes,
 Vehículos y Conductores. Gestión inline desde el selector, icono de lista fija del DS, selectores
 alimentados por el catálogo activo. Cierra la discrepancia #11.
 
-## Requirements
+## ADDED Requirements
 
 ### Requirement: Catálogo global con icono y baja lógica
 

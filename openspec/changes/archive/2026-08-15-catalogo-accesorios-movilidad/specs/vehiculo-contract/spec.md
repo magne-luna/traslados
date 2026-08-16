@@ -15,11 +15,12 @@ El sistema SHALL definir los tipos TypeScript del dominio de flota en `frontend/
 La clasificación de dos niveles MUST estar tipada sin `string` libre: el nivel 1 como unión cerrada de los tres valores del docx, el nivel 2 de preventivo como unión cerrada, y el nivel 2 de correctivo como catálogo extensible mediante un valor de escape que exige un detalle en texto libre. La invariante "el valor de escape exige detalle" y la invariante "un registro de nivel 1 `gasto` no tiene sub-tipo" MUST quedar garantizadas por el sistema de tipos (unión discriminada), no solo por una validación en tiempo de ejecución.
 (Previously: `AccesorioMovilidad` era una unión cerrada de 5 literales fija en el código y el escenario de accesorios exigía "conjunto cerrado tipado".)
 
-#### Scenario: Accesorios de movilidad como valores del catálogo dinámico
+#### Scenario: Accesorios de movilidad como conjunto cerrado tipado
 
 - WHEN se declara el campo `accesoriosCompatibles` de un vehículo
-- THEN su tipo es `TipoAccesorio[]` (`string` del catálogo dinámico)
-- AND no es una unión de literales fija en TS: un valor nuevo del maestro es válido sin tocar tipos
+- THEN su tipo es `TipoAccesorio[]` (`string` del catálogo dinámico), no una unión de literales fija en TS
+- AND un valor nuevo del maestro es válido sin tocar tipos ni recompilar
+(Previously: el tipo era una unión cerrada de 5 literales fijos en código.)
 
 #### Scenario: Capacidad acotada del vehículo
 

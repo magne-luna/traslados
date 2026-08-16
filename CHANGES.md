@@ -700,8 +700,10 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `vehiculos`/`conductores` (docx: catálogo compartido por el Área de Conductores) — la escritura
   sigue SOLO para `pacientes`; sin RPC ni Edge Function (plan recortado). Frontend: 7 consumidores
   migrados de la lista estática `ACCESORIO_MOVILIDAD_LABELS` a `labelAccesorio(tipo)`/`iconoAccesorioMap`,
-  se elimina `accesorioMovilidadOptions.ts`; vehículo/forma de pago intactos. Detalle en
-  `openspec/changes/catalogo-accesorios-movilidad/`.
+  se elimina `accesorioMovilidadOptions.ts`; vehículo/forma de pago intactos. **✅ completado y
+  archivado (2026-08-15)** — 25/25 tasks, `openspec archive` nativo, specs delta fusionadas a
+  `openspec/specs/` (incluye `catalogo-accesorios-movilidad` nueva). Detalle en
+  `openspec/changes/archive/2026-08-15-catalogo-accesorios-movilidad/`.
 
 ### [C-09] `conductores`
 - **Estado**: `[ ]` pendiente
