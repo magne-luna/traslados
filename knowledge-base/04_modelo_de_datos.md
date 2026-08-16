@@ -203,7 +203,10 @@ así que queda anotado acá hasta que se construya esa feature.
   VTV/RTO SÍ quedaron en tabla propia, `conductores.habilitaciones_vehiculo(id, vehiculo_id, tipo,
   fecha_emision, fecha_vencimiento)` (`20260730110000_schema_vehiculo_gaps.sql`) — exactamente la
   tabla que este change había decidido (D3, opción B) NO crear, prefiriendo derivar del historial de
-  mantenimiento. Se adopta la tabla real de Enzo como fuente de verdad. Kilometraje: `kilometraje`
+  mantenimiento. **Actualización 2026-08-10 (versión final)**: se adoptó la tabla de Enzo por un
+  tiempo, pero nunca se construyó ninguna pantalla para escribir en ella y la usuaria prefirió no
+  duplicar la carga con un mantenimiento preventivo VTV/RTO — se volvió a D3 opción B, la tabla de
+  Enzo queda sin consumidor real. Kilometraje: `kilometraje`
   quedó como columna propia del vehículo (nullable, sin default), pero
   `kilometrajeUltimoService`/`fechaUltimoService` SÍ se derivan — de la Edge Function, a partir del
   último registro `categoria='preventivo'` de `mantenimiento` — al revés de lo que planeaba este
@@ -247,20 +250,18 @@ así que queda anotado acá hasta que se construya esa feature.
      para vincular la intervención correctiva con el gasto que la pagó — el docx no tiene esa FK.
   4. Si `GastoVehiculo.descripcion` (agregado del frontend, no está en el docx) queda como campo real
      de `gasto_vehiculo` en el backend.
-- **⚠️ Mantenimientos sin fuente en la API real — GAP ABIERTO, necesita decisión de Enzo (detectado
+- ~~**Mantenimientos sin fuente en la API real** — GAP ABIERTO, necesita decisión de Enzo (detectado
   2026-08-01, reconciliación de `integracion-conductores-vehiculos` contra `C-08-vehiculos-mantenimiento`
-  ya mergeado, commit `f840a96`)**: la Edge Function `supabase/functions/vehiculos/index.ts` devuelve
-  `gastos` y `habilitaciones` (derivadas), pero **no expone ningún array de eventos de mantenimiento**
-  preventivo/correctivo. Su propio comentario de cabecera dice que esos casos "se gestionan por
-  separado en `supabase/functions/mantenimiento/index.ts`" — **ese archivo no existe** en el repo.
-  `Vehiculo.mantenimientos: MantenimientoRegistro[]` (campo obligatorio, consumido por la pantalla ya
-  shippeada `VehiculoMantenimiento.tsx`) no tiene hoy ninguna fuente real. Dos caminos posibles, sin
-  decidir: (a) extender `toApi()` de `vehiculos/index.ts` para devolver las filas crudas de
-  `mantenimiento` (requiere sumar las columnas `subtipo`/`detalle` que el modelo de dos niveles del
-  frontend necesita y que no existen en el schema de Enzo), o (b) construir el endpoint separado
-  `mantenimiento/index.ts`. Detalle completo en
-  `openspec/changes/integracion-conductores-vehiculos/design.md` §Reconciliación, bloque "Gap
-  abierto"; ver también `CHANGES.md` §C-08.
+  ya mergeado, commit `f840a96`): la Edge Function `supabase/functions/vehiculos/index.ts` devuelve
+  `gastos` y `habilitaciones` (derivadas), pero no expone ningún array de eventos de mantenimiento
+  preventivo/correctivo.~~ — **RESUELTO (2026-08-10)**: Enzo eligió el camino (a) (extender `toApi()`).
+  Migración `20260810120000_vehiculo_mantenimiento_subtipo_detalle.sql` sumó las columnas
+  `subtipo`/`detalle` que el modelo de dos niveles del frontend necesitaba; `toApi()` expone
+  `mantenimiento` (singular, coincide con el embed real) con `replaceMantenimientos()` wireado en
+  POST/PATCH. `SupabaseVehiculoRepository.ts` ya persiste y lee mantenimientos contra el servidor
+  real — `VehiculoMantenimiento.tsx` tiene fuente de datos real desde entonces. Detalle completo en
+  `openspec/changes/integracion-conductores-vehiculos/design.md` §Gap 4B.4 cerrado; ver también
+  `CHANGES.md` §C-08.
 - **Conductor**: cartel en UI (`ConductorDetail`). ~~Faltan campos que sí están en el docx:
   Domicilio, CUIL (acá solo hay Documento/DNI) y Estado (operando / fuera de servicio)~~ — resuelto
   2026-07-24: los 3 campos se sumaron al frontend (`Conductor.domicilio`, `Conductor.cuil`,
@@ -273,9 +274,16 @@ así que queda anotado acá hasta que se construya esa feature.
   de texto libre (`notas`/`observaciones`). Costo asumido: `C-10` pierde el filtro computable por
   restricción de perfil (RN-GL-03 pasa a depender de lectura humana de la nota, no de una validación
   automática).
-- **Asignación de Conductores a Vehículos**: cartel en UI (`ConductorDetail`, sección Flota). Acá la
+- ~~**Asignación de Conductores a Vehículos**: cartel en UI (`ConductorDetail`, sección Flota). Acá la
   semana se guarda como etiqueta ISO (`semana: '2026-W30'`); el docx tiene Fecha de inicio y Fecha de
-  fin de semana como dos campos de fecha independientes.
+  fin de semana como dos campos de fecha independientes.~~ — **RESUELTO (`integracion-conductores-vehiculos`
+  D7, 2026-08-11)**: el docx manda en estructura, así que se persiste el par de fechas
+  (`conductores.conductores_vehiculos.fecha_init`/`fecha_fin_semana`) tal cual la base; el tipo del
+  frontend no cambió — `AsignacionSemanal.semana` sigue siendo la etiqueta ISO, y la conversión
+  bidireccional vive en `semanaIso.ts` (función pura, con tests dedicados a los casos borde: semana 1
+  ISO, años de 53 semanas, cruce de fin de año, parseo de `DATE` sin zona horaria). No es una
+  divergencia pendiente, es una traducción implementada. El cartel de `ConductorDetail.tsx` se
+  reescribió para reflejarlo (§8.4 de `tasks.md`).
 - **Paciente**: cartel en UI (`PacienteDetail`). ~~Faltan segundo nombre y segundo apellido (el docx
   los separa del primero, ambos opcionales). "Diagnóstico" y "Condición" son dos campos de una
   entidad aparte en el docx ("Datos Clínicos"); acá están fundidos en Paciente y falta el campo

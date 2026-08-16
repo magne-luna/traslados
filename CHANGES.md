@@ -488,14 +488,19 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `20260730110000_schema_vehiculo_gaps.sql`), no en `facturacion.gastos_vehiculos` (que queda
   muerta/sin usar, no se dropea). Ver `openspec/changes/integracion-conductores-vehiculos/design.md`
   §Reconciliación con C-08-vehiculos-mantenimiento (D9/D11) para el detalle completo.
-- **✅ RESUELTO (2026-08-01) — Habilitaciones VTV/RTO**: el design de `integracion-conductores-vehiculos`
-  había decidido (D3, opción B) NO crear tabla propia — derivar habilitaciones del historial de
-  mantenimiento client-side. Enzo creó exactamente la tabla que esa decisión descartaba:
-  `conductores.habilitaciones_vehiculo(id, vehiculo_id, tipo, fecha_emision, fecha_vencimiento)`
-  (`20260730110000_schema_vehiculo_gaps.sql`, RLS corregida en
-  `20260730150000_fix_habilitaciones_vehiculo_modulo.sql`). Se adopta la tabla real de Enzo como
-  fuente de verdad — `derivarHabilitaciones()` queda superada para el repository real (sigue viva
-  como función solo del lado mock, sin motivo para tocarla).
+- **✅ RESUELTO (2026-08-10, versión final — revierte la nota "adoptar la tabla de Enzo" de abajo) —
+  Habilitaciones VTV/RTO**: el design de `integracion-conductores-vehiculos` había decidido (D3,
+  opción B) NO crear tabla propia — derivar habilitaciones del historial de mantenimiento
+  client-side. El 2026-08-01 Enzo había creado la tabla que esa decisión descartaba
+  (`conductores.habilitaciones_vehiculo`, `20260730110000_schema_vehiculo_gaps.sql`) y por un
+  momento se adoptó como fuente de verdad — pero nunca se construyó ninguna pantalla para escribir
+  en ella, y la usuaria prefirió explícitamente no tener un formulario aparte que duplique la misma
+  fecha de vencimiento que ya se carga en un mantenimiento preventivo VTV/RTO. **Se volvió a la
+  opción B**: `ensamblarVehiculo` deriva `habilitaciones` de `mantenimientos` vía
+  `derivarHabilitaciones()` (misma función que ya usaba el mock) e ignora la clave `habilitaciones`
+  que la Edge Function sigue mandando; la tabla de Enzo queda en la base, con RLS y todo, sin
+  ningún consumidor real. Es el comportamiento vigente, con tests dedicados en
+  `vehiculoMapping.test.ts`. Detalle completo en `design.md` §D3 (nota "REVERTIDO 2026-08-10").
 - **✅ RESUELTO (2026-08-01) — Kilometraje**: el plan quería `kilometraje NOT NULL DEFAULT 0` más dos
   columnas persistidas nuevas (`kilometraje_ultimo_service`/`fecha_ultimo_service`). Realidad: Enzo
   ya agregó `kilometraje` (nullable, sin default — distinto de lo planeado) y
