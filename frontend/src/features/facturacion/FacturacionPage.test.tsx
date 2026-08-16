@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import type { ReactNode } from 'react';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
@@ -8,11 +9,15 @@ import type { AutorizacionRepository } from '../../shared/lib/presupuestos/Autor
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { FacturaRepository } from '../../shared/lib/facturacion/FacturaRepository';
+import type { TiposDocumentoRepository } from '../../shared/lib/facturacion/TiposDocumentoRepository';
 import type { Factura } from '../../shared/types/factura';
 import type { Paciente } from '../../shared/types/paciente';
+import { AuthProvider } from '../../shared/auth/AuthContext';
+import { mockAuthRepository } from '../../shared/lib/auth/mockAuthRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { CobroRepositoryProvider } from './CobroRepositoryContext';
 import { FacturaRepositoryProvider } from './FacturaRepositoryContext';
+import { TiposDocumentoRepositoryProvider } from './TiposDocumentoRepositoryContext';
 import { FacturacionPage } from './FacturacionPage';
 
 const martina: Paciente = {
@@ -66,6 +71,38 @@ function buildCobroRepository(): CobroRepository {
   return { list: vi.fn().mockResolvedValue([]), listByFactura: vi.fn().mockResolvedValue([]), create: vi.fn(), remove: vi.fn() };
 }
 
+function buildTiposDocumentoRepository(): TiposDocumentoRepository {
+  return {
+    listarActivos: vi.fn().mockResolvedValue([
+      { id: 'tipo-arca', tipo: 'Comprobante ARCA', requerido: true, activa: true },
+      { id: 'tipo-asistencia', tipo: 'Asistencia', requerido: true, activa: true },
+      { id: 'tipo-codem', tipo: 'CODEM', requerido: false, activa: true },
+    ]),
+    listarTodos: vi.fn().mockResolvedValue([]),
+    crear: vi.fn(),
+    editar: vi.fn(),
+    desactivar: vi.fn(),
+    reactivar: vi.fn(),
+  };
+}
+
+function renderFacturacionPage(props: ReturnType<typeof buildProps>, conPermiso: boolean | null = null) {
+  const page = (
+    <FacturaRepositoryProvider repository={buildFacturaRepository()}>
+      <CobroRepositoryProvider repository={buildCobroRepository()}>
+        <TiposDocumentoRepositoryProvider repository={buildTiposDocumentoRepository()}>
+          <FacturacionPage {...props} feriados={[]} />
+        </TiposDocumentoRepositoryProvider>
+      </CobroRepositoryProvider>
+    </FacturaRepositoryProvider>
+  );
+  return render(
+    <AuthProvider repository={mockAuthRepository}>
+      {conPermiso === null ? page : <PuedeEscribirContext.Provider value={conPermiso}>{page}</PuedeEscribirContext.Provider>}
+    </AuthProvider>,
+  );
+}
+
 function buildProps() {
   const pacienteRepository: PacienteRepository = {
     list: vi.fn().mockResolvedValue([martina]),
@@ -109,13 +146,7 @@ function buildProps() {
 describe('FacturacionPage', () => {
   it('muestra el listado de facturas y navega al detalle al seleccionar una', async () => {
     const props = buildProps();
-    render(
-      <FacturaRepositoryProvider repository={buildFacturaRepository()}>
-        <CobroRepositoryProvider repository={buildCobroRepository()}>
-          <FacturacionPage {...props} feriados={[]} />
-        </CobroRepositoryProvider>
-      </FacturaRepositoryProvider>,
-    );
+    renderFacturacionPage(props);
 
     expect(await screen.findByText('Gómez, Martina', { selector: 'span' })).toBeInTheDocument();
 
@@ -126,13 +157,7 @@ describe('FacturacionPage', () => {
 
   it('vuelve al listado desde el detalle', async () => {
     const props = buildProps();
-    render(
-      <FacturaRepositoryProvider repository={buildFacturaRepository()}>
-        <CobroRepositoryProvider repository={buildCobroRepository()}>
-          <FacturacionPage {...props} feriados={[]} />
-        </CobroRepositoryProvider>
-      </FacturaRepositoryProvider>,
-    );
+    renderFacturacionPage(props);
 
     await userEvent.click(await screen.findByText('Gómez, Martina', { selector: 'span' }));
     const [volverArriba] = screen.getAllByRole('button', { name: /volver al listado/i });
@@ -149,13 +174,7 @@ describe('FacturacionPage', () => {
 describe('FacturacionPage — no-regresión: el selector de obra social usa list() completo (17.5)', () => {
   it('llama a obraSocialRepository.list() y nunca a listPage()', async () => {
     const props = buildProps();
-    render(
-      <FacturaRepositoryProvider repository={buildFacturaRepository()}>
-        <CobroRepositoryProvider repository={buildCobroRepository()}>
-          <FacturacionPage {...props} feriados={[]} />
-        </CobroRepositoryProvider>
-      </FacturaRepositoryProvider>,
-    );
+    renderFacturacionPage(props);
 
     await screen.findByText('Gómez, Martina', { selector: 'span' });
 
@@ -166,15 +185,7 @@ describe('FacturacionPage — no-regresión: el selector de obra social usa list
 
 function renderPageConPermiso(puedeEscribir: boolean) {
   const props = buildProps();
-  return render(
-    <PuedeEscribirContext.Provider value={puedeEscribir}>
-      <FacturaRepositoryProvider repository={buildFacturaRepository()}>
-        <CobroRepositoryProvider repository={buildCobroRepository()}>
-          <FacturacionPage {...props} feriados={[]} />
-        </CobroRepositoryProvider>
-      </FacturaRepositoryProvider>
-    </PuedeEscribirContext.Provider>,
-  );
+  return renderFacturacionPage(props, puedeEscribir);
 }
 
 // Gateo de escritura (gateo-facturacion, tasks.md 7.2/7.3, design.md D5). Mismo patrón que

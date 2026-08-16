@@ -280,9 +280,9 @@ describe('FacturaDetail', () => {
     renderDetail({ obrasSociales: [osecacConChecklistDistinto] });
 
     await waitFor(() => {
-      expect(screen.getByText('Comprobante ARCA')).toBeInTheDocument();
-      expect(screen.getByText('Asistencia')).toBeInTheDocument();
-      expect(screen.getByText('CODEM')).toBeInTheDocument();
+      expect(screen.getAllByText('Comprobante ARCA').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Asistencia').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('CODEM').length).toBeGreaterThan(0);
     });
     expect(screen.queryByText('Ítem exclusivo de la obra social')).not.toBeInTheDocument();
   });

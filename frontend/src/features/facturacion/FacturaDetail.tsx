@@ -15,6 +15,7 @@ import { FacturaAccionesEmision } from './FacturaAccionesEmision';
 import { FacturaAvisoDiscrepancias } from './FacturaAvisoDiscrepancias';
 import { FacturaCobrosSection } from './FacturaCobrosSection';
 import { FacturaDocumentos } from './FacturaDocumentos';
+import { TiposDocumentoGestor } from './TiposDocumentoGestor';
 import { FacturaForm, type FacturaFormValues } from './FacturaForm';
 import { useCobros } from './useCobros';
 import { useEmisionFactura } from './useEmisionFactura';
@@ -228,6 +229,9 @@ export function FacturaDetail({
 
           <Section label="Documentos" title="Documentación adjunta">
             <FacturaDocumentos facturaId={factura.id} items={itemsChecklistDocumentos} repository={documentoRepository} />
+            <div className="mt-md border-t border-border pt-md">
+              <TiposDocumentoGestor idBase="detalle-factura" />
+            </div>
           </Section>
         </>
       )}
