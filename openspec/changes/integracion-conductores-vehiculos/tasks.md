@@ -1010,25 +1010,25 @@
 > con un cartel `AvisoModeloDatos` en la pantalla, para que quien vea la app la note sin leer la KB.
 > Reusar `AvisoModeloDatos` de `frontend/src/design-system/components.tsx`, nunca markup a mano.
 
-- [ ] 8.1 `VehiculoDetail.tsx` — **reescribir** el cartel de gastos: hoy dice que el docx ubica los
+- [x] 8.1 `VehiculoDetail.tsx` — **reescribir** el cartel de gastos: hoy dice que el docx ubica los
       gastos bajo el módulo `facturacion`; pasa a decir que **así está implementado** y qué implica
       (sin `facturacion: read` la sección se ve vacía y **eso no significa que no haya gastos**).
-- [ ] 8.2 `VehiculoDetail.tsx` — cartel nuevo en la sección de accesorios: el catálogo vive en el
+- [x] 8.2 `VehiculoDetail.tsx` — cartel nuevo en la sección de accesorios: el catálogo vive en el
       schema `pacientes` y requiere permiso del módulo **Pacientes**; una lista vacía puede ser
       "no admite accesorios" o "no tenés el permiso". Solo se muestra cuando el flag de degradación
       de 5.4 está activo.
-- [ ] 8.3 `VehiculoDetail.tsx` — **reescribir** el cartel de la sección Mantenimiento (D3-B). Hoy
+- [x] 8.3 `VehiculoDetail.tsx` — **reescribir** el cartel de la sección Mantenimiento (D3-B). Hoy
       dice que "el vencimiento de VTV/RTO se sigue rastreando en las habilitaciones del vehículo, no
       en el historial" y anuncia la duplicación como pendiente: **eso ya no es cierto**. Pasa a
       decir que las habilitaciones VTV/RTO **se derivan del historial** (intervención preventiva con
       subtipo VTV/RTO y su próximo vencimiento), alineado con el docx, y que **el kilometraje y el
       último service siguen siendo campos propios de Vehículo**, no derivados — que es la parte de la
       divergencia con el docx que sobrevive.
-- [ ] 8.4 `ConductorDetail.tsx` §Flota — **reescribir** el cartel de asignación semanal: la etiqueta
+- [x] 8.4 `ConductorDetail.tsx` §Flota — **reescribir** el cartel de asignación semanal: la etiqueta
       ISO ↔ dos fechas ya no es una discrepancia pendiente sino una conversión implementada (D7); el
       cartel pasa a explicar que **la grilla requiere permiso del módulo Vehículos**, no del de
       Conductores.
-- [ ] 8.5 `ConductorDetail.tsx` — **reescribir** el cartel de `restricciones` (D6-B). Hoy anuncia una
+- [x] 8.5 `ConductorDetail.tsx` — **reescribir** el cartel de `restricciones` (D6-B). Hoy anuncia una
       divergencia pendiente ("acá es catálogo cerrado, en el docx es texto libre — a coordinar con
       Enzo"): **esa divergencia ya no existe**, se resolvió a favor del docx. Pasa a decir que las
       restricciones de perfil se anotan en **Observaciones**, como texto libre, igual que el modelo de
@@ -1036,7 +1036,7 @@
       (`C-10`), que es la consecuencia que quien use la app necesita saber.
       **Ojo con el orden**: este cartel se reescribe acá, pero el `Chip` de "pendiente de confirmar"
       de `ConductorForm` ya se eliminó en 2C.3 — no re-agregarlo.
-- [ ] 8.6 Verificar que ningún cartel usa `style={{}}` ni reimplementa estilos que ya están en el
+- [x] 8.6 Verificar que ningún cartel usa `style={{}}` ni reimplementa estilos que ya están en el
       design system.
 
 ## 9. Documentación de las discrepancias (fuera del código)
