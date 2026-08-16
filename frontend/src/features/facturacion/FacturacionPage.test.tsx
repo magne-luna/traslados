@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ReactNode } from 'react';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
