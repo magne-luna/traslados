@@ -1,4 +1,3 @@
-import { AvisoModeloDatos } from '../../design-system/components';
 import { DocumentChecklist } from '../../shared/components/DocumentChecklist';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { useDocumentChecklist } from '../../shared/lib/documentos/useDocumentChecklist';
@@ -28,10 +27,6 @@ export function VehiculoDocumentos({ vehiculoId, repository }: VehiculoDocumento
 
   return (
     <div className="flex flex-col gap-sm">
-      <AvisoModeloDatos>
-        La subida de documentos del vehículo sigue siendo simulada (el archivo no se guarda) hasta
-        que <code>integracion-conductores-vehiculos</code> aterrice.
-      </AvisoModeloDatos>
       <DocumentChecklist
         items={items}
         documentos={documentos}

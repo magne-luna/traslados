@@ -31,11 +31,14 @@ describe('VehiculoDocumentos', () => {
     expect(screen.getByText('Fotos')).toBeInTheDocument();
   });
 
-  it('muestra el aviso de que la subida de documentos del vehículo sigue simulada', async () => {
+  // documentos-vehiculos-conductores-facturacion (2026-08-16): el swap a
+  // supabaseDocumentoRepository retira el aviso de subida simulada — ya no aplica.
+  it('no muestra ningún aviso de subida simulada', async () => {
     render(<VehiculoDocumentos vehiculoId="v1" repository={buildFakeRepository()} />);
 
-    expect(await screen.findByText(/modelo de datos/i)).toBeInTheDocument();
-    expect(screen.getByText(/sigue.*simulada/i)).toBeInTheDocument();
+    await screen.findByText('Cédula');
+    expect(screen.queryByText(/modelo de datos/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sigue.*simulada/i)).not.toBeInTheDocument();
   });
 
   it('distingue el documento subido del faltante consultando al repository por entidad "vehiculo"', async () => {

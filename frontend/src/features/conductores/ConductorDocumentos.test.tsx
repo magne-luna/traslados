@@ -50,14 +50,15 @@ describe('ConductorDocumentos', () => {
     ).toBeInTheDocument();
   });
 
-  it('muestra además el aviso de que la subida de documentos del conductor sigue simulada, distinto del cartel de precarga (tasks.md 6.2)', async () => {
+  // documentos-vehiculos-conductores-facturacion (2026-08-16): el swap a
+  // supabaseDocumentoRepository retira el aviso de subida simulada — el cartel de precarga
+  // (pendiente #4 de C-09, sin relación) sigue, sin resolver.
+  it('no muestra el aviso de subida simulada, pero conserva el cartel de precarga', async () => {
     render(<ConductorDocumentos conductorId="c1" repository={buildFakeRepository()} />);
 
-    expect(await screen.findByText(/modelo de datos/i)).toBeInTheDocument();
-    expect(screen.getByText(/sigue.*simulada/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/pendiente de confirmar con el cliente: documentos a precargar/i),
-    ).toBeInTheDocument();
+    await screen.findByText(/pendiente de confirmar con el cliente: documentos a precargar/i);
+    expect(screen.queryByText(/modelo de datos/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sigue.*simulada/i)).not.toBeInTheDocument();
   });
 });
 

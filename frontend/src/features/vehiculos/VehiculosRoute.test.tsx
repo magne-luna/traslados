@@ -15,6 +15,7 @@ vi.mock('../../shared/lib/supabaseClient', () => ({
 }));
 
 const { VehiculosRoute } = await import('./VehiculosRoute');
+const fuenteVehiculosRoute = await import('./VehiculosRoute.tsx?raw').then((m) => m.default as string);
 
 describe('VehiculosRoute', () => {
   beforeEach(() => {
@@ -26,5 +27,13 @@ describe('VehiculosRoute', () => {
 
     await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
     expect(screen.getByRole('heading', { name: 'Vehículos' })).toBeInTheDocument();
+  });
+
+  // documentos-vehiculos-conductores-facturacion: Documentos deja de ser el último mock del root
+  // — swap a supabaseDocumentoRepository, ya soportado por SupabaseDocumentoRepository.ts sin
+  // cambios (CONFIG_ENTIDAD ya tenía la fila de 'vehiculo').
+  it('inyecta supabaseDocumentoRepository, no mockDocumentoRepository', () => {
+    expect(fuenteVehiculosRoute).toMatch(/from ['"].*SupabaseDocumentoRepository['"]/);
+    expect(fuenteVehiculosRoute).not.toMatch(/mockDocumentoRepository/);
   });
 });
