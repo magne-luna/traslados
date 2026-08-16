@@ -1041,39 +1041,39 @@
 
 ## 9. Documentación de las discrepancias (fuera del código)
 
-- [ ] 9.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias — bloque nuevo **"Vehículos y
+- [x] 9.1 `knowledge-base/04_modelo_de_datos.md` §Discrepancias — bloque nuevo **"Vehículos y
       Conductores vs. esquema real de C-08/C-09"**, siguiendo el formato del bloque "Pacientes vs.
       esquema real de `C-05`". Incluir el **mapa completo de los 4 módulos de permisos** (la tabla de
       §Context del design), que hoy no está documentado en ningún lado.
-- [ ] 9.2 `knowledge-base/04_modelo_de_datos.md` — tachar (`~~…~~` + nota de resolución) lo que este
+- [x] 9.2 `knowledge-base/04_modelo_de_datos.md` — tachar (`~~…~~` + nota de resolución) lo que este
       change cierra: `Vehiculo.notas`, `GastoVehiculo.descripcion`, la categoría de mantenimiento de
       dos niveles sin columnas, y la etiqueta ISO de la asignación semanal.
-- [ ] 9.3 `CHANGES.md` §C-08 — bullet `⚠️ Discrepancia` actualizado; marcar como **resuelto** que
+- [x] 9.3 `CHANGES.md` §C-08 — bullet `⚠️ Discrepancia` actualizado; marcar como **resuelto** que
       `gasto_vehiculo` cuelga del módulo `facturacion` (ya está implementado como
       `facturacion.gastos_vehiculos`, **no falta ninguna tabla**) y sumar lo que este change resolvió
       y lo que dejó abierto.
-- [ ] 9.4 `CHANGES.md` §C-09 — actualizar los 5 pendientes de UI: **#5 cerrado** (semana ISO, D7:
+- [x] 9.4 `CHANGES.md` §C-09 — actualizar los 5 pendientes de UI: **#5 cerrado** (semana ISO, D7:
       conversión pura, el tipo no cambia); **#1 cerrado** (restricciones → `notas`, D6-B: el docx
       gana, el campo estructurado se elimina del dominio y `C-10` pierde el filtro computable);
       **#2 cerrado** (colisión: se bloquea **siempre**, sin override; el constraint
       `uq_conductor_semana` la vuelve imposible a nivel de base y `permitirMultiple` se elimina del
       frontend); **#3** (campos obligatorios del alta) y **#4** (checklist de
       documentos) siguen abiertos y se remiten a §Open Questions del design.
-- [ ] 9.4b `CHANGES.md` §C-08 y `knowledge-base/04_modelo_de_datos.md` — registrar que la
+- [x] 9.4b `CHANGES.md` §C-08 y `knowledge-base/04_modelo_de_datos.md` — registrar que la
       **duplicación VTV/RTO quedó eliminada** (D3-B: las habilitaciones se derivan del historial, no
       hay tabla propia), no diferida. Es el punto 2 del bloque de `vehiculo-mantenimiento-registro`.
-- [ ] 9.4c `knowledge-base/05_reglas_de_negocio.md` (o donde viva RN-GL-03) — anotar que la
+- [x] 9.4c `knowledge-base/05_reglas_de_negocio.md` (o donde viva RN-GL-03) — anotar que la
       restricción de carga física del conductor pasa a ser **texto libre en Observaciones** y por lo
       tanto **no es verificable automáticamente**: `C-10` la muestra para lectura humana, no la
       aplica como filtro. Decisión de la usuaria del 2026-07-31, no una limitación técnica pendiente.
-- [ ] 9.5 `CHANGES.md` §Plan de integración — fila 3 (Conductores + Vehículos) a su nuevo estado.
-- [ ] 9.6 `knowledge-base/10_preguntas_abiertas.md` — **cerrar** las tres preguntas que el checkpoint
+- [x] 9.5 `CHANGES.md` §Plan de integración — fila 3 (Conductores + Vehículos) a su nuevo estado.
+- [x] 9.6 `knowledge-base/10_preguntas_abiertas.md` — **cerrar** las tres preguntas que el checkpoint
       0.1 resolvió (catálogo de restricciones → sin objeto, no hay catálogo; colisión de asignación
       semanal → se bloquea siempre, sin override, con un constraint; cómo se rastrea el vencimiento de VTV/RTO → vía
       `mantenimiento`, con la regla de derivación de D3), anotando la fecha y la resolución en vez de
       borrarlas. Dejar abiertas las que siguen siendo del cliente: **campos obligatorios del alta de
       conductor** (#3 de C-09), **checklist de documentos** (#4), y `conductores.vehiculo.año`.
-- [ ] 9.7 `ROADMAP-FRONTEND.md` §FE-8 — filas `C-08` y `C-09`.
+- [x] 9.7 `ROADMAP-FRONTEND.md` §FE-8 — filas `C-08` y `C-09`.
 
 ## 10. Verificación
 
