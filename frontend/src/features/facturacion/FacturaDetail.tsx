@@ -9,12 +9,13 @@ import type { PresupuestoRepository } from '../../shared/lib/presupuestos/Presup
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
-import { CHECKLIST_DOCUMENTOS_FACTURA } from '../../shared/lib/facturacion/checklistDocumentosFactura';
 import { estadoDerivadoFactura } from '../../shared/lib/facturacion/estadoDerivadoFactura';
+import { useTiposDocumento } from './TiposDocumentoRepositoryContext';
 import { FacturaAccionesEmision } from './FacturaAccionesEmision';
 import { FacturaAvisoDiscrepancias } from './FacturaAvisoDiscrepancias';
 import { FacturaCobrosSection } from './FacturaCobrosSection';
 import { FacturaDocumentos } from './FacturaDocumentos';
+import { TiposDocumentoGestor } from './TiposDocumentoGestor';
 import { FacturaForm, type FacturaFormValues } from './FacturaForm';
 import { useCobros } from './useCobros';
 import { useEmisionFactura } from './useEmisionFactura';
@@ -73,6 +74,18 @@ export function FacturaDetail({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Checklist documental catalog-driven (RF-410, migración 20260816120000): los ítems salen del
+  // catálogo gestionable `facturacion.tipos_documento` (requerido/activa) en vez de la lista
+  // estática `CHECKLIST_DOCUMENTOS_FACTURA` — el checklist se arma desde el catálogo, que la
+  // gestión inline del detalle puede ampliar/ajustar. Mismo mapeo que el seed estático: nombre =
+  // `tipo`, obligatoriedad = `requerido`.
+  const { tiposDocumento } = useTiposDocumento();
+  const itemsChecklistDocumentos = tiposDocumento.map((tipo) => ({
+    id: tipo.id,
+    nombre: tipo.tipo,
+    requerido: tipo.requerido,
+  }));
+
   const { cobros, loading: cobrosLoading, error: cobrosError, registrar, eliminar } = useCobros(cobroRepository, factura?.id ?? '');
 
   const paciente = factura ? pacientes.find((p) => p.id === factura.pacienteId) : undefined;
@@ -84,6 +97,7 @@ export function FacturaDetail({
     obraSocial,
     facturasExistentes,
     autorizacionRepository,
+    presupuestoRepository,
     actualizar,
     onError: setSubmitError,
   });
@@ -214,7 +228,10 @@ export function FacturaDetail({
           </Section>
 
           <Section label="Documentos" title="Documentación adjunta">
-            <FacturaDocumentos facturaId={factura.id} items={CHECKLIST_DOCUMENTOS_FACTURA} repository={documentoRepository} />
+            <FacturaDocumentos facturaId={factura.id} items={itemsChecklistDocumentos} repository={documentoRepository} />
+            <div className="mt-md border-t border-border pt-md">
+              <TiposDocumentoGestor idBase="detalle-factura" />
+            </div>
           </Section>
         </>
       )}

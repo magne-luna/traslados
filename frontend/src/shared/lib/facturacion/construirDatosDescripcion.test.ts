@@ -53,6 +53,7 @@ describe('construirDatosDescripcion', () => {
       cantidadKm: 45,
       total: 13_500,
       valoresManuales: {},
+      prestaciones: [],
     });
   });
 
@@ -73,5 +74,46 @@ describe('construirDatosDescripcion', () => {
     );
 
     expect(resultado.domicilio).toBe('');
+  });
+
+  // WU2 de `facturacion-cambios-ui` (2026-08-16): las prestaciones del bloque "Prestaciones:" de
+  // la modalidad `general` viajan por este mapeo (ya resueltas a nombres por el caller).
+  it('propaga las prestaciones resueltas al dato de la descripción', () => {
+    const resultado = construirDatosDescripcion(
+      {
+        prestacion: '',
+        mesFacturado: 8,
+        anioFacturado: 2026,
+        dias: 20,
+        dependenciaYRetorno: '',
+        valorKm: 300,
+        cantidadKm: 45,
+        monto: 13_500,
+        domicilioId: 'dir-1',
+        prestaciones: ['Kinesiología', 'Fonoaudiología'],
+      },
+      paciente,
+    );
+
+    expect(resultado.prestaciones).toEqual(['Kinesiología', 'Fonoaudiología']);
+  });
+
+  it('sin prestaciones (por-prestacion, legacy): quedan [] — renderDescripcionFactura no agrega bloque', () => {
+    const resultado = construirDatosDescripcion(
+      {
+        prestacion: 'Kinesiología',
+        mesFacturado: 8,
+        anioFacturado: 2026,
+        dias: 20,
+        dependenciaYRetorno: '',
+        valorKm: 300,
+        cantidadKm: 45,
+        monto: 13_500,
+        domicilioId: 'dir-1',
+      },
+      paciente,
+    );
+
+    expect(resultado.prestaciones).toEqual([]);
   });
 });

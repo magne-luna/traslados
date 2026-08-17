@@ -26,6 +26,28 @@ export interface ArchivoAdjunto {
   cargadoEn: string;
 }
 
+/**
+ * Línea de desglose de un presupuesto de modalidad `general` (REAPERTURA #13, decisión explícita
+ * de la usuaria 2026-08-16 — el brief de `facturacion-cambios-ui` WU1 pide persistir el desglose
+ * que antes vivía solo en el estado del formulario; documentado en
+ * `knowledge-base/04_modelo_de_datos.md` §Discrepancias y CHANGES.md con ⚠️). Se persiste en
+ * `facturacion.presupuesto_linea` (migración `20260816110000_presupuesto_lineas.sql`), insertada
+ * en la MISMA transacción que el presupuesto por sus RPC (código de error nuevo 45404 para líneas
+ * malformadas).
+ */
+export interface PresupuestoLinea {
+  /** Id de la fila real de `facturacion.presupuesto_linea`. En el payload de alta el id local
+   * del formulario NO viaja: el mapping lo descarta (ver `presupuestoMapping.ts` 2.7). */
+  id: string;
+  /** Referencia por id a `pacientes.prestaciones`; el nombre se resuelve client-side (idem
+   * `prestacionId`). */
+  prestacionId: string;
+  /** Importe de la línea, NUMERIC(10,2) en la base. */
+  monto: number;
+  /** Posición de la línea dentro del desglose (SMALLINT, default 0). */
+  orden: number;
+}
+
 export interface Presupuesto {
   id: string;
   /** Referencia por id al paciente (FE-3), nunca embebido. */
@@ -43,11 +65,17 @@ export interface Presupuesto {
    * Referencia opcional a `pacientes.prestaciones` (`presupuesto-prestaciones`, design.md D1/D5/D9).
    * Poblado únicamente cuando la obra social del presupuesto tiene `modalidadFacturacion ===
    * 'por-prestacion'` (un presupuesto por prestación, alta vía `createLote`). En modalidad `general`
-   * queda SIEMPRE `undefined` — el desglose por prestación de esa modalidad vive solo en el
-   * formulario (`PresupuestoLineasEditor`, PR 3), nunca en la base. NO reabre la #13: `monto` no
-   * cambia de tipo, nullability ni semántica al agregar este campo.
+   * queda SIEMPRE `undefined` — el desglose por prestación de esa modalidad vive en `lineas`.
    */
   prestacionId?: string;
+  /**
+   * Desglose por prestación de la modalidad `general` (REAPERTURA #13, decisión usuaria
+   * 2026-08-16): persistido en `facturacion.presupuesto_linea` desde la migración
+   * `20260816110000_presupuesto_lineas.sql`. Ausente (`undefined`) en presupuestos de modalidad
+   * `por-prestacion` y en presupuestos viejos creados sin desglose — `lineas: []` explícito solo
+   * se produce cuando la EF así lo devuelve.
+   */
+  lineas?: PresupuestoLinea[];
 }
 
 export interface Autorizacion {

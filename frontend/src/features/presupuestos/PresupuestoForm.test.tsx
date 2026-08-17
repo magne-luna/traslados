@@ -75,6 +75,10 @@ const fonoaudiologiaInactiva: Prestacion = {
 
 // obraSocialId 'osecac' (modalidad "general") — usada por los tests de la rama general.
 const martinaConPrestaciones: Paciente = { ...martina, prestaciones: [kinesiologia, fonoaudiologiaInactiva] };
+// Dos prestaciones ACTIVAS (reapertura #13, 2026-08-16): para ejercitar el envío de varias
+// líneas en modalidad `general` el editor solo ofrece prestaciones activas (spec "El selector de
+// alta no ofrece prestaciones inactivas"), así que fonoaudiología tiene que estar activa.
+const martinaDosPrestaciones: Paciente = { ...martina, prestaciones: [kinesiologia, { ...fonoaudiologiaInactiva, activa: true }] };
 // Fix "la obra social debe derivarse del paciente": ya no se puede "elegir" Swiss Medical desde un
 // select independiente del de OSECAC — para ejercitar la rama `por-prestacion` el paciente en sí
 // tiene que tener esa obra social asignada.
@@ -335,7 +339,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     });
   });
 
-  it('obra social "general" con líneas cargadas: submit usa create() con monto = suma(líneas) y prestacionId ausente', async () => {
+  it('obra social "general" con líneas cargadas: submit usa create() con monto = suma(líneas), prestacionId ausente y las líneas en values.lineas (reapertura #13, se persisten)', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
 
@@ -354,8 +358,41 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
 
     expect(onSubmit).toHaveBeenCalledWith<[PresupuestoFormSubmission]>({
       modo: 'unico',
-      values: expect.objectContaining({ monto: 100, prestacionId: undefined }),
+      values: expect.objectContaining({
+        monto: 100,
+        prestacionId: undefined,
+        lineas: expect.arrayContaining([
+          expect.objectContaining({ prestacionId: 'prestacion-kine', monto: 100, orden: 1 }),
+        ]),
+      }),
     });
+  });
+
+  it('obra social "general" con DOS líneas cargadas: values.lineas conserva el orden de carga (orden 1 y 2)', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
+
+    render(<PresupuestoForm pacientes={[martinaDosPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+
+    await user.selectOptions(screen.getByLabelText(/prestación/i), 'prestacion-kine');
+    await user.type(screen.getByLabelText(/^monto de la línea$/i), '100');
+    await user.click(screen.getByRole('button', { name: /agregar/i }));
+
+    await user.selectOptions(screen.getByLabelText(/prestación/i), 'prestacion-fono');
+    await user.type(screen.getByLabelText(/^monto de la línea$/i), '50');
+    await user.click(screen.getByRole('button', { name: /agregar/i }));
+
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    const submission = onSubmit.mock.calls[0]?.[0];
+    expect(submission?.modo).toBe('unico');
+    const lineas = submission?.modo === 'unico' ? submission.values.lineas : undefined;
+    expect(lineas).toEqual([
+      expect.objectContaining({ prestacionId: 'prestacion-kine', monto: 100, orden: 1 }),
+      expect.objectContaining({ prestacionId: 'prestacion-fono', monto: 50, orden: 2 }),
+    ]);
   });
 
   // 8.4

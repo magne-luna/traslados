@@ -59,6 +59,10 @@ function toPersistedValues(values: PresupuestoFormValues): NuevoPresupuesto {
     fechaEmision: values.fechaEmision,
     archivo: values.archivo,
     prestacionId: values.prestacionId,
+    // REAPERTURA #13 (2026-08-16): el desglose de la rama `general` viaja y se persiste. En
+    // edición (`initial` presente) el formulario nunca produce `lineas` (D9: "la edición no
+    // bifurca" — muestra solo el campo monto simple), así que acá no hay nada que pisar.
+    lineas: values.lineas,
   };
 }
 

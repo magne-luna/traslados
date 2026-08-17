@@ -23,6 +23,13 @@ function nombrePrestacion(paciente: Paciente | undefined, prestacionId: string):
   return paciente?.prestaciones?.find((prestacion) => prestacion.id === prestacionId)?.nombre ?? 'Prestación desconocida';
 }
 
+/** Nombre de una prestación de las `lineas` del desglose (REAPERTURA #13, 2026-08-16): mismo
+ * criterio que `nombrePrestacion` — una línea puede apuntar a una prestación ya borrada del
+ * catálogo (borrado lógico) o huérfana por drift; se muestra el fallback, nunca se rompe. */
+function nombreLineaPresupuesto(paciente: Paciente | undefined, prestacionId: string): string {
+  return nombrePrestacion(paciente, prestacionId);
+}
+
 /** Corrección confirmada por la usuaria (2026-08-15): la modalidad del presupuesto (general vs.
  * por-prestación) no era visible de un vistazo — había que inferirla de la presencia o ausencia
  * del stat "Prestación". Reusa el mismo criterio de resolución que ese stat (`prestacionId` contra
@@ -86,14 +93,35 @@ export function PresupuestoResumen({ presupuesto, paciente, obraSocial, onEdit }
         )}
       </div>
 
-      {/* design.md D5: NO reabre la discrepancia #13 — monto sigue siendo un importe único. Este
-          cartel referencia la entrada nueva de la KB sin editar la #13. */}
+      {/* REAPERTURA #13 (decisión usuaria 2026-08-16): la modalidad `general` ahora SÍ persiste
+          su desglose por prestación (`facturacion.presupuesto_linea`, migración
+          `20260816110000_presupuesto_lineas.sql`). El bloque solo aparece cuando hay líneas
+          persistidas — los presupuestos viejos y los de modalidad por-prestacion no cambian. */}
+      {presupuesto.lineas !== undefined && presupuesto.lineas.length > 0 && (
+        <div className="flex flex-col gap-xs border-y border-border py-md">
+          <span className="font-body text-[11px] font-semibold text-muted">Líneas</span>
+          <ul className="m-0 flex list-none flex-col gap-xs p-0">
+            {presupuesto.lineas.map((linea) => (
+              <li key={linea.id} className="flex flex-wrap items-center justify-between gap-sm font-body text-[13px] text-text">
+                <span>{nombreLineaPresupuesto(paciente, linea.prestacionId)}</span>
+                <span className="font-mono text-muted">${linea.monto.toLocaleString('es-AR')}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* design.md D5 + REAPERTURA #13 (2026-08-16): `prestacion_id` sigue siendo para la
+          modalidad por-prestacion (monto único por prestación, sin desglose). En la modalidad
+          `general` el desglose sí se persiste (bloque "Líneas" arriba), así que este cartel
+          distingue los dos casos — ya no dice que la #13 "no se reabre". */}
       {presupuesto.prestacionId && (
         <AvisoModeloDatos>
           Este presupuesto está vinculado a una prestación puntual del catálogo del paciente
           (obra social con facturación <strong>por prestación</strong>). El campo <strong>monto</strong>{' '}
-          sigue siendo un importe único de este presupuesto — no reabre la discrepancia #13 de la
-          base de conocimiento (`04_modelo_de_datos.md`).
+          es un importe único de este presupuesto — sin desglose persistido. La modalidad{' '}
+          <strong>general</strong>, en cambio, sí guarda su desglose por prestación (reapertura de
+          la discrepancia #13 de la base de conocimiento, `04_modelo_de_datos.md`).
         </AvisoModeloDatos>
       )}
 

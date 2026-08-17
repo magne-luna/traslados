@@ -60,6 +60,14 @@ const obraSocialGeneral: ObraSocial = {
 
 const pacienteGeneral: Paciente = { ...martina, id: 'paciente-general', obraSocialId: 'os-general' };
 
+// WU2 (decisión usuaria 2026-08-16, opción a): el bloque "Prestaciones:" del preview se arma con
+// los nombres de las LÍNEAS del presupuesto de la autorización elegida (REAPERTURA #13) resueltas
+// contra el catálogo del paciente — fixtures compartidas por los tests de descripción.
+const prestacionKinesiologia = { id: 'prest-kine', pacienteId: 'paciente-general', nombre: 'Kinesiología', activa: true };
+const prestacionFonoaudiologia = { id: 'prest-fono', pacienteId: 'paciente-general', nombre: 'Fonoaudiología', activa: true };
+const lineaKinesiologia = { id: 'linea-1', prestacionId: 'prest-kine', monto: 9000, orden: 1 };
+const lineaFonoaudiologia = { id: 'linea-2', prestacionId: 'prest-fono', monto: 4500, orden: 2 };
+
 // Valores de una factura ya cargada (change `facturacion-wizard-paciente-prestador`): dispara el
 // modo edición de `FacturaForm` (`esEdicion = Boolean(initial?.pacienteId)`), que saltea el
 // wizard y muestra los tres pasos juntos.
@@ -226,48 +234,57 @@ describe('FacturaForm', () => {
     expect(screen.getByText(/el paciente es obligatorio/i)).toBeInTheDocument();
   });
 
-  // `tipoComprobante` no se precarga desde ninguna fuente (change `sacar-prestadores`, revierte
-  // `factura-por-prestador`): arranca en el default provisorio (TIPO_COMPROBANTE_DEFAULT = 'A')
-  // sin importar qué paciente se elija, y sigue editable a mano siempre. El campo vive en el
-  // Paso 3 del wizard, no está en el DOM antes de llegar ahí.
-  it('arranca en el default provisorio de tipo de comprobante, sigue editable a mano', async () => {
-    renderForm();
+  // WU2 de `facturacion-cambios-ui` (2026-08-16): el campo "Tipo de comprobante" del Paso 3 ya NO
+  // existe — la factura NUEVA lo precarga automáticamente al guardar desde la obra social cuando
+  // está configurado (RF-306, `sacar-prestadores`), y en edición se respeta el valor ya guardado.
+  it('no existe el campo "Tipo de comprobante"; al guardar una factura nueva se envía el default', async () => {
+    const { onSubmit } = renderForm();
+
+    await avanzarHastaPaso3('paciente-martina');
 
     expect(screen.queryByLabelText(/tipo de comprobante/i)).not.toBeInTheDocument();
 
-    await avanzarHastaPaso3('paciente-martina');
+    await userEvent.type(screen.getByLabelText(/valor del km/i), '300');
+    await userEvent.type(screen.getByLabelText(/cantidad de km/i), '10');
+    await userEvent.clear(screen.getByLabelText(/cantidad de días/i));
+    await userEvent.type(screen.getByLabelText(/cantidad de días/i), '5');
+    await userEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
-    const tipoComprobante = screen.getByLabelText(/tipo de comprobante/i) as HTMLSelectElement;
-    expect(tipoComprobante.value).toBe('A');
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const values = onSubmit.mock.calls[0]?.[0] as Factura;
+    expect(values.tipoComprobante).toBe('A');
+  }, 15_000);
 
-    await userEvent.selectOptions(tipoComprobante, 'B');
-    expect(tipoComprobante.value).toBe('B');
-  });
-
-  // `sacar-prestadores` (RF-306): al elegir un paciente cuya obra social tiene `tipoComprobante`
-  // configurado, el Paso 3 precarga ese valor como default de la factura NUEVA — sigue siendo
-  // editable a mano después, sin bloquear ningún control (a diferencia de obra social/prestación,
-  // que sí quedan de solo lectura).
-  it('con tipoComprobante configurado en la obra social: se precarga como default en el alta, sigue editable', async () => {
-    renderForm({ obrasSociales: [{ ...osecac, tipoComprobante: 'B' }] });
+  it('con tipoComprobante configurado en la obra social: al guardar una factura nueva se precarga ese valor, sin campo visible', async () => {
+    const { onSubmit } = renderForm({ obrasSociales: [{ ...osecac, tipoComprobante: 'B' }] });
 
     await avanzarHastaPaso3('paciente-martina');
 
-    const tipoComprobante = screen.getByLabelText(/tipo de comprobante/i) as HTMLSelectElement;
-    expect(tipoComprobante.value).toBe('B');
+    expect(screen.queryByLabelText(/tipo de comprobante/i)).not.toBeInTheDocument();
 
-    await userEvent.selectOptions(tipoComprobante, 'C');
-    expect(tipoComprobante.value).toBe('C');
-  });
+    await userEvent.type(screen.getByLabelText(/valor del km/i), '300');
+    await userEvent.type(screen.getByLabelText(/cantidad de km/i), '10');
+    await userEvent.clear(screen.getByLabelText(/cantidad de días/i));
+    await userEvent.type(screen.getByLabelText(/cantidad de días/i), '5');
+    await userEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
-  it('en modo edición no se precarga tipoComprobante desde la obra social: se respeta el valor ya guardado', () => {
-    renderForm({
-      obrasSociales: [{ ...osecac, tipoComprobante: 'B' }],
-      initial: valoresIniciales({ tipoComprobante: 'C' }),
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const values = onSubmit.mock.calls[0]?.[0] as Factura;
+    expect(values.tipoComprobante).toBe('B');
+  }, 15_000);
+
+  it('en modo edición se respeta el tipo de comprobante ya guardado (sin campo visible)', async () => {
+    const { onSubmit } = renderForm({
+      initial: valoresIniciales({ tipoComprobante: 'C', monto: 1000, dias: 5, valorKm: 200, cantidadKm: 5 }),
     });
 
-    const tipoComprobante = screen.getByLabelText(/tipo de comprobante/i) as HTMLSelectElement;
-    expect(tipoComprobante.value).toBe('C');
+    expect(screen.queryByLabelText(/tipo de comprobante/i)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /guardar/i }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const values = onSubmit.mock.calls[0]?.[0] as Factura;
+    expect(values.tipoComprobante).toBe('C');
   });
 
   it('el selector de domicilio se puebla con las direcciones del paciente seleccionado', async () => {
@@ -298,8 +315,22 @@ describe('FacturaForm', () => {
     expect(values.autorizacionId).toBe('autorizacion-martina');
   });
 
-  it('muestra la vista previa en vivo de la descripción mientras la factura está en a-facturar', async () => {
+  // WU2 (2026-08-16): el campo "Prestación" del formulario ya no existe — en modalidad
+  // `por-prestacion` la prestación deriva sola desde la autorización elegida (mismo criterio que
+  // `prestacionRealAutorizacion`) y el preview en vivo la muestra igual que antes.
+  it('muestra la vista previa en vivo de la descripción con la prestación derivada, sin campo Prestación', async () => {
+    const pacienteConPrestaciones: Paciente = {
+      ...martina,
+      prestaciones: [{ id: 'prest-kine', pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true }],
+    };
+    const presupuestos = [
+      presupuesto({ id: 'presupuesto-kine', pacienteId: 'paciente-martina', prestacionId: 'prest-kine' }),
+    ];
+    const autorizaciones = new Map([
+      ['presupuesto-kine', autorizacion({ id: 'autorizacion-kine', presupuestoId: 'presupuesto-kine' })],
+    ]);
     renderForm({
+      pacientes: [pacienteConPrestaciones],
       obrasSociales: [
         {
           ...osecac,
@@ -309,14 +340,13 @@ describe('FacturaForm', () => {
           },
         },
       ],
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
+      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
     });
 
     await avanzarHastaPaso3('paciente-martina');
 
-    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
-    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
-    await userEvent.type(campoPrestacion, 'Kinesiología');
-
+    expect(screen.queryByLabelText(/^prestación$/i)).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/prestación: kinesiología/i)).toBeInTheDocument());
   });
 
@@ -329,6 +359,93 @@ describe('FacturaForm', () => {
     await avanzarHastaPaso3('paciente-general');
 
     expect(await screen.findByText(/vista previa de la descripción/i)).toBeInTheDocument();
+  });
+
+  // WU2 (decisión usuaria 2026-08-16, opción a): modalidad `general` → el preview agrega el
+  // bloque "Prestaciones:" con los nombres de las LÍNEAS del presupuesto de la autorización
+  // elegida (REAPERTURA #13), resueltas client-side contra el catálogo del paciente.
+  it('modalidad general: el preview muestra "Prestaciones:" con las líneas del presupuesto de la autorización elegida', async () => {
+    renderForm({
+      pacientes: [{ ...pacienteGeneral, prestaciones: [prestacionKinesiologia, prestacionFonoaudiologia] }],
+      obrasSociales: [osecac, obraSocialGeneral],
+      presupuestoRepository: fakePresupuestoRepository([
+        presupuesto({
+          id: 'presupuesto-general',
+          pacienteId: 'paciente-general',
+          lineas: [lineaKinesiologia, lineaFonoaudiologia],
+        }),
+      ]),
+      autorizacionRepository: fakeAutorizacionRepository(
+        new Map([['presupuesto-general', autorizacion({ id: 'autorizacion-general', presupuestoId: 'presupuesto-general' })]]),
+      ),
+    });
+
+    await avanzarHastaPaso3('paciente-general');
+
+    await waitFor(() =>
+      expect(screen.getByText(/prestaciones: kinesiología, fonoaudiología/i)).toBeInTheDocument(),
+    );
+  }, 15_000);
+
+  it('el bloque "Prestaciones:" es reactivo: cambia al cambiar de autorización en el Paso 2', async () => {
+    renderForm({
+      pacientes: [{ ...pacienteGeneral, prestaciones: [prestacionKinesiologia, prestacionFonoaudiologia] }],
+      obrasSociales: [osecac, obraSocialGeneral],
+      presupuestoRepository: fakePresupuestoRepository([
+        presupuesto({ id: 'presupuesto-general-a', pacienteId: 'paciente-general', lineas: [lineaKinesiologia] }),
+        presupuesto({
+          id: 'presupuesto-general-b',
+          pacienteId: 'paciente-general',
+          lineas: [lineaKinesiologia, lineaFonoaudiologia],
+        }),
+      ]),
+      autorizacionRepository: fakeAutorizacionRepository(
+        new Map([
+          ['presupuesto-general-a', autorizacion({ id: 'autorizacion-general-a', presupuestoId: 'presupuesto-general-a' })],
+          ['presupuesto-general-b', autorizacion({ id: 'autorizacion-general-b', presupuestoId: 'presupuesto-general-b' })],
+        ]),
+      ),
+    });
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-general');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await userEvent.selectOptions(await screen.findByLabelText(/^autorización$/i), 'autorizacion-general-a');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    await waitFor(() => expect(screen.getByText(/prestaciones: kinesiología$/i)).toBeInTheDocument());
+    expect(screen.queryByText(/fonoaudiología/i)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /atrás/i }));
+    await userEvent.selectOptions(screen.getByLabelText(/^autorización$/i), 'autorizacion-general-b');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/prestaciones: kinesiología, fonoaudiología/i)).toBeInTheDocument(),
+    );
+  }, 15_000);
+
+  // Presupuestos anteriores a la REAPERTURA #13: `presupuesto.lineas` no existe (o está vacío) →
+  // el bloque NO se muestra, aunque el paciente tenga catálogo — la factura no adivina.
+  it('autorización cuyo presupuesto es legacy sin líneas: no se muestra el bloque "Prestaciones:"', async () => {
+    renderForm({
+      pacientes: [{ ...pacienteGeneral, prestaciones: [prestacionKinesiologia, prestacionFonoaudiologia] }],
+      obrasSociales: [osecac, obraSocialGeneral],
+    });
+
+    await avanzarHastaPaso3('paciente-general');
+
+    await screen.findByText(/vista previa de la descripción/i);
+    expect(screen.queryByText(/prestaciones:/i)).not.toBeInTheDocument();
+  }, 15_000);
+
+  // WU2 (2026-08-16): la tarjeta "Asistencias / prestaciones declaradas" (AsistenciasEditor) se
+  // elimina del Paso 3 — el tipo `asistencias` sigue en el dominio (mapeos de presentación), la
+  // UI ya no la expone. Modo edición: todo el formulario visible de una, el único lugar donde se
+  // puede verificar que la tarjeta no existe sin atravesar el wizard.
+  it('la tarjeta de asistencias ya no se muestra (modo edición, todo visible)', () => {
+    renderForm({ initial: valoresIniciales() });
+
+    expect(screen.queryByText(/asistencias \/ prestaciones declaradas/i)).not.toBeInTheDocument();
   });
 });
 
@@ -417,22 +534,19 @@ describe('FacturaForm — wizard de alta', () => {
 
     await avanzarHastaPaso3('paciente-martina');
 
-    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
-    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
-    await userEvent.type(campoPrestacion, 'Kinesiología');
+    await userEvent.type(screen.getByLabelText(/valor del km/i), '300');
 
     // Paso 3 → Paso 2 → Paso 1: el paciente elegido sigue seleccionado.
     await userEvent.click(screen.getByRole('button', { name: /atrás/i }));
     await userEvent.click(screen.getByRole('button', { name: /atrás/i }));
     expect(screen.getByLabelText(/^paciente$/i)).toHaveValue('paciente-martina');
 
-    // Vuelve a avanzar hasta el Paso 3: la autorización y la prestación tipeada antes de "Atrás"
-    // siguen ahí — "Siguiente" ya está habilitado sin volver a elegir (D4).
+    // Vuelve a avanzar hasta el Paso 3: la autorización elegida y el valor ya cargado siguen
+    // ahí — "Siguiente" ya está habilitado sin volver a elegir (D4).
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
     expect(screen.getByRole('button', { name: /siguiente/i })).toBeEnabled();
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    const [campoPrestacionFinal] = screen.getAllByLabelText(/^prestación$/i);
-    expect(campoPrestacionFinal).toHaveValue('Kinesiología');
+    expect(screen.getByLabelText(/valor del km/i)).toHaveValue(300);
   });
 
   it('en modo edición (initial con pacienteId) arranca directo en el Paso 3, con todo visible y sin navegación de pasos', () => {
@@ -462,21 +576,21 @@ describe('FacturaForm — wizard de alta', () => {
   });
 });
 
-// Derivar "Prestación" desde la autorización elegida (feature `facturacion-derivar-prestacion`):
-// cuando la autorización tiene una prestación real resuelta (`presupuesto.prestacionId` →
-// `paciente.prestaciones`, modalidad `por-prestacion`), el campo del Paso 3 se prellena solo y
-// queda bloqueado — reusa `prestacionRealAutorizacion` (mismo criterio que ya usa el selector del
-// Paso 2). Cuando no hay una resuelta (modalidad `general`, catálogo desactualizado), el campo
-// sigue siendo texto libre editable, sin ningún cambio de comportamiento.
-describe('FacturaForm — derivar prestación desde la autorización', () => {
+// WU2 de `facturacion-cambios-ui` (decisión usuaria 2026-08-16): el campo "Prestación" del Paso 3
+// desaparece del formulario. La prestación se deriva desde la autorización elegida solo a nivel de
+// datos (change `facturacion-derivar-prestacion`, mismo criterio que `prestacionRealAutorizacion`):
+// modalidad `por-prestacion` → `values.prestacion` se prellena y el preview la muestra como
+// "Prestación: …"; modalidad `general` → el preview muestra el bloque "Prestaciones:" con las
+// líneas del presupuesto de la autorización (WU2, opción a).
+describe('FacturaForm — prestación de la descripción sin campo visible (WU2)', () => {
   const pacienteConPrestaciones: Paciente = {
     ...martina,
-    prestaciones: [{ id: 'prestacion-kine', pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true }],
+    prestaciones: [{ id: 'prest-kine', pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true }],
   };
 
   function repositoriosConPrestacion() {
     const presupuestos = [
-      presupuesto({ id: 'presupuesto-kine', pacienteId: 'paciente-martina', prestacionId: 'prestacion-kine' }),
+      presupuesto({ id: 'presupuesto-kine', pacienteId: 'paciente-martina', prestacionId: 'prest-kine' }),
     ];
     const autorizaciones = new Map([
       ['presupuesto-kine', autorizacion({ id: 'autorizacion-kine', presupuestoId: 'presupuesto-kine' })],
@@ -487,84 +601,72 @@ describe('FacturaForm — derivar prestación desde la autorización', () => {
     };
   }
 
-  it('autorización con prestación real: el campo se prellena solo y queda bloqueado', async () => {
-    const { presupuestoRepository, autorizacionRepository } = repositoriosConPrestacion();
-    renderForm({ pacientes: [pacienteConPrestaciones], presupuestoRepository, autorizacionRepository });
-
-    await avanzarHastaPaso3('paciente-martina');
-
-    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
-    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
-    await waitFor(() => expect(campoPrestacion).toHaveValue('Kinesiología'));
-    expect(campoPrestacion).toHaveAttribute('readonly');
-  });
-
-  it('autorización sin prestación real (modalidad general): el campo sigue vacío y editable', async () => {
-    renderForm();
-
-    await avanzarHastaPaso3('paciente-martina');
-
-    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
-    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
-    expect(campoPrestacion).toHaveValue('');
-    expect(campoPrestacion).not.toHaveAttribute('readonly');
-
-    await userEvent.type(campoPrestacion, 'Kinesiología a mano');
-    expect(campoPrestacion).toHaveValue('Kinesiología a mano');
-  });
-
-  it('cambiar de autorización vuelve a derivar el valor (no queda pegado al anterior)', async () => {
-    const fonoaudiologia = { id: 'prestacion-fono', pacienteId: 'paciente-martina', nombre: 'Fonoaudiología', activa: true };
-    const pacienteConDosPrestaciones: Paciente = {
-      ...martina,
-      prestaciones: [pacienteConPrestaciones.prestaciones![0]!, fonoaudiologia],
+  function osecacConPlantillaPrestacion(): ObraSocial {
+    return {
+      ...osecac,
+      plantillaFactura: {
+        identificadorOrigen: 'paciente.numeroAfiliado',
+        campos: [{ id: 'c-1', etiqueta: 'Prestación', origen: 'traslado.prestacion', orden: 0 }],
+      },
     };
-    const presupuestos = [
-      presupuesto({ id: 'presupuesto-kine', pacienteId: 'paciente-martina', prestacionId: 'prestacion-kine' }),
-      presupuesto({ id: 'presupuesto-fono', pacienteId: 'paciente-martina', prestacionId: 'prestacion-fono' }),
-    ];
-    const autorizaciones = new Map([
-      ['presupuesto-kine', autorizacion({ id: 'autorizacion-kine', presupuestoId: 'presupuesto-kine' })],
-      ['presupuesto-fono', autorizacion({ id: 'autorizacion-fono', presupuestoId: 'presupuesto-fono' })],
-    ]);
-    renderForm({
-      pacientes: [pacienteConDosPrestaciones],
-      presupuestoRepository: fakePresupuestoRepository(presupuestos),
-      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+  }
+
+  it('por-prestacion con prestación real: no hay campo; la derivada se muestra en el preview y viaja en el submit', async () => {
+    const { presupuestoRepository, autorizacionRepository } = repositoriosConPrestacion();
+    const { onSubmit } = renderForm({
+      pacientes: [pacienteConPrestaciones],
+      obrasSociales: [osecacConPlantillaPrestacion()],
+      presupuestoRepository,
+      autorizacionRepository,
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await avanzarHastaPaso3('paciente-martina');
 
-    const selectAutorizacion = await screen.findByLabelText(/^autorización$/i);
-    await userEvent.selectOptions(selectAutorizacion, 'autorizacion-kine');
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    expect(screen.queryByLabelText(/^prestación$/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/prestación: kinesiología/i)).toBeInTheDocument());
 
-    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
-    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
-    await waitFor(() => expect(campoPrestacion).toHaveValue('Kinesiología'));
+    await userEvent.type(screen.getByLabelText(/valor del km/i), '300');
+    await userEvent.type(screen.getByLabelText(/cantidad de km/i), '10');
+    await userEvent.clear(screen.getByLabelText(/cantidad de días/i));
+    await userEvent.type(screen.getByLabelText(/cantidad de días/i), '5');
+    await userEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
-    await userEvent.click(screen.getByRole('button', { name: /atrás/i }));
-    await userEvent.selectOptions(screen.getByLabelText(/^autorización$/i), 'autorizacion-fono');
-    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const values = onSubmit.mock.calls[0]?.[0] as Factura;
+    expect(values.prestacion).toBe('Kinesiología');
+  }, 15_000);
 
-    const [campoPrestacionFinal] = screen.getAllByLabelText(/^prestación$/i);
-    await waitFor(() => expect(campoPrestacionFinal).toHaveValue('Fonoaudiología'));
-  });
+  it('sin prestación real derivable (catálogo desactualizado): preview sin bloque "Prestaciones:"', async () => {
+    renderForm({
+      obrasSociales: [
+        {
+          ...osecac,
+          plantillaFactura: {
+            identificadorOrigen: 'paciente.numeroAfiliado',
+            campos: [{ id: 'c-per', etiqueta: 'Período', origen: 'traslado.mesYAnio', orden: 0 }],
+          },
+        },
+      ],
+    });
 
-  it('edición de una factura ya guardada con prestación derivada mantiene el bloqueo', async () => {
+    await avanzarHastaPaso3('paciente-martina');
+
+    await screen.findByText(/vista previa de la descripción/i);
+    expect(screen.queryByText(/prestaciones:/i)).not.toBeInTheDocument();
+  }, 15_000);
+
+  it('edición de una factura ya guardada: la descripción respeta la prestación persistida sin campo editable', async () => {
     const { presupuestoRepository, autorizacionRepository } = repositoriosConPrestacion();
     renderForm({
       pacientes: [pacienteConPrestaciones],
+      obrasSociales: [osecacConPlantillaPrestacion()],
       presupuestoRepository,
       autorizacionRepository,
       initial: valoresIniciales({ autorizacionId: 'autorizacion-kine', prestacion: 'Kinesiología' }),
     });
 
-    const [campoPrestacion] = screen.getAllByLabelText(/^prestación$/i);
-    if (!campoPrestacion) throw new Error('Debería existir el campo Prestación del formulario principal');
-    await waitFor(() => expect(campoPrestacion).toHaveValue('Kinesiología'));
-    expect(campoPrestacion).toHaveAttribute('readonly');
+    expect(screen.queryByLabelText(/^prestación$/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/prestación: kinesiología/i)).toBeInTheDocument());
   });
 });
 
@@ -585,9 +687,8 @@ describe('FacturaForm — gateo de escritura', () => {
     // Paso 3 — FacturaFormDatosBasicos
     expect(screen.getByLabelText(/^mes$/i)).toBeDisabled();
     expect(screen.getByLabelText(/^año$/i)).toBeDisabled();
-    // "Prestación" también existe como campo de alta dentro de AsistenciasEditor (gateo propio,
-    // sección 5) — se toma el primero, que es el del bloque FacturaFormDatosBasicos.
-    expect(screen.getAllByLabelText(/^prestación$/i)[0]).toBeDisabled();
+    // WU2 (2026-08-16): el campo "Prestación" del Paso 3 ya no existe — no hay campo que gatear.
+    expect(screen.queryByLabelText(/^prestación$/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/^domicilio$/i, { selector: 'select' })).toBeDisabled();
     expect(screen.getByLabelText(/dependencia y retorno/i)).toBeDisabled();
     // Paso 3 — FacturaFormEconomicos
@@ -595,7 +696,8 @@ describe('FacturaForm — gateo de escritura', () => {
     expect(screen.getByLabelText(/cantidad de km/i)).toBeDisabled();
     expect(screen.getByLabelText(/cantidad de días/i)).toBeDisabled();
     expect(screen.getByLabelText(/^total$/i)).toBeDisabled();
-    expect(screen.getByLabelText(/tipo de comprobante/i)).toBeDisabled();
+    // WU2 (2026-08-16): el campo "Tipo de comprobante" ya no existe — no hay campo que gatear.
+    expect(screen.queryByLabelText(/tipo de comprobante/i)).not.toBeInTheDocument();
 
     const guardar = screen.getByRole('button', { name: /guardar/i });
     expect(guardar).toBeDisabled();

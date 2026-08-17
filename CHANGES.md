@@ -883,6 +883,19 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `general`: líneas de prestación + monto sumadas en frontend, sin persistir el desglose). La
   relación Autorización↔Presupuesto sigue 1:1 sin cambios. Detalle completo en
   `openspec/changes/presupuesto-prestaciones/design.md`.
+- **⚠️ Discrepancia con Traslados-Modelo-Datos.docx — REAPERTURA #13 (`facturacion-cambios-ui`
+  WU1, decisión usuaria 2026-08-16)**: la modalidad `general` **sí persiste ahora su desglose por
+  prestación** en la tabla nueva `facturacion.presupuesto_linea` (migración
+  `20260816110000_presupuesto_lineas.sql`, FK N:1 a `presupuesto` ON DELETE CASCADE y a
+  `pacientes.prestaciones` ON DELETE RESTRICT, RLS espejo de "Read/Write presupuesto",
+  `trg_audit_presupuesto_linea`, alta vía `p_lineas` en `crear_presupuesto_completo` y `lineas`
+  opcionales por ítem del lote, códigos 45401-45403 intactos + 45404 nuevo). El bullet anterior
+  ("la decisión de `monto` único no se reabre") queda parcialmente superado: `monto` sigue siendo
+  un importe único (en `general`, la suma del desglose), pero el desglose ya no se descarta. La
+  entrada de la KB sobre `presupuesto.prestacion_id` y la #13 de §Discrepancias se actualizan en
+  `knowledge-base/04_modelo_de_datos.md`; `AvisoModeloDatos` de `PresupuestoResumen.tsx`
+  actualizado en el mismo WU. **Pendiente de confirmar con la usuaria** al aplicar la migración
+  (`supabase db push`).
 
 ### [C-10] `hojas-de-ruta-recorridos`
 - **Estado**: `[x]` completado (FE-5 frontend-only, 2026-07-25)

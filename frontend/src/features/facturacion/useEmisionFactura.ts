@@ -4,10 +4,12 @@ import type { CupoAutorizado } from '../../shared/types/presupuesto';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import { derivarCupoAutorizado } from '../../shared/lib/presupuestos/cupoAutorizado';
 import { construirDatosDescripcion } from '../../shared/lib/facturacion/construirDatosDescripcion';
 import { cupoConsumido } from '../../shared/lib/facturacion/cupoConsumido';
 import { calcularFechaEstimadaCobro } from '../../shared/lib/facturacion/calcularFechaEstimadaCobro';
+import { prestacionesDePresupuesto } from '../../shared/lib/facturacion/prestacionesDescripcion';
 import { renderDescripcionFactura } from '../../shared/lib/facturacion/renderDescripcionFactura';
 import { resolverIdentificadorFactura } from '../../shared/lib/facturacion/resolverIdentificadorFactura';
 import { validarCupoFacturacion, type ValidarCupoFacturacionResultado } from '../../shared/lib/facturacion/validarCupoFacturacion';
@@ -18,6 +20,9 @@ interface UseEmisionFacturaArgs {
   obraSocial: ObraSocial | undefined;
   facturasExistentes: Factura[];
   autorizacionRepository: AutorizacionRepository;
+  /** WU2 (2026-08-16): el bloque "Prestaciones:" de la descripción congelada al emitir se arma de
+   * las líneas del presupuesto de la autorización elegida (decisión usuaria, opción a del brief). */
+  presupuestoRepository: PresupuestoRepository;
   actualizar: (id: string, data: ActualizacionFactura) => Promise<Factura>;
   onError: (mensaje: string) => void;
 }
@@ -38,6 +43,7 @@ export function useEmisionFactura({
   obraSocial,
   facturasExistentes,
   autorizacionRepository,
+  presupuestoRepository,
   actualizar,
   onError,
 }: UseEmisionFacturaArgs) {
@@ -61,6 +67,20 @@ export function useEmisionFactura({
     [autorizacionRepository],
   );
 
+  // WU2 (2026-08-16, opción a del brief): resuelve los nombres del bloque "Prestaciones:" desde
+  // las LÍNEAS del presupuesto de la autorización ELEGIDA (`autorizacionId` → `getById` →
+  // `presupuestoId` → `getById` → `prestacionesDePresupuesto` contra el catálogo del paciente).
+  // Sin autorización (legacy, `autorizacion_id NULL`), autorización sin presupuesto resuelto o
+  // presupuesto legacy sin líneas (REAPERTURA #13): `[]` — el bloque no se agrega, no se adivina.
+  // `paciente` entra ya angostado por el guard de `emitirFactura`.
+  async function resolverPrestacionesDescripcion(pacienteResuelto: Paciente): Promise<string[]> {
+    if (!factura?.autorizacionId) return [];
+    const autorizacion = await autorizacionRepository.getById(factura.autorizacionId);
+    if (!autorizacion) return [];
+    const presupuesto = await presupuestoRepository.getById(autorizacion.presupuestoId);
+    return prestacionesDePresupuesto(presupuesto ?? undefined, pacienteResuelto);
+  }
+
   async function emitirFactura() {
     if (!factura || !paciente) return;
     try {
@@ -77,7 +97,13 @@ export function useEmisionFactura({
         plazoObraSocial: obraSocial?.plazoCobroDias,
       });
       const descripcion = obraSocial
-        ? renderDescripcionFactura(obraSocial.plantillaFactura, construirDatosDescripcion(factura, paciente))
+        ? renderDescripcionFactura(
+            obraSocial.plantillaFactura,
+            construirDatosDescripcion(
+              { ...factura, prestaciones: await resolverPrestacionesDescripcion(paciente) },
+              paciente,
+            ),
+          )
         : factura.descripcion;
       await actualizar(factura.id, { estado: 'facturado', fechaFactura, fechaEstimadaCobro, identificadorFactura, descripcion });
     } catch (err) {
