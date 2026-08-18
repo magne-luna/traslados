@@ -263,6 +263,47 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   deuda técnica antes de confiar en la RLS de `requisitos_actividad` en producción con usuarios
   reales de permisos mixtos. Detalle en
   `openspec/changes/archive/2026-08-11-documentos-checklist-items-por-actividad/`.
+- **Refinamiento posterior (`integracion-documentos-autorizaciones`, propose+apply 2026-08-18)**: ✅
+  **implementado y verificado en verde**; pendiente solo 5.2 (verificación manual con 2 cuentas
+  reales read/write, `tasks.md`) antes de archivar. Cierra el último pendiente declarado de carga de
+  archivos: el adjunto de la autorización (`AutorizacionForm.tsx:97-102`) vivía solo en el estado de
+  React y nunca viajaba al servidor — reportado por la clienta como "no funciona la carga de
+  archivos" en Autorizaciones, pero **no era un bug**: estaba escrito como requisito en
+  `openspec/specs/autorizacion-repository-supabase/spec.md` (*"MUST NOT enviar un `archivoUrl` para
+  un archivo recién elegido"*) y anunciado en pantalla vía `AvisoModeloDatos`. Replica el patrón de
+  este change (`C-03`) y de `integracion-documentos`: bucket privado nuevo
+  **`documentos-autorizaciones`** (`public = false`, el **quinto**) + 4 policies de `storage.objects`
+  gateadas por `modulos.tiene_permiso('presupuestos', …)` — módulo existente desde
+  `20260730140000_split_modulos_permisos.sql`, el mismo que ya gatea `facturacion.autorizacion`, no
+  se creó uno nuevo (5 buckets confirmados `public=false` en producción, `pkryfoljypuzfifofdwp`,
+  2026-08-18). **Sin tabla `documento_autorizacion` y sin `DocumentChecklist`**: a diferencia de
+  Pacientes/Vehículos/Conductores/Facturas, el docx modela **un solo "Archivo"** por autorización.
+  **Hallazgo que corrigió un supuesto del proposal** (`design.md`, "Hallazgo bloqueante"): las
+  columnas `archivo_nombre`/`archivo_cargado_en` **no** estaban aplicadas —
+  `20260730120000_revert_presupuesto_archivo_meta.sql` las había dropeado a propósito de
+  `facturacion.presupuesto` **y** `facturacion.autorizacion` el mismo día que se crearon. Este change
+  **reabre esa decisión solo para `facturacion.autorizacion`** (D4 de `design.md`; `presupuesto`
+  queda sin tocar, es alcance de un change hermano futuro) con una migración nueva
+  (`20260818090000_add_autorizacion_archivo_meta.sql`), no la revertida. La Edge Function
+  `autorizaciones` se extendió (`toApi`/`toDb`) para leer/escribir `archivoNombre`/`archivoCargadoEn`
+  junto con `archivoUrl` (deploy confirmado en producción 2026-08-18). Repository
+  (`SupabaseAutorizacionRepository.uploadArchivo`/`removeArchivo`, orden compensado UPLOAD→PATCH→
+  DELETE viejo, D3/D5) y frontend (`AutorizacionForm.tsx` sube directo al elegir el archivo, retiró
+  el `AvisoModeloDatos` de "todavía no se guarda en el servidor") implementados con TDD estricto,
+  suite completa en verde (Node 24.14.0 — bug de entorno Node 26+jsdom documentado y evitado, no
+  corregido, fuera de alcance). **Fuera de alcance**: la descarga/previsualización firmada del
+  adjunto, que sigue dependiendo de `documentos-descarga-firmada` (todavía sin proponer, ver bullet
+  arriba) — checkpoint abierto con la usuaria; hoy se muestra nombre + fecha reales, no se abre el
+  archivo. Sin conflicto de archivos con los changes en curso: `presupuesto-prestaciones` declaró
+  "Sin impacto" sobre `AutorizacionForm.tsx`/`autorizacionMapping.ts`/`facturacion.autorizacion`
+  (solape indirecto: su D2 migra Edge Function → RPC, coordinar el orden de apply si se extiende a
+  `autorizaciones`), y `facturacion-seleccion-autorizacion` solo **lee** autorizaciones. Governance
+  **ALTO** — tocó RLS y acceso a documentación de obra social; confirmación humana explícita recibida
+  sobre bucket privado (G1) y gateo por `presupuestos` (G2) antes de escribir/aplicar el SQL (G3,
+  alcance de la descarga, queda declarado fuera de alcance arriba). Discrepancia `archivo_url` guarda
+  la **clave del objeto en el bucket, no una URL absoluta** — mismo criterio que los otros dominios
+  documentales — documentada en `knowledge-base/04_modelo_de_datos.md` §Discrepancias. Detalle en
+  `openspec/changes/integracion-documentos-autorizaciones/`.
 
 ### [C-04] `obras-sociales-prestadores`
 - **Estado**: ✅ `integracion-obra-social` — 69/70 tasks. Migraciones confirmadas aplicadas y

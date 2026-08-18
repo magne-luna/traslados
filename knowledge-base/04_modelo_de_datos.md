@@ -751,9 +751,27 @@ así que queda anotado acá hasta que se construya esa feature.
      lectura previa) más `AvisoModeloDatos` en `PresupuestoForm.tsx` diciendo que el archivo no se
      guarda. La subida real a Storage queda como change propio futuro
      (`presupuestos-documentacion-storage`).
-  2. **`Autorizacion.archivo: ArchivoAdjunto` — ABIERTA (parcialmente resuelta)**: mismo caso que #1,
-     sobre `autorizacion.archivo_url`. Mismo mapeo no destructivo, mismo `AvisoModeloDatos` en
-     `AutorizacionForm.tsx`.
+  2. **`Autorizacion.archivo: ArchivoAdjunto` — RESUELTA (`integracion-documentos-autorizaciones`,
+     propose+apply 2026-08-18)**: a diferencia de #1 (Presupuesto, que sigue ABIERTA), acá el archivo
+     **sí** viaja al servidor ahora. Bucket privado nuevo `documentos-autorizaciones` (quinto bucket,
+     `public = false`, gateado por `presupuestos`) + columnas `archivo_nombre`/`archivo_cargado_en`
+     reabiertas **solo** en `facturacion.autorizacion` vía
+     `20260818090000_add_autorizacion_archivo_meta.sql` — corrige un supuesto erróneo del proposal:
+     esas columnas no estaban aplicadas, `20260730120000_revert_presupuesto_archivo_meta.sql` las
+     había dropeado a propósito de `facturacion.presupuesto` **y** `facturacion.autorizacion` el
+     mismo día que se crearon; `facturacion.presupuesto` sigue sin reabrirse (queda en #1, change
+     hermano futuro). La Edge Function `autorizaciones` (`toApi`/`toDb`) y el repository
+     (`SupabaseAutorizacionRepository.uploadArchivo`/`removeArchivo`, orden compensado UPLOAD→PATCH→
+     DELETE viejo) ya escriben las tres columnas juntas; el `AvisoModeloDatos` de "todavía no se
+     guarda en el servidor" se retiró de `AutorizacionForm.tsx`. **Discrepancia nueva, menor, sin
+     resolver (mismo criterio que "Documentos vs. esquema real de `C-03`" más abajo)**:
+     `autorizacion.archivo_url` **no guarda una URL** — el bucket es privado (una URL pública no
+     existiría y una firmada expira), así que la columna guarda la **clave del objeto dentro del
+     bucket**, documentado con `COMMENT ON COLUMN` en la misma migración. La
+     descarga/previsualización del adjunto queda fuera de alcance de este change, depende de
+     `documentos-descarga-firmada` (todavía sin proponer, ver `CHANGES.md` §C-03). Detalle completo
+     en `openspec/changes/integracion-documentos-autorizaciones/design.md` ("Hallazgo bloqueante",
+     D4, D5).
   3. **`Presupuesto.monto: number` vs. `numeric NULL` — RESUELTA**: fila con `monto` nulo o no
      numérico se descarta del listado (no se inventa `0`, que se leería como "presupuesto de cero
      pesos").
