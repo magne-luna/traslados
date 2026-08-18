@@ -8,8 +8,13 @@
 // Soporta `?presupuestoId=` (ver AutorizacionRepository.getByPresupuestoId, relacion 1---1 con
 // Presupuesto) ademas del `:id` de path -- si vienen los dos, `:id` tiene prioridad.
 //
-// `archivoUrl` expone directamente la columna existente (sin nombre/fecha de carga aparte -- el
-// nombre ya viaja en la URL y la fecha ya es fecha_respuesta).
+// `archivoUrl`/`archivoNombre`/`archivoCargadoEn` exponen las columnas
+// `archivo_url`/`archivo_nombre`/`archivo_cargado_en` de facturacion.autorizacion, reabiertas por
+// 20260818090000_add_autorizacion_archivo_meta.sql (integracion-documentos-autorizaciones, D4):
+// `archivo_url` guarda la CLAVE del objeto en el bucket `documentos-autorizaciones` (no una URL
+// firmada), y nombre/fecha de carga son datos reales, no derivados de la clave ni de
+// `fecha_respuesta`. Las tres viajan juntas en el mismo PATCH; para quitar el archivo el cliente
+// envia las tres en `null` (ver design.md de ese change).
 
 import { requirePermiso, isAuthorized, jsonResponse, CORS_HEADERS, extractIdFromPath } from '../_shared/auth.ts';
 
@@ -31,6 +36,8 @@ interface AutorizacionRow {
   cupo_mensual_dias: number | null;
   cupo_mensual_km: number | null;
   archivo_url: string | null;
+  archivo_nombre: string | null;
+  archivo_cargado_en: string | null;
 }
 
 interface AutorizacionInput {
@@ -41,7 +48,11 @@ interface AutorizacionInput {
   vigenciaDesde?: string;
   cupoMensualDias?: number;
   cupoMensualKm?: number;
-  archivoUrl?: string;
+  // nullable: el flujo de "quitar archivo" (ver design.md, D5) envia los tres campos en null
+  // en el mismo PATCH para limpiar la referencia.
+  archivoUrl?: string | null;
+  archivoNombre?: string | null;
+  archivoCargadoEn?: string | null;
 }
 
 function toApi(row: AutorizacionRow) {
@@ -55,6 +66,8 @@ function toApi(row: AutorizacionRow) {
     cupoMensualDias: row.cupo_mensual_dias ?? undefined,
     cupoMensualKm: row.cupo_mensual_km ?? undefined,
     archivoUrl: row.archivo_url ?? undefined,
+    archivoNombre: row.archivo_nombre ?? undefined,
+    archivoCargadoEn: row.archivo_cargado_en ?? undefined,
   };
 }
 
@@ -68,6 +81,8 @@ function toDb(input: AutorizacionInput): Record<string, unknown> {
   if (input.cupoMensualDias !== undefined) row.cupo_mensual_dias = input.cupoMensualDias;
   if (input.cupoMensualKm !== undefined) row.cupo_mensual_km = input.cupoMensualKm;
   if (input.archivoUrl !== undefined) row.archivo_url = input.archivoUrl;
+  if (input.archivoNombre !== undefined) row.archivo_nombre = input.archivoNombre;
+  if (input.archivoCargadoEn !== undefined) row.archivo_cargado_en = input.archivoCargadoEn;
   return row;
 }
 
