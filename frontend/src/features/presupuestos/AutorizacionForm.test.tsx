@@ -1,16 +1,37 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
+import type { Autorizacion } from '../../shared/types/presupuesto';
+import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import { AutorizacionForm, type AutorizacionFormValues } from './AutorizacionForm';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
 
+// integracion-documentos-autorizaciones (tasks.md 4.1/4.2): repository fake compartido por defecto
+// para los tests que no ejercitan el flujo de archivo — nunca debería invocarse en esos casos.
+function buildFakeArchivoRepository(
+  overrides: Partial<Pick<AutorizacionRepository, 'uploadArchivo' | 'removeArchivo'>> = {},
+): Pick<AutorizacionRepository, 'uploadArchivo' | 'removeArchivo'> {
+  return {
+    uploadArchivo: vi.fn().mockRejectedValue(new Error('uploadArchivo no debería llamarse en este test')),
+    removeArchivo: vi.fn().mockRejectedValue(new Error('removeArchivo no debería llamarse en este test')),
+    ...overrides,
+  };
+}
+
 describe('AutorizacionForm', () => {
   it('el selector de estado ofrece exactamente los 4 valores de EstadoAutorizacion', () => {
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
 
     const select = screen.getByLabelText(/^estado$/i);
     const opciones = Array.from(select.querySelectorAll('option')).map((o) => o.getAttribute('value'));
@@ -22,7 +43,14 @@ describe('AutorizacionForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
 
     await user.type(screen.getByLabelText(/monto autorizado/i), '150000');
     await user.click(screen.getByRole('button', { name: /guardar/i }));
@@ -35,7 +63,14 @@ describe('AutorizacionForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
 
     await user.type(screen.getByLabelText(/monto autorizado/i), '100000');
     await user.click(screen.getByRole('button', { name: /guardar/i }));
@@ -49,7 +84,14 @@ describe('AutorizacionForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
 
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
@@ -60,7 +102,14 @@ describe('AutorizacionForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
 
     await user.type(screen.getByLabelText(/fecha de respuesta/i), '2026-04-01');
     await user.type(screen.getByLabelText(/vigencia desde/i), '2026-01-01');
@@ -71,17 +120,24 @@ describe('AutorizacionForm', () => {
     );
   });
 
-  // tasks.md 5.2, design.md D5/D13#1: mismo cartel que PresupuestoForm — el archivo elegido
-  // todavía no se guarda en el servidor. Migrado del bloque hand-rolled preexistente (que
-  // consolidaba 3 discrepancias en un <div role="note"> propio) a AvisoModeloDatos, por la regla
-  // dura de la sección 5 ("nunca markup de alerta propio").
-  it('muestra un cartel agrupado avisando que el archivo elegido todavía no se guarda en el servidor (D5)', () => {
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+  // integracion-documentos-autorizaciones (tasks.md 4.3, design.md D3, spec autorizacion-gestion
+  // Scenario "El archivo adjunto se guarda en el servidor"): el cartel de "un solo archivo" (D13#1,
+  // discrepancia real con el patrón multi-doc que asumía CHANGES.md) se conserva, pero la parte de
+  // "todavía no se guarda en el servidor" se retira — ya no es cierto, el archivo se sube de verdad.
+  it('el cartel de archivo único ya NO avisa que el archivo todavía no se guarda en el servidor', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
 
     const notas = screen.getAllByRole('note');
-    const cartel = notas.find((n) => /todavía no se guarda en el servidor/i.test(n.textContent ?? ''));
-    if (!cartel) throw new Error('No se encontró el cartel del archivo adjunto (tasks.md 5.2)');
-    expect(cartel).toHaveTextContent(/un solo archivo/i);
+    const cartel = notas.find((n) => /un solo archivo/i.test(n.textContent ?? ''));
+    if (!cartel) throw new Error('No se encontró el cartel de archivo único (tasks.md 4.3)');
+    expect(cartel).not.toHaveTextContent(/todavía no se guarda en el servidor/i);
   });
 
   // tasks.md 5.3, design.md D13#6: el cartel preexistente decía "pendiente de confirmar con
@@ -89,7 +145,14 @@ describe('AutorizacionForm', () => {
   // `C-06`. Se actualiza el texto (se retira "pendiente de confirmar") pero se conserva la parte
   // vigente: el docx no modela estos campos.
   it('muestra un cartel actualizado de montoAutorizado/vigenciaDesde que ya NO dice "pendiente de confirmar" (D13#6)', () => {
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
 
     const notas = screen.getAllByRole('note');
     const cartel = notas.find((n) => /monto autorizado/i.test(n.textContent ?? '') && /vigencia/i.test(n.textContent ?? ''));
@@ -104,7 +167,14 @@ describe('AutorizacionForm', () => {
   // AvisoModeloDatos no duplicó ni perdió ningún cartel — quedan exactamente 2 (archivo;
   // montoAutorizado+vigenciaDesde agrupados), no 3 como en el bloque viejo campo-por-campo.
   it('muestra exactamente 2 carteles de discrepancia (archivo, y montoAutorizado+vigenciaDesde agrupados)', () => {
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
 
     expect(screen.getAllByRole('note')).toHaveLength(2);
   });
@@ -116,6 +186,7 @@ describe('AutorizacionForm', () => {
       <AutorizacionForm
         montoPresupuesto={100_000}
         initial={{ estado: 'autorizada', montoAutorizado: 90_000, vigenciaDesde: '2026-01-01' }}
+        repository={buildFakeArchivoRepository()}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -129,7 +200,14 @@ describe('AutorizacionForm', () => {
   });
 
   it('el input de archivo es de un único archivo, no un checklist', () => {
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
 
     const input = screen.getByLabelText(/^archivo$/i) as HTMLInputElement;
     expect(input.type).toBe('file');
@@ -140,7 +218,14 @@ describe('AutorizacionForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
 
     await user.type(screen.getByLabelText(/cupo mensual de días/i), '20');
     await user.type(screen.getByLabelText(/cupo mensual de.*km/i), '600');
@@ -163,6 +248,7 @@ describe('AutorizacionForm', () => {
           fechaRespuesta: '2026-04-01',
           vigenciaDesde: '2026-01-01',
         }}
+        repository={buildFakeArchivoRepository()}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
       />,
@@ -177,7 +263,14 @@ describe('AutorizacionForm', () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
 
-    render(<AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={onCancel} />);
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={onCancel}
+      />,
+    );
 
     await user.click(screen.getByRole('button', { name: /cancelar/i }));
     expect(onCancel).toHaveBeenCalledTimes(1);
@@ -192,7 +285,15 @@ describe('AutorizacionForm — gateo de escritura', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    renderConPermiso(false, <AutorizacionForm montoPresupuesto={100_000} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderConPermiso(
+      false,
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
 
     expect(screen.getByLabelText(/^estado$/i)).toBeDisabled();
     expect(screen.getByLabelText(/monto autorizado/i)).toBeDisabled();
@@ -216,6 +317,7 @@ describe('AutorizacionForm — gateo de escritura', () => {
       <AutorizacionForm
         montoPresupuesto={100_000}
         initial={{ estado: 'autorizada', montoAutorizado: 90_000 }}
+        repository={buildFakeArchivoRepository()}
         onSubmit={onSubmit}
         onCancel={vi.fn()}
       />,
@@ -233,11 +335,220 @@ describe('AutorizacionForm — gateo de escritura', () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
 
-    renderConPermiso(false, <AutorizacionForm montoPresupuesto={100_000} onSubmit={vi.fn()} onCancel={onCancel} />);
+    renderConPermiso(
+      false,
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={onCancel}
+      />,
+    );
 
     const cancelar = screen.getByRole('button', { name: /cancelar/i });
     expect(cancelar).toBeEnabled();
     await user.click(cancelar);
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+// integracion-documentos-autorizaciones (tasks.md 4.1/4.2, design.md D3/D5, spec
+// autorizacion-archivo-storage): el archivo sube DIRECTO al elegirlo — vía
+// repository.uploadArchivo(autorizacionId, file) —, independiente del botón "Guardar respuesta"
+// de los campos planos. Retiene el `File` real (nunca fabrica nombre/fecha desde el navegador); el
+// nombre/fecha mostrados son siempre los que devuelve el repository (server-side reales).
+describe('AutorizacionForm — subida real del archivo (integracion-documentos-autorizaciones)', () => {
+  function archivoPdf(nombre = 'informe.pdf'): File {
+    return new File(['contenido'], nombre, { type: 'application/pdf' });
+  }
+
+  function autorizacionConArchivo(overrides: Partial<Autorizacion> = {}): Autorizacion {
+    return {
+      id: 'autorizacion-1',
+      presupuestoId: 'presupuesto-1',
+      estado: 'pendiente',
+      archivo: { nombre: 'informe.pdf', cargadoEn: '2026-08-18T12:00:00.000Z', clave: 'autorizacion-1/uuid-informe.pdf' },
+      ...overrides,
+    };
+  }
+
+  it('al elegir un archivo válido, llama a repository.uploadArchivo con el id de la autorización y muestra el nombre/fecha reales devueltos', async () => {
+    const user = userEvent.setup();
+    const actualizada = autorizacionConArchivo();
+    const uploadArchivo = vi.fn().mockResolvedValue(actualizada);
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        repository={buildFakeArchivoRepository({ uploadArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByLabelText(/^archivo$/i);
+    await user.upload(input, archivoPdf());
+
+    expect(uploadArchivo).toHaveBeenCalledWith('autorizacion-1', expect.any(File));
+    expect(await screen.findByText(/informe\.pdf/i)).toBeInTheDocument();
+    // El nombre/fecha mostrados vienen del repository (server), NUNCA fabricados desde `File.name`
+    // + fecha local del navegador (bug que este change corrige, design.md D4).
+    expect(screen.getByText(/cargado 2026-08-18/i)).toBeInTheDocument();
+  });
+
+  // Triangulación: id/archivo distintos al caso anterior — confirma que no hay un valor
+  // hardcodeado y que la respuesta real del servidor (no el `File.name` elegido) es lo que se
+  // muestra.
+  it('con otra autorización y otro archivo, llama con esos argumentos distintos y refleja el nombre/fecha que devuelve el servidor, no el del File elegido', async () => {
+    const user = userEvent.setup();
+    const actualizada = autorizacionConArchivo({
+      id: 'autorizacion-2',
+      archivo: { nombre: 'nombre-normalizado-por-el-servidor.pdf', cargadoEn: '2026-08-20T09:30:00.000Z', clave: 'autorizacion-2/uuid-x.pdf' },
+    });
+    const uploadArchivo = vi.fn().mockResolvedValue(actualizada);
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-2"
+        repository={buildFakeArchivoRepository({ uploadArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.upload(screen.getByLabelText(/^archivo$/i), archivoPdf('elegido-por-el-usuario.pdf'));
+
+    expect(uploadArchivo).toHaveBeenCalledWith('autorizacion-2', expect.any(File));
+    expect(await screen.findByText(/nombre-normalizado-por-el-servidor\.pdf/i)).toBeInTheDocument();
+    expect(screen.queryByText(/elegido-por-el-usuario\.pdf/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/cargado 2026-08-20/i)).toBeInTheDocument();
+  });
+
+  it('mientras la subida está pendiente, muestra un estado de "Subiendo…"', async () => {
+    const user = userEvent.setup();
+    let resolverUpload!: (value: Autorizacion) => void;
+    const uploadArchivo = vi.fn(
+      () =>
+        new Promise<Autorizacion>((resolve) => {
+          resolverUpload = resolve;
+        }),
+    );
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        repository={buildFakeArchivoRepository({ uploadArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.upload(screen.getByLabelText(/^archivo$/i), archivoPdf());
+
+    expect(await screen.findByText(/subiendo/i)).toBeInTheDocument();
+
+    resolverUpload(autorizacionConArchivo());
+    await waitFor(() => expect(screen.queryByText(/subiendo/i)).not.toBeInTheDocument());
+  });
+
+  it('si la subida falla, muestra el error del repository (castellano) y no cambia el archivo mostrado', async () => {
+    const user = userEvent.setup();
+    const uploadArchivo = vi.fn().mockRejectedValue(new Error('El archivo debe ser PDF, JPG o PNG.'));
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        initial={{ estado: 'pendiente' }}
+        repository={buildFakeArchivoRepository({ uploadArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.upload(screen.getByLabelText(/^archivo$/i), archivoPdf());
+
+    expect(await screen.findByText('El archivo debe ser PDF, JPG o PNG.')).toBeInTheDocument();
+    expect(screen.queryByText(/cargado/i)).not.toBeInTheDocument();
+  });
+
+  it('sin autorizacionId (alta sin fila creada todavía), no llama a uploadArchivo y avisa que hay que guardar primero', async () => {
+    const user = userEvent.setup();
+    const uploadArchivo = vi.fn();
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository({ uploadArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.upload(screen.getByLabelText(/^archivo$/i), archivoPdf());
+
+    expect(uploadArchivo).not.toHaveBeenCalled();
+    expect(await screen.findByText(/guardá la autorización antes de adjuntar un archivo/i)).toBeInTheDocument();
+  });
+
+  it('con un archivo ya cargado, ofrece "Quitar archivo"; al confirmar llama a removeArchivo y deja de mostrarse', async () => {
+    const user = userEvent.setup();
+    const sinArchivo: Autorizacion = { id: 'autorizacion-1', presupuestoId: 'presupuesto-1', estado: 'pendiente' };
+    const removeArchivo = vi.fn().mockResolvedValue(sinArchivo);
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        initial={{ estado: 'pendiente', archivo: { nombre: 'informe.pdf', cargadoEn: '2026-08-18T12:00:00.000Z', clave: 'autorizacion-1/uuid-informe.pdf' } }}
+        repository={buildFakeArchivoRepository({ removeArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/informe\.pdf/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /quitar archivo/i }));
+
+    expect(removeArchivo).toHaveBeenCalledWith('autorizacion-1');
+    await waitFor(() => expect(screen.queryByText(/informe\.pdf/i)).not.toBeInTheDocument());
+  });
+
+  it('si quitar el archivo falla, muestra el error y conserva el archivo mostrado (no lo borra de forma optimista)', async () => {
+    const user = userEvent.setup();
+    const removeArchivo = vi.fn().mockRejectedValue(new Error('No se pudo quitar el archivo.'));
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        initial={{ estado: 'pendiente', archivo: { nombre: 'informe.pdf', cargadoEn: '2026-08-18T12:00:00.000Z', clave: 'autorizacion-1/uuid-informe.pdf' } }}
+        repository={buildFakeArchivoRepository({ removeArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /quitar archivo/i }));
+
+    expect(await screen.findByText('No se pudo quitar el archivo.')).toBeInTheDocument();
+    expect(screen.getByText(/informe\.pdf/i)).toBeInTheDocument();
+  });
+
+  it('sin archivo cargado, no ofrece el botón "Quitar archivo"', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /quitar archivo/i })).not.toBeInTheDocument();
   });
 });

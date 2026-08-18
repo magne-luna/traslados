@@ -66,6 +66,8 @@ function buildFakeAutorizacionRepository(overrides: Partial<AutorizacionReposito
     getByPresupuestoId: vi.fn().mockResolvedValue(null),
     create: vi.fn().mockResolvedValue(autorizacionMartina),
     update: vi.fn().mockResolvedValue(autorizacionMartina),
+    uploadArchivo: vi.fn().mockResolvedValue(autorizacionMartina),
+    removeArchivo: vi.fn().mockResolvedValue(autorizacionMartina),
     ...overrides,
   };
 }
@@ -360,5 +362,42 @@ describe('PresupuestoDetail — gateo de escritura de la entrada a autorización
     );
 
     expect(await screen.findByRole('button', { name: /editar autorización/i })).toBeEnabled();
+  });
+});
+
+// integracion-documentos-autorizaciones (tasks.md 4.2): confirma el wiring real entre
+// PresupuestoDetail y AutorizacionForm — el `id` de la autorización YA cargada y el
+// `autorizacionRepository` recibido por props llegan tal cual al form, que es quien invoca
+// uploadArchivo/removeArchivo (D3).
+describe('PresupuestoDetail — wiring de archivo hacia AutorizacionForm (integracion-documentos-autorizaciones)', () => {
+  it('al editar una autorización existente y elegir un archivo, llama a autorizacionRepository.uploadArchivo con el id real', async () => {
+    const user = userEvent.setup();
+    const archivoSubido = { ...autorizacionMartina, archivo: { nombre: 'informe.pdf', cargadoEn: '2026-08-18T12:00:00.000Z', clave: 'autorizacion-martina-1/uuid-informe.pdf' } };
+    const uploadArchivo = vi.fn().mockResolvedValue(archivoSubido);
+    const autorizacionRepository = buildFakeAutorizacionRepository({
+      getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionMartina),
+      uploadArchivo,
+    });
+
+    render(
+      <PresupuestoDetail
+        presupuesto={presupuestoMartina}
+        crear={vi.fn()}
+        crearLote={vi.fn()}
+        actualizar={vi.fn()}
+        pacientes={[martina]}
+        obrasSociales={[osecac]}
+        autorizacionRepository={autorizacionRepository}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByRole('button', { name: /editar autorización/i }));
+    const archivo = new File(['contenido'], 'informe.pdf', { type: 'application/pdf' });
+    await user.upload(screen.getByLabelText(/^archivo$/i), archivo);
+
+    expect(uploadArchivo).toHaveBeenCalledWith('autorizacion-martina-1', expect.any(File));
+    expect(await screen.findByText(/informe\.pdf/i)).toBeInTheDocument();
   });
 });

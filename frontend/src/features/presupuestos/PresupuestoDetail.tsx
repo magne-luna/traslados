@@ -305,6 +305,13 @@ export function PresupuestoDetail({
                     : undefined
                 }
                 montoPresupuesto={presupuesto.monto}
+                // integracion-documentos-autorizaciones (tasks.md 4.2, design.md D3): `autorizacion`
+                // solo es `null` en el caso legado sin fila creada todavía (comentario más arriba,
+                // "found === null") — sin id, AutorizacionForm avisa que hay que guardar antes de
+                // poder adjuntar un archivo, en vez de intentar llamar a uploadArchivo/removeArchivo
+                // sin id real.
+                autorizacionId={autorizacion?.id}
+                repository={autorizacionRepository}
                 onSubmit={handleSubmitAutorizacion}
                 onCancel={autorizacion ? () => setAutorizacionEditing(false) : onBack}
                 submitting={autorizacionSubmitting}

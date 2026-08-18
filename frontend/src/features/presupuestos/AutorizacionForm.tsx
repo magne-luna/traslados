@@ -3,9 +3,14 @@ import { AvisoModeloDatos, Button, CamposSoloLectura, InlineIcon } from '../../d
 import { Alert } from '../../design-system/feedback';
 import { Field, Select, Input } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
-import { iconSubirArchivo } from '../../design-system/icons';
+import { iconSubirArchivo, iconTacho } from '../../design-system/icons';
 import type { ArchivoAdjunto, EstadoAutorizacion } from '../../shared/types/presupuesto';
+import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import { validarAutorizacion } from '../../shared/lib/presupuestos/validarAutorizacion';
+
+function toErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'Ocurrió un error inesperado.';
+}
 
 export interface AutorizacionFormValues {
   estado: EstadoAutorizacion;
@@ -30,6 +35,21 @@ interface AutorizacionFormProps {
   initial?: AutorizacionFormValues;
   /** Monto del presupuesto asociado — contra el que se valida RN-PA-01 (tasks.md 6.3). */
   montoPresupuesto: number;
+  /**
+   * id de la autorización ya persistida (integracion-documentos-autorizaciones, tasks.md 4.1/4.2).
+   * `undefined` solo en alta manual sin fila creada todavía (caso legado — ver comentario de
+   * `PresupuestoDetail.tsx` sobre `found === null`). Sin id no hay contra qué llamar
+   * `uploadArchivo`/`removeArchivo` (D3: operaciones de I/O propias de la fila, separadas de
+   * create/update) — elegir un archivo sin id avisa que hay que guardar la autorización primero.
+   */
+  autorizacionId?: string;
+  /**
+   * Subida/quita real del archivo (design.md D3/D5 de integracion-documentos-autorizaciones):
+   * opera directo contra Storage + la Edge Function `autorizaciones`, independiente del submit de
+   * los campos planos de más abajo — el archivo sube apenas se elige, no espera al botón "Guardar
+   * respuesta".
+   */
+  repository: Pick<AutorizacionRepository, 'uploadArchivo' | 'removeArchivo'>;
   onSubmit: (values: AutorizacionFormValues) => void;
   onCancel: () => void;
   submitting?: boolean;
@@ -55,6 +75,8 @@ function toOptionalNumber(raw: string): number | undefined {
 export function AutorizacionForm({
   initial,
   montoPresupuesto,
+  autorizacionId,
+  repository,
   onSubmit,
   onCancel,
   submitting = false,
@@ -62,6 +84,11 @@ export function AutorizacionForm({
 }: AutorizacionFormProps) {
   const [values, setValues] = useState<AutorizacionFormValues>(initial ?? DEFAULT_VALUES);
   const [montoError, setMontoError] = useState<string | null>(null);
+  // integracion-documentos-autorizaciones (tasks.md 4.1/4.2, design.md D3/D5): estado propio de la
+  // subida/quita del archivo, independiente de `submitting`/`submitError` (que son del submit de
+  // los campos planos vía `onSubmit`) — son dos operaciones de I/O separadas a propósito.
+  const [archivoBusy, setArchivoBusy] = useState(false);
+  const [archivoError, setArchivoError] = useState<string | null>(null);
   const formId = useId();
   const archivoInputRef = useRef<HTMLInputElement>(null);
 
@@ -77,11 +104,43 @@ export function AutorizacionForm({
     onSubmit(values);
   }
 
-  function handleArchivoChange(event: ChangeEvent<HTMLInputElement>) {
+  // Sube DIRECTO al elegir el archivo (D3/D5): nunca fabrica `nombre`/`cargadoEn` desde el
+  // navegador (bug que este change corrige, design.md D4) — el `archivo` que queda en `values` es
+  // siempre el que devuelve `repository.uploadArchivo`, ya persistido.
+  async function handleArchivoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
-    const archivo: ArchivoAdjunto = { nombre: file.name, cargadoEn: new Date().toISOString().slice(0, 10) };
-    setValues((prev) => ({ ...prev, archivo }));
+
+    if (!autorizacionId) {
+      setArchivoError('Guardá la autorización antes de adjuntar un archivo.');
+      return;
+    }
+
+    setArchivoError(null);
+    setArchivoBusy(true);
+    try {
+      const actualizada = await repository.uploadArchivo(autorizacionId, file);
+      setValues((prev) => ({ ...prev, archivo: actualizada.archivo }));
+    } catch (err) {
+      setArchivoError(toErrorMessage(err));
+    } finally {
+      setArchivoBusy(false);
+    }
+  }
+
+  async function handleQuitarArchivo() {
+    if (!autorizacionId) return;
+    setArchivoError(null);
+    setArchivoBusy(true);
+    try {
+      const actualizada = await repository.removeArchivo(autorizacionId);
+      setValues((prev) => ({ ...prev, archivo: actualizada.archivo }));
+    } catch (err) {
+      setArchivoError(toErrorMessage(err));
+    } finally {
+      setArchivoBusy(false);
+    }
   }
 
   return (
@@ -91,14 +150,16 @@ export function AutorizacionForm({
       {/* tasks.md 5.2/5.3, design.md D5/D13#1/D13#6. Migrado desde un bloque hand-rolled
           (<div role="note">…</div> con lista propia) a dos AvisoModeloDatos agrupados por tema —
           la regla dura de la sección 5 de tasks.md prohíbe markup de alerta propio. Se mantienen
-          agrupados (no un cartel por campo): uno para el archivo adjunto (D5, igual criterio que
-          PresupuestoForm) y uno para montoAutorizado/vigenciaDesde (misma fila de discrepancia,
-          D13#6). */}
+          agrupados (no un cartel por campo): uno para el archivo adjunto y uno para
+          montoAutorizado/vigenciaDesde (misma fila de discrepancia, D13#6).
+          integracion-documentos-autorizaciones (tasks.md 4.3, spec autorizacion-gestion Scenario
+          "El archivo adjunto se guarda en el servidor"): se retira la parte de "todavía no se
+          guarda en el servidor" — ya no es cierto, el archivo se sube de verdad (D3/D5). Lo que
+          sigue vigente (y sigue siendo una discrepancia real con lo que asumía CHANGES.md) es que
+          el docx modela un solo "Archivo" por autorización, no un checklist multi-documento. */}
       <AvisoModeloDatos>
-        El archivo que subís acá <strong>todavía no se guarda en el servidor</strong>: por ahora
-        queda solo en tu navegador, así que si volvés más tarde a esta autorización no lo vas a
-        encontrar. Subir el archivo de verdad va a llegar en un cambio aparte. Además, el modelo
-        real (docx) tiene un solo archivo por autorización, no un checklist multi-documento.
+        El modelo real (docx) tiene un solo archivo por autorización, no un checklist
+        multi-documento como asumía originalmente <code>CHANGES.md</code>.
       </AvisoModeloDatos>
 
       {/* tasks.md 5.3, design.md D13#6: montoAutorizado/vigenciaDesde ya NO son "pendientes de
@@ -200,25 +261,37 @@ export function AutorizacionForm({
             ref={archivoInputRef}
             id={`${formId}-archivo`}
             type="file"
+            accept="application/pdf,image/jpeg,image/png"
             onChange={handleArchivoChange}
+            disabled={archivoBusy}
             className="sr-only"
           />
           <div
-            onClick={() => archivoInputRef.current?.click()}
+            onClick={() => {
+              if (archivoBusy) return;
+              archivoInputRef.current?.click();
+            }}
             className="flex cursor-pointer flex-col items-center gap-xs rounded-sm border-2 border-dashed border-border-strong bg-surface-soft px-lg py-xl text-center"
           >
             <InlineIcon size={32}>{iconSubirArchivo}</InlineIcon>
             <span className="font-body text-[13px]">
-              <span className="font-semibold text-primary">Subir un archivo</span>{' '}
+              <span className="font-semibold text-primary">{archivoBusy ? 'Subiendo…' : 'Subir un archivo'}</span>{' '}
               <span className="text-muted">o arrastrar y soltar</span>
             </span>
             <span className="font-body text-[11px] text-muted">PDF, JPG o PNG hasta 10MB</span>
           </div>
           {values.archivo && (
-            <span className="font-body text-xs text-muted">
-              {values.archivo.nombre} (cargado {values.archivo.cargadoEn})
-            </span>
+            <div className="flex items-center justify-between gap-sm">
+              <span className="font-body text-xs text-muted">
+                {values.archivo.nombre} (cargado {values.archivo.cargadoEn})
+              </span>
+              <Button variant="danger" size="sm" requiereEscritura disabled={archivoBusy} onClick={handleQuitarArchivo}>
+                <InlineIcon>{iconTacho}</InlineIcon>
+                Quitar archivo
+              </Button>
+            </div>
           )}
+          {archivoError && <span className="font-body text-xs text-danger">{archivoError}</span>}
         </div>
       </div>
       </CamposSoloLectura>
