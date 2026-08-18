@@ -10,11 +10,11 @@
 
 import type {
   ActualizacionAutorizacion,
+  ArchivoAdjunto,
   Autorizacion,
   EstadoAutorizacion,
   NuevaAutorizacion,
 } from '../../types/presupuesto';
-import { mapArchivoUrl } from './presupuestoMapping';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -43,8 +43,24 @@ function parseEstado(value: unknown): EstadoAutorizacion {
 }
 
 // -------------------------------------------------------------------------------------------
-// 2.5 — parseAutorizacionApi
+// 2.5/3.1/3.2 — parseAutorizacionApi
 // -------------------------------------------------------------------------------------------
+
+/** `archivoNombre`/`archivoCargadoEn`/`archivoUrl` (clave del objeto en el bucket, D4 de
+ * integracion-documentos-autorizaciones) -> `ArchivoAdjunto`. Lee los tres campos DIRECTO de la
+ * fila de la EF (Fase 2), nunca los deriva de `fechaRespuesta` (fecha en que respondió la obra
+ * social, un concepto distinto de "cuándo se cargó el archivo" — la derivación vieja, vía
+ * `mapArchivoUrl`, fabricaba un dato). `nombre`/`cargadoEn` son obligatorios para armar el
+ * `ArchivoAdjunto`: si uno falta, se descarta entero (`undefined`) en vez de fabricar un archivo
+ * parcial. `clave` es lo único opcional (`archivoUrl` podría faltar en una fila inconsistente sin
+ * que eso invalide nombre/fecha ya persistidos). */
+function parseArchivo(value: Record<string, unknown>): ArchivoAdjunto | undefined {
+  const nombre = readOptionalString(value, 'archivoNombre');
+  const cargadoEn = readOptionalString(value, 'archivoCargadoEn');
+  if (nombre === undefined || cargadoEn === undefined) return undefined;
+
+  return { nombre, cargadoEn, clave: readOptionalString(value, 'archivoUrl') };
+}
 
 /** Fila del `toApi()` de la Edge Function `autorizaciones` -> `Autorizacion` del dominio. A
  * diferencia de `Presupuesto`, acá solo `id`/`presupuestoId` son obligatorios para no descartar la
@@ -53,23 +69,21 @@ function parseEstado(value: unknown): EstadoAutorizacion {
 export function parseAutorizacionApi(value: unknown): Autorizacion | null {
   if (!isRecord(value)) return null;
 
-  const { id, presupuestoId, estado, archivoUrl } = value;
+  const { id, presupuestoId, estado } = value;
 
   if (typeof id !== 'string') return null;
   if (typeof presupuestoId !== 'string') return null;
-
-  const fechaRespuesta = readOptionalString(value, 'fechaRespuesta');
 
   return {
     id,
     presupuestoId,
     estado: parseEstado(estado),
-    fechaRespuesta,
+    fechaRespuesta: readOptionalString(value, 'fechaRespuesta'),
     montoAutorizado: readOptionalNumber(value, 'montoAutorizado'),
     vigenciaDesde: readOptionalString(value, 'vigenciaDesde'),
     cupoMensualDias: readOptionalNumber(value, 'cupoMensualDias'),
     cupoMensualKm: readOptionalNumber(value, 'cupoMensualKm'),
-    archivo: mapArchivoUrl(archivoUrl, fechaRespuesta ?? ''),
+    archivo: parseArchivo(value),
   };
 }
 

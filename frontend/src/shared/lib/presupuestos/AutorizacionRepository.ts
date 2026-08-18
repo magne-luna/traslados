@@ -13,4 +13,19 @@ export interface AutorizacionRepository {
   getByPresupuestoId(presupuestoId: string): Promise<Autorizacion | null>;
   create(data: NuevaAutorizacion): Promise<Autorizacion>;
   update(id: string, data: ActualizacionAutorizacion): Promise<Autorizacion>;
+  /**
+   * Sube (o reemplaza, si ya había uno) el archivo único de la autorización (design.md D3/D5 de
+   * `integracion-documentos-autorizaciones`). Separado de `update()` a propósito, mismo criterio
+   * que `DocumentoRepository.upload`/`remove`: es una operación de I/O distinta (Storage + fila),
+   * no un cambio de campos planos. En un reemplazo, el objeto viejo se borra solo después de que la
+   * fila quedó apuntando al nuevo (D5, reemplazo compensado) — nunca deja la fila apuntando a una
+   * clave inexistente.
+   */
+  uploadArchivo(id: string, file: File): Promise<Autorizacion>;
+  /**
+   * Quita el archivo adjunto: borra el objeto del bucket y limpia la referencia (`archivo`) de la
+   * autorización. Idempotente — si la autorización no tiene archivo, resuelve sin error (spec
+   * `autorizacion-archivo-storage`, escenario "Quitar cuando no hay archivo no falla").
+   */
+  removeArchivo(id: string): Promise<Autorizacion>;
 }

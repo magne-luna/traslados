@@ -82,6 +82,51 @@ describe('parseAutorizacionApi (2.5)', () => {
 });
 
 // -----------------------------------------------------------------------------------------------
+// 3.1 — parseAutorizacionApi: `archivo` se lee directo de archivoNombre/archivoCargadoEn (la EF los
+// expone tal cual, tasks.md Fase 2), NUNCA derivado de archivoUrl+fechaRespuesta (integracion-
+// documentos-autorizaciones, design.md D4 — fechaRespuesta es la fecha en que respondió la obra
+// social, no la fecha real de carga del archivo, son conceptos distintos).
+// -----------------------------------------------------------------------------------------------
+
+describe('parseAutorizacionApi — archivo (3.1, integracion-documentos-autorizaciones)', () => {
+  it('archivoNombre y archivoCargadoEn presentes: arma un ArchivoAdjunto con clave = archivoUrl', () => {
+    const autorizacion = parseAutorizacionApi(
+      autorizacionApiCompleta({
+        archivoUrl: 'autorizacion-1/9c1b-informe-final.pdf',
+        archivoNombre: 'informe final.pdf',
+        archivoCargadoEn: '2026-08-18T12:00:00.000Z',
+      }),
+    );
+
+    expect(autorizacion?.archivo).toEqual({
+      nombre: 'informe final.pdf',
+      cargadoEn: '2026-08-18T12:00:00.000Z',
+      clave: 'autorizacion-1/9c1b-informe-final.pdf',
+    });
+  });
+
+  it('sin archivoNombre/archivoCargadoEn/archivoUrl: archivo queda undefined, incluso con fechaRespuesta presente (ya no se deriva)', () => {
+    const autorizacion = parseAutorizacionApi(
+      autorizacionApiCompleta({ fechaRespuesta: '2026-03-15', archivoUrl: undefined }),
+    );
+
+    expect(autorizacion?.archivo).toBeUndefined();
+  });
+
+  it('triangulación: archivoNombre presente pero archivoCargadoEn ausente no fabrica un archivo parcial', () => {
+    const autorizacion = parseAutorizacionApi(
+      autorizacionApiCompleta({
+        archivoUrl: 'autorizacion-1/clave.pdf',
+        archivoNombre: 'informe.pdf',
+        archivoCargadoEn: undefined,
+      }),
+    );
+
+    expect(autorizacion?.archivo).toBeUndefined();
+  });
+});
+
+// -----------------------------------------------------------------------------------------------
 // 2.6 — toCrearAutorizacionPayload / toActualizarAutorizacionPayload
 // -----------------------------------------------------------------------------------------------
 

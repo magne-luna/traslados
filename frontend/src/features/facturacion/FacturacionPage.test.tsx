@@ -130,6 +130,8 @@ function buildProps() {
     getByPresupuestoId: vi.fn().mockResolvedValue(null),
     create: vi.fn(),
     update: vi.fn(),
+    uploadArchivo: vi.fn(),
+    removeArchivo: vi.fn(),
   };
   const documentoRepository: DocumentoRepository = {
     listByEntity: vi.fn().mockResolvedValue([]),

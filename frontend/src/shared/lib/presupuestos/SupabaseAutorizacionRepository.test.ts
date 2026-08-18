@@ -22,13 +22,70 @@ type FakeInvokeRespuesta = FakeInvokeExito | FakeInvokeErrorHttp | FakeInvokeErr
 
 const functionsInvoke = vi.fn<(nombre: string, opciones?: { method?: string; body?: unknown }) => Promise<FakeInvokeRespuesta>>();
 
+// Fake tipado del subconjunto de `supabase.storage` usado por uploadArchivo/removeArchivo (3.5,
+// integracion-documentos-autorizaciones), mismo patrón que
+// `SupabaseDocumentoRepository.test.ts` §4.1 — nunca golpea la red real.
+interface FakeStorageError {
+  name: string;
+  message: string;
+  status?: number;
+}
+interface StorageUploadCall {
+  bucket: string;
+  path: string;
+  file: File;
+  upsert?: boolean;
+}
+interface StorageRemoveCall {
+  bucket: string;
+  paths: string[];
+}
+interface FakeUploadResult {
+  data: { path: string } | null;
+  error: FakeStorageError | null;
+}
+interface FakeRemoveResult {
+  data: unknown;
+  error: FakeStorageError | null;
+}
+
+let storageUploadCalls: StorageUploadCall[] = [];
+let storageRemoveCalls: StorageRemoveCall[] = [];
+let uploadHandler: (call: StorageUploadCall) => FakeUploadResult = (call) => ({ data: { path: call.path }, error: null });
+let removeHandler: (call: StorageRemoveCall) => FakeRemoveResult = () => ({ data: null, error: null });
+
+function resetStorageFake(): void {
+  storageUploadCalls = [];
+  storageRemoveCalls = [];
+  uploadHandler = (call) => ({ data: { path: call.path }, error: null });
+  removeHandler = () => ({ data: null, error: null });
+}
+
 vi.mock('../supabaseClient', () => ({
   supabase: {
     functions: { invoke: (...args: unknown[]) => functionsInvoke(...(args as [string, { method?: string; body?: unknown }?])) },
+    storage: {
+      from: (bucket: string) => ({
+        upload: (path: string, file: File, options?: { upsert?: boolean }) => {
+          const call: StorageUploadCall = { bucket, path, file, upsert: options?.upsert };
+          storageUploadCalls.push(call);
+          return Promise.resolve(uploadHandler(call));
+        },
+        remove: (paths: string[]) => {
+          const call: StorageRemoveCall = { bucket, paths };
+          storageRemoveCalls.push(call);
+          return Promise.resolve(removeHandler(call));
+        },
+      }),
+    },
   },
 }));
 
 const { supabaseAutorizacionRepository } = await import('./SupabaseAutorizacionRepository');
+
+function buildFile(name: string, type: string, sizeBytes = 1024): File {
+  return new File([new Uint8Array(sizeBytes)], name, { type });
+}
 
 const AUTORIZACION_API_COMPLETA = {
   id: 'a1',
@@ -229,6 +286,137 @@ describe('supabaseAutorizacionRepository.getByPresupuestoId() (3.9)', () => {
 
     await expect(supabaseAutorizacionRepository.getByPresupuestoId('p1')).rejects.toThrow(
       'No tenés permiso para ver autorizaciones.',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// 3.5 — uploadArchivo()/removeArchivo() (design.md D3/D5 de integracion-documentos-autorizaciones)
+// ---------------------------------------------------------------------------------------------
+
+const AUTORIZACION_SIN_ARCHIVO = { ...AUTORIZACION_API_COMPLETA, id: 'a1' };
+const AUTORIZACION_CON_ARCHIVO = {
+  ...AUTORIZACION_API_COMPLETA,
+  id: 'a1',
+  archivoUrl: 'a1/vieja-clave-informe.pdf',
+  archivoNombre: 'informe.pdf',
+  archivoCargadoEn: '2026-08-01T10:00:00.000Z',
+};
+
+function mockGetLuego(patchRespuesta: FakeInvokeRespuesta, getRespuesta: FakeInvokeRespuesta = { data: AUTORIZACION_SIN_ARCHIVO, error: null }): void {
+  functionsInvoke.mockImplementation((_nombre, opciones) => {
+    if (opciones?.method === 'PATCH') return Promise.resolve(patchRespuesta);
+    return Promise.resolve(getRespuesta);
+  });
+}
+
+describe('supabaseAutorizacionRepository.uploadArchivo() (3.5/3.6)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetStorageFake();
+  });
+
+  it('subida exitosa sin archivo previo: sube al bucket, hace PATCH con la clave nueva y no borra nada', async () => {
+    mockGetLuego({ data: { ...AUTORIZACION_CON_ARCHIVO, archivoNombre: 'informe.pdf' }, error: null });
+
+    const actualizada = await supabaseAutorizacionRepository.uploadArchivo('a1', buildFile('informe.pdf', 'application/pdf'));
+
+    expect(storageUploadCalls).toHaveLength(1);
+    expect(storageUploadCalls[0]?.bucket).toBe('documentos-autorizaciones');
+    expect(storageUploadCalls[0]?.path).toMatch(/^a1\/.+-informe\.pdf$/);
+    expect(storageUploadCalls[0]?.upsert).toBe(false);
+
+    const patchCall = functionsInvoke.mock.calls.find(([, opciones]) => opciones?.method === 'PATCH');
+    expect(patchCall?.[0]).toBe('autorizaciones/a1');
+    const body = patchCall?.[1]?.body as { archivoUrl?: string; archivoNombre?: string; archivoCargadoEn?: string } | undefined;
+    expect(body?.archivoUrl).toMatch(/^a1\/.+-informe\.pdf$/);
+    expect(body?.archivoNombre).toBe('informe.pdf');
+    expect(typeof body?.archivoCargadoEn).toBe('string');
+
+    expect(storageRemoveCalls).toHaveLength(0);
+    expect(actualizada.archivo?.nombre).toBe('informe.pdf');
+  });
+
+  it('reemplazo (triangulación): con archivo previo, borra la clave VIEJA después del PATCH exitoso, no la nueva', async () => {
+    mockGetLuego({ data: AUTORIZACION_CON_ARCHIVO, error: null }, { data: AUTORIZACION_CON_ARCHIVO, error: null });
+
+    await supabaseAutorizacionRepository.uploadArchivo('a1', buildFile('nuevo.pdf', 'application/pdf'));
+
+    expect(storageRemoveCalls).toHaveLength(1);
+    expect(storageRemoveCalls[0]?.bucket).toBe('documentos-autorizaciones');
+    expect(storageRemoveCalls[0]?.paths).toEqual(['a1/vieja-clave-informe.pdf']);
+    // la clave nueva (recién subida) nunca se borra en el camino feliz
+    expect(storageRemoveCalls[0]?.paths).not.toContain(storageUploadCalls[0]?.path);
+  });
+
+  it('fallo del PATCH: borra el objeto recién subido (compensación) y la referencia vieja NO se toca', async () => {
+    mockGetLuego(
+      { data: null, error: { context: new Response(null, { status: 500 }) } },
+      { data: AUTORIZACION_CON_ARCHIVO, error: null },
+    );
+
+    await expect(supabaseAutorizacionRepository.uploadArchivo('a1', buildFile('nuevo.pdf', 'application/pdf'))).rejects.toThrow();
+
+    expect(storageRemoveCalls).toHaveLength(1);
+    expect(storageRemoveCalls[0]?.paths).toEqual([storageUploadCalls[0]?.path]);
+    // la clave vieja jamás se borra si el PATCH falló — la fila la sigue referenciando
+    expect(storageRemoveCalls[0]?.paths).not.toContain('a1/vieja-clave-informe.pdf');
+  });
+
+  it('tipo no soportado (.docx/.zip): rechaza SIN llegar a Storage ni a la Edge Function', async () => {
+    await expect(
+      supabaseAutorizacionRepository.uploadArchivo('a1', buildFile('contrato.docx', 'application/vnd.openxmlformats')),
+    ).rejects.toThrow(/PDF, JPG o PNG/);
+
+    expect(storageUploadCalls).toHaveLength(0);
+    expect(functionsInvoke).not.toHaveBeenCalled();
+  });
+
+  it('archivo de más de 10MB: rechaza SIN llegar a Storage ni a la Edge Function', async () => {
+    await expect(
+      supabaseAutorizacionRepository.uploadArchivo('a1', buildFile('grande.pdf', 'application/pdf', 11 * 1024 * 1024)),
+    ).rejects.toThrow(/10\s*MB/);
+
+    expect(storageUploadCalls).toHaveLength(0);
+    expect(functionsInvoke).not.toHaveBeenCalled();
+  });
+});
+
+describe('supabaseAutorizacionRepository.removeArchivo() (3.5/3.6)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetStorageFake();
+  });
+
+  it('con archivo cargado: PATCH con los tres campos en null y borra el objeto del bucket', async () => {
+    mockGetLuego(
+      { data: { ...AUTORIZACION_CON_ARCHIVO, archivoUrl: null, archivoNombre: null, archivoCargadoEn: null }, error: null },
+      { data: AUTORIZACION_CON_ARCHIVO, error: null },
+    );
+
+    const actualizada = await supabaseAutorizacionRepository.removeArchivo('a1');
+
+    const patchCall = functionsInvoke.mock.calls.find(([, opciones]) => opciones?.method === 'PATCH');
+    expect(patchCall?.[1]?.body).toEqual({ archivoUrl: null, archivoNombre: null, archivoCargadoEn: null });
+    expect(storageRemoveCalls).toEqual([{ bucket: 'documentos-autorizaciones', paths: ['a1/vieja-clave-informe.pdf'] }]);
+    expect(actualizada.archivo).toBeUndefined();
+  });
+
+  it('sin archivo adjunto: resuelve sin error y no llama a Storage ni al PATCH (idempotente)', async () => {
+    mockGetLuego({ data: null, error: null }, { data: AUTORIZACION_SIN_ARCHIVO, error: null });
+
+    const actualizada = await supabaseAutorizacionRepository.removeArchivo('a1');
+
+    expect(functionsInvoke.mock.calls.filter(([, opciones]) => opciones?.method === 'PATCH')).toHaveLength(0);
+    expect(storageRemoveCalls).toHaveLength(0);
+    expect(actualizada.archivo).toBeUndefined();
+  });
+
+  it('id inexistente: lanza el mismo mensaje que update()', async () => {
+    mockGetLuego({ data: null, error: null }, { data: null, error: { context: new Response(null, { status: 404 }) } });
+
+    await expect(supabaseAutorizacionRepository.removeArchivo('inexistente')).rejects.toThrow(
+      'No existe una autorización con id "inexistente".',
     );
   });
 });

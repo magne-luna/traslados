@@ -24,6 +24,18 @@ export interface ArchivoAdjunto {
   nombre: string;
   /** ISO date en que se cargó el archivo. */
   cargadoEn: string;
+  /**
+   * Clave del objeto dentro del bucket de Storage (`{entidadId}/{uuid}-{nombreSeguro}`,
+   * integracion-documentos-autorizaciones design.md D5) — necesaria para borrar el objeto viejo al
+   * reemplazar o quitar el archivo. Opcional (no `clave: string` a secas, desviación documentada
+   * respecto a tasks.md 3.3): `ArchivoAdjunto` es compartido con `Presupuesto`, cuyo flujo de carga
+   * real de archivo sigue fuera de alcance de este change — `archivo_url` de Presupuesto todavía
+   * guarda una URL, no una clave de bucket (`mapArchivoUrl`/`PresupuestoForm.tsx` no tienen de dónde
+   * sacar una `clave` real hoy). Volverlo obligatorio hubiera forzado inventar un valor ahí, mismo
+   * antipatrón que el proyecto ya viene corrigiendo. Para `Autorizacion` (este change) siempre viene
+   * poblada cuando hay archivo (ver `autorizacionMapping.parseArchivo`).
+   */
+  clave?: string;
 }
 
 /**

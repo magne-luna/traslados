@@ -1,5 +1,5 @@
 import { generateId } from '../id';
-import type { ActualizacionAutorizacion, Autorizacion, NuevaAutorizacion } from '../../types/presupuesto';
+import type { ActualizacionAutorizacion, ArchivoAdjunto, Autorizacion, NuevaAutorizacion } from '../../types/presupuesto';
 import type { AutorizacionRepository } from '../presupuestos/AutorizacionRepository';
 import { buildAutorizacionesFixture } from './autorizacionesFixture';
 
@@ -87,6 +87,51 @@ export const mockAutorizacionRepository: AutorizacionRepository = {
     }
 
     const actualizada: Autorizacion = { ...existing, ...data, id };
+    const next = [...current];
+    next[index] = actualizada;
+    writeStore(next);
+    return withLatency(actualizada);
+  },
+
+  // uploadArchivo()/removeArchivo() (integracion-documentos-autorizaciones, tasks.md 3.7): mismo
+  // contrato que SupabaseAutorizacionRepository, en memoria — sin Storage real, la "clave" es solo
+  // un id local para que el reemplazo (dos uploads seguidos) sea distinguible, igual que
+  // `create()` usa `generateId` para el id de la entidad.
+  async uploadArchivo(id, file) {
+    const current = readStore();
+    const index = current.findIndex((autorizacion) => autorizacion.id === id);
+    const existing = index === -1 ? undefined : current[index];
+    if (!existing) {
+      throw new Error(`No existe una autorización con id "${id}".`);
+    }
+
+    const archivo: ArchivoAdjunto = {
+      nombre: file.name,
+      cargadoEn: new Date().toISOString(),
+      clave: `${id}/${generateId('archivo')}-${file.name}`,
+    };
+
+    const actualizada: Autorizacion = { ...existing, archivo, id };
+    const next = [...current];
+    next[index] = actualizada;
+    writeStore(next);
+    return withLatency(actualizada);
+  },
+
+  async removeArchivo(id) {
+    const current = readStore();
+    const index = current.findIndex((autorizacion) => autorizacion.id === id);
+    const existing = index === -1 ? undefined : current[index];
+    if (!existing) {
+      throw new Error(`No existe una autorización con id "${id}".`);
+    }
+
+    // Idempotente (spec "Quitar cuando no hay archivo no falla"): sin archivo, no hay nada que
+    // limpiar — se devuelve la entidad tal cual, sin reescribir el store.
+    if (!existing.archivo) return withLatency(existing);
+
+    const actualizada: Autorizacion = { ...existing, id };
+    delete actualizada.archivo;
     const next = [...current];
     next[index] = actualizada;
     writeStore(next);

@@ -31,6 +31,8 @@ function fakeAutorizacionRepository(autorizaciones: Map<string, Autorizacion>): 
     getByPresupuestoId: () => Promise.reject(new Error('no usado en este test')),
     create: () => Promise.reject(new Error('no usado en este test')),
     update: () => Promise.reject(new Error('no usado en este test')),
+    uploadArchivo: () => Promise.reject(new Error('no usado en este test')),
+    removeArchivo: () => Promise.reject(new Error('no usado en este test')),
   };
 }
 
@@ -173,6 +175,8 @@ describe('useEmisionFactura — resolverCupoAutorizado (D6, tasks.md 3.6)', () =
       getByPresupuestoId: () => Promise.reject(new Error('no usado en este test')),
       create: () => Promise.reject(new Error('no usado en este test')),
       update: () => Promise.reject(new Error('no usado en este test')),
+      uploadArchivo: () => Promise.reject(new Error('no usado en este test')),
+      removeArchivo: () => Promise.reject(new Error('no usado en este test')),
     };
 
     const { result } = renderHook(() =>

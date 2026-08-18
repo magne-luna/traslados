@@ -116,7 +116,15 @@ function buildFakePresupuestoRepo(): PresupuestoRepository {
   };
 }
 function buildFakeAutorizacionRepo(): AutorizacionRepository {
-  return { list: vi.fn().mockResolvedValue([]), getById: vi.fn(), getByPresupuestoId: vi.fn().mockResolvedValue(null), create: vi.fn(), update: vi.fn() };
+  return {
+    list: vi.fn().mockResolvedValue([]),
+    getById: vi.fn(),
+    getByPresupuestoId: vi.fn().mockResolvedValue(null),
+    create: vi.fn(),
+    update: vi.fn(),
+    uploadArchivo: vi.fn(),
+    removeArchivo: vi.fn(),
+  };
 }
 function buildFakeFacturaRepo(): FacturaRepository {
   return {
