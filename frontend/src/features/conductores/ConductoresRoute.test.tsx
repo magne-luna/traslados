@@ -25,6 +25,7 @@ vi.mock('../../shared/lib/supabaseClient', () => ({
 }));
 
 const { ConductoresRoute } = await import('./ConductoresRoute');
+const fuenteConductoresRoute = await import('./ConductoresRoute.tsx?raw').then((m) => m.default as string);
 
 describe('ConductoresRoute', () => {
   it('monta la feature con supabaseConductorRepository y supabaseVehiculoRepository (mockeados) y termina de cargar', async () => {
@@ -32,5 +33,12 @@ describe('ConductoresRoute', () => {
 
     await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
     expect(screen.getByRole('heading', { name: 'Conductores' })).toBeInTheDocument();
+  });
+
+  // documentos-vehiculos-conductores-facturacion: mismo swap que VehiculosRoute — Documentos deja
+  // de ser mock, ya soportado por SupabaseDocumentoRepository.ts sin cambios.
+  it('inyecta supabaseDocumentoRepository, no mockDocumentoRepository', () => {
+    expect(fuenteConductoresRoute).toMatch(/from ['"].*SupabaseDocumentoRepository['"]/);
+    expect(fuenteConductoresRoute).not.toMatch(/mockDocumentoRepository/);
   });
 });

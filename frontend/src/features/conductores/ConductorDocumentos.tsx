@@ -1,4 +1,4 @@
-import { AvisoModeloDatos, Chip } from '../../design-system/components';
+import { Chip } from '../../design-system/components';
 import { DocumentChecklist } from '../../shared/components/DocumentChecklist';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { useDocumentChecklist } from '../../shared/lib/documentos/useDocumentChecklist';
@@ -34,10 +34,6 @@ export function ConductorDocumentos({ conductorId, repository }: ConductorDocume
 
   return (
     <div className="flex flex-col gap-sm">
-      <AvisoModeloDatos>
-        La subida de documentos del conductor sigue siendo simulada (el archivo no se guarda) hasta
-        que <code>integracion-conductores-vehiculos</code> aterrice.
-      </AvisoModeloDatos>
       <Chip kind="warning">
         ⚠️ Pendiente de confirmar con el cliente: documentos a precargar (licencia/DNI/apto médico)
       </Chip>
