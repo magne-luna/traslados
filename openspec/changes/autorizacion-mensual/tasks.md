@@ -100,6 +100,9 @@
       funciona, (b) el índice único parcial rechaza un segundo mes duplicado del mismo presupuesto,
       (c) las dos RPC siguen dando de alta presupuestos sin `vigencia_desde` con `periodo_mes NULL`
       (paridad byte a byte con el comportamiento anterior).
+      **Aplicado 2026-08-22** — verificado en vivo (orquestador) vía `supabase db query --linked`:
+      columna `periodo_mes` presente en `facturacion.autorizacion`; índice
+      `idx_autorizacion_presupuesto_periodo` presente.
 
 ## Fase 2 — Edge Function `autorizaciones`
 
