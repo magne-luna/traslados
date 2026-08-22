@@ -345,7 +345,7 @@ así que queda anotado acá hasta que se construya esa feature.
   y `vigenciaDesde`) — los 3 puntos siguen **pendientes de confirmar con backend** antes de cerrar
   la tabla `autorizacion` de `C-06`.
 - **Vigencia, datos de traslado e identificación de presupuestos** (detalle completo en
-  `openspec/changes/presupuestos-vigencia-datos-traslado-vista-previa/design.md` §Discrepancias,
+  `openspec/changes/archive/2026-08-22-presupuestos-vigencia-datos-traslado-vista-previa/design.md` §Discrepancias,
   propose+apply 2026-08-21): el docx sigue modelando Presupuesto como `Monto` + `Archivo` y
   Autorización con cupos + estado — **ninguno** de los 5 campos/bloques nuevos de este change está
   ahí. **No reabre la #13** (desglose por prestación en `presupuesto_linea`, arriba): esta entrada

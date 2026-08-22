@@ -938,7 +938,9 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   actualizado en el mismo WU. **Pendiente de confirmar con la usuaria** al aplicar la migración
   (`supabase db push`).
 - **🔶 Reapertura post-archivo (`presupuestos-vigencia-datos-traslado-vista-previa`, propose+apply
-  2026-08-21)**: `C-06` se reabre de nuevo, esta vez para agregar vigencia, dependencia (par
+  2026-08-21, ✅ archivado 2026-08-22, 8/10 tasks)**: pendientes 0.6 (G4, pregunta a Andrea sobre
+  CD/SD, no bloqueante) y 10.4 (verificación manual con 2 cuentas reales), ambas diferidas por
+  decisión explícita de la usuaria. `C-06` se reabre de nuevo, esta vez para agregar vigencia, dependencia (par
   pedido/concedido, no solo del lado del presupuesto) y el bloque de datos de traslado del
   formulario de la obra social, más el tipo MIME del adjunto de autorización y la vista previa de
   ese adjunto (extracción de `ContenidoPreview`/`DocumentChecklist.tsx` a
@@ -949,9 +951,9 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `presupuesto-prestaciones`). Bloqueada por orden hasta que `presupuesto-prestaciones` (D9,
   bifurcación de `PresupuestoForm.tsx` en `simple`/`general`/`por-prestacion`) estuviera aplicado.
   Detalle completo en
-  `openspec/changes/presupuestos-vigencia-datos-traslado-vista-previa/design.md`.
+  `openspec/changes/archive/2026-08-22-presupuestos-vigencia-datos-traslado-vista-previa/design.md`.
 - **⚠️ Discrepancia con Traslados-Modelo-Datos.docx** (detalle completo en
-  `openspec/changes/presupuestos-vigencia-datos-traslado-vista-previa/design.md` §Discrepancias):
+  `openspec/changes/archive/2026-08-22-presupuestos-vigencia-datos-traslado-vista-previa/design.md` §Discrepancias):
   cinco campos/bloques nuevos, ninguno en el docx, cada uno con su propio cartel
   `AvisoModeloDatos`:
   1. `presupuesto.vigencia_desde` / `vigencia_hasta` (`PresupuestoForm.tsx`, `PresupuestoResumen.tsx`).
