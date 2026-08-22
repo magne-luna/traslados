@@ -280,44 +280,57 @@
 > commit, el frontend puede compilar y testear con los tipos/mapeo nuevos pero el wizard sigue
 > mostrando el paso viejo — después de este commit, el paso viejo desaparece.
 
-- [ ] 3.1 **RED** — `FacturaForm.tsx`, paso 2 (`pasoObraSocialContent`, L226-263 per `design.md`
+- [x] 3.1 **RED** — `FacturaForm.tsx`, paso 2 (`pasoObraSocialContent`, L226-263 per `design.md`
       §Context): reemplazar los dos `Input` de prestador por un selector de autorizaciones
       pendientes del paciente elegido en el paso 1, usando `autorizacionesPendientes` (2.6). Obra
       social se mantiene de solo lectura. **GREEN → REFACTOR.**
-- [ ] 3.2 **RED** — En modalidad `por-prestacion`, cada opción del selector se distingue con datos
+      **Re-sincronizado 2026-08-21**: implementado, no en el commit que originó esta sección sino en
+      commits posteriores (`7e5b9a1`/`b347838`/`b1d0e2e`, 2026-08-15) hechos bajo otro change/mensaje
+      sin referenciar esta task explícitamente. Verificado contra código real:
+      `frontend/src/features/facturacion/FacturaForm.tsx` usa `autorizacionesPendientes` (import
+      L20) y el selector de `autorizacionId` reemplaza los Input de prestador.
+- [x] 3.2 **RED** — En modalidad `por-prestacion`, cada opción del selector se distingue con datos
       reales de la autorización/presupuesto (fecha de emisión, monto, cupos mensuales,
       `vigenciaDesde` cuando esté disponible) — **sin inventar ningún campo** como
       `Presupuesto.prestacionId` (D4 corrige al proposal: ese campo no existe, ver `design.md`
       §Context/N8). **GREEN → REFACTOR.**
-- [ ] 3.3 **RED** — Estado vacío (0 autorizaciones pendientes): mensaje + link a Presupuestos,
+      **Re-sincronizado 2026-08-21**: `FacturaForm.tsx:366-367` — `<select>` con `value={values.autorizacionId ?? ''}`.
+- [x] 3.3 **RED** — Estado vacío (0 autorizaciones pendientes): mensaje + link a Presupuestos,
       "Siguiente" bloqueado. El gateo `faltaCompletarPrestador` (L182-184, L395 per `design.md`) se
       **elimina** y su lugar lo toma `!values.autorizacionId`. La vista previa de la descripción
       (L186-189) deja de depender de esa bandera. **GREEN → REFACTOR.**
-- [ ] 3.4 **RED** — Modo edición (`esEdicion`): la autorización ya persistida se muestra de solo
+      **Re-sincronizado 2026-08-21**: `FacturaForm.tsx:222` — `bloqueaAutorizacion = autorizaciones === null || autorizaciones.length === 0 || !values.autorizacionId`; `faltaCompletarPrestador` ya no existe (comentario L126/L277 confirma el retiro).
+- [x] 3.4 **RED** — Modo edición (`esEdicion`): la autorización ya persistida se muestra de solo
       lectura, no se puede recambiar. **GREEN → REFACTOR.**
-- [ ] 3.5 **RED** — `ResumenPasoWizard.tsx`: reemplazar las props `prestadorNombre`/
+      **Re-sincronizado 2026-08-21**: `FacturaForm.tsx:345-348` — rama `esEdicion` muestra la autorización de solo lectura.
+- [x] 3.5 **RED** — `ResumenPasoWizard.tsx`: reemplazar las props `prestadorNombre`/
       `prestadorDomicilio` por la autorización elegida (label equivalente al selector de 3.2).
       **GREEN → REFACTOR.**
-- [ ] 3.6 **RED** — `useEmisionFactura.ts`: `resolverCupoAutorizado` deja de recibir solo
+      **Re-sincronizado 2026-08-21**: `ResumenPasoWizard.tsx:13-37` — prop `autorizacionLabel` reemplaza por completo a `prestadorNombre`/`prestadorDomicilio`.
+- [x] 3.6 **RED** — `useEmisionFactura.ts`: `resolverCupoAutorizado` deja de recibir solo
       `pacienteId` y adivinar — pasa a recibir también `autorizacionId` y derivar el
       `CupoAutorizado` de la autorización **elegida** vía `autorizacionRepository.getById(...)` +
       `derivarCupoAutorizado` (reusada sin cambios). Sin `autorizacionId` (facturas viejas con
       `autorizacion_id NULL`) → `undefined`, camino ya tolerado por `validarCupoFacturacion`. **GREEN
       → TRIANGULATE (con autorización, sin autorización) → REFACTOR.**
-- [ ] 3.7 **RED** — Caso específico de la spec: paciente con **varias autorizaciones simultáneas**
+      **Re-sincronizado 2026-08-21**: `useEmisionFactura.ts:60-67` — firma exacta `(pacienteId, autorizacionId: string | undefined)`, `getById` + `derivarCupoAutorizado`, `undefined` temprano si falta cualquiera de los dos.
+- [x] 3.7 **RED** — Caso específico de la spec: paciente con **varias autorizaciones simultáneas**
       en `por-prestacion`; elegir una y confirmar que `AlertaCupo` se calcula contra **esa**, no
       contra la primera que devuelva el listado. Test de componente sobre `FacturaForm` con
       repositories fake que exponen ≥2 autorizaciones `'autorizada'` del mismo paciente. **GREEN →
       REFACTOR.**
-- [ ] 3.8 `validateFacturaForm.ts`: decidir (per `design.md`, Open Question resuelta en esta fase) si
+      **Re-sincronizado 2026-08-21**: test `FacturaForm.test.tsx:504` — "Paso 2, varias autorizaciones simultáneas: el selector las distingue por el nombre real de la prestación".
+- [x] 3.8 `validateFacturaForm.ts`: decidir (per `design.md`, Open Question resuelta en esta fase) si
       la autorización se valida también a nivel formulario o solo a nivel gateo del wizard; si se
       agrega, con su propio ciclo RED→GREEN.
-- [ ] 3.9 `npx tsc -b --noEmit` limpio + `oxlint` limpio. `git diff --stat` acotado a los archivos de
+      **Re-sincronizado 2026-08-21**: decisión tomada — `autorizacionId` NO se agrega a `validateFacturaForm.ts`; el gateo vive solo en el wizard (`!values.autorizacionId` bloquea Paso 2→3). Documentado in situ en `validateFacturaForm.ts:6-9`, referenciando esta misma task.
+- [x] 3.9 `npx tsc -b --noEmit` limpio + `oxlint` limpio. `git diff --stat` acotado a los archivos de
       esta sección (más 2.1-2.9 si no se commiteó antes) — nada fuera de
       `features/facturacion/`/`shared/types/factura.ts`/`shared/lib/facturacion/` se toca. Suite
       focalizada de `features/facturacion/` completa en verde (correr los archivos sueltos si la
       corrida conjunta muestra timeouts por carga de máquina, mismo patrón ya documentado en
       `integracion-facturacion` 6.5/8.1).
+      **Re-sincronizado 2026-08-21**: `npx tsc -b --noEmit` limpio (0 errores). Suite `src/features/facturacion`: 173/174 verde — el único fallo (`FacturacionRoute.test.tsx`, `localStorage.clear()` undefined) es el issue de entorno Node 26 ya documentado en `integracion-documentos-autorizaciones` (correr bajo Node 24 lo resuelve, no es un fallo real).
 
 ---
 
