@@ -480,6 +480,28 @@ vista-previa/`). Ninguna se cierra en este change — se registran acá y quedan
    Open Question, que toca Facturación CRÍTICO. Queda para el mismo change futuro que resuelva esta
    pregunta. **Decisor**: Andrea + Enzo.
 
+## Preguntas nuevas — `autorizacion-mensual` (2026-08-22) — prioridad Alta
+
+Surgidas de `design.md` §Open Questions (`openspec/changes/autorizacion-mensual/`). Bloquean
+específicamente la Fase 6b (facturación) de ese change — las Fases 1-6a no dependen de ellas.
+
+1. **¿Contra qué se compara el monto autorizado de un mes?** Hoy el trigger compara cada
+   `monto_autorizado` contra `presupuesto.monto` completo. Con N autorizaciones mensuales por
+   presupuesto hay tres lecturas posibles y nada en el dominio las distingue: (a) `presupuesto.monto`
+   es el monto mensual, el trigger queda igual; (b) es el total del período de vigencia, la regla pasa
+   a ser `SUM(monto_autorizado) ≤ presupuesto.monto`, un trigger agregado; (c) no hay relación directa,
+   si "el valor del km cambia mes a mes" (palabras de Andrea) comparar cada mes contra un total fijo
+   puede no significar nada. El ejemplo del punto 8 de su pedido (326,60 km presupuestados vs. 264
+   autorizados) describe un mes recortado, no aclara si el monto del presupuesto era mensual o total.
+   **Hasta la respuesta, el trigger no se toca. Decisor**: Andrea.
+2. **¿La vigencia de la autorización de un mes tiene que estar contenida en ese mes?** Lo natural
+   sería que sí, pero es una suposición: la obra social podría autorizar una ventana a caballo de dos
+   meses, y RN-PA-02 ya admite vigencias retroactivas. **No se agrega esa restricción hasta tener
+   respuesta. Decisor**: Andrea.
+3. **¿`periodo_mes` o un equivalente ya existe en el modelo real que mantiene Enzo?** El schema real
+   viene por delante del repo en 5 changes consecutivos. Se verifica en vivo antes de escribir el
+   `.sql` (`tasks.md` 0.5). **Decisor**: Enzo.
+
 ## Insumos pendientes del cliente
 
 - Logo (árbol de discapacidad) y colores de marca; fondo de pantalla de referencia.

@@ -12,9 +12,15 @@
 
 ## Fase 0 — Gates bloqueantes (los marca una persona)
 
-- [ ] **0.1** Archivar `presupuestos-vigencia-datos-traslado-vista-previa` (`/opsx:archive`) para que
+- [x] **0.1** Archivar `presupuestos-vigencia-datos-traslado-vista-previa` (`/opsx:archive`) para que
       sus deltas de spec estén sincronizados en `openspec/specs/` antes de que este change los
       modifique. Ídem `facturacion-seleccion-autorizacion` si sigue activo.
+      **Hecho 2026-08-22**: `presupuestos-vigencia-datos-traslado-vista-previa` archivado (commits
+      `4218e9d`, `a6680fe`), sus 5 capabilities nuevas ya en `openspec/specs/`.
+      `facturacion-seleccion-autorizacion` **deliberadamente NO se archiva** — sigue en 34/43 con
+      trabajo real pendiente, no solo verificación humana diferida. La usuaria confirmó seguir sin
+      archivarlo; queda anotado el riesgo de superposición sobre `autorizacionesPendientes.ts`/
+      `FacturaForm.tsx` paso 2 para la Fase 5/6b de este change.
 - [ ] **0.2** ⚠️ **Firma G4 (D8)** — confirmar por escrito que `montoAutorizado` pasa a ser el tope
       **del mes** para filas con `periodoMes`, conservando la semántica **anual** para las filas
       legacy, y que las dos semánticas conviven en `montoConsumido` sin refactor.
@@ -23,17 +29,24 @@
       advertir sin bloquear", explícitamente **en contra** de auto-resolver (rompería D6 de
       `facturacion-seleccion-autorizacion`) y de bloquear (rompería RN-PA-02).
       **Sin esta firma no se escribe una línea de la Fase 6b.**
-- [ ] **0.4** Firma G2 (mes como `DATE` día-1 absoluto, ordinal derivado) y G3 (auto-creación de
+- [x] **0.4** Firma G2 (mes como `DATE` día-1 absoluto, ordinal derivado) y G3 (auto-creación de
       **un** mes, el primero).
-- [ ] **0.5** ⚠️ **Verificación del schema real en vivo, de solo lectura**, antes de escribir cualquier
+      **Confirmado 2026-08-22** por la usuaria — se le explicaron ambas decisiones explícitamente
+      antes de aprobar el arranque de las Fases 1-6a.
+- [x] **0.5** ⚠️ **Verificación del schema real en vivo, de solo lectura**, antes de escribir cualquier
       `.sql` (el schema real fue por delante del repo 5 changes seguidos):
       `supabase db query --linked` → confirmar (a) que `periodo_mes` **no** existe todavía en
       `facturacion.autorizacion`; (b) que **sigue sin haber** `UNIQUE` sobre `presupuesto_id`;
       (c) `count(*)` de `facturacion.autorizacion` y cuántos presupuestos ya tienen más de una fila;
       (d) `security_type = 'INVOKER'` de las 2 RPC. Registrar la evidencia acá.
+      **Verificado 2026-08-22** (orquestador): `periodo_mes` no existe (0 columnas). Único índice
+      sobre `presupuesto_id` es `idx_autorizacion_presupuesto_id` (no `UNIQUE`) — solo `autorizacion_pkey`
+      (sobre `id`) es único. `count(*) = 6` filas totales, `0` en grupos con `presupuesto_id`
+      duplicado. `crear_presupuesto_completo`/`crear_presupuestos_lote` confirmadas `SECURITY INVOKER`.
 - [ ] **0.6** Enviar OQ-1 y OQ-2 a Andrea (texto en `design.md` D9) y OQ-3 a Enzo. **No bloquean el
       resto del change**, pero tienen que estar enviadas antes de la Fase 1.
-- [ ] **0.7** Cargar OQ-1/OQ-2 en `knowledge-base/10_preguntas_abiertas.md` con prioridad **Alta**.
+      **Pendiente de la usuaria** — no ejecutable por el agente (requiere WhatsApp/llamada real).
+- [x] **0.7** Cargar OQ-1/OQ-2 en `knowledge-base/10_preguntas_abiertas.md` con prioridad **Alta**.
 
 ---
 
