@@ -39,10 +39,12 @@ Chain strategy: stacked-to-main
 
 ## Phase 0: Gate de governance y verificación (BLOQUEANTE)
 
-- [ ] 0.1 **[GATE G1]** Confirmar con la usuaria: la vigencia va en `facturacion.presupuesto`, **no**
+- [x] 0.1 **[GATE G1]** Confirmar con la usuaria: la vigencia va en `facturacion.presupuesto`, **no**
       en `presupuesto_linea` (design D1, 5 motivos). Sin este OK no se escribe `.sql`.
-- [ ] 0.2 **[GATE G2]** Confirmar: los datos de traslado son columnas propias del presupuesto y **no**
+      **Confirmado 2026-08-21** por la usuaria antes de arrancar la Fase 1.
+- [x] 0.2 **[GATE G2]** Confirmar: los datos de traslado son columnas propias del presupuesto y **no**
       reusan `RecorridoHabitual` (design D2); el prefill es copy-on-create, sin FK.
+      **Confirmado 2026-08-21** por la usuaria antes de arrancar la Fase 1.
 - [x] 0.3 **[GATE G3 + verificación en vivo]** `supabase db query --linked`, **solo lectura**:
       ```sql
       SELECT column_name, data_type FROM information_schema.columns
@@ -55,12 +57,19 @@ Chain strategy: stacked-to-main
       ```
       Confirmar que **ninguna** de las 15 columnas nuevas existe ya, y que la RLS de `presupuestos`
       cubre ambas tablas (design D7). **El schema real fue por delante del repo 4 changes seguidos.**
-- [ ] 0.4 **[BLOQUEO DE ORDEN]** Verificar el estado de `presupuesto-prestaciones` (48/58). La Fase 8
+- [x] 0.4 **[BLOQUEO DE ORDEN]** Verificar el estado de `presupuesto-prestaciones` (48/58). La Fase 8
       (`PresupuestoForm.tsx`) **no arranca** hasta que su D9 esté aplicado. Fases 1-7 pueden ir en
       paralelo.
-- [ ] 0.5 **[BLOQUEO DE ORDEN]** Archivar `integracion-documentos-autorizaciones` (19/20) para que sus
+      **Verificado 2026-08-21**: `presupuesto-prestaciones/tasks.md` §8 (8.1-8.9, 8.11) completa —
+      la bifurcación de `PresupuestoForm.tsx` (`simple`/`general`/`por-prestacion`) ya está aplicada,
+      72 tests en verde. Solo queda 8.10 de ESE change (suite completa), diferida a su propia Fase 10
+      por decisión explícita de la usuaria — no bloquea esta Fase 8.
+- [x] 0.5 **[BLOQUEO DE ORDEN]** Archivar `integracion-documentos-autorizaciones` (19/20) para que sus
       deltas de spec lleguen a `openspec/specs/`. Este change **modifica**
       `autorizacion-archivo-storage`, que hoy solo existe dentro de esa carpeta de change.
+      **Hecho 2026-08-21** — archivado en
+      `openspec/changes/archive/2026-08-21-integracion-documentos-autorizaciones/`, deltas
+      sincronizados a `openspec/specs/` (commit `ae6db33`).
 - [ ] 0.6 **[GATE G4]** Preguntar a Andrea las Open Questions 1 y 2 del design (qué le hace CD/SD al
       valor del km; si "retorno" es el "vuelta" de D2/D4). **No bloquea el change** — bloquea
       automatizar el km. Registrar la respuesta en `10_preguntas_abiertas.md`.
