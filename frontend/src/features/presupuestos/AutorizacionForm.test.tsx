@@ -6,6 +6,15 @@ import type { Autorizacion } from '../../shared/types/presupuesto';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import { AutorizacionForm, type AutorizacionFormValues } from './AutorizacionForm';
 
+// presupuestos-vigencia-datos-traslado-vista-previa (tasks.md 7.8/7.10): mismo criterio que
+// DocumentChecklist.test.tsx/VistaPreviaArchivo.test.tsx — `PdfPreview` se mockea para verificar
+// solo la delegación, sin montar pdf.js real en este archivo.
+vi.mock('../../shared/components/PdfPreview', () => ({
+  PdfPreview: ({ url, nombreArchivo }: { url: string; nombreArchivo: string }) => (
+    <div data-testid="pdf-preview-stub" data-url={url} data-nombre-archivo={nombreArchivo} />
+  ),
+}));
+
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
@@ -13,11 +22,12 @@ function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
 // integracion-documentos-autorizaciones (tasks.md 4.1/4.2): repository fake compartido por defecto
 // para los tests que no ejercitan el flujo de archivo — nunca debería invocarse en esos casos.
 function buildFakeArchivoRepository(
-  overrides: Partial<Pick<AutorizacionRepository, 'uploadArchivo' | 'removeArchivo'>> = {},
-): Pick<AutorizacionRepository, 'uploadArchivo' | 'removeArchivo'> {
+  overrides: Partial<Pick<AutorizacionRepository, 'uploadArchivo' | 'removeArchivo' | 'getUrlArchivo'>> = {},
+): Pick<AutorizacionRepository, 'uploadArchivo' | 'removeArchivo' | 'getUrlArchivo'> {
   return {
     uploadArchivo: vi.fn().mockRejectedValue(new Error('uploadArchivo no debería llamarse en este test')),
     removeArchivo: vi.fn().mockRejectedValue(new Error('removeArchivo no debería llamarse en este test')),
+    getUrlArchivo: vi.fn().mockRejectedValue(new Error('getUrlArchivo no debería llamarse en este test')),
     ...overrides,
   };
 }
@@ -166,7 +176,9 @@ describe('AutorizacionForm', () => {
   // tasks.md 5.5: conteo explícito para confirmar que la migración del bloque hand-rolled a
   // AvisoModeloDatos no duplicó ni perdió ningún cartel — quedan exactamente 2 (archivo;
   // montoAutorizado+vigenciaDesde agrupados), no 3 como en el bloque viejo campo-por-campo.
-  it('muestra exactamente 2 carteles de discrepancia (archivo, y montoAutorizado+vigenciaDesde agrupados)', () => {
+  // tasks.md 9.3 sumó un TERCER cartel (vigenciaHasta/conDependencia/archivoTipoMime, Discrepancias
+  // 2/3/5 del design de `presupuestos-vigencia-datos-traslado-vista-previa`) — el conteo pasa a 3.
+  it('muestra exactamente 3 carteles de discrepancia (archivo; montoAutorizado+vigenciaDesde; vigenciaHasta+conDependencia+tipoMime)', () => {
     render(
       <AutorizacionForm
         montoPresupuesto={100_000}
@@ -176,12 +188,12 @@ describe('AutorizacionForm', () => {
       />,
     );
 
-    expect(screen.getAllByRole('note')).toHaveLength(2);
+    expect(screen.getAllByRole('note')).toHaveLength(3);
   });
 
-  // Triangulación: los 2 carteles se mantienen sin duplicarse también en modo edición, con
+  // Triangulación: los 3 carteles se mantienen sin duplicarse también en modo edición, con
   // montoAutorizado/vigenciaDesde ya precargados desde una autorización existente.
-  it('mantiene exactamente 2 carteles en modo edición con montoAutorizado/vigenciaDesde precargados', () => {
+  it('mantiene exactamente 3 carteles en modo edición con montoAutorizado/vigenciaDesde precargados', () => {
     render(
       <AutorizacionForm
         montoPresupuesto={100_000}
@@ -193,10 +205,32 @@ describe('AutorizacionForm', () => {
     );
 
     const notas = screen.getAllByRole('note');
-    expect(notas).toHaveLength(2);
+    expect(notas).toHaveLength(3);
     const cartelCampos = notas.find((n) => /vigencia/i.test(n.textContent ?? ''));
     if (!cartelCampos) throw new Error('No se encontró el cartel de montoAutorizado/vigenciaDesde');
     expect(cartelCampos).not.toHaveTextContent(/pendiente de confirmar/i);
+  });
+
+  // tasks.md 9.3, design.md §Discrepancias #2/#3/#5: `vigenciaHasta` (autorización),
+  // `conDependencia` y `archivo_tipo_mime` son campos nuevos de este change, ninguno está en el
+  // docx original. `PresupuestoForm` ya tenía sus carteles equivalentes desde la Fase 8;
+  // `AutorizacionForm` no los tenía — este cartel cierra ese hueco.
+  it('muestra el AvisoModeloDatos de vigenciaHasta/conDependencia/archivoTipoMime (Discrepancias 2/3/5, tasks.md 9.3)', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find(
+      (n) => /con dependencia/i.test(n.textContent ?? '') && /tipo de archivo/i.test(n.textContent ?? ''),
+    );
+    if (!cartel) throw new Error('No se encontró el cartel de vigenciaHasta/conDependencia/tipoMime (tasks.md 9.3)');
+    expect(cartel).toHaveTextContent(/docx/i);
   });
 
   it('el input de archivo es de un único archivo, no un checklist', () => {
@@ -550,5 +584,228 @@ describe('AutorizacionForm — subida real del archivo (integracion-documentos-a
     );
 
     expect(screen.queryByRole('button', { name: /quitar archivo/i })).not.toBeInTheDocument();
+  });
+});
+
+// presupuestos-vigencia-datos-traslado-vista-previa (tasks.md 7.8/7.10, design.md D6b, spec
+// `autorizacion-archivo-vista-previa`): "Ver documento" resuelve la URL `inline` y abre el Overlay
+// con VistaPreviaArchivo; una vez resuelta, aparece además un <a target="_blank"> a esa misma URL
+// para "abrir en otra pestaña".
+describe('AutorizacionForm — vista previa del documento adjunto (tasks.md 7.8/7.10, design.md D6b)', () => {
+  function autorizacionConArchivoPdf(): { nombre: string; cargadoEn: string; clave: string; tipoMime: string } {
+    return { nombre: 'informe.pdf', cargadoEn: '2026-08-18T12:00:00.000Z', clave: 'autorizacion-1/uuid-informe.pdf', tipoMime: 'application/pdf' };
+  }
+
+  it('sin archivo cargado, no ofrece el botón "Ver documento"', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('button', { name: /ver documento/i })).not.toBeInTheDocument();
+  });
+
+  it('clickear "Ver documento" llama a getUrlArchivo(id, \'inline\') y abre el Overlay con la vista previa resuelta', async () => {
+    const user = userEvent.setup();
+    const getUrlArchivo = vi.fn().mockResolvedValue('https://storage.example/informe.pdf?signed=1');
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        initial={{ estado: 'pendiente', archivo: autorizacionConArchivoPdf() }}
+        repository={buildFakeArchivoRepository({ getUrlArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /ver documento/i }));
+
+    expect(getUrlArchivo).toHaveBeenCalledWith('autorizacion-1', 'inline');
+    const pdfPreview = await screen.findByTestId('pdf-preview-stub');
+    expect(pdfPreview).toHaveAttribute('data-url', 'https://storage.example/informe.pdf?signed=1');
+    expect(pdfPreview).toHaveAttribute('data-nombre-archivo', 'informe.pdf');
+  });
+
+  it('con la vista previa resuelta, ofrece un <a target="_blank" rel="noopener noreferrer"> a la misma URL inline para abrir en otra pestaña', async () => {
+    const user = userEvent.setup();
+    const getUrlArchivo = vi.fn().mockResolvedValue('https://storage.example/informe.pdf?signed=1');
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        initial={{ estado: 'pendiente', archivo: autorizacionConArchivoPdf() }}
+        repository={buildFakeArchivoRepository({ getUrlArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /ver documento/i }));
+
+    const abrirEnPestana = await screen.findByRole('link', { name: /abrir en otra pestaña/i });
+    expect(abrirEnPestana).toHaveAttribute('href', 'https://storage.example/informe.pdf?signed=1');
+    expect(abrirEnPestana).toHaveAttribute('target', '_blank');
+    expect(abrirEnPestana).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('mientras resuelve, muestra el estado de carga dentro del Overlay (sin <a> "Abrir en otra pestaña" todavía)', async () => {
+    const user = userEvent.setup();
+    let resolverUrl!: (value: string) => void;
+    const getUrlArchivo = vi.fn(() => new Promise<string>((resolve) => { resolverUrl = resolve; }));
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        initial={{ estado: 'pendiente', archivo: autorizacionConArchivoPdf() }}
+        repository={buildFakeArchivoRepository({ getUrlArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /ver documento/i }));
+
+    expect(await screen.findByText(/cargando previsualización/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /abrir en otra pestaña/i })).not.toBeInTheDocument();
+
+    resolverUrl('https://storage.example/informe.pdf?signed=1');
+    await waitFor(() => expect(screen.queryByText(/cargando previsualización/i)).not.toBeInTheDocument());
+    expect(await screen.findByRole('link', { name: /abrir en otra pestaña/i })).toBeInTheDocument();
+  });
+
+  it('si getUrlArchivo rechaza, muestra el mensaje de error de la vista previa (nunca el crudo)', async () => {
+    const user = userEvent.setup();
+    const getUrlArchivo = vi.fn().mockRejectedValue(new Error('No tenés permiso para ver el archivo de la autorización.'));
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        autorizacionId="autorizacion-1"
+        initial={{ estado: 'pendiente', archivo: autorizacionConArchivoPdf() }}
+        repository={buildFakeArchivoRepository({ getUrlArchivo })}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /ver documento/i }));
+
+    expect(await screen.findByText(/no se pudo cargar la previsualización/i)).toBeInTheDocument();
+  });
+});
+
+// presupuestos-vigencia-datos-traslado-vista-previa, tasks.md 8.6/8.8, design.md D1/D3.
+describe('AutorizacionForm — vigenciaHasta y CD/SD desmarcable (tasks.md 8.8)', () => {
+  it('muestra el campo "Vigencia hasta" junto a "Vigencia desde"', () => {
+    render(
+      <AutorizacionForm montoPresupuesto={100_000} repository={buildFakeArchivoRepository()} onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText(/vigencia desde/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/vigencia hasta/i)).toBeInTheDocument();
+  });
+
+  it('el checkbox CD/SD arranca desmarcado sin presupuestoConDependencia', () => {
+    render(
+      <AutorizacionForm montoPresupuesto={100_000} repository={buildFakeArchivoRepository()} onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('checkbox', { name: /con dependencia/i })).not.toBeChecked();
+  });
+
+  it('en alta, con presupuestoConDependencia=true: el checkbox arranca marcado, pero SIGUE siendo desmarcable', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        presupuestoConDependencia={true}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const checkbox = screen.getByRole('checkbox', { name: /con dependencia/i });
+    expect(checkbox).toBeChecked();
+    expect(checkbox).not.toBeDisabled();
+
+    // Requisito literal de la usuaria: "lo carga ella, pero la obra social puede denegarlo".
+    await user.click(checkbox);
+    expect(checkbox).not.toBeChecked();
+
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ conDependencia: false }));
+  });
+
+  it('en edición, el checkbox usa el valor YA persistido de la autorización, no se re-deriva del presupuesto', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        presupuestoConDependencia={true}
+        initial={{ estado: 'autorizada', conDependencia: false }}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    // El presupuesto pide CD (true) pero la autorización YA registró SD (false) — no se pisa.
+    expect(screen.getByRole('checkbox', { name: /con dependencia/i })).not.toBeChecked();
+  });
+
+  it('vigencia autorizada dentro del período pedido: guarda sin error', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        presupuestoVigenciaDesde="2026-02-01"
+        presupuestoVigenciaHasta="2027-01-31"
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/vigencia desde/i), '2026-02-01');
+    await user.type(screen.getByLabelText(/vigencia hasta/i), '2026-08-31');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ vigenciaDesde: '2026-02-01', vigenciaHasta: '2026-08-31' }),
+    );
+  });
+
+  it('vigenciaHasta autorizada excede la del presupuesto: bloquea el guardado con un mensaje que distingue el caso de RN-PA-01', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        presupuestoVigenciaHasta="2027-01-31"
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByLabelText(/vigencia hasta/i), '2027-06-30');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText(/período autorizado no puede exceder/i)).toBeInTheDocument();
   });
 });

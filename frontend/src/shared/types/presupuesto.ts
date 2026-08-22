@@ -9,6 +9,13 @@
 // Decisiones 4 y 5): `montoAutorizado` y `vigenciaDesde` en `Autorizacion` son campos que el
 // frontend agrega sobre el docx (que no los tiene) para poder validar RN-PA-01 y RN-PA-02 en UI —
 // quedan opcionales y señalizados con `AvisoModeloDatos` en las pantallas correspondientes.
+//
+// `presupuestos-vigencia-datos-traslado-vista-previa` (design.md §Discrepancias, 5 entradas
+// nuevas): `Presupuesto.vigenciaDesde/vigenciaHasta`, `conDependencia` (en ambas entidades),
+// `datosTraslado` (bloque de 10 columnas) y `ArchivoAdjunto.tipoMime` tampoco están en el docx.
+// Mismo criterio que arriba: opcionales, señalizados con `AvisoModeloDatos`.
+
+import type { DiaSemana } from './recorridoHabitual';
 
 /** Unión cerrada de estados de una autorización (US-200). Nunca `string` libre. */
 export type EstadoAutorizacion = 'pendiente' | 'autorizada' | 'judicializada' | 'rechazada';
@@ -36,6 +43,16 @@ export interface ArchivoAdjunto {
    * poblada cuando hay archivo (ver `autorizacionMapping.parseArchivo`).
    */
   clave?: string;
+  /**
+   * Tipo MIME del archivo (`presupuestos-vigencia-datos-traslado-vista-previa` design.md D6c,
+   * Discrepancia 5 — ausente del docx). Poblado desde `File.type` en `uploadArchivo` en el momento
+   * de subir (dato exacto, no inferido). `undefined` en filas subidas antes del 2026-08-18 (el
+   * bucket `documentos-autorizaciones` está vivo desde esa fecha) o en `Presupuesto` (cuyo `archivo`
+   * sigue sin flujo real de subida, ver comentario de `clave` arriba): esas filas usan un fallback
+   * por extensión SOLO en la vista previa (`VistaPreviaArchivo`, D6 "Fallback acotado"), nunca
+   * reconstruido acá.
+   */
+  tipoMime?: string;
 }
 
 /**
@@ -58,6 +75,55 @@ export interface PresupuestoLinea {
   monto: number;
   /** Posición de la línea dentro del desglose (SMALLINT, default 0). */
   orden: number;
+}
+
+/**
+ * Bloque de datos del formulario de traslado presentado a la obra social
+ * (`presupuestos-vigencia-datos-traslado-vista-previa` design.md D2, Discrepancia 4 — ausente del
+ * docx). Declaración CONGELADA al momento del presupuesto — NO una referencia viva a
+ * `RecorridoHabitual` (`pacientes.recorridos`, RF-110): esa tabla es el estado ACTUAL del paciente y
+ * cambia cuando el paciente cambia de escuela; este bloque es lo que se presentó y quedó autorizado
+ * en una fecha, y no debe reescribirse retroactivamente (D2, motivo 1). Se reusa el tipo escalar
+ * `DiaSemana` de `recorridoHabitual.ts` — la unión cerrada de 7 valores es el mismo concepto en los
+ * dos dominios — pero NUNCA la entidad `RecorridoHabitual` ni sus filas: "no compartir tipos entre
+ * los dos dominios" ya está escrito ahí (`recorridoHabitual.ts:1-12`), sería la tercera vez que el
+ * repo rompe esa regla (D2, motivo 4).
+ */
+export interface DatosTraslado {
+  /** Origen/destino del tramo de ida, texto declarado en el formulario — no una FK a
+   * `Paciente.direcciones` (D2, motivo 3): puede no corresponder a ninguna dirección vigente, y el
+   * paciente puede mudarse sin que el presupuesto ya presentado cambie. */
+  origenIda?: string;
+  destinoIda?: string;
+  /**
+   * Origen/destino del tramo de vuelta. `undefined` cuando el traslado no tiene tramo de vuelta —
+   * junto con `kmVuelta`, es la señal que deriva `tieneVuelta` en `calculoViajes.ts` (D4); no hay
+   * columna booleana aparte para eso.
+   */
+  origenVuelta?: string;
+  destinoVuelta?: string;
+  /** Formato `'HH:MM'`, mismo criterio que `RecorridoHabitual.hora` (D2). */
+  horarioEntrada?: string;
+  horarioSalida?: string;
+  /** Kilómetros de ida/vuelta, carga manual (KB `04_modelo_de_datos.md:107`: "nomenclador, carga
+   * manual"). Este change guarda `conDependencia` como booleano y deja el km manual — NO automatiza
+   * su valor según CD/SD (Open Question 1, D3). */
+  kmIda?: number;
+  kmVuelta?: number;
+  /**
+   * Conjunto de días de la semana (`DiaSemana[]`, unión reusada de `recorridoHabitual.ts`, nunca la
+   * entidad). Requerido (no opcional en esta interfaz) porque la columna real es
+   * `TEXT[] NOT NULL DEFAULT '{}'`: "sin días cargados" se expresa como `[]`, nunca como
+   * `undefined`.
+   */
+  diasSemana: DiaSemana[];
+  /**
+   * Días mensuales NEGOCIADOS con la obra social, tal como figuran en el formulario — NO "días
+   * hábiles del mes" calculados (D2): derivarlo del calendario sería inventar el dato. Insumo de
+   * `calcularViajesMensuales`/`calcularKmMensuales` (`calculoViajes.ts`, D4), que se derivan en vivo
+   * y NUNCA se persisten (`viajesMensuales` deliberadamente no tiene columna).
+   */
+  diasMensuales?: number;
 }
 
 export interface Presupuesto {
@@ -88,6 +154,34 @@ export interface Presupuesto {
    * se produce cuando la EF así lo devuelve.
    */
   lineas?: PresupuestoLinea[];
+  /**
+   * Período que cubre el presupuesto (`presupuestos-vigencia-datos-traslado-vista-previa`
+   * design.md D1, Discrepancia 1 — el docx solo tiene `Monto` + `Archivo`). Separado de
+   * `fechaEmision` a propósito: es el malentendido que originó el pedido, un presupuesto puede
+   * emitirse el 30/12 y valer recién desde febrero. Vive en `presupuesto`, nunca en
+   * `presupuesto_linea` (D1, los 5 motivos). `AvisoModeloDatos` en `PresupuestoForm`/
+   * `PresupuestoDetail`.
+   */
+  vigenciaDesde?: string;
+  /** Ver `vigenciaDesde`. `undefined` mientras no se cargó un corte — nunca se infiere de
+   * `fechaEmision` ni de ningún otro campo. `vigenciaHasta >= vigenciaDesde` cuando ambos están
+   * cargados (validado en capa de aplicación, no con `CHECK` cruzado). */
+  vigenciaHasta?: string;
+  /**
+   * "Con dependencia" PEDIDO por el presupuesto (design.md D3, Discrepancia 3 — el docx solo tiene
+   * "dependencia y retorno" en `Factura`, no en `Presupuesto`). `undefined` = no se cargó, `false` =
+   * SD decidido explícitamente — nunca un default `false` implícito, sería fabricar el dato para
+   * presupuestos históricos. La obra social puede desmarcarlo en la autorización
+   * (`Autorizacion.conDependencia`): mismo par pedido/concedido que `monto`→`montoAutorizado`.
+   */
+  conDependencia?: boolean;
+  /**
+   * Datos del formulario de traslado de la obra social (design.md D2, Discrepancia 4). Copiado una
+   * sola vez desde `RecorridoHabitual` si la usuaria usa el botón "Traer de los destinos habituales
+   * del paciente" (copy-on-create, sin FK, sin referencia viva — ver `DatosTraslado`).
+   * `undefined` en presupuestos creados antes de este change o sin ninguno de estos datos cargados.
+   */
+  datosTraslado?: DatosTraslado;
 }
 
 export interface Autorizacion {
@@ -109,6 +203,22 @@ export interface Autorizacion {
    * tiene dónde persistir — pendiente de confirmar con backend.
    */
   vigenciaDesde?: string;
+  /**
+   * Ver `Presupuesto.vigenciaHasta` (design.md D1, Discrepancia 2 — extiende la discrepancia ya
+   * abierta de `vigenciaDesde`, que el docx tampoco tiene). Completa el par pedido/concedido: la
+   * obra social puede autorizar un período más corto que el pedido. Regla de negocio candidata (D1,
+   * validada en capa de aplicación, no con trigger nuevo): `vigenciaDesde >=
+   * presupuesto.vigenciaDesde` y `vigenciaHasta <= presupuesto.vigenciaHasta`, cuando ambos lados
+   * estén cargados.
+   */
+  vigenciaHasta?: string;
+  /**
+   * "Con dependencia" CONCEDIDO por la obra social (design.md D3, Discrepancia 3 — el docx solo
+   * tiene "dependencia y retorno" en `Factura`). Desmarcable aunque `Presupuesto.conDependencia`
+   * esté marcado — requisito literal de la usuaria: "lo carga ella, pero la obra social puede
+   * denegarlo, tiene que poder desmarcarse". `undefined` = no se cargó, `false` = SD decidido.
+   */
+  conDependencia?: boolean;
   /** Cupo mensual de días habilitados a facturar (RN-PA-03). */
   cupoMensualDias?: number;
   /** Cupo mensual de kilómetros habilitados a facturar (RN-PA-03). */

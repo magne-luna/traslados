@@ -49,16 +49,37 @@ interface FakeRemoveResult {
   error: FakeStorageError | null;
 }
 
+// getUrlArchivo() (presupuestos-vigencia-datos-traslado-vista-previa, tasks.md 7.2/7.10): mismo
+// fake tipado de `supabase.storage`, extendido con `createSignedUrl` — registra con qué `options`
+// se llamó (o su AUSENCIA) para poder afirmar D6b: `'inline'` NO pasa `download`, `'descarga'` sí.
+interface StorageCreateSignedUrlCall {
+  bucket: string;
+  path: string;
+  expiresIn: number;
+  options?: { download?: string | boolean };
+}
+interface FakeCreateSignedUrlResult {
+  data: { signedUrl: string } | null;
+  error: FakeStorageError | null;
+}
+
 let storageUploadCalls: StorageUploadCall[] = [];
 let storageRemoveCalls: StorageRemoveCall[] = [];
+let storageCreateSignedUrlCalls: StorageCreateSignedUrlCall[] = [];
 let uploadHandler: (call: StorageUploadCall) => FakeUploadResult = (call) => ({ data: { path: call.path }, error: null });
 let removeHandler: (call: StorageRemoveCall) => FakeRemoveResult = () => ({ data: null, error: null });
+let createSignedUrlHandler: (call: StorageCreateSignedUrlCall) => FakeCreateSignedUrlResult = (call) => ({
+  data: { signedUrl: `https://storage.example/${call.path}?signed=1` },
+  error: null,
+});
 
 function resetStorageFake(): void {
   storageUploadCalls = [];
   storageRemoveCalls = [];
+  storageCreateSignedUrlCalls = [];
   uploadHandler = (call) => ({ data: { path: call.path }, error: null });
   removeHandler = () => ({ data: null, error: null });
+  createSignedUrlHandler = (call) => ({ data: { signedUrl: `https://storage.example/${call.path}?signed=1` }, error: null });
 }
 
 vi.mock('../supabaseClient', () => ({
@@ -75,6 +96,11 @@ vi.mock('../supabaseClient', () => ({
           const call: StorageRemoveCall = { bucket, paths };
           storageRemoveCalls.push(call);
           return Promise.resolve(removeHandler(call));
+        },
+        createSignedUrl: (path: string, expiresIn: number, options?: { download?: string | boolean }) => {
+          const call: StorageCreateSignedUrlCall = { bucket, path, expiresIn, options };
+          storageCreateSignedUrlCalls.push(call);
+          return Promise.resolve(createSignedUrlHandler(call));
         },
       }),
     },
@@ -417,6 +443,74 @@ describe('supabaseAutorizacionRepository.removeArchivo() (3.5/3.6)', () => {
 
     await expect(supabaseAutorizacionRepository.removeArchivo('inexistente')).rejects.toThrow(
       'No existe una autorización con id "inexistente".',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// getUrlArchivo() (presupuestos-vigencia-datos-traslado-vista-previa, tasks.md 7.1/7.2/7.10,
+// design.md D6b, spec `autorizacion-archivo-vista-previa`)
+// ---------------------------------------------------------------------------------------------
+
+describe('supabaseAutorizacionRepository.getUrlArchivo() (7.2/7.10)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetStorageFake();
+  });
+
+  it("modo 'inline': NO pasa la opción download a createSignedUrl (D6b, inverso deliberado del fix del 2026-08-10)", async () => {
+    functionsInvoke.mockResolvedValue({ data: AUTORIZACION_CON_ARCHIVO, error: null });
+
+    const url = await supabaseAutorizacionRepository.getUrlArchivo('a1', 'inline');
+
+    expect(storageCreateSignedUrlCalls).toHaveLength(1);
+    expect(storageCreateSignedUrlCalls[0]?.path).toBe('a1/vieja-clave-informe.pdf');
+    expect(storageCreateSignedUrlCalls[0]?.options).toBeUndefined();
+    expect(url).toBe('https://storage.example/a1/vieja-clave-informe.pdf?signed=1');
+  });
+
+  it("modo 'descarga': SÍ pasa download con el nombre original del archivo", async () => {
+    functionsInvoke.mockResolvedValue({ data: AUTORIZACION_CON_ARCHIVO, error: null });
+
+    await supabaseAutorizacionRepository.getUrlArchivo('a1', 'descarga');
+
+    expect(storageCreateSignedUrlCalls).toHaveLength(1);
+    expect(storageCreateSignedUrlCalls[0]?.options).toEqual({ download: 'informe.pdf' });
+  });
+
+  it('autorización sin archivo: resuelve null sin pedir ninguna firma a Storage', async () => {
+    functionsInvoke.mockResolvedValue({ data: AUTORIZACION_SIN_ARCHIVO, error: null });
+
+    const url = await supabaseAutorizacionRepository.getUrlArchivo('a1', 'inline');
+
+    expect(url).toBeNull();
+    expect(storageCreateSignedUrlCalls).toHaveLength(0);
+  });
+
+  it('autorización inexistente (404 del GET): resuelve null sin lanzar, sin pedir firma', async () => {
+    functionsInvoke.mockResolvedValue({ data: null, error: { context: new Response(null, { status: 404 }) } });
+
+    const url = await supabaseAutorizacionRepository.getUrlArchivo('inexistente', 'inline');
+
+    expect(url).toBeNull();
+    expect(storageCreateSignedUrlCalls).toHaveLength(0);
+  });
+
+  it('403 real de Storage sobre una clave existente se traduce a un mensaje comprensible en castellano, nunca el crudo', async () => {
+    functionsInvoke.mockResolvedValue({ data: AUTORIZACION_CON_ARCHIVO, error: null });
+    createSignedUrlHandler = () => ({ data: null, error: { name: 'StorageApiError', message: 'raw storage error', status: 403 } });
+
+    await expect(supabaseAutorizacionRepository.getUrlArchivo('a1', 'inline')).rejects.toThrow(
+      'No tenés permiso para ver el archivo de la autorización.',
+    );
+  });
+
+  it('404 real de Storage (objeto ya no existe) se traduce, distinto del 404 de "no tiene archivo"', async () => {
+    functionsInvoke.mockResolvedValue({ data: AUTORIZACION_CON_ARCHIVO, error: null });
+    createSignedUrlHandler = () => ({ data: null, error: { name: 'StorageApiError', message: 'raw storage error', status: 404 } });
+
+    await expect(supabaseAutorizacionRepository.getUrlArchivo('a1', 'inline')).rejects.toThrow(
+      'No se encontró el archivo en el almacenamiento.',
     );
   });
 });

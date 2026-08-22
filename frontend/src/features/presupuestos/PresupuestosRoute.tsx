@@ -1,5 +1,6 @@
 import { supabaseObraSocialRepository } from '../../shared/lib/obrasSociales/SupabaseObraSocialRepository';
 import { supabasePacienteRepository } from '../../shared/lib/pacientes/SupabasePacienteRepository';
+import { supabaseRecorridoHabitualRepository } from '../../shared/lib/pacientes/SupabaseRecorridoHabitualRepository';
 import { supabaseAutorizacionRepository } from '../../shared/lib/presupuestos/SupabaseAutorizacionRepository';
 import { supabasePresupuestoRepository } from '../../shared/lib/presupuestos/SupabasePresupuestoRepository';
 import { AutorizacionRepositoryProvider } from './AutorizacionRepositoryContext';
@@ -16,6 +17,11 @@ import { PresupuestosPage } from './PresupuestosPage';
 // el resto de la feature solo conoce las interfaces de los repositories, así que este es el único
 // archivo que cambió (mismo criterio que PacientesRoute.tsx/ObraSocialesRoute.tsx).
 //
+// También `supabaseRecorridoHabitualRepository` (presupuestos-vigencia-datos-traslado-vista-previa,
+// tasks.md 8.5): botón "Traer de los destinos habituales del paciente" de `PresupuestoForm`, mismo
+// repository real ya wireado en `PacientesRoute.tsx` — solo se reutiliza `list()`, nunca
+// `create`/`remove` desde este lado.
+//
 // ⚠️ 1B.4 (verificación del gateo de permisos de las Edge Functions con 3 cuentas reales) fue
 // postergada por decisión explícita de la usuaria (2026-08-05) — se corre después de este swap, no
 // antes. Si algo falla en producción con 403, puede ser un bug real o un permiso sin verificar; no
@@ -24,7 +30,11 @@ export function PresupuestosRoute() {
   return (
     <PresupuestoRepositoryProvider repository={supabasePresupuestoRepository}>
       <AutorizacionRepositoryProvider repository={supabaseAutorizacionRepository}>
-        <PresupuestosPage pacienteRepository={supabasePacienteRepository} obraSocialRepository={supabaseObraSocialRepository} />
+        <PresupuestosPage
+          pacienteRepository={supabasePacienteRepository}
+          obraSocialRepository={supabaseObraSocialRepository}
+          recorridoHabitualRepository={supabaseRecorridoHabitualRepository}
+        />
       </AutorizacionRepositoryProvider>
     </PresupuestoRepositoryProvider>
   );

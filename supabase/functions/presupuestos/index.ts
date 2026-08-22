@@ -59,6 +59,22 @@ interface PresupuestoRow {
   fecha_emision: string;
   archivo_url: string | null;
   prestacion_id: string | null;
+  // Fase 6 (presupuestos-vigencia-datos-traslado-vista-previa, design.md D1/D2/D3): 13 columnas
+  // nuevas, todas nullable salvo dias_semana (NOT NULL DEFAULT '{}'). km_ida/km_vuelta son
+  // NUMERIC -> PostgREST las serializa como string, igual que `monto`.
+  vigencia_desde: string | null;
+  vigencia_hasta: string | null;
+  con_dependencia: boolean | null;
+  origen_ida: string | null;
+  destino_ida: string | null;
+  origen_vuelta: string | null;
+  destino_vuelta: string | null;
+  horario_entrada: string | null;
+  horario_salida: string | null;
+  km_ida: string | null;
+  km_vuelta: string | null;
+  dias_semana: string[];
+  dias_mensuales: number | null;
 }
 
 /** Fila de `facturacion.presupuesto_linea` (REAPERTURA #13, 2026-08-16). */
@@ -87,6 +103,25 @@ interface PresupuestoInput {
   prestacionId?: string;
   /** REAPERTURA #13 (2026-08-16): desglose de la modalidad `general`. Ausente == sin lineas. */
   lineas?: PresupuestoLineaInput[];
+  // Fase 6 (design.md D1/D2/D3): mismo criterio D6b que el resto de esta API -- ausente == no
+  // tocar (partial update); presente == escribe, incluido `conDependencia: false` (SD decidido).
+  // Nombres calcados 1:1 de `PresupuestoInput` en frontend/src/shared/lib/presupuestos/
+  // presupuestoMapping.ts, que ya aplana `datosTraslado` a estas mismas 10 claves planas.
+  vigenciaDesde?: string;
+  vigenciaHasta?: string;
+  conDependencia?: boolean;
+  origenIda?: string;
+  destinoIda?: string;
+  origenVuelta?: string;
+  destinoVuelta?: string;
+  horarioEntrada?: string;
+  horarioSalida?: string;
+  kmIda?: number;
+  kmVuelta?: number;
+  /** `TEXT[]` en la base (D2: "la cerradura la impone el tipo, no la base") -- se pasa tal cual,
+   * sin parsear/validar server-side; el type-guard vive en el mapping del frontend (Fase 5). */
+  diasSemana?: string[];
+  diasMensuales?: number;
 }
 
 function toApiLinea(row: PresupuestoLineaRow) {
@@ -117,6 +152,22 @@ function toApi(row: PresupuestoRow, lineas: PresupuestoLineaInput[]) {
     archivoUrl: row.archivo_url ?? undefined,
     prestacionId: row.prestacion_id ?? undefined,
     lineas,
+    // Fase 6 (design.md D1/D2/D3): mismo criterio ?? undefined que el resto de columnas
+    // nullable de esta fila. km_ida/km_vuelta son NUMERIC -> Number(), igual que `monto`.
+    vigenciaDesde: row.vigencia_desde ?? undefined,
+    vigenciaHasta: row.vigencia_hasta ?? undefined,
+    conDependencia: row.con_dependencia ?? undefined,
+    origenIda: row.origen_ida ?? undefined,
+    destinoIda: row.destino_ida ?? undefined,
+    origenVuelta: row.origen_vuelta ?? undefined,
+    destinoVuelta: row.destino_vuelta ?? undefined,
+    horarioEntrada: row.horario_entrada ?? undefined,
+    horarioSalida: row.horario_salida ?? undefined,
+    kmIda: row.km_ida === null ? undefined : Number(row.km_ida),
+    kmVuelta: row.km_vuelta === null ? undefined : Number(row.km_vuelta),
+    // dias_semana es NOT NULL DEFAULT '{}': nunca null, se pasa tal cual (D2).
+    diasSemana: row.dias_semana,
+    diasMensuales: row.dias_mensuales ?? undefined,
   };
 }
 
@@ -150,6 +201,21 @@ function toDb(input: PresupuestoInput): Record<string, unknown> {
   if (input.fechaEmision !== undefined) row.fecha_emision = input.fechaEmision;
   if (input.archivoUrl !== undefined) row.archivo_url = input.archivoUrl;
   if (input.prestacionId !== undefined) row.prestacion_id = input.prestacionId;
+  // Fase 6 (design.md D1/D2/D3): partial update, ausente == no tocar. `conDependencia` chequea
+  // `!== undefined` (no truthy) para permitir escribir `false` (SD, decisión tomada -- D3).
+  if (input.vigenciaDesde !== undefined) row.vigencia_desde = input.vigenciaDesde;
+  if (input.vigenciaHasta !== undefined) row.vigencia_hasta = input.vigenciaHasta;
+  if (input.conDependencia !== undefined) row.con_dependencia = input.conDependencia;
+  if (input.origenIda !== undefined) row.origen_ida = input.origenIda;
+  if (input.destinoIda !== undefined) row.destino_ida = input.destinoIda;
+  if (input.origenVuelta !== undefined) row.origen_vuelta = input.origenVuelta;
+  if (input.destinoVuelta !== undefined) row.destino_vuelta = input.destinoVuelta;
+  if (input.horarioEntrada !== undefined) row.horario_entrada = input.horarioEntrada;
+  if (input.horarioSalida !== undefined) row.horario_salida = input.horarioSalida;
+  if (input.kmIda !== undefined) row.km_ida = input.kmIda;
+  if (input.kmVuelta !== undefined) row.km_vuelta = input.kmVuelta;
+  if (input.diasSemana !== undefined) row.dias_semana = input.diasSemana;
+  if (input.diasMensuales !== undefined) row.dias_mensuales = input.diasMensuales;
   return row;
 }
 

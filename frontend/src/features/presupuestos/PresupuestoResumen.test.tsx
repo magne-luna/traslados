@@ -137,9 +137,13 @@ describe('PresupuestoResumen — prestación asociada (D9)', () => {
 
     render(<PresupuestoResumen presupuesto={presupuestoConPrestacion} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
 
-    expect(screen.getByRole('note')).toHaveTextContent(/discrepancia #13/i);
-    expect(screen.getByRole('note')).toHaveTextContent(/por prestación/i);
-    expect(screen.getByRole('note')).toHaveTextContent(/general/i);
+    // tasks.md 9.3 sumó un segundo cartel siempre visible (vigencia, Discrepancia 1) — ya no es
+    // el único `note` de la pantalla, así que se busca el específico de la #13 entre todos.
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find((n) => /discrepancia #13/i.test(n.textContent ?? ''));
+    if (!cartel) throw new Error('No se encontró el cartel de la discrepancia #13');
+    expect(cartel).toHaveTextContent(/por prestación/i);
+    expect(cartel).toHaveTextContent(/general/i);
   });
 });
 
@@ -233,5 +237,110 @@ describe('PresupuestoResumen — líneas de modalidad general (reapertura #13)',
     render(<PresupuestoResumen presupuesto={presupuestoMartina} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
 
     expect(screen.queryByText('Líneas')).not.toBeInTheDocument();
+  });
+});
+
+// presupuestos-vigencia-datos-traslado-vista-previa, tasks.md 8.7, design.md D1/D2/D3.
+describe('PresupuestoResumen — vigencia, CD/SD y datos de traslado (tasks.md 8.7)', () => {
+  it('vigencia cargada: muestra el rango vigenciaDesde – vigenciaHasta', () => {
+    const presupuesto: Presupuesto = { ...presupuestoMartina, vigenciaDesde: '2026-02-01', vigenciaHasta: '2027-01-31' };
+    render(<PresupuestoResumen presupuesto={presupuesto} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.getByText('2026-02-01 – 2027-01-31')).toBeInTheDocument();
+  });
+
+  it('sin vigencia cargada: muestra "Sin vigencia cargada", nunca un rango inventado a partir de fechaEmision', () => {
+    render(<PresupuestoResumen presupuesto={presupuestoMartina} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.getByText('Sin vigencia cargada')).toBeInTheDocument();
+  });
+
+  it('conDependencia true: muestra "Sí"', () => {
+    const presupuesto: Presupuesto = { ...presupuestoMartina, conDependencia: true };
+    render(<PresupuestoResumen presupuesto={presupuesto} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.getByText('Sí')).toBeInTheDocument();
+  });
+
+  it('conDependencia false (decisión tomada): muestra "No", nunca confundido con "no cargado"', () => {
+    const presupuesto: Presupuesto = { ...presupuestoMartina, conDependencia: false };
+    render(<PresupuestoResumen presupuesto={presupuesto} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.getByText('No')).toBeInTheDocument();
+    expect(screen.queryByText('No cargado')).not.toBeInTheDocument();
+  });
+
+  it('conDependencia undefined (nunca se cargó): muestra "No cargado", nunca "No"', () => {
+    render(<PresupuestoResumen presupuesto={presupuestoMartina} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.getByText('No cargado')).toBeInTheDocument();
+  });
+
+  it('sin datosTraslado: muestra "Sin datos de traslado", nunca campos vacíos', () => {
+    render(<PresupuestoResumen presupuesto={presupuestoMartina} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.getByText('Sin datos de traslado')).toBeInTheDocument();
+  });
+
+  it('con datosTraslado cargado: muestra origen/destino, horarios, km y días de la semana traducidos', () => {
+    const presupuesto: Presupuesto = {
+      ...presupuestoMartina,
+      datosTraslado: {
+        origenIda: 'San Martín 123',
+        destinoIda: 'Escuela especial',
+        horarioEntrada: '08:00',
+        kmIda: 10,
+        diasSemana: ['lunes', 'miercoles'],
+        diasMensuales: 20,
+      },
+    };
+
+    render(<PresupuestoResumen presupuesto={presupuesto} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.getByText('Datos de traslado')).toBeInTheDocument();
+    expect(screen.getByText('San Martín 123')).toBeInTheDocument();
+    expect(screen.getByText('Escuela especial')).toBeInTheDocument();
+    expect(screen.getByText('08:00')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getByText('Lunes, Miércoles')).toBeInTheDocument();
+    expect(screen.getByText('20')).toBeInTheDocument();
+  });
+
+  it('con datosTraslado cargado pero campos individuales sin cargar (ej. solo ida, sin vuelta): muestra "Sin cargar" por campo, no un valor inventado', () => {
+    const presupuesto: Presupuesto = {
+      ...presupuestoMartina,
+      datosTraslado: { origenIda: 'San Martín 123', diasSemana: [] },
+    };
+
+    render(<PresupuestoResumen presupuesto={presupuesto} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    expect(screen.getByText('San Martín 123')).toBeInTheDocument();
+    // "Sin cargar" aparece más de una vez (destino/vuelta/horarios/km sin cargar) — no debe romper.
+    expect(screen.getAllByText('Sin cargar').length).toBeGreaterThan(1);
+  });
+
+  // tasks.md 9.3, design.md §Discrepancias #1: la regla dura del proyecto exige el cartel en las
+  // DOS pantallas listadas por el design (PresupuestoForm ya lo tenía desde Fase 8;
+  // PresupuestoResumen —la vista de solo lectura de PresupuestoDetail— no lo tenía).
+  it('vigencia cargada: muestra el AvisoModeloDatos de vigencia (Discrepancia 1 del design, tasks.md 9.3)', () => {
+    const presupuesto: Presupuesto = { ...presupuestoMartina, vigenciaDesde: '2026-02-01', vigenciaHasta: '2027-01-31' };
+    render(<PresupuestoResumen presupuesto={presupuesto} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find((n) => /vigencia/i.test(n.textContent ?? '') && /docx/i.test(n.textContent ?? ''));
+    if (!cartel) throw new Error('No se encontró el cartel de vigencia (Discrepancia 1, tasks.md 9.3)');
+  });
+
+  // tasks.md 9.3, design.md §Discrepancias #4.
+  it('con datosTraslado cargado: muestra el AvisoModeloDatos del bloque de datos de traslado (Discrepancia 4 del design, tasks.md 9.3)', () => {
+    const presupuesto: Presupuesto = {
+      ...presupuestoMartina,
+      datosTraslado: { origenIda: 'San Martín 123', diasSemana: [] },
+    };
+    render(<PresupuestoResumen presupuesto={presupuesto} paciente={martina} obraSocial={osecac} onEdit={vi.fn()} />);
+
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find((n) => /datos de traslado/i.test(n.textContent ?? '') && /docx/i.test(n.textContent ?? ''));
+    if (!cartel) throw new Error('No se encontró el cartel de datos de traslado (Discrepancia 4, tasks.md 9.3)');
   });
 });

@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { buttonClassName, Chip, chipColors, InlineIcon, Overlay, ProgressBar, RingProgress } from '../../design-system/components';
-import { Alert } from '../../design-system/feedback';
+import { Chip, chipColors, InlineIcon, Overlay, ProgressBar, RingProgress } from '../../design-system/components';
 import { iconCheck, iconDocumento } from '../../design-system/icons';
 import type { ChecklistItem, DocumentoAdjunto } from '../types/documento';
 import { elegirVigente, fechaEfectiva } from '../lib/documentos/vigencia';
-import { PdfPreview } from './PdfPreview';
+import { VistaPreviaArchivo, type EstadoPrevisualizacion } from './VistaPreviaArchivo';
 
 interface DocumentChecklistProps {
   items: ChecklistItem[];
@@ -104,11 +103,9 @@ interface DocumentoEnVista {
 // desenlaces posibles de resolver el contenido de un documento. `sin-contenido` es el `null` del
 // contrato D2 (documento sin binario resoluble, caso normal para documentos previos a este
 // change) — distinto de `error` (403/404/expirado: un fallo real, no "no hay nada que ver").
-type EstadoPrevisualizacion =
-  | { status: 'cargando' }
-  | { status: 'lista'; url: string }
-  | { status: 'sin-contenido' }
-  | { status: 'error' };
+// `presupuestos-vigencia-datos-traslado-vista-previa` (tasks.md 7.6, design.md D6a): el tipo se
+// mudó a `VistaPreviaArchivo.tsx` (reexportado acá) para que ambos consumidores compartan la misma
+// forma de estado, sin duplicarla.
 
 // documentos-transferencia-actividad (tasks.md §14): `fechaEfectiva`/`elegirVigente` se movieron a
 // `shared/lib/documentos/vigencia.ts` — exportarlas directamente desde este archivo (en su momento
@@ -126,91 +123,10 @@ function ordenarParaMostrar(docs: DocumentoAdjunto[], vigente: DocumentoAdjunto 
   return [vigente, ...resto];
 }
 
-// documentos-previsualizacion (tasks.md 5.4, design.md Checkpoint (e)): decide qué elemento
-// renderizar según `tipoMime` y el desenlace de `resolverPrevisualizacion`. `<iframe>` va SIEMPRE
-// sandboxeado, sin `allow-scripts` — un PDF/SVG subido por un usuario nunca puede ejecutar script
-// en el origen de la app, en mock o contra una URL firmada real el día de mañana. No es opcional.
-//
-// **Corrección (2026-08-06, hallada en §8.2 de tasks.md, verificación manual)**: `sandbox=""`
-// (sin `allow-same-origin`) deja al iframe con origen opaco, y los navegadores bloquean cargar
-// `blob:` ahí — el `ObjectURL` del mock nunca resolvía, mostraba el ícono roto de "no se pudo
-// cargar" del navegador. Se agrega `allow-same-origin` para permitir esa carga. Sigue siendo
-// seguro: el escape de sandbox conocido necesita `allow-scripts` + `allow-same-origin` juntos —
-// con `allow-same-origin` solo, sin `allow-scripts`, nada puede ejecutar código aunque el iframe
-// tenga identidad de origen. Contra una URL firmada real (https, no blob) esta restricción no
-// aplicaría de todos modos, pero se deja igual por consistencia entre mock y real.
-//
-// **Corrección (2026-08-06, verificación manual en dos navegadores — Arc y otro Chromium)**: el
-// `<iframe>` de arriba se REEMPLAZA por completo para PDF. Con `sandbox="allow-same-origin"` la
-// `blob:` sí cargaba (fix anterior), pero el visor nativo de PDF del navegador se niega a correr
-// dentro de CUALQUIER iframe sandboxeado, sin importar la combinación de tokens — confirmado
-// sacando el `sandbox` por completo como diagnóstico (ya revertido): sin sandbox el PDF cargaba
-// perfecto, con cualquier sandbox no. No existe una combinación de `sandbox` que sea segura y
-// funcional a la vez: el visor nativo necesitaría `allow-scripts` + `allow-same-origin` juntos
-// (el escape de sandbox conocido) para poder correr, y eso es exactamente lo que no se puede
-// conceder a contenido subido por un usuario. Se agrega `pdfjs-dist` como dependencia nueva
-// (decisión explícita del usuario, ver `design.md` Checkpoint (e) y `tasks.md`) y se renderiza el
-// PDF a un `<canvas>` con `PdfPreview` (`./PdfPreview.tsx`) en vez de con el visor nativo: pdf.js
-// parsea el archivo y dibuja gráficos/texto vía la API de canvas, no ejecuta nada del contenido
-// del PDF como si fuera HTML/script de la página — sin iframe, sin plugin del navegador, sin
-// browsing context separado, por lo tanto sin necesidad de `sandbox` en absoluto para este caso.
-function ContenidoPreview({ estado, documento }: { estado: EstadoPrevisualizacion; documento: DocumentoAdjunto }) {
-  if (estado.status === 'cargando') {
-    return <p className="font-body text-sm text-muted">Cargando previsualización…</p>;
-  }
-
-  // tasks.md 5.5 / design.md D5: mensaje comprensible, nunca el mensaje crudo del error real
-  // (403/404/expirado) — mismo requisito duro que el resto de la serie de integración.
-  if (estado.status === 'error') {
-    return <Alert tone="danger">No se pudo cargar la previsualización. Probá de nuevo en un momento.</Alert>;
-  }
-
-  if (estado.status === 'sin-contenido') {
-    return <Alert tone="secondary">Este documento no tiene contenido para previsualizar.</Alert>;
-  }
-
-  // A partir de acá `estado.status === 'lista'`: hay una url válida (mock: ObjectURL; real
-  // mañana: URL firmada), así que "Descargar" siempre tiene sentido — incluida la rama de tipo no
-  // soportado más abajo, que es justo el caso donde más falta hace (no hay preview inline al que
-  // recurrir). `download={documento.nombreArchivo}` conserva el nombre original, no el id interno
-  // ni el nombre que el navegador le pondría a una blob: URL por defecto.
-  let contenido;
-  if (documento.tipoMime?.startsWith('image/')) {
-    contenido = (
-      <img
-        src={estado.url}
-        alt={documento.nombreArchivo}
-        className="max-h-[70vh] w-full rounded-sm object-contain"
-      />
-    );
-  } else if (documento.tipoMime === 'application/pdf') {
-    contenido = <PdfPreview url={estado.url} nombreArchivo={documento.nombreArchivo} />;
-  } else {
-    contenido = (
-      <Alert tone="secondary">
-        Este tipo de archivo no se puede previsualizar acá. Nombre: {documento.nombreArchivo}
-      </Alert>
-    );
-  }
-
-  return (
-    // min-w-0 (fix "el zoom agranda toda la tarjeta", 2026-08-06): propaga la posibilidad de
-    // achicarse a través de toda la cadena de flex items entre el <canvas> de PdfPreview y el
-    // `max-w-[640px]` del diálogo de Overlay — sin esto en cada nivel, un flex item no se achica
-    // por debajo del ancho de su contenido, sea cual sea el `overflow-auto` que tenga adentro.
-    <div className="flex w-full min-w-0 flex-col gap-sm">
-      <div className="flex w-full min-w-0 flex-col items-center gap-sm">{contenido}</div>
-      {/* documentos-previsualizacion (feedback de ubicación, 2026-08-06): "Descargar" va abajo,
-          alineado a la derecha — separado de los controles de zoom/paginación de PdfPreview
-          (que quedan centrados arriba de esta fila), no mezclado en la misma torre de botones. */}
-      <div className="flex w-full justify-end">
-        <a href={estado.url} download={documento.nombreArchivo} className={buttonClassName('secondary', 'sm')}>
-          Descargar
-        </a>
-      </div>
-    </div>
-  );
-}
+// documentos-previsualizacion (tasks.md 5.4, design.md Checkpoint (e)) — `presupuestos-vigencia-
+// datos-traslado-vista-previa` (tasks.md 7.6): el render de contenido (imagen/PDF/tipo no
+// soportado/error/sin-contenido) se extrajo a `VistaPreviaArchivo.tsx`, con sus comentarios de
+// pdf.js/sandbox/`min-w-0` conservados ahí — no reimplementar, no duplicar acá.
 
 // Componente reutilizable de checklist documental (RF-900 a RF-902). Un solo componente para
 // Pacientes, Vehículos, Conductores y Facturas — lo único que cambia entre pantallas es la lista
@@ -562,7 +478,13 @@ export function DocumentChecklist({
         onClose={cerrarPreview}
         title={enVista ? `${enVista.itemNombre} - ${enVista.documento.nombreArchivo}` : ''}
       >
-        {enVista && <ContenidoPreview estado={estadoPreview} documento={enVista.documento} />}
+        {enVista && (
+          <VistaPreviaArchivo
+            estado={estadoPreview}
+            nombreArchivo={enVista.documento.nombreArchivo}
+            tipoMime={enVista.documento.tipoMime}
+          />
+        )}
       </Overlay>
     </div>
   );

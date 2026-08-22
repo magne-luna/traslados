@@ -432,10 +432,53 @@ registran acá y quedan para confirmar.
   "dos sí/no" por paciente, pero no supo explicar qué representa cada uno ni si varía mes a mes o
   es fijo en la ficha del paciente. Hoy siguen siendo texto libre, cargados a mano en el wizard de
   factura (`FacturaFormDatosBasicos.tsx`) — no se tocó nada de este campo, sigue exactamente como
-  estaba. **No resolver adivinando**: no hay ningún campo equivalente en `Paciente` hoy, así que
+  estaba. ~~**No resolver adivinando**: no hay ningún campo equivalente en `Paciente` hoy, así que
   además de aclarar el significado hace falta decidir dónde vive el dato (ficha del paciente,
-  configuración de la obra social, o se sigue cargando por factura). **Decisor**: cliente (Andrea
-  Pastor).
+  configuración de la obra social, o se sigue cargando por factura).~~
+  **Actualizado 2026-08-21 (`presupuestos-vigencia-datos-traslado-vista-previa`, design.md D3):**
+  Andrea contestó la parte de **dónde vive el dato** — ni en la ficha del paciente ni en la
+  configuración de la obra social: vive **en el presupuesto y en la autorización**
+  (`presupuesto.con_dependencia` = lo que ella pide, `autorizacion.con_dependencia` = lo que la
+  obra social concede o niega), porque la obra social decide caso por caso, no de forma fija por
+  paciente. Esta pregunta **NO se cierra**: siguen abiertos (1) qué significa numéricamente CD/SD
+  (¿cambia una tarifa? ¿un multiplicador del km?) y (2) si "retorno" es lo mismo que el `tieneVuelta`
+  derivado de los datos de traslado (D2/D4 del mismo `design.md`) o un concepto distinto. Ver Open
+  Questions 1 y 2 más abajo, que son la continuación literal de estas dos partes sin resolver.
+  **Decisor**: cliente (Andrea Pastor).
+
+## Preguntas nuevas — `presupuestos-vigencia-datos-traslado-vista-previa` (2026-08-21)
+
+Surgidas de `design.md` §Open Questions (`openspec/changes/presupuestos-vigencia-datos-traslado-
+vista-previa/`). Ninguna se cierra en este change — se registran acá y quedan para confirmar.
+
+1. **¿Qué le hace exactamente CD/SD al valor del km?** Andrea dijo que lo cambia, no cómo. Este
+   change guarda el booleano (`con_dependencia`, D3) y deja el valor del km manual (como ya dice
+   `04_modelo_de_datos.md`, "nomenclador, carga manual") — inventar un multiplicador en un dominio
+   de facturación de salud es exactamente lo que la governance ALTO prohíbe. Bloquea cualquier
+   automatización futura del cálculo del km, no este change. **Decisor**: Andrea.
+2. **¿"Retorno" (`Factura.dependenciaYRetorno`) es lo mismo que el "vuelta" de los datos de
+   traslado (origen/destino/km/horario de vuelta, D2/D4)?** Si lo es, el ítem de arriba
+   ("dependencia y retorno") queda cerrado de ese lado. **No se asume**: se pregunta.
+   **Decisor**: Andrea.
+3. **¿Hace falta una etiqueta libre para presupuestos sin prestación asociada?** Caso borde de
+   `PresupuestosList.tsx` (D5): hoy un presupuesto sin `prestacionId` ni `lineas` muestra el chip
+   "Sin prestación asociada", nunca una celda vacía ni un texto inventado. Si Andrea quiere poder
+   escribir una etiqueta libre para esos casos, es una columna aditiva posterior — no se construye
+   por las dudas. **Decisor**: Andrea.
+4. **¿La vigencia debería afectar el gateo de facturación** (no permitir facturar un mes fuera del
+   período autorizado)? Sería la extensión natural de RN-FA-02/`presupuesto-cupo-consumible`, pero
+   toca **Facturación (dominio CRÍTICO)** y `facturacion-seleccion-autorizacion` está activo.
+   **Fuera de alcance de este change**, mismo motivo que `presupuesto-prestaciones` D8 dejó fuera
+   la unificación de `facturas.prestacion` con el catálogo. **Evaluado, no asumido** (`tasks.md`
+   9.5): `CupoAutorizado` (`shared/types/presupuesto.ts:234-239`) ya lleva `vigenciaDesde` en la
+   proyección desde `presupuestos-ui` (2026-07-24) — pero **sin ningún uso real**:
+   `validarCupoFacturacion.ts` (la función que sí gatea `cupoMensualDias`/`cupoMensualKm` contra
+   `AsistenciaPrestacion`, RN-FA-02) no lee `vigenciaDesde` en absoluto. `autorizacion.vigenciaHasta`
+   (nuevo de este change) **no** se agrega a `CupoAutorizado`/`derivarCupoAutorizado`
+   (`shared/lib/presupuestos/cupoAutorizado.ts`) — agregarla sin implementar el gateo sería un dato
+   muerto más (el mismo error que `vigenciaDesde` ya es), y implementar el gateo es exactamente esta
+   Open Question, que toca Facturación CRÍTICO. Queda para el mismo change futuro que resuelva esta
+   pregunta. **Decisor**: Andrea + Enzo.
 
 ## Insumos pendientes del cliente
 

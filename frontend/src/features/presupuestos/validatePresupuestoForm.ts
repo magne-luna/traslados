@@ -6,12 +6,33 @@ export interface PresupuestoFormInput {
   pacienteId: string | null;
   obraSocialId: string | null;
   monto: number;
+  /**
+   * Vigencia del presupuesto (tasks.md 8.6, design.md D1, spec presupuesto-vigencia). Ambas
+   * opcionales — un presupuesto puede no tener vigencia cargada todavía. `vigenciaHasta` MUST NOT
+   * ser anterior a `vigenciaDesde` cuando las dos están cargadas; la base repite el mismo `CHECK`
+   * (spec "Vigencia invertida rechazada": "la base rechaza la fila igualmente... aunque la
+   * validación de UI se saltee").
+   */
+  vigenciaDesde?: string;
+  vigenciaHasta?: string;
 }
 
 export interface PresupuestoFormErrors {
   pacienteId?: string;
   obraSocialId?: string;
   monto?: string;
+  vigenciaHasta?: string;
+}
+
+/** Compartida entre `validatePresupuestoForm` (rama `simple`/`general`) y el submit de la rama
+ * `por-prestacion` en `PresupuestoForm.tsx` — la vigencia es un campo del bloque compartido de
+ * `values`, no de cada línea/ítem del lote, así que la misma regla aplica en las dos ramas sin
+ * duplicar el mensaje (tasks.md 8.6). */
+export function validarRangoVigencia(vigenciaDesde?: string, vigenciaHasta?: string): string | undefined {
+  if (vigenciaDesde !== undefined && vigenciaHasta !== undefined && vigenciaHasta < vigenciaDesde) {
+    return 'La vigencia hasta no puede ser anterior a la vigencia desde.';
+  }
+  return undefined;
 }
 
 export function validatePresupuestoForm(input: PresupuestoFormInput): PresupuestoFormErrors {
@@ -34,6 +55,13 @@ export function validatePresupuestoForm(input: PresupuestoFormInput): Presupuest
 
   if (input.monto <= 0) {
     errors.monto = 'El monto debe ser mayor a 0.';
+  }
+
+  // D1: invariante de fila, comparación de string ISO (`'YYYY-MM-DD'`) — funciona por orden
+  // lexicográfico sin parsear a Date, mismo criterio que el CHECK de la base.
+  const errorVigencia = validarRangoVigencia(input.vigenciaDesde, input.vigenciaHasta);
+  if (errorVigencia !== undefined) {
+    errors.vigenciaHasta = errorVigencia;
   }
 
   return errors;

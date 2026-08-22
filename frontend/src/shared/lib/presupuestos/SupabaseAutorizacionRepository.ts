@@ -80,6 +80,62 @@ function mapearErrorStorage(error: unknown): Error {
   return new Error(MSG_NO_SE_PUDO_SUBIR);
 }
 
+// ---------------------------------------------------------------------------------------------
+// getUrlArchivo() (presupuestos-vigencia-datos-traslado-vista-previa, tasks.md 7.1/7.2, design.md
+// D6b, spec `autorizacion-archivo-vista-previa`)
+// ---------------------------------------------------------------------------------------------
+
+// "Corta" (mismo criterio y mismo valor que SupabaseDocumentoRepository.ts, D6/D7 de
+// `integracion-documentos`): alcanza para que el navegador abra la pestaña nueva o cargue el
+// Overlay de vista previa sin dejar la URL firmada viva más tiempo del necesario.
+const EXPIRACION_URL_FIRMADA_SEGUNDOS = 120;
+
+const MSG_SIN_PERMISO_FIRMA = 'No tenés permiso para ver el archivo de la autorización.';
+const MSG_ARCHIVO_NO_ENCONTRADO_STORAGE = 'No se encontró el archivo en el almacenamiento.';
+const MSG_NO_SE_PUDO_FIRMAR = 'No se pudo generar el enlace del archivo.';
+
+/** Spec "Error real de Storage se traduce": nunca se propaga el mensaje crudo de Storage. */
+function mapearErrorFirma(error: unknown): Error {
+  if (esStorageError(error)) {
+    if (error.status === 403) return new Error(MSG_SIN_PERMISO_FIRMA);
+    if (error.status === 404) return new Error(MSG_ARCHIVO_NO_ENCONTRADO_STORAGE);
+  }
+  return new Error(MSG_NO_SE_PUDO_FIRMAR);
+}
+
+/**
+ * `'inline'` vs `'descarga'` (design.md D6b) — **inverso deliberado** del fix de
+ * `SupabaseDocumentoRepository.ts:201-211` (2026-08-10, "Descargar lleva a otra página"). Ahí la
+ * opción `download` se pasa SIEMPRE porque el caso base de ese repositorio es forzar la descarga.
+ * Acá el caso base (`'inline'`) es lo opuesto: mostrar el PDF/imagen en una pestaña nueva o dentro
+ * del Overlay de vista previa. Si `'inline'` pasara `download` iría a la opción de todos modos,
+ * Storage respondería con `Content-Disposition: attachment` y el navegador DESCARGARÍA el archivo
+ * en lugar de renderizarlo — sin importar `target="_blank"` en el `<a>` que abre la pestaña, esa
+ * cabecera la decide el servidor, no el atributo del link (mismo razonamiento que el comentario
+ * original, aplicado al revés). Por eso `'inline'` omite la opción por completo (ni siquiera la
+ * pasa como `undefined` con nombre) y solo `'descarga'` la incluye, con el nombre real del
+ * archivo. Un solo método con un modo explícito, no dos métodos separados, para que quede un único
+ * lugar donde leer el porqué y nadie "unifique" los dos casos hacia uno solo.
+ */
+async function resolverUrlArchivo(id: string, modo: 'inline' | 'descarga'): Promise<string | null> {
+  const actual = await obtenerAutorizacion(id);
+  const archivo = actual?.archivo;
+  // Sin archivo (o autorización inexistente) -> nada que firmar (D6b, mismo criterio que
+  // `getById`/`getByPresupuestoId`: resuelve `null`, nunca lanza).
+  if (!archivo?.clave) return null;
+
+  const { data, error } = await supabase.storage
+    .from(BUCKET)
+    .createSignedUrl(
+      archivo.clave,
+      EXPIRACION_URL_FIRMADA_SEGUNDOS,
+      modo === 'descarga' ? { download: archivo.nombre } : undefined,
+    );
+
+  if (error) throw mapearErrorFirma(error);
+  return data?.signedUrl ?? null;
+}
+
 /** GET compartido por `getById` y por `uploadArchivo`/`removeArchivo` (necesitan conocer la clave
  * vieja del archivo, si había, antes de tocar Storage). */
 async function obtenerAutorizacion(id: string): Promise<Autorizacion | null> {
@@ -117,7 +173,11 @@ async function subirArchivoAutorizacion(id: string, file: File): Promise<Autoriz
   const cargadoEn = new Date().toISOString();
   const { data, error: errorPatch } = await supabase.functions.invoke(`autorizaciones/${id}`, {
     method: 'PATCH',
-    body: { archivoUrl: clave, archivoNombre: file.name, archivoCargadoEn: cargadoEn },
+    // `archivoTipoMime` (tasks.md 7.3, design.md D6c): se persiste desde `File.type`, el dato
+    // exacto que ya está en la mano en el momento de subir — nunca inferido acá (el fallback por
+    // extensión vive solo en la vista previa, D6 "Fallback acotado", para filas subidas ANTES de
+    // este campo).
+    body: { archivoUrl: clave, archivoNombre: file.name, archivoCargadoEn: cargadoEn, archivoTipoMime: file.type },
   });
 
   if (errorPatch) {
@@ -228,4 +288,5 @@ export const supabaseAutorizacionRepository: AutorizacionRepository = {
 
   uploadArchivo: subirArchivoAutorizacion,
   removeArchivo: quitarArchivoAutorizacion,
+  getUrlArchivo: resolverUrlArchivo,
 };

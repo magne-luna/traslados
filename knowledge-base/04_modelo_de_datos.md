@@ -344,6 +344,33 @@ así que queda anotado acá hasta que se construya esa feature.
   `PresupuestoForm.tsx` (archivo único) y `AutorizacionForm.tsx` (archivo único, `montoAutorizado`
   y `vigenciaDesde`) — los 3 puntos siguen **pendientes de confirmar con backend** antes de cerrar
   la tabla `autorizacion` de `C-06`.
+- **Vigencia, datos de traslado e identificación de presupuestos** (detalle completo en
+  `openspec/changes/presupuestos-vigencia-datos-traslado-vista-previa/design.md` §Discrepancias,
+  propose+apply 2026-08-21): el docx sigue modelando Presupuesto como `Monto` + `Archivo` y
+  Autorización con cupos + estado — **ninguno** de los 5 campos/bloques nuevos de este change está
+  ahí. **No reabre la #13** (desglose por prestación en `presupuesto_linea`, arriba): esta entrada
+  solo la referencia porque comparten la misma entidad `Presupuesto`, sin tocar su redacción ni su
+  decisión de `monto` único. Las 5 discrepancias, cada una con su propio cartel `AvisoModeloDatos`:
+  1. `presupuesto.vigencia_desde` / `vigencia_hasta` — el período que cubre el presupuesto,
+     independiente de `fechaEmision`. Cartel en `PresupuestoForm.tsx` y `PresupuestoResumen.tsx`
+     (vista de solo lectura de `PresupuestoDetail`).
+  2. `autorizacion.vigencia_hasta` — completa el par pedido/concedido que ya había abierto
+     `vigencia_desde` (bullet de arriba). Cartel en `AutorizacionForm.tsx`.
+  3. `presupuesto.con_dependencia` / `autorizacion.con_dependencia` — el docx solo tiene
+     "dependencia y retorno" como campo de texto libre en **Factura**, no un booleano pedido/
+     concedido en Presupuesto/Autorización. Cartel en `PresupuestoForm.tsx` y `AutorizacionForm.tsx`.
+  4. Bloque completo de datos de traslado (10 columnas: origen/destino ida y vuelta, horarios de
+     entrada/salida, km ida/vuelta, días de la semana, días mensuales) — replica el formulario en
+     papel que hoy completa la obra social; **no reusa** `RecorridoHabitual` (ciclo de vida
+     distinto, ver design.md D2). Cartel en `PresupuestoForm.tsx` y `PresupuestoResumen.tsx`.
+  5. `autorizacion.archivo_tipo_mime` — se persiste desde `File.type` al subir, en vez de
+     adivinarlo por la extensión del nombre (fallback solo para filas subidas antes del
+     2026-08-18). Cartel en `AutorizacionForm.tsx`.
+
+  Los viajes/km mensuales calculados en vivo (`calculoViajes.ts`) **no** se persisten (se derivan de
+  `dias_mensuales`) y por lo tanto no suman una discrepancia propia — no hay columna
+  `viajes_mensuales` que comparar contra el docx. Pendiente de confirmar con quien mantiene el docx:
+  las Open Questions 1-4 de `design.md`, replicadas en `10_preguntas_abiertas.md`.
 
 - **Facturación y Cobros** (detalle completo en `openspec/changes/facturacion-ui/design.md`
   §Discrepancias, propose validado 2026-07-25): comparación entre esta sección y

@@ -14,10 +14,43 @@ interface PresupuestosListProps {
   nombrePaciente: (pacienteId: string) => string;
   /** Resuelve el nombre a mostrar de la obra social (inyectada, ver PresupuestosPage). */
   nombreObraSocial: (obraSocialId: string) => string;
+  /**
+   * Resuelve el nombre de una prestación por id (presupuestos-vigencia-datos-traslado-vista-previa,
+   * tasks.md 8.1, design.md D5) — buscada en el catálogo del paciente, mismo criterio que
+   * `PresupuestoResumen.nombrePrestacion`. Inyectada, no consultada acá (sin red).
+   */
+  nombrePrestacion: (prestacionId: string) => string;
   /** Resuelve el estado de la autorización asociada, o null si todavía no se cargó ninguna. */
   estadoAutorizacion: (presupuestoId: string) => EstadoAutorizacion | null;
   onSelect: (presupuesto: Presupuesto) => void;
   onCreateNew: () => void;
+}
+
+/**
+ * Texto de prestación a mostrar en la tarjeta (design.md D5): de `prestacionId` (modalidad
+ * `por-prestacion`) o de `lineas[]` (modalidad `general`, con "+N" si son varias), resuelto
+ * client-side igual que `nombrePaciente`/`nombreObraSocial`. `null` = sin prestación asociada —
+ * el caller decide el chip, nunca una celda vacía (spec "caso sin prestación").
+ */
+function textoPrestacion(presupuesto: Presupuesto, nombrePrestacion: (prestacionId: string) => string): string | null {
+  if (presupuesto.prestacionId) {
+    return nombrePrestacion(presupuesto.prestacionId);
+  }
+  const [primeraLinea, ...restoLineas] = presupuesto.lineas ?? [];
+  if (primeraLinea) {
+    const primera = nombrePrestacion(primeraLinea.prestacionId);
+    return restoLineas.length > 0 ? `${primera} +${restoLineas.length}` : primera;
+  }
+  return null;
+}
+
+/** `vigenciaDesde – vigenciaHasta` (design.md D1/D5), o "Sin vigencia cargada" cuando ninguno de
+ * los dos está cargado — nunca un rango inventado a partir de `fechaEmision`. */
+function textoVigencia(presupuesto: Presupuesto): string {
+  if (presupuesto.vigenciaDesde === undefined && presupuesto.vigenciaHasta === undefined) {
+    return 'Sin vigencia cargada';
+  }
+  return `${presupuesto.vigenciaDesde ?? 'Sin definir'} – ${presupuesto.vigenciaHasta ?? 'Sin definir'}`;
 }
 
 // Pantalla de listado (tasks.md 5.1, US-200): mismo criterio de grid de tarjetas que
@@ -31,6 +64,7 @@ export function PresupuestosList({
   error,
   nombrePaciente,
   nombreObraSocial,
+  nombrePrestacion,
   estadoAutorizacion,
   onSelect,
   onCreateNew,
@@ -43,9 +77,12 @@ export function PresupuestosList({
     return presupuestos.filter((presupuesto) => {
       const paciente = nombrePaciente(presupuesto.pacienteId).toLowerCase();
       const obraSocial = nombreObraSocial(presupuesto.obraSocialId).toLowerCase();
-      return paciente.includes(termino) || obraSocial.includes(termino);
+      // tasks.md 8.1: el buscador también filtra por prestación — `?? ''` para que un presupuesto
+      // "sin prestación asociada" no rompa el filtro ni haga match espurio con `''`.
+      const prestacion = (textoPrestacion(presupuesto, nombrePrestacion) ?? '').toLowerCase();
+      return paciente.includes(termino) || obraSocial.includes(termino) || prestacion.includes(termino);
     });
-  }, [busqueda, presupuestos, nombrePaciente, nombreObraSocial]);
+  }, [busqueda, presupuestos, nombrePaciente, nombreObraSocial, nombrePrestacion]);
 
   return (
     <div className="flex flex-col gap-lg py-xxl px-xl">
@@ -85,6 +122,7 @@ export function PresupuestosList({
           {filtrados.map((presupuesto) => {
             const nombre = nombrePaciente(presupuesto.pacienteId);
             const estado = estadoAutorizacion(presupuesto.id);
+            const prestacion = textoPrestacion(presupuesto, nombrePrestacion);
 
             return (
               <Card key={presupuesto.id} radius="md" elevated interactive onClick={() => onSelect(presupuesto)}>
@@ -124,6 +162,21 @@ export function PresupuestosList({
                       {presupuesto.archivo ? presupuesto.archivo.nombre : 'Sin archivo'}
                     </span>
                   </div>
+                </div>
+
+                {/* presupuestos-vigencia-datos-traslado-vista-previa (tasks.md 8.1, design.md D5):
+                    identifica el presupuesto en el listado sin abrir el detalle. Caso sin
+                    prestación → chip explícito, NUNCA una celda vacía. */}
+                <div className="flex flex-wrap items-center justify-between gap-sm">
+                  {prestacion !== null ? (
+                    <span className="font-body text-[12px] font-semibold text-ink">{prestacion}</span>
+                  ) : (
+                    <Chip kind="secondary">Sin prestación asociada</Chip>
+                  )}
+                  <span className="flex items-center gap-xs font-body text-[11px] text-muted">
+                    <InlineIcon>{iconCalendario}</InlineIcon>
+                    {textoVigencia(presupuesto)}
+                  </span>
                 </div>
 
                 {/* gateo-facturacion (design.md D1/D3, tasks.md 2.2): "Ver detalle" es un

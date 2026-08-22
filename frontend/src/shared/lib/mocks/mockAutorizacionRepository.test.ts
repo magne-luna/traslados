@@ -192,4 +192,45 @@ describe('mockAutorizacionRepository', () => {
       'No existe una autorización con id "no-existe".',
     );
   });
+
+  // -----------------------------------------------------------------------------------------
+  // 7.4/7.10 (presupuestos-vigencia-datos-traslado-vista-previa): uploadArchivo() persiste
+  // tipoMime, getUrlArchivo() en memoria (ObjectURL)
+  // -----------------------------------------------------------------------------------------
+
+  it('uploadArchivo() persiste tipoMime desde File.type (D6c, mismo criterio que el repository real)', async () => {
+    const [primera] = await flushLatency(mockAutorizacionRepository.list());
+    if (!primera) throw new Error('Debería existir al menos una autorización tras el seed inicial');
+
+    const actualizada = await flushLatency(mockAutorizacionRepository.uploadArchivo(primera.id, buildFile('informe.pdf')));
+
+    expect(actualizada.archivo?.tipoMime).toBe('application/pdf');
+  });
+
+  it('getUrlArchivo() con archivo cargado resuelve un ObjectURL (blob:)', async () => {
+    const [primera] = await flushLatency(mockAutorizacionRepository.list());
+    if (!primera) throw new Error('Debería existir al menos una autorización tras el seed inicial');
+    await flushLatency(mockAutorizacionRepository.uploadArchivo(primera.id, buildFile('informe.pdf')));
+
+    const url = await flushLatency(mockAutorizacionRepository.getUrlArchivo(primera.id, 'inline'));
+
+    expect(url).toMatch(/^blob:/);
+  });
+
+  it('getUrlArchivo() sin archivo adjunto resuelve null, sin lanzar', async () => {
+    const [primera] = await flushLatency(mockAutorizacionRepository.list());
+    if (!primera) throw new Error('Debería existir al menos una autorización tras el seed inicial');
+
+    const url = await flushLatency(mockAutorizacionRepository.getUrlArchivo(primera.id, 'inline'));
+
+    expect(url).toBeNull();
+  });
+
+  it('getUrlArchivo() con id inexistente resuelve null, sin lanzar', async () => {
+    await flushLatency(mockAutorizacionRepository.list());
+
+    const url = await flushLatency(mockAutorizacionRepository.getUrlArchivo('no-existe', 'descarga'));
+
+    expect(url).toBeNull();
+  });
 });

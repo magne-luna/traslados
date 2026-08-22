@@ -28,6 +28,7 @@ const presupuestoLucas: Presupuesto = {
 const nombrePaciente = (id: string) =>
   ({ 'paciente-martina': 'Gómez, Martina', 'paciente-lucas': 'Pérez, Lucas' })[id] ?? id;
 const nombreObraSocial = (id: string) => ({ osecac: 'OSECAC', 'swiss-medical': 'Swiss Medical' })[id] ?? id;
+const nombrePrestacion = (id: string) => ({ 'prestacion-kine': 'Kinesiología', 'prestacion-fono': 'Fonoaudiología' })[id] ?? id;
 const sinAutorizacion = () => null;
 
 describe('PresupuestosList', () => {
@@ -39,6 +40,7 @@ describe('PresupuestosList', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -59,6 +61,7 @@ describe('PresupuestosList', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={onCreateNew}
@@ -78,6 +81,7 @@ describe('PresupuestosList', () => {
         error="no se pudo conectar"
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -96,6 +100,7 @@ describe('PresupuestosList', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -116,6 +121,7 @@ describe('PresupuestosList', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={() => 'autorizada'}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -133,6 +139,7 @@ describe('PresupuestosList', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -152,6 +159,7 @@ describe('PresupuestosList', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -175,6 +183,7 @@ describe('PresupuestosList', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={onSelect}
         onCreateNew={vi.fn()}
@@ -196,6 +205,7 @@ describe('PresupuestosList', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={onSelect}
         onCreateNew={vi.fn()}
@@ -222,6 +232,7 @@ describe('PresupuestosList — gateo de escritura', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -243,6 +254,7 @@ describe('PresupuestosList — gateo de escritura', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -261,6 +273,7 @@ describe('PresupuestosList — gateo de escritura', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -282,6 +295,7 @@ describe('PresupuestosList — gateo de escritura', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={onSelect}
         onCreateNew={vi.fn()}
@@ -306,6 +320,7 @@ describe('PresupuestosList — gateo de escritura', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -325,6 +340,7 @@ describe('PresupuestosList — gateo de escritura', () => {
         error={null}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={sinAutorizacion}
         onSelect={vi.fn()}
         onCreateNew={vi.fn()}
@@ -332,5 +348,133 @@ describe('PresupuestosList — gateo de escritura', () => {
     );
 
     expect(screen.getByRole('button', { name: /crear el primer presupuesto/i })).toBeEnabled();
+  });
+});
+
+// presupuestos-vigencia-datos-traslado-vista-previa, tasks.md 8.1, design.md D5.
+describe('PresupuestosList — prestación y vigencia (tasks.md 8.1)', () => {
+  it('presupuesto con prestacionId (modalidad por-prestacion): muestra el nombre resuelto de la prestación', () => {
+    render(
+      <PresupuestosList
+        presupuestos={[{ ...presupuestoMartina, prestacionId: 'prestacion-kine' }]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Kinesiología')).toBeInTheDocument();
+    expect(screen.queryByText('Sin prestación asociada')).not.toBeInTheDocument();
+  });
+
+  it('presupuesto con lineas[] (modalidad general con desglose): muestra la primera prestación + "+N"', () => {
+    render(
+      <PresupuestosList
+        presupuestos={[
+          {
+            ...presupuestoMartina,
+            lineas: [
+              { id: 'l1', prestacionId: 'prestacion-kine', monto: 100, orden: 1 },
+              { id: 'l2', prestacionId: 'prestacion-fono', monto: 50, orden: 2 },
+            ],
+          },
+        ]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Kinesiología +1')).toBeInTheDocument();
+  });
+
+  it('presupuesto sin prestacionId ni lineas: chip "Sin prestación asociada", nunca una celda vacía', () => {
+    render(
+      <PresupuestosList
+        presupuestos={[presupuestoMartina]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Sin prestación asociada')).toBeInTheDocument();
+  });
+
+  it('muestra el rango de vigencia cuando está cargada', () => {
+    render(
+      <PresupuestosList
+        presupuestos={[{ ...presupuestoMartina, vigenciaDesde: '2026-02-01', vigenciaHasta: '2027-01-31' }]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('2026-02-01 – 2027-01-31')).toBeInTheDocument();
+  });
+
+  it('sin vigencia cargada: muestra "Sin vigencia cargada", nunca un rango inventado', () => {
+    render(
+      <PresupuestosList
+        presupuestos={[presupuestoMartina]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Sin vigencia cargada')).toBeInTheDocument();
+  });
+
+  it('el buscador también filtra por nombre de prestación', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <PresupuestosList
+        presupuestos={[
+          { ...presupuestoMartina, prestacionId: 'prestacion-kine' },
+          { ...presupuestoLucas, prestacionId: 'prestacion-fono' },
+        ]}
+        loading={false}
+        error={null}
+        nombrePaciente={nombrePaciente}
+        nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
+        estadoAutorizacion={sinAutorizacion}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByRole('textbox', { name: /buscar presupuesto/i }), 'fonoaudiología');
+
+    expect(screen.getByText('Pérez, Lucas')).toBeInTheDocument();
+    expect(screen.queryByText('Gómez, Martina')).not.toBeInTheDocument();
   });
 });

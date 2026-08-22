@@ -132,6 +132,7 @@ function buildProps() {
     update: vi.fn(),
     uploadArchivo: vi.fn(),
     removeArchivo: vi.fn(),
+    getUrlArchivo: vi.fn(),
   };
   const documentoRepository: DocumentoRepository = {
     listByEntity: vi.fn().mockResolvedValue([]),

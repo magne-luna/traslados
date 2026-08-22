@@ -38,6 +38,13 @@ interface AutorizacionRow {
   archivo_url: string | null;
   archivo_nombre: string | null;
   archivo_cargado_en: string | null;
+  // Fase 6 (presupuestos-vigencia-datos-traslado-vista-previa, design.md D1/D3): completa el par
+  // pedido/concedido -- `vigencia_hasta`/`con_dependencia` ya existen en `presupuesto` (lo pedido),
+  // estas son lo concedido. `archivo_tipo_mime` (D6c) puede ser null en filas subidas antes del
+  // 2026-08-18 (bucket vivo antes de que la columna existiera) -- ver `archivo_url` mas arriba.
+  vigencia_hasta: string | null;
+  con_dependencia: boolean | null;
+  archivo_tipo_mime: string | null;
 }
 
 interface AutorizacionInput {
@@ -53,6 +60,13 @@ interface AutorizacionInput {
   archivoUrl?: string | null;
   archivoNombre?: string | null;
   archivoCargadoEn?: string | null;
+  // Fase 6 (design.md D1/D3): mismo criterio D6b que el resto de esta API -- ausente == no tocar
+  // (partial update); presente == escribe, incluido `conDependencia: false` (SD, desmarcable
+  // aunque el pedido haya sido CD -- design.md D3).
+  vigenciaHasta?: string;
+  conDependencia?: boolean;
+  /** D6c: viaja desde `File.type` en el upload (tarea 7.3, fuera de alcance de esta fase). */
+  archivoTipoMime?: string | null;
 }
 
 function toApi(row: AutorizacionRow) {
@@ -68,6 +82,10 @@ function toApi(row: AutorizacionRow) {
     archivoUrl: row.archivo_url ?? undefined,
     archivoNombre: row.archivo_nombre ?? undefined,
     archivoCargadoEn: row.archivo_cargado_en ?? undefined,
+    // Fase 6 (design.md D1/D3/D6c).
+    vigenciaHasta: row.vigencia_hasta ?? undefined,
+    conDependencia: row.con_dependencia ?? undefined,
+    archivoTipoMime: row.archivo_tipo_mime ?? undefined,
   };
 }
 
@@ -83,6 +101,11 @@ function toDb(input: AutorizacionInput): Record<string, unknown> {
   if (input.archivoUrl !== undefined) row.archivo_url = input.archivoUrl;
   if (input.archivoNombre !== undefined) row.archivo_nombre = input.archivoNombre;
   if (input.archivoCargadoEn !== undefined) row.archivo_cargado_en = input.archivoCargadoEn;
+  // Fase 6 (design.md D1/D3/D6c): partial update, ausente == no tocar. `conDependencia` chequea
+  // `!== undefined` (no truthy) para permitir escribir `false` (SD, desmarcable -- D3).
+  if (input.vigenciaHasta !== undefined) row.vigencia_hasta = input.vigenciaHasta;
+  if (input.conDependencia !== undefined) row.con_dependencia = input.conDependencia;
+  if (input.archivoTipoMime !== undefined) row.archivo_tipo_mime = input.archivoTipoMime;
   return row;
 }
 
@@ -107,6 +130,10 @@ Deno.serve(async (req) => {
       return jsonResponse(200, toApi(data as AutorizacionRow));
     }
     if (presupuestoId) {
+      // Fase 6 (tasks.md 6.3, design.md D1): `.maybeSingle()` NO se toca en este change -- es la
+      // superficie que expone la cardinalidad 1:1 Presupuesto<->Autorizacion. El punto 7 (fuera de
+      // alcance de esta fase) es quien podria cuestionar esa cardinalidad; hasta que eso se decida,
+      // se deja tal cual.
       const { data, error } = await userClient
         .schema('facturacion')
         .from('autorizacion')

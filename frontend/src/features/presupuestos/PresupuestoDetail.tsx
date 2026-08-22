@@ -13,6 +13,7 @@ import { Card } from '../../design-system/layout';
 import { iconCalendario, iconLapiz, iconMoneda } from '../../design-system/icons';
 import { ESTADO_AUTORIZACION_CHIP_KIND, ESTADO_AUTORIZACION_LABEL } from '../../shared/lib/presupuestos/estadoAutorizacionCopy';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ActualizacionPresupuesto, Autorizacion, NuevoPresupuesto, Presupuesto } from '../../shared/types/presupuesto';
@@ -34,6 +35,9 @@ interface PresupuestoDetailProps {
   /** Se puebla desde ObraSocialRepository.list() en el composition root — solo lectura (design.md Decisión 8). */
   obrasSociales: ObraSocial[];
   autorizacionRepository: AutorizacionRepository;
+  /** Botón "Traer de los destinos habituales del paciente" de PresupuestoForm (tasks.md 8.5,
+   * design.md D2) — solo lectura, reusado del composition root de Pacientes. */
+  recorridoHabitualRepository: Pick<RecorridoHabitualRepository, 'list'>;
   onCreated: (presupuesto: Presupuesto) => void;
   onBack: () => void;
 }
@@ -63,6 +67,12 @@ function toPersistedValues(values: PresupuestoFormValues): NuevoPresupuesto {
     // edición (`initial` presente) el formulario nunca produce `lineas` (D9: "la edición no
     // bifurca" — muestra solo el campo monto simple), así que acá no hay nada que pisar.
     lineas: values.lineas,
+    // presupuestos-vigencia-datos-traslado-vista-previa (tasks.md 8.2-8.4, design.md D1/D2/D3):
+    // pasan tal cual — PresupuestoForm ya validó `vigenciaHasta >= vigenciaDesde` (tasks.md 8.6).
+    vigenciaDesde: values.vigenciaDesde,
+    vigenciaHasta: values.vigenciaHasta,
+    conDependencia: values.conDependencia,
+    datosTraslado: values.datosTraslado,
   };
 }
 
@@ -81,6 +91,7 @@ export function PresupuestoDetail({
   pacientes,
   obrasSociales,
   autorizacionRepository,
+  recorridoHabitualRepository,
   onCreated,
   onBack,
 }: PresupuestoDetailProps) {
@@ -217,11 +228,16 @@ export function PresupuestoDetail({
                     monto: presupuesto.monto,
                     fechaEmision: presupuesto.fechaEmision,
                     archivo: presupuesto.archivo,
+                    vigenciaDesde: presupuesto.vigenciaDesde,
+                    vigenciaHasta: presupuesto.vigenciaHasta,
+                    conDependencia: presupuesto.conDependencia,
+                    datosTraslado: presupuesto.datosTraslado,
                   }
                 : undefined
             }
             pacientes={pacientes}
             obrasSociales={obrasSociales}
+            recorridoHabitualRepository={recorridoHabitualRepository}
             onSubmit={handleSubmit}
             onCancel={presupuesto ? () => setEditing(false) : onBack}
             submitting={submitting}
@@ -278,6 +294,21 @@ export function PresupuestoDetail({
                   </span>
                   <span className="font-body text-[13px] font-semibold text-ink">{autorizacion.vigenciaDesde ?? 'Sin definir'}</span>
                 </div>
+                {/* tasks.md 8.8, design.md D1: completa el par vigenciaDesde/vigenciaHasta ya
+                    visible acá — la autorización puede recortar el período pedido. */}
+                <div className="flex flex-col gap-0.5">
+                  <span className="flex items-center gap-xs font-body text-[11px] text-muted">
+                    <InlineIcon>{iconCalendario}</InlineIcon>
+                    Vigencia hasta
+                  </span>
+                  <span className="font-body text-[13px] font-semibold text-ink">{autorizacion.vigenciaHasta ?? 'Sin definir'}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-body text-[11px] text-muted">Con dependencia (CD/SD)</span>
+                  <span className="font-body text-[13px] font-semibold text-ink">
+                    {autorizacion.conDependencia === undefined ? 'No cargado' : autorizacion.conDependencia ? 'Sí' : 'No'}
+                  </span>
+                </div>
               </div>
 
               <div className="flex justify-end">
@@ -300,11 +331,16 @@ export function PresupuestoDetail({
                         cupoMensualKm: autorizacion.cupoMensualKm,
                         fechaRespuesta: autorizacion.fechaRespuesta,
                         vigenciaDesde: autorizacion.vigenciaDesde,
+                        vigenciaHasta: autorizacion.vigenciaHasta,
+                        conDependencia: autorizacion.conDependencia,
                         archivo: autorizacion.archivo,
                       }
                     : undefined
                 }
                 montoPresupuesto={presupuesto.monto}
+                presupuestoVigenciaDesde={presupuesto.vigenciaDesde}
+                presupuestoVigenciaHasta={presupuesto.vigenciaHasta}
+                presupuestoConDependencia={presupuesto.conDependencia}
                 // integracion-documentos-autorizaciones (tasks.md 4.2, design.md D3): `autorizacion`
                 // solo es `null` en el caso legado sin fila creada todavía (comentario más arriba,
                 // "found === null") — sin id, AutorizacionForm avisa que hay que guardar antes de

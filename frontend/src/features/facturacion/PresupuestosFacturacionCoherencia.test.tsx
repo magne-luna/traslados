@@ -5,6 +5,7 @@ import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSo
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { FacturaRepository } from '../../shared/lib/facturacion/FacturaRepository';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
@@ -106,6 +107,9 @@ function buildFakeObraSocialRepo(): ObraSocialRepository {
     update: vi.fn(),
   };
 }
+function buildFakeRecorridoHabitualRepo(): Pick<RecorridoHabitualRepository, 'list'> {
+  return { list: vi.fn().mockResolvedValue([]) };
+}
 function buildFakePresupuestoRepo(): PresupuestoRepository {
   return {
     list: vi.fn().mockResolvedValue([presupuestoMartina]),
@@ -124,6 +128,7 @@ function buildFakeAutorizacionRepo(): AutorizacionRepository {
     update: vi.fn(),
     uploadArchivo: vi.fn(),
     removeArchivo: vi.fn(),
+    getUrlArchivo: vi.fn(),
   };
 }
 function buildFakeFacturaRepo(): FacturaRepository {
@@ -161,7 +166,11 @@ function renderAmbasRutas(permisos: MapaPermisos, entrada: '/presupuestos' | '/f
             element: (
               <PresupuestoRepositoryProvider repository={buildFakePresupuestoRepo()}>
                 <AutorizacionRepositoryProvider repository={buildFakeAutorizacionRepo()}>
-                  <PresupuestosPage pacienteRepository={buildFakePacienteRepo()} obraSocialRepository={buildFakeObraSocialRepo()} />
+                  <PresupuestosPage
+                    pacienteRepository={buildFakePacienteRepo()}
+                    obraSocialRepository={buildFakeObraSocialRepo()}
+                    recorridoHabitualRepository={buildFakeRecorridoHabitualRepo()}
+                  />
                 </AutorizacionRepositoryProvider>
               </PresupuestoRepositoryProvider>
             ),

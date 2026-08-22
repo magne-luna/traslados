@@ -28,4 +28,17 @@ export interface AutorizacionRepository {
    * `autorizacion-archivo-storage`, escenario "Quitar cuando no hay archivo no falla").
    */
   removeArchivo(id: string): Promise<Autorizacion>;
+  /**
+   * URL firmada de expiración corta para el archivo adjunto (design.md D6b de
+   * `presupuestos-vigencia-datos-traslado-vista-previa`, spec `autorizacion-archivo-vista-previa`,
+   * requirement "URL firmada con modo explícito inline o descarga"). Dos modos, a propósito UN
+   * SOLO método en vez de dos: `'inline'` sirve el objeto con su `Content-Type` para que el
+   * navegador lo renderice (abrir en pestaña nueva / previsualizar dentro de la app) — la firma
+   * OMITE la opción `download`. `'descarga'` la incluye para forzar
+   * `Content-Disposition: attachment` (mismo criterio, invertido a propósito, que
+   * `SupabaseDocumentoRepository.resolverPrevisualizacion`, fix del 2026-08-10: acá el caso base
+   * es mostrar el documento, no descargarlo). Resuelve `null` sin lanzar cuando la autorización no
+   * tiene archivo — mismo criterio que `getById`/`getByPresupuestoId`.
+   */
+  getUrlArchivo(id: string, modo: 'inline' | 'descarga'): Promise<string | null>;
 }

@@ -5,12 +5,19 @@ import type { Paciente } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Autorizacion, Presupuesto } from '../../shared/types/presupuesto';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PresupuestoDetail } from './PresupuestoDetail';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
+
+// Stub compartido (tasks.md 8.5): estos tests ejercitan el flujo de crear()/actualizar()/
+// autorización, no el botón "Traer de los destinos..." en sí (cubierto en PresupuestoForm.test.tsx).
+const recorridoHabitualRepositoryStub: Pick<RecorridoHabitualRepository, 'list'> = {
+  list: vi.fn().mockResolvedValue([]),
+};
 
 const martina: Paciente = {
   id: 'paciente-martina',
@@ -68,6 +75,7 @@ function buildFakeAutorizacionRepository(overrides: Partial<AutorizacionReposito
     update: vi.fn().mockResolvedValue(autorizacionMartina),
     uploadArchivo: vi.fn().mockResolvedValue(autorizacionMartina),
     removeArchivo: vi.fn().mockResolvedValue(autorizacionMartina),
+    getUrlArchivo: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
 }
@@ -82,6 +90,7 @@ describe('PresupuestoDetail — modo alta (presupuesto null)', () => {
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildFakeAutorizacionRepository()}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -106,6 +115,7 @@ describe('PresupuestoDetail — modo alta (presupuesto null)', () => {
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildFakeAutorizacionRepository()}
         onCreated={onCreated}
         onBack={vi.fn()}
@@ -133,6 +143,7 @@ describe('PresupuestoDetail — modo edición', () => {
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildFakeAutorizacionRepository()}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -157,6 +168,7 @@ describe('PresupuestoDetail — modo edición', () => {
         actualizar={actualizar}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildFakeAutorizacionRepository()}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -191,6 +203,7 @@ describe('PresupuestoDetail — modo edición', () => {
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={autorizacionRepository}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -221,6 +234,7 @@ describe('PresupuestoDetail — modo edición', () => {
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={autorizacionRepository}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -249,6 +263,7 @@ describe('PresupuestoDetail — modo edición', () => {
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={autorizacionRepository}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -275,6 +290,7 @@ describe('PresupuestoDetail — cartel de fuente mixta con Facturación (D11)', 
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildFakeAutorizacionRepository()}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -299,6 +315,7 @@ describe('PresupuestoDetail — cartel de fuente mixta con Facturación (D11)', 
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildFakeAutorizacionRepository({
           getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionMartina),
         })}
@@ -332,6 +349,7 @@ describe('PresupuestoDetail — gateo de escritura de la entrada a autorización
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildRepoConAutorizacionExistente()}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -355,6 +373,7 @@ describe('PresupuestoDetail — gateo de escritura de la entrada a autorización
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildRepoConAutorizacionExistente()}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -387,6 +406,7 @@ describe('PresupuestoDetail — wiring de archivo hacia AutorizacionForm (integr
         actualizar={vi.fn()}
         pacientes={[martina]}
         obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={autorizacionRepository}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -399,5 +419,61 @@ describe('PresupuestoDetail — wiring de archivo hacia AutorizacionForm (integr
 
     expect(uploadArchivo).toHaveBeenCalledWith('autorizacion-martina-1', expect.any(File));
     expect(await screen.findByText(/informe\.pdf/i)).toBeInTheDocument();
+  });
+});
+
+// presupuestos-vigencia-datos-traslado-vista-previa, tasks.md 8.7/8.8.
+describe('PresupuestoDetail — vigencia y CD/SD de la autorización (tasks.md 8.7/8.8)', () => {
+  it('muestra vigenciaHasta y "Con dependencia" ya persistidos de la autorización', async () => {
+    const autorizacionConVigenciaYDependencia = {
+      ...autorizacionMartina,
+      vigenciaDesde: '2026-02-01',
+      vigenciaHasta: '2026-08-31',
+      conDependencia: true,
+    };
+
+    render(
+      <PresupuestoDetail
+        presupuesto={presupuestoMartina}
+        crear={vi.fn()}
+        crearLote={vi.fn()}
+        actualizar={vi.fn()}
+        pacientes={[martina]}
+        obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
+        autorizacionRepository={buildFakeAutorizacionRepository({
+          getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionConVigenciaYDependencia),
+        })}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText('2026-08-31')).toBeInTheDocument();
+    expect(screen.getByText('Sí')).toBeInTheDocument();
+  });
+
+  it('sin vigenciaHasta ni conDependencia cargados en la autorización: muestra "Sin definir" / "No cargado"', async () => {
+    render(
+      <PresupuestoDetail
+        presupuesto={presupuestoMartina}
+        crear={vi.fn()}
+        crearLote={vi.fn()}
+        actualizar={vi.fn()}
+        pacientes={[martina]}
+        obrasSociales={[osecac]}
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
+        autorizacionRepository={buildFakeAutorizacionRepository({
+          getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionMartina),
+        })}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText(/autorizada/i)).toBeInTheDocument();
+    // Aparece dos veces: una para `Presupuesto.conDependencia` (PresupuestoResumen) y otra para
+    // `Autorizacion.conDependencia` (este mismo Card) — ninguno de los dos se cargó todavía.
+    expect(screen.getAllByText('No cargado').length).toBeGreaterThanOrEqual(1);
   });
 });

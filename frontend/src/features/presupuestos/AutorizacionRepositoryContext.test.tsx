@@ -12,6 +12,7 @@ function buildFakeRepository(): AutorizacionRepository {
     update: vi.fn(),
     uploadArchivo: vi.fn(),
     removeArchivo: vi.fn(),
+    getUrlArchivo: vi.fn(),
   };
 }
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AvisoSoloLectura } from '../../design-system/components';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { Presupuesto } from '../../shared/types/presupuesto';
 import { useObrasSociales } from '../obras-sociales/useObrasSociales';
 import { usePacientes } from '../pacientes/usePacientes';
@@ -19,6 +20,10 @@ interface PresupuestosPageProps {
   pacienteRepository: PacienteRepository;
   /** Reutilizado de FE-2 (design.md Decisión 8): puebla el selector de obra social del form, solo lectura. */
   obraSocialRepository: ObraSocialRepository;
+  /** Botón "Traer de los destinos habituales del paciente" de PresupuestoForm
+   * (presupuestos-vigencia-datos-traslado-vista-previa, tasks.md 8.5) — reutilizado de RF-110
+   * (Pacientes), solo lectura acá. */
+  recorridoHabitualRepository: Pick<RecorridoHabitualRepository, 'list'>;
 }
 
 // Composición raíz de la feature (tasks.md 4.2, 8.1): resuelve PresupuestoRepository y
@@ -26,7 +31,11 @@ interface PresupuestosPageProps {
 // useObrasSociales (solo lectura, design.md Decisión 8) para resolver nombres en el listado y
 // poblar los selectores del form, y decide qué pantalla mostrar (listado o detalle). Mismo
 // patrón que PacientesPage/VehiculosPage.
-export function PresupuestosPage({ pacienteRepository, obraSocialRepository }: PresupuestosPageProps) {
+export function PresupuestosPage({
+  pacienteRepository,
+  obraSocialRepository,
+  recorridoHabitualRepository,
+}: PresupuestosPageProps) {
   const presupuestoRepository = usePresupuestoRepository();
   const autorizacionRepository = useAutorizacionRepository();
   const { presupuestos, loading, error, crear, crearLote, actualizar } = usePresupuestos(presupuestoRepository);
@@ -43,6 +52,18 @@ export function PresupuestosPage({ pacienteRepository, obraSocialRepository }: P
 
   function nombreObraSocial(obraSocialId: string): string {
     return obrasSociales.find((o) => o.id === obraSocialId)?.nombre ?? 'Obra social desconocida';
+  }
+
+  // tasks.md 8.1, design.md D5: mismo criterio de resolución que `PresupuestoResumen.nombrePrestacion`
+  // — buscada en el catálogo de TODOS los pacientes (los ids de `Prestacion` son globalmente
+  // únicos, igual que el resto de las entidades del repo), no solo el paciente del presupuesto
+  // actual, porque el listado no resuelve "el paciente de esta fila" antes de llamar a esto.
+  function nombrePrestacion(prestacionId: string): string {
+    for (const paciente of pacientes) {
+      const prestacion = paciente.prestaciones?.find((p) => p.id === prestacionId);
+      if (prestacion) return prestacion.nombre;
+    }
+    return 'Prestación desconocida';
   }
 
   function estadoAutorizacion(presupuestoId: string) {
@@ -64,6 +85,7 @@ export function PresupuestosPage({ pacienteRepository, obraSocialRepository }: P
           pacientes={pacientes}
           obrasSociales={obrasSociales}
           autorizacionRepository={autorizacionRepository}
+          recorridoHabitualRepository={recorridoHabitualRepository}
           onCreated={(creado) => setView({ kind: 'detail', presupuestoId: creado.id })}
           onBack={() => setView({ kind: 'list' })}
         />
@@ -80,6 +102,7 @@ export function PresupuestosPage({ pacienteRepository, obraSocialRepository }: P
         error={error}
         nombrePaciente={nombrePaciente}
         nombreObraSocial={nombreObraSocial}
+        nombrePrestacion={nombrePrestacion}
         estadoAutorizacion={estadoAutorizacion}
         onSelect={(presupuesto) => setView({ kind: 'detail', presupuestoId: presupuesto.id })}
         onCreateNew={() => setView({ kind: 'detail', presupuestoId: null })}

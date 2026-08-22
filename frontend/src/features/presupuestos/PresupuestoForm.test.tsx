@@ -4,12 +4,21 @@ import userEvent from '@testing-library/user-event';
 import type { Paciente } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Prestacion } from '../../shared/types/prestacion';
+import type { RecorridoHabitual } from '../../shared/types/recorridoHabitual';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PresupuestoForm, type PresupuestoFormSubmission } from './PresupuestoForm';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
+
+// Stub compartido por los tests genéricos de este archivo (tasks.md 8.5): resuelve siempre "sin
+// destinos habituales" — los tests dedicados al botón "Traer de los destinos..." (más abajo)
+// arman su propio stub con datos reales.
+const recorridoHabitualRepositoryStub: Pick<RecorridoHabitualRepository, 'list'> = {
+  list: vi.fn().mockResolvedValue([] as RecorridoHabitual[]),
+};
 
 const martina: Paciente = {
   id: 'paciente-martina',
@@ -91,7 +100,7 @@ describe('PresupuestoForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
@@ -102,7 +111,7 @@ describe('PresupuestoForm', () => {
   });
 
   it('el selector de paciente ofrece las opciones inyectadas por PacienteRepository', () => {
-    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     expect(screen.getByRole('option', { name: /gómez, martina/i })).toBeInTheDocument();
   });
@@ -113,7 +122,7 @@ describe('PresupuestoForm', () => {
   it('al elegir un paciente, la obra social se deriva sola y se muestra de solo lectura (sin selector propio)', async () => {
     const user = userEvent.setup();
 
-    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     expect(screen.queryByRole('combobox', { name: /obra social/i })).not.toBeInTheDocument();
     expect(screen.getByText(/elegí un paciente para ver su obra social/i)).toBeInTheDocument();
@@ -131,7 +140,7 @@ describe('PresupuestoForm', () => {
     const onSubmit = vi.fn();
 
     render(
-      <PresupuestoForm pacientes={[pacienteSinObraSocial]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />,
+      <PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[pacienteSinObraSocial]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />,
     );
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-sin-os');
@@ -154,6 +163,7 @@ describe('PresupuestoForm', () => {
 
     render(
       <PresupuestoForm
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         pacientes={[martina, { ...facundo, obraSocialId: 'swiss-medical' }]}
         obrasSociales={[osecac, swissMedical]}
         onSubmit={vi.fn()}
@@ -173,7 +183,7 @@ describe('PresupuestoForm', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
@@ -186,30 +196,35 @@ describe('PresupuestoForm', () => {
   });
 
   it('muestra el AvisoModeloDatos de archivo único (Discrepancia 1, NO multi-documento)', () => {
-    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
-    expect(screen.getByRole('note')).toHaveTextContent(/un solo archivo/i);
+    const notas = screen.getAllByRole('note');
+    expect(notas.some((nota) => /un solo archivo/i.test(nota.textContent ?? ''))).toBe(true);
   });
 
   // tasks.md 5.1, design.md D5/D13#1: el cartel más importante del change — el archivo elegido
   // todavía no se sube ni se persiste contra la base real (solo queda en el navegador). Un único
   // cartel agrupa esta advertencia con la ya existente de "archivo único" (mismo campo, mismo
-  // grupo temático — no uno por campo).
-  it('muestra un único cartel agrupado avisando que el archivo elegido todavía no se guarda en el servidor (D5)', () => {
-    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+  // grupo temático — no uno por campo). Desde tasks.md 8.2-8.4 (presupuestos-vigencia-datos-
+  // traslado-vista-previa) el formulario tiene OTROS AvisoModeloDatos propios (vigencia, datos de
+  // traslado) — cada uno de un tema distinto (regla dura del proyecto: una discrepancia por
+  // cartel), así que el criterio pasa de "un único note en todo el form" a "un único cartel para
+  // el tema archivo".
+  it('muestra un único cartel agrupado (del tema archivo) avisando que el archivo elegido todavía no se guarda en el servidor (D5)', () => {
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     const notas = screen.getAllByRole('note');
-    expect(notas).toHaveLength(1);
-    const cartel = notas[0];
-    expect(cartel).toHaveTextContent(/todavía no se guarda en el servidor/i);
-    expect(cartel).toHaveTextContent(/un solo archivo/i);
+    const cartelesDeArchivo = notas.filter((nota) => /todavía no se guarda en el servidor/i.test(nota.textContent ?? ''));
+    expect(cartelesDeArchivo).toHaveLength(1);
+    expect(cartelesDeArchivo[0]).toHaveTextContent(/un solo archivo/i);
   });
 
-  // Triangulación: el cartel se mantiene único incluso en modo edición, con un archivo ya
-  // "cargado" en los valores iniciales (round-trip de lectura, D5) — no se duplica ni desaparece.
+  // Triangulación: el cartel del archivo se mantiene único incluso en modo edición, con un archivo
+  // ya "cargado" en los valores iniciales (round-trip de lectura, D5) — no se duplica ni desaparece.
   it('el cartel del archivo se mantiene único también en modo edición con un archivo ya precargado', () => {
     render(
       <PresupuestoForm
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         pacientes={[martina]}
         obrasSociales={[osecac]}
         initial={{
@@ -225,12 +240,12 @@ describe('PresupuestoForm', () => {
     );
 
     const notas = screen.getAllByRole('note');
-    expect(notas).toHaveLength(1);
-    expect(notas[0]).toHaveTextContent(/todavía no se guarda en el servidor/i);
+    const cartelesDeArchivo = notas.filter((nota) => /todavía no se guarda en el servidor/i.test(nota.textContent ?? ''));
+    expect(cartelesDeArchivo).toHaveLength(1);
   });
 
   it('el input de archivo es de un único archivo, no un checklist', () => {
-    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     const input = screen.getByLabelText(/archivo/i) as HTMLInputElement;
     expect(input.type).toBe('file');
@@ -242,7 +257,7 @@ describe('PresupuestoForm', () => {
   // patrón que AutorizacionForm.tsx.
   it('el dropzone visible ("Subir un archivo") dispara la selección del input real de archivo', async () => {
     const user = userEvent.setup();
-    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     const clickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
     await user.click(screen.getByText(/subir un archivo/i));
@@ -255,7 +270,7 @@ describe('PresupuestoForm', () => {
   // <input type="file"> nativo sin estilizar.
   it('seleccionar un archivo desde el input real sigue actualizando el estado (accesible vía el botón visible)', async () => {
     const user = userEvent.setup();
-    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     const archivo = new File(['contenido'], 'presupuesto.pdf', { type: 'application/pdf' });
     await user.upload(screen.getByLabelText(/archivo/i), archivo);
@@ -266,6 +281,7 @@ describe('PresupuestoForm', () => {
   it('precarga los valores iniciales en modo edición', () => {
     render(
       <PresupuestoForm
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         pacientes={[martina]}
         obrasSociales={[osecac]}
         initial={{ pacienteId: 'paciente-martina', obraSocialId: 'osecac', monto: 150_000, fechaEmision: '2026-06-01' }}
@@ -282,6 +298,7 @@ describe('PresupuestoForm', () => {
   it('muestra el error del repository sin ocultar el formulario', () => {
     render(
       <PresupuestoForm
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         pacientes={[martina]}
         obrasSociales={[osecac]}
         onSubmit={vi.fn()}
@@ -298,7 +315,7 @@ describe('PresupuestoForm', () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
 
-    render(<PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={onCancel} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={onCancel} />);
 
     await user.click(screen.getByRole('button', { name: /cancelar/i }));
     expect(onCancel).toHaveBeenCalledTimes(1);
@@ -309,7 +326,7 @@ describe('PresupuestoForm', () => {
 describe('PresupuestoForm — bifurcación (design.md D9)', () => {
   // 8.1
   it('sin obra social elegida: muestra el campo monto simple (comportamiento sin cambios)', () => {
-    render(<PresupuestoForm pacientes={[martinaConPrestaciones]} obrasSociales={[osecac, swissMedical]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaConPrestaciones]} obrasSociales={[osecac, swissMedical]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     expect(screen.getByLabelText(/^monto \(estimaci/i)).toBeInTheDocument();
     expect(screen.queryByText(/no hay líneas/i)).not.toBeInTheDocument();
@@ -320,7 +337,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
 
-    render(<PresupuestoForm pacientes={[martinaConPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaConPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
@@ -343,7 +360,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
 
-    render(<PresupuestoForm pacientes={[martinaConPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaConPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
@@ -372,7 +389,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
 
-    render(<PresupuestoForm pacientes={[martinaDosPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaDosPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
@@ -400,7 +417,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
 
-    render(<PresupuestoForm pacientes={[martinaSwiss]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaSwiss]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
@@ -426,7 +443,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
       prestaciones: [kinesiologia, { ...fonoaudiologiaInactiva, activa: true }],
     };
 
-    render(<PresupuestoForm pacientes={[martinaDosActivas]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaDosActivas]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
@@ -447,7 +464,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    render(<PresupuestoForm pacientes={[facundoSwiss]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[facundoSwiss]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-facundo');
 
@@ -466,6 +483,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
 
     render(
       <PresupuestoForm
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         pacientes={[martinaConPrestaciones, facundo]}
         obrasSociales={[osecac]}
         onSubmit={vi.fn()}
@@ -493,7 +511,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
     const user = userEvent.setup();
 
     render(
-      <PresupuestoForm pacientes={[martinaSwiss, facundo]} obrasSociales={[osecac, swissMedical]} onSubmit={vi.fn()} onCancel={vi.fn()} />,
+      <PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaSwiss, facundo]} obrasSociales={[osecac, swissMedical]} onSubmit={vi.fn()} onCancel={vi.fn()} />,
     );
 
     await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
@@ -513,6 +531,7 @@ describe('PresupuestoForm — edición no bifurca (design.md D9)', () => {
   it('editando un presupuesto de una obra social "por-prestacion", el formulario NO muestra el multi-select: sigue siendo el campo monto simple', () => {
     render(
       <PresupuestoForm
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         pacientes={[martinaSwiss]}
         obrasSociales={[swissMedical]}
         initial={{
@@ -528,7 +547,10 @@ describe('PresupuestoForm — edición no bifurca (design.md D9)', () => {
     );
 
     expect(screen.getByLabelText(/^monto \(estimaci/i)).toHaveValue(80_000);
-    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    // El multi-select de PRESTACIONES no aparece (D9) — no confundir con el checkbox de CD/SD ni
+    // con los 7 checkboxes de "días de la semana" del bloque de traslado (tasks.md 8.3/8.4), que
+    // sí están siempre presentes sin importar la modalidad de la obra social.
+    expect(screen.queryByRole('checkbox', { name: /kinesiología/i })).not.toBeInTheDocument();
   });
 
   it('editando y guardando, onSubmit llega con modo "unico" y el monto editado', async () => {
@@ -537,6 +559,7 @@ describe('PresupuestoForm — edición no bifurca (design.md D9)', () => {
 
     render(
       <PresupuestoForm
+        recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         pacientes={[martina]}
         obrasSociales={[osecac]}
         initial={{ pacienteId: 'paciente-martina', obraSocialId: 'osecac', monto: 150_000, fechaEmision: '2026-06-01' }}
@@ -564,7 +587,7 @@ describe('PresupuestoForm — gateo de escritura', () => {
   it('sin permiso de escritura: ningún campo acepta entrada', async () => {
     const user = userEvent.setup();
 
-    renderConPermiso(false, <PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    renderConPermiso(false, <PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     expect(screen.getByLabelText(/paciente/i)).toBeDisabled();
     expect(screen.getByLabelText(/^monto \(estimaci/i)).toBeDisabled();
@@ -579,7 +602,7 @@ describe('PresupuestoForm — gateo de escritura', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    renderConPermiso(false, <PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderConPermiso(false, <PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     const guardar = screen.getByRole('button', { name: /guardar/i });
     expect(guardar).toBeDisabled();
@@ -591,7 +614,7 @@ describe('PresupuestoForm — gateo de escritura', () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();
 
-    renderConPermiso(true, <PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    renderConPermiso(true, <PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     expect(screen.getByLabelText(/paciente/i)).toBeEnabled();
 
@@ -606,11 +629,209 @@ describe('PresupuestoForm — gateo de escritura', () => {
     const user = userEvent.setup();
     const onCancel = vi.fn();
 
-    renderConPermiso(false, <PresupuestoForm pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={onCancel} />);
+    renderConPermiso(false, <PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={onCancel} />);
 
     const cancelar = screen.getByRole('button', { name: /cancelar/i });
     expect(cancelar).toBeEnabled();
     await user.click(cancelar);
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// presupuestos-vigencia-datos-traslado-vista-previa (tasks.md 8.2-8.6)
+// -------------------------------------------------------------------------------------------
+
+describe('PresupuestoForm — vigencia y CD/SD (tasks.md 8.2/8.3/8.6)', () => {
+  it('campos de vigencia desde/hasta están separados de "Fecha de emisión" (encabezado propio, distinto grupo)', () => {
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.getByText('Vigencia del presupuesto')).toBeInTheDocument();
+    expect(screen.getByLabelText(/vigente desde/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/vigente hasta/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/fecha de emisión/i)).toBeInTheDocument();
+  });
+
+  it('vigenciaHasta anterior a vigenciaDesde: bloquea el guardado con mensaje en castellano', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
+    await user.type(screen.getByLabelText(/vigente desde/i), '2026-02-01');
+    await user.type(screen.getByLabelText(/vigente hasta/i), '2026-01-15');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText(/no puede ser anterior/i)).toBeInTheDocument();
+  });
+
+  it('vigencia válida (hasta >= desde): viaja en el submit', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
+
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
+    await user.type(screen.getByLabelText(/vigente desde/i), '2026-02-01');
+    await user.type(screen.getByLabelText(/vigente hasta/i), '2027-01-31');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith<[PresupuestoFormSubmission]>({
+      modo: 'unico',
+      values: expect.objectContaining({ vigenciaDesde: '2026-02-01', vigenciaHasta: '2027-01-31' }),
+    });
+  });
+
+  it('checkbox CD/SD (con dependencia): arranca desmarcado (undefined) y se puede marcar', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
+
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    const checkbox = screen.getByRole('checkbox', { name: /con dependencia/i });
+    expect(checkbox).not.toBeChecked();
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
+    await user.click(checkbox);
+    expect(checkbox).toBeChecked();
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith<[PresupuestoFormSubmission]>({
+      modo: 'unico',
+      values: expect.objectContaining({ conDependencia: true }),
+    });
+  });
+});
+
+describe('PresupuestoForm — datos de traslado y cálculo en vivo (tasks.md 8.4)', () => {
+  it('carga origen/destino/horarios/km/días mensuales y los envía en datosTraslado', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
+
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
+    await user.type(screen.getByLabelText(/^origen \(ida\)$/i), 'Casa');
+    await user.type(screen.getByLabelText(/^destino \(ida\)$/i), 'Escuela especial');
+    await user.type(screen.getByLabelText(/^km \(ida\)$/i), '10');
+    await user.type(screen.getByLabelText(/días mensuales/i), '20');
+    await user.click(screen.getByRole('checkbox', { name: /^lunes$/i }));
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith<[PresupuestoFormSubmission]>({
+      modo: 'unico',
+      values: expect.objectContaining({
+        datosTraslado: expect.objectContaining({
+          origenIda: 'Casa',
+          destinoIda: 'Escuela especial',
+          kmIda: 10,
+          diasMensuales: 20,
+          diasSemana: ['lunes'],
+        }),
+      }),
+    });
+  });
+
+  it('sin tramo de vuelta cargado: viajes mensuales = días mensuales (sin duplicar)', async () => {
+    const user = userEvent.setup();
+
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/^km \(ida\)$/i), '10');
+    await user.type(screen.getByLabelText(/días mensuales/i), '23');
+
+    expect(screen.queryByText('46 viajes · 230 km')).not.toBeInTheDocument();
+    expect(screen.getByText('23 viajes · 230 km')).toBeInTheDocument();
+  });
+
+  it('con tramo de vuelta cargado: 23 días mensuales × 2 = 46 viajes, NO 24 (bug del doc de referencia)', async () => {
+    const user = userEvent.setup();
+
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/^km \(ida\)$/i), '10');
+    await user.type(screen.getByLabelText(/^km \(vuelta\)$/i), '10');
+    await user.type(screen.getByLabelText(/días mensuales/i), '23');
+
+    expect(screen.getByText('46 viajes · 460 km')).toBeInTheDocument();
+  });
+
+  it('sin días mensuales cargados: no muestra un cálculo inventado', () => {
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.getByText('Viajes / km mensuales (calculado)').nextSibling).toHaveTextContent('—');
+  });
+});
+
+describe('PresupuestoForm — traer destinos habituales del paciente (tasks.md 8.5)', () => {
+  const casaMartina = { id: 'dir-casa', tipo: 'domicilio' as const, calle: 'San Martín 123', localidad: 'Quilmes' };
+  const escuelaMartina = { id: 'dir-escuela', tipo: 'escuela-especial' as const, calle: 'Belgrano 456', localidad: 'Quilmes' };
+  const martinaConDirecciones: Paciente = { ...martina, direcciones: [casaMartina, escuelaMartina] };
+
+  it('sin paciente elegido: el botón está deshabilitado con el motivo visible (no oculto)', () => {
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    const boton = screen.getByRole('button', { name: /traer de los destinos habituales/i });
+    expect(boton).toBeDisabled();
+    expect(screen.getByText(/elegí un paciente para poder traer sus destinos habituales/i)).toBeInTheDocument();
+  });
+
+  it('paciente sin destinos habituales cargados: botón deshabilitado con motivo, nunca oculto', async () => {
+    const user = userEvent.setup();
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+
+    const boton = await screen.findByRole('button', { name: /traer de los destinos habituales/i });
+    expect(boton).toBeInTheDocument();
+    expect(await screen.findByText(/no tiene destinos habituales cargados/i)).toBeInTheDocument();
+    expect(boton).toBeDisabled();
+  });
+
+  it('paciente con destinos habituales: copia días, horario y origen/destino a los campos, editables', async () => {
+    const user = userEvent.setup();
+    const repository: Pick<RecorridoHabitualRepository, 'list'> = {
+      list: vi.fn().mockResolvedValue([
+        {
+          id: 'r1',
+          pacienteId: 'paciente-martina',
+          direccionInicialId: 'dir-casa',
+          direccionFinalId: 'dir-escuela',
+          diaSemana: 'lunes',
+          hora: '08:00',
+        },
+      ] satisfies RecorridoHabitual[]),
+    };
+
+    render(
+      <PresupuestoForm
+        recorridoHabitualRepository={repository}
+        pacientes={[martinaConDirecciones]}
+        obrasSociales={[osecac]}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    const boton = await screen.findByRole('button', { name: /traer de los destinos habituales/i });
+    expect(boton).toBeEnabled();
+
+    await user.click(boton);
+
+    expect(await screen.findByLabelText(/^origen \(ida\)$/i)).toHaveValue('San Martín 123, Quilmes');
+    expect(screen.getByLabelText(/^destino \(ida\)$/i)).toHaveValue('Belgrano 456, Quilmes');
+    expect(screen.getByLabelText(/^horario de entrada$/i)).toHaveValue('08:00');
+    expect(screen.getByRole('checkbox', { name: /^lunes$/i })).toBeChecked();
+
+    await user.clear(screen.getByLabelText(/^origen \(ida\)$/i));
+    await user.type(screen.getByLabelText(/^origen \(ida\)$/i), 'Otra dirección');
+    expect(screen.getByLabelText(/^origen \(ida\)$/i)).toHaveValue('Otra dirección');
   });
 });

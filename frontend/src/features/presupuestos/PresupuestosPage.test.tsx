@@ -8,6 +8,7 @@ import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepo
 import type { Presupuesto } from '../../shared/types/presupuesto';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { AutorizacionRepositoryProvider } from './AutorizacionRepositoryContext';
 import { PresupuestoRepositoryProvider } from './PresupuestoRepositoryContext';
@@ -68,6 +69,7 @@ function buildFakeAutorizacionRepository(): AutorizacionRepository {
     update: vi.fn(),
     uploadArchivo: vi.fn(),
     removeArchivo: vi.fn(),
+    getUrlArchivo: vi.fn(),
   };
 }
 
@@ -91,11 +93,15 @@ function buildFakeObraSocialRepository(): ObraSocialRepository {
   };
 }
 
+function buildFakeRecorridoHabitualRepository(): Pick<RecorridoHabitualRepository, 'list'> {
+  return { list: vi.fn().mockResolvedValue([]) };
+}
+
 function renderPage(presupuestoRepository: PresupuestoRepository, autorizacionRepository: AutorizacionRepository) {
   return render(
     <PresupuestoRepositoryProvider repository={presupuestoRepository}>
       <AutorizacionRepositoryProvider repository={autorizacionRepository}>
-        <PresupuestosPage pacienteRepository={buildFakePacienteRepository()} obraSocialRepository={buildFakeObraSocialRepository()} />
+        <PresupuestosPage pacienteRepository={buildFakePacienteRepository()} obraSocialRepository={buildFakeObraSocialRepository()} recorridoHabitualRepository={buildFakeRecorridoHabitualRepository()} />
       </AutorizacionRepositoryProvider>
     </PresupuestoRepositoryProvider>,
   );
@@ -110,7 +116,7 @@ function renderPageConPermiso(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <PresupuestoRepositoryProvider repository={presupuestoRepository}>
         <AutorizacionRepositoryProvider repository={autorizacionRepository}>
-          <PresupuestosPage pacienteRepository={buildFakePacienteRepository()} obraSocialRepository={buildFakeObraSocialRepository()} />
+          <PresupuestosPage pacienteRepository={buildFakePacienteRepository()} obraSocialRepository={buildFakeObraSocialRepository()} recorridoHabitualRepository={buildFakeRecorridoHabitualRepository()} />
         </AutorizacionRepositoryProvider>
       </PresupuestoRepositoryProvider>
     </PuedeEscribirContext.Provider>,
@@ -128,7 +134,7 @@ describe('PresupuestosPage — no-regresión: el combo de pacientes usa list() c
     render(
       <PresupuestoRepositoryProvider repository={buildFakePresupuestoRepository()}>
         <AutorizacionRepositoryProvider repository={buildFakeAutorizacionRepository()}>
-          <PresupuestosPage pacienteRepository={pacienteRepository} obraSocialRepository={buildFakeObraSocialRepository()} />
+          <PresupuestosPage pacienteRepository={pacienteRepository} obraSocialRepository={buildFakeObraSocialRepository()} recorridoHabitualRepository={buildFakeRecorridoHabitualRepository()} />
         </AutorizacionRepositoryProvider>
       </PresupuestoRepositoryProvider>,
     );
@@ -149,7 +155,7 @@ describe('PresupuestosPage — no-regresión: el selector de obra social usa lis
     render(
       <PresupuestoRepositoryProvider repository={buildFakePresupuestoRepository()}>
         <AutorizacionRepositoryProvider repository={buildFakeAutorizacionRepository()}>
-          <PresupuestosPage pacienteRepository={buildFakePacienteRepository()} obraSocialRepository={obraSocialRepository} />
+          <PresupuestosPage pacienteRepository={buildFakePacienteRepository()} obraSocialRepository={obraSocialRepository} recorridoHabitualRepository={buildFakeRecorridoHabitualRepository()} />
         </AutorizacionRepositoryProvider>
       </PresupuestoRepositoryProvider>,
     );

@@ -20,6 +20,7 @@ function buildFakeRepository(overrides: Partial<AutorizacionRepository> = {}): A
     update: vi.fn().mockResolvedValue(autorizacionFacundo),
     uploadArchivo: vi.fn().mockResolvedValue(autorizacionFacundo),
     removeArchivo: vi.fn().mockResolvedValue(autorizacionFacundo),
+    getUrlArchivo: vi.fn().mockResolvedValue(null),
     ...overrides,
   };
 }

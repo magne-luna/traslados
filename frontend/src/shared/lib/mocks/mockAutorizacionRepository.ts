@@ -11,6 +11,14 @@ import { buildAutorizacionesFixture } from './autorizacionesFixture';
 const STORAGE_KEY = 'autorizaciones';
 const SCHEMA_VERSION = 1;
 
+// getUrlArchivo() (presupuestos-vigencia-datos-traslado-vista-previa, tasks.md 7.4, design.md
+// D6b): mismo criterio que `archivoPorDocumentoId` de `mockDocumentoRepository.ts` — el `File` NO
+// se serializa en `localStorage` junto con `Autorizacion` (no sobreviviría un `JSON.stringify`, y
+// tampoco tendría sentido: es contenido de sesión, no un dato de dominio). Vive en memoria pura,
+// una entrada por autorización (a diferencia del otro mock, que es N por entidad — acá el docx
+// modela un solo archivo por autorización, Decisión 3).
+const archivoPorAutorizacionId = new Map<string, File>();
+
 interface StoredPayload {
   schemaVersion: number;
   autorizaciones: Autorizacion[];
@@ -109,12 +117,19 @@ export const mockAutorizacionRepository: AutorizacionRepository = {
       nombre: file.name,
       cargadoEn: new Date().toISOString(),
       clave: `${id}/${generateId('archivo')}-${file.name}`,
+      // tasks.md 7.4 (D6c, mismo criterio que SupabaseAutorizacionRepository.subirArchivoAutorizacion
+      // / tasks.md 7.3): se persiste desde `File.type`, el dato exacto, no inferido.
+      tipoMime: file.type || undefined,
     };
 
     const actualizada: Autorizacion = { ...existing, archivo, id };
     const next = [...current];
     next[index] = actualizada;
     writeStore(next);
+    // getUrlArchivo() (tasks.md 7.4): guarda el `File` real para poder crear un ObjectURL bajo
+    // demanda — mismo criterio que `mockDocumentoRepository`. Reemplaza cualquier `File` anterior
+    // de esta autorización (reemplazo, un solo archivo por autorización).
+    archivoPorAutorizacionId.set(id, file);
     return withLatency(actualizada);
   },
 
@@ -135,6 +150,23 @@ export const mockAutorizacionRepository: AutorizacionRepository = {
     const next = [...current];
     next[index] = actualizada;
     writeStore(next);
+    archivoPorAutorizacionId.delete(id);
     return withLatency(actualizada);
+  },
+
+  // getUrlArchivo() (tasks.md 7.4, design.md D6b): crea un ObjectURL NUEVO en cada llamada, nunca
+  // reutiliza uno viejo (mismo criterio que `mockDocumentoRepository.resolverPrevisualizacion`,
+  // corrección 2026-08-06 documentada ahí). `null` sin lanzar cuando la autorización no existe o
+  // no tiene archivo. **Sin distinción real entre `'inline'`/`'descarga'`**: una `blob:` URL es
+  // same-origin y el atributo `download` del `<a>` que la consuma SÍ la respeta en ambos casos
+  // (a diferencia del cross-origin real de Storage, que es justo el problema que D6b resuelve) —
+  // el mock no puede simular `Content-Disposition`, así que ambos modos devuelven la misma clase
+  // de URL. El contrato de la interfaz (dos modos explícitos) se cumple igual, para que el swap a
+  // `SupabaseAutorizacionRepository` (FE-8) sea mecánico.
+  async getUrlArchivo(id, _modo) {
+    const encontrada = readStore().find((autorizacion) => autorizacion.id === id);
+    if (!encontrada?.archivo) return withLatency(null);
+    const file = archivoPorAutorizacionId.get(id);
+    return withLatency(file ? URL.createObjectURL(file) : null);
   },
 };

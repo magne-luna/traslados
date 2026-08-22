@@ -30,6 +30,11 @@ function readOptionalNumber(record: Record<string, unknown>, key: string): numbe
   return typeof value === 'number' ? value : undefined;
 }
 
+function readOptionalBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
+  const value = record[key];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
 const ESTADOS_VALIDOS = new Set<EstadoAutorizacion>(['pendiente', 'autorizada', 'judicializada', 'rechazada']);
 const DEFAULT_ESTADO: EstadoAutorizacion = 'pendiente';
 
@@ -59,7 +64,15 @@ function parseArchivo(value: Record<string, unknown>): ArchivoAdjunto | undefine
   const cargadoEn = readOptionalString(value, 'archivoCargadoEn');
   if (nombre === undefined || cargadoEn === undefined) return undefined;
 
-  return { nombre, cargadoEn, clave: readOptionalString(value, 'archivoUrl') };
+  return {
+    nombre,
+    cargadoEn,
+    clave: readOptionalString(value, 'archivoUrl'),
+    // 5.6/D6c: `archivoTipoMime` puede faltar en filas subidas antes del 2026-08-18 (bucket vivo
+    // desde esa fecha) — `undefined` ahí, nunca inferido acá (el fallback por extensión vive en
+    // `VistaPreviaArchivo`, D6 "Fallback acotado", no en el mapping).
+    tipoMime: readOptionalString(value, 'archivoTipoMime'),
+  };
 }
 
 /** Fila del `toApi()` de la Edge Function `autorizaciones` -> `Autorizacion` del dominio. A
@@ -81,6 +94,9 @@ export function parseAutorizacionApi(value: unknown): Autorizacion | null {
     fechaRespuesta: readOptionalString(value, 'fechaRespuesta'),
     montoAutorizado: readOptionalNumber(value, 'montoAutorizado'),
     vigenciaDesde: readOptionalString(value, 'vigenciaDesde'),
+    // 5.6: vigenciaHasta/conDependencia (design.md D1/D3, Discrepancias 2 y 3).
+    vigenciaHasta: readOptionalString(value, 'vigenciaHasta'),
+    conDependencia: readOptionalBoolean(value, 'conDependencia'),
     cupoMensualDias: readOptionalNumber(value, 'cupoMensualDias'),
     cupoMensualKm: readOptionalNumber(value, 'cupoMensualKm'),
     archivo: parseArchivo(value),
@@ -102,6 +118,9 @@ export interface CrearAutorizacionPayload {
   fechaRespuesta?: string;
   montoAutorizado?: number;
   vigenciaDesde?: string;
+  // 5.6: vigenciaHasta/conDependencia (design.md D1/D3).
+  vigenciaHasta?: string;
+  conDependencia?: boolean;
   cupoMensualDias?: number;
   cupoMensualKm?: number;
 }
@@ -115,6 +134,10 @@ export function toCrearAutorizacionPayload(nueva: NuevaAutorizacion): CrearAutor
   if (nueva.fechaRespuesta !== undefined) payload.fechaRespuesta = nueva.fechaRespuesta;
   if (nueva.montoAutorizado !== undefined) payload.montoAutorizado = nueva.montoAutorizado;
   if (nueva.vigenciaDesde !== undefined) payload.vigenciaDesde = nueva.vigenciaDesde;
+  // 5.6: mismo criterio D6b que el resto — `conDependencia` puede ser `false` (SD decidido), el
+  // chequeo es `!== undefined`, nunca "truthy".
+  if (nueva.vigenciaHasta !== undefined) payload.vigenciaHasta = nueva.vigenciaHasta;
+  if (nueva.conDependencia !== undefined) payload.conDependencia = nueva.conDependencia;
   if (nueva.cupoMensualDias !== undefined) payload.cupoMensualDias = nueva.cupoMensualDias;
   if (nueva.cupoMensualKm !== undefined) payload.cupoMensualKm = nueva.cupoMensualKm;
 
@@ -136,6 +159,10 @@ export function toActualizarAutorizacionPayload(cambios: ActualizacionAutorizaci
   if (cambios.fechaRespuesta !== undefined) payload.fechaRespuesta = cambios.fechaRespuesta;
   if (cambios.montoAutorizado !== undefined) payload.montoAutorizado = cambios.montoAutorizado;
   if (cambios.vigenciaDesde !== undefined) payload.vigenciaDesde = cambios.vigenciaDesde;
+  // 5.6: vigenciaHasta/conDependencia — mismo criterio D6b, incluye `conDependencia: false`
+  // explícito (desmarcar CD/SD aunque el presupuesto lo tenga marcado, requisito literal de D3).
+  if (cambios.vigenciaHasta !== undefined) payload.vigenciaHasta = cambios.vigenciaHasta;
+  if (cambios.conDependencia !== undefined) payload.conDependencia = cambios.conDependencia;
   if (cambios.cupoMensualDias !== undefined) payload.cupoMensualDias = cambios.cupoMensualDias;
   if (cambios.cupoMensualKm !== undefined) payload.cupoMensualKm = cambios.cupoMensualKm;
 

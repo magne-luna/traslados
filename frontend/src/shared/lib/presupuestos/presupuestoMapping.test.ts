@@ -195,6 +195,248 @@ describe('toCrearPresupuestoPayload (2.3)', () => {
 // 2.4 — toActualizarPresupuestoPayload (semántica parcial, D6b — la trampa más fácil del change)
 // -----------------------------------------------------------------------------------------------
 
+// -----------------------------------------------------------------------------------------------
+// 5.1/5.4 — vigenciaDesde/vigenciaHasta/conDependencia (design.md D1/D3 de
+// presupuestos-vigencia-datos-traslado-vista-previa)
+// -----------------------------------------------------------------------------------------------
+
+describe('parsePresupuestoApi — vigencia y conDependencia (5.4)', () => {
+  it('vigenciaDesde/vigenciaHasta/conDependencia presentes se mapean tal cual', () => {
+    const presupuesto = parsePresupuestoApi(
+      presupuestoApiCompleto({ vigenciaDesde: '2026-02-01', vigenciaHasta: '2026-07-14', conDependencia: true }),
+    );
+
+    expect(presupuesto?.vigenciaDesde).toBe('2026-02-01');
+    expect(presupuesto?.vigenciaHasta).toBe('2026-07-14');
+    expect(presupuesto?.conDependencia).toBe(true);
+  });
+
+  it('conDependencia: false se preserva (SD decidido explícitamente, no se confunde con ausente)', () => {
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto({ conDependencia: false }));
+
+    expect(presupuesto?.conDependencia).toBe(false);
+  });
+
+  it('vigenciaDesde/vigenciaHasta/conDependencia ausentes quedan undefined, no se descarta la fila', () => {
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto());
+
+    expect(presupuesto).not.toBeNull();
+    expect(presupuesto?.vigenciaDesde).toBeUndefined();
+    expect(presupuesto?.vigenciaHasta).toBeUndefined();
+    expect(presupuesto?.conDependencia).toBeUndefined();
+  });
+});
+
+describe('toCrearPresupuestoPayload — vigencia y conDependencia (5.4)', () => {
+  it('vigenciaDesde/vigenciaHasta/conDependencia presentes viajan en el body', () => {
+    const payload = toCrearPresupuestoPayload(
+      nuevoPresupuestoMinimo({ vigenciaDesde: '2026-02-01', vigenciaHasta: '2026-07-14', conDependencia: false }),
+    );
+
+    expect(payload.vigenciaDesde).toBe('2026-02-01');
+    expect(payload.vigenciaHasta).toBe('2026-07-14');
+    expect(payload.conDependencia).toBe(false);
+  });
+
+  it('vigenciaDesde/vigenciaHasta/conDependencia ausentes: las claves no aparecen en el body', () => {
+    const payload = toCrearPresupuestoPayload(nuevoPresupuestoMinimo());
+
+    expect('vigenciaDesde' in payload).toBe(false);
+    expect('vigenciaHasta' in payload).toBe(false);
+    expect('conDependencia' in payload).toBe(false);
+  });
+});
+
+describe('toActualizarPresupuestoPayload — vigencia y conDependencia (5.4, D6b)', () => {
+  it('solo vigenciaHasta seteada: el body tiene únicamente vigenciaHasta', () => {
+    const payload = toActualizarPresupuestoPayload({ vigenciaHasta: '2026-07-14' });
+
+    expect(payload).toEqual({ vigenciaHasta: '2026-07-14' });
+    expect('vigenciaDesde' in payload).toBe(false);
+    expect('conDependencia' in payload).toBe(false);
+  });
+
+  it('conDependencia: false seteado explícitamente viaja (no se confunde con ausente, D6b)', () => {
+    const payload = toActualizarPresupuestoPayload({ conDependencia: false });
+
+    expect(payload).toEqual({ conDependencia: false });
+  });
+
+  it('objeto vacío -> ninguna de las 3 claves viaja', () => {
+    const payload = toActualizarPresupuestoPayload({});
+
+    expect('vigenciaDesde' in payload).toBe(false);
+    expect('vigenciaHasta' in payload).toBe(false);
+    expect('conDependencia' in payload).toBe(false);
+  });
+});
+
+// -----------------------------------------------------------------------------------------------
+// 5.5 — dias_semana: `unknown` -> `DiaSemana[]` con type guard, sin `as`, sin `any` (TDD real)
+// -----------------------------------------------------------------------------------------------
+
+describe('parsePresupuestoApi — datosTraslado.diasSemana (5.5, type guard)', () => {
+  it('arreglo con valores válidos de la unión DiaSemana se preserva tal cual', () => {
+    const presupuesto = parsePresupuestoApi(
+      presupuestoApiCompleto({ diasSemana: ['lunes', 'miercoles', 'viernes'] }),
+    );
+
+    expect(presupuesto?.datosTraslado?.diasSemana).toEqual(['lunes', 'miercoles', 'viernes']);
+  });
+
+  it('valores fuera de la unión se descartan uno por uno, los válidos sobreviven', () => {
+    const presupuesto = parsePresupuestoApi(
+      presupuestoApiCompleto({ diasSemana: ['lunes', 'marzo', 'viernes', 'domingo!', 42, null] }),
+    );
+
+    expect(presupuesto?.datosTraslado?.diasSemana).toEqual(['lunes', 'viernes']);
+  });
+
+  it('arreglo vacío se preserva como [] (sin días cargados, no undefined)', () => {
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto({ diasSemana: [] }));
+
+    expect(presupuesto?.datosTraslado?.diasSemana).toEqual([]);
+  });
+
+  it('un valor que no es arreglo (contrato roto) se normaliza a [], no tumba la fila', () => {
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto({ diasSemana: 'lunes' }));
+
+    expect(presupuesto).not.toBeNull();
+    expect(presupuesto?.datosTraslado?.diasSemana).toEqual([]);
+  });
+
+  it('los 7 valores válidos de la unión se aceptan todos', () => {
+    const todos = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto({ diasSemana: todos }));
+
+    expect(presupuesto?.datosTraslado?.diasSemana).toEqual(todos);
+  });
+});
+
+// -----------------------------------------------------------------------------------------------
+// 5.4/5.5 — datosTraslado (bloque completo, design.md D2)
+// -----------------------------------------------------------------------------------------------
+
+describe('parsePresupuestoApi — datosTraslado (5.4, bloque completo)', () => {
+  it('las 10 claves planas presentes se mapean al bloque anidado', () => {
+    const presupuesto = parsePresupuestoApi(
+      presupuestoApiCompleto({
+        origenIda: 'Casa',
+        destinoIda: 'Escuela',
+        origenVuelta: 'Escuela',
+        destinoVuelta: 'Casa',
+        horarioEntrada: '08:00',
+        horarioSalida: '12:00',
+        kmIda: 5.5,
+        kmVuelta: 5.5,
+        diasSemana: ['lunes', 'martes'],
+        diasMensuales: 20,
+      }),
+    );
+
+    expect(presupuesto?.datosTraslado).toEqual({
+      origenIda: 'Casa',
+      destinoIda: 'Escuela',
+      origenVuelta: 'Escuela',
+      destinoVuelta: 'Casa',
+      horarioEntrada: '08:00',
+      horarioSalida: '12:00',
+      kmIda: 5.5,
+      kmVuelta: 5.5,
+      diasSemana: ['lunes', 'martes'],
+      diasMensuales: 20,
+    });
+  });
+
+  it('sin la clave diasSemana (EF vieja o presupuesto sin datos de traslado): datosTraslado queda undefined', () => {
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto());
+
+    expect(presupuesto).not.toBeNull();
+    expect(presupuesto?.datosTraslado).toBeUndefined();
+  });
+
+  it('solo diasSemana presente (resto sin cargar): datosTraslado se arma con las demás sub-claves undefined', () => {
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto({ diasSemana: [] }));
+
+    expect(presupuesto?.datosTraslado).toEqual({
+      origenIda: undefined,
+      destinoIda: undefined,
+      origenVuelta: undefined,
+      destinoVuelta: undefined,
+      horarioEntrada: undefined,
+      horarioSalida: undefined,
+      kmIda: undefined,
+      kmVuelta: undefined,
+      diasSemana: [],
+      diasMensuales: undefined,
+    });
+  });
+});
+
+describe('toCrearPresupuestoPayload — datosTraslado (5.4)', () => {
+  it('datosTraslado presente se aplana a las 10 claves planas del body', () => {
+    const payload = toCrearPresupuestoPayload(
+      nuevoPresupuestoMinimo({
+        datosTraslado: {
+          origenIda: 'Casa',
+          destinoIda: 'Escuela',
+          horarioEntrada: '08:00',
+          kmIda: 5.5,
+          diasSemana: ['lunes', 'martes'],
+        },
+      }),
+    );
+
+    expect(payload.origenIda).toBe('Casa');
+    expect(payload.destinoIda).toBe('Escuela');
+    expect(payload.horarioEntrada).toBe('08:00');
+    expect(payload.kmIda).toBe(5.5);
+    expect(payload.diasSemana).toEqual(['lunes', 'martes']);
+    expect('origenVuelta' in payload).toBe(false);
+    expect('kmVuelta' in payload).toBe(false);
+  });
+
+  it('datosTraslado ausente: ninguna de las 10 claves aparece en el body', () => {
+    const payload = toCrearPresupuestoPayload(nuevoPresupuestoMinimo());
+
+    for (const clave of [
+      'origenIda', 'destinoIda', 'origenVuelta', 'destinoVuelta',
+      'horarioEntrada', 'horarioSalida', 'kmIda', 'kmVuelta', 'diasSemana', 'diasMensuales',
+    ]) {
+      expect(clave in payload).toBe(false);
+    }
+  });
+
+  it('datosTraslado con diasSemana vacío igual manda la clave (diasSemana no es opcional en el bloque)', () => {
+    const payload = toCrearPresupuestoPayload(
+      nuevoPresupuestoMinimo({ datosTraslado: { diasSemana: [] } }),
+    );
+
+    expect(payload.diasSemana).toEqual([]);
+  });
+});
+
+describe('toActualizarPresupuestoPayload — datosTraslado (5.4, D6b)', () => {
+  it('datosTraslado presente en cambios se aplana entero, reemplazando el bloque', () => {
+    const payload = toActualizarPresupuestoPayload({
+      datosTraslado: { origenIda: 'Casa nueva', diasSemana: ['viernes'] },
+    });
+
+    expect(payload).toEqual({ origenIda: 'Casa nueva', diasSemana: ['viernes'] });
+  });
+
+  it('datosTraslado ausente en cambios (ej. editar solo el monto): ninguna de las 10 claves viaja', () => {
+    const payload = toActualizarPresupuestoPayload({ monto: 1000 });
+
+    for (const clave of [
+      'origenIda', 'destinoIda', 'origenVuelta', 'destinoVuelta',
+      'horarioEntrada', 'horarioSalida', 'kmIda', 'kmVuelta', 'diasSemana', 'diasMensuales',
+    ]) {
+      expect(clave in payload).toBe(false);
+    }
+  });
+});
+
 describe('toActualizarPresupuestoPayload (2.4) — clave ausente no viaja', () => {
   it('solo monto seteado: el body tiene únicamente monto', () => {
     const payload = toActualizarPresupuestoPayload({ monto: 300000 });

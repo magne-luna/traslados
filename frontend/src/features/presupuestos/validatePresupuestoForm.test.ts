@@ -27,6 +27,61 @@ describe('validatePresupuestoForm', () => {
 
     expect(errors).toEqual({});
   });
+
+  // tasks.md 8.6, design.md D1, spec presupuesto-vigencia "Vigencia invertida rechazada": vigencia
+  // opcional — sin cargar ninguna de las dos fechas no hay nada que validar acá.
+  it('sin vigencia cargada: no hay error de vigencia (campo opcional)', () => {
+    const errors = validatePresupuestoForm({ pacienteId: 'paciente-martina', obraSocialId: 'osecac', monto: 1000 });
+
+    expect(errors.vigenciaHasta).toBeUndefined();
+  });
+
+  it('vigenciaHasta anterior a vigenciaDesde: rechazada con mensaje en castellano', () => {
+    const errors = validatePresupuestoForm({
+      pacienteId: 'paciente-martina',
+      obraSocialId: 'osecac',
+      monto: 1000,
+      vigenciaDesde: '2026-02-01',
+      vigenciaHasta: '2026-01-15',
+    });
+
+    expect(errors.vigenciaHasta).toMatch(/no puede ser anterior/i);
+  });
+
+  it('vigenciaHasta igual a vigenciaDesde: aceptada (triangulación del borde igual)', () => {
+    const errors = validatePresupuestoForm({
+      pacienteId: 'paciente-martina',
+      obraSocialId: 'osecac',
+      monto: 1000,
+      vigenciaDesde: '2026-02-01',
+      vigenciaHasta: '2026-02-01',
+    });
+
+    expect(errors.vigenciaHasta).toBeUndefined();
+  });
+
+  it('vigenciaHasta posterior a vigenciaDesde: aceptada', () => {
+    const errors = validatePresupuestoForm({
+      pacienteId: 'paciente-martina',
+      obraSocialId: 'osecac',
+      monto: 1000,
+      vigenciaDesde: '2025-12-30',
+      vigenciaHasta: '2027-01-31',
+    });
+
+    expect(errors.vigenciaHasta).toBeUndefined();
+  });
+
+  it('solo vigenciaHasta cargada (sin vigenciaDesde): no hay contra qué comparar, sin error', () => {
+    const errors = validatePresupuestoForm({
+      pacienteId: 'paciente-martina',
+      obraSocialId: 'osecac',
+      monto: 1000,
+      vigenciaHasta: '2026-01-15',
+    });
+
+    expect(errors.vigenciaHasta).toBeUndefined();
+  });
 });
 
 // validatePresupuestoLoteForm (presupuesto-prestaciones, tasks.md 8.7, design.md D9/D10): rama

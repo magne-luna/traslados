@@ -134,6 +134,7 @@ function fakeAutorizacionRepository(autorizacionesPorPresupuesto: Map<string, Au
     update: (_id: string, _data: ActualizacionAutorizacion) => Promise.reject(new Error('no usado en este test')),
     uploadArchivo: (_id: string, _file: File) => Promise.reject(new Error('no usado en este test')),
     removeArchivo: (_id: string) => Promise.reject(new Error('no usado en este test')),
+    getUrlArchivo: (_id: string, _modo: 'inline' | 'descarga') => Promise.reject(new Error('no usado en este test')),
   };
 }
 

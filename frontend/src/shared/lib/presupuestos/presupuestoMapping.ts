@@ -7,10 +7,93 @@
 // verificado en tasks.md 1.1 — no lo que este comentario o el design.md digan si algún día
 // cambia el contrato real.
 
-import type { ActualizacionPresupuesto, ArchivoAdjunto, NuevoPresupuesto, Presupuesto, PresupuestoLinea } from '../../types/presupuesto';
+import type {
+  ActualizacionPresupuesto,
+  ArchivoAdjunto,
+  DatosTraslado,
+  NuevoPresupuesto,
+  Presupuesto,
+  PresupuestoLinea,
+} from '../../types/presupuesto';
+import type { DiaSemana } from '../../types/recorridoHabitual';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function readOptionalString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+function readOptionalNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === 'number' ? value : undefined;
+}
+
+function readOptionalBoolean(record: Record<string, unknown>, key: string): boolean | undefined {
+  const value = record[key];
+  return typeof value === 'boolean' ? value : undefined;
+}
+
+// -------------------------------------------------------------------------------------------
+// 5.5 — dias_semana: `unknown` -> `DiaSemana[]`, sin `as`, sin `any` (type guard, TDD estricto)
+// -------------------------------------------------------------------------------------------
+
+const DIAS_SEMANA_VALIDOS = new Set<string>([
+  'lunes',
+  'martes',
+  'miercoles',
+  'jueves',
+  'viernes',
+  'sabado',
+  'domingo',
+]);
+
+/** Type guard sin `as`: la unión se cierra angostando `string` contra un `Set<string>.has(...)`,
+ * nunca casteando (`DIAS_SEMANA_VALIDOS` es deliberadamente `Set<string>`, no `Set<DiaSemana>`, para
+ * no necesitar `value as DiaSemana` en el `.has()`). Único punto del mapping donde importa la forma
+ * exacta de la unión `DiaSemana`. */
+function isDiaSemana(value: unknown): value is DiaSemana {
+  return typeof value === 'string' && DIAS_SEMANA_VALIDOS.has(value);
+}
+
+/** `diasSemana` del `toApi()` (columna real `TEXT[] NOT NULL DEFAULT '{}'`, sin `CHECK` — D2: "la
+ * cerradura la impone este tipo, no la base") -> `DiaSemana[]`. Valores fuera de la unión se
+ * descartan uno por uno vía `Array.prototype.filter` con el type guard (mismo criterio de
+ * tolerancia que `parseLineasApi`: una fila individual mala no tumba el resto). Un valor que no es
+ * arreglo (clave ausente, contrato roto) se normaliza a `[]` — mismo default que la columna real,
+ * nunca `undefined`: `DatosTraslado.diasSemana` no es opcional. */
+function parseDiasSemana(value: unknown): DiaSemana[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isDiaSemana);
+}
+
+// -------------------------------------------------------------------------------------------
+// 5.4 — datosTraslado (design.md D2, Discrepancia 4)
+// -------------------------------------------------------------------------------------------
+
+/** Las 10 claves planas del `toApi()` (mismas columnas de `facturacion.presupuesto`, D2) ->
+ * `DatosTraslado` anidado del dominio. `undefined` cuando la fila entera no trae la clave
+ * `diasSemana` — es la única de las 10 que SIEMPRE viaja en una fila post-migración (`NOT NULL
+ * DEFAULT '{}'`), así que su ausencia es la señal de que el backend todavía no conoce este change
+ * (EF vieja, Fase 6 de este mismo change) o de un presupuesto sin datos de traslado cargados. Nunca
+ * se fabrica un bloque con las 10 sub-claves vacías a partir de la nada. */
+function parseDatosTraslado(value: Record<string, unknown>): DatosTraslado | undefined {
+  if (!('diasSemana' in value)) return undefined;
+
+  return {
+    origenIda: readOptionalString(value, 'origenIda'),
+    destinoIda: readOptionalString(value, 'destinoIda'),
+    origenVuelta: readOptionalString(value, 'origenVuelta'),
+    destinoVuelta: readOptionalString(value, 'destinoVuelta'),
+    horarioEntrada: readOptionalString(value, 'horarioEntrada'),
+    horarioSalida: readOptionalString(value, 'horarioSalida'),
+    kmIda: readOptionalNumber(value, 'kmIda'),
+    kmVuelta: readOptionalNumber(value, 'kmVuelta'),
+    diasSemana: parseDiasSemana(value.diasSemana),
+    diasMensuales: readOptionalNumber(value, 'diasMensuales'),
+  };
 }
 
 // -------------------------------------------------------------------------------------------
@@ -115,6 +198,12 @@ export function parsePresupuestoApi(value: unknown): Presupuesto | null {
     archivo: mapArchivoUrl(archivoUrl, fechaEmision),
     prestacionId: typeof prestacionId === 'string' ? prestacionId : undefined,
     lineas: parseLineasApi(lineas),
+    // 5.4: vigenciaDesde/vigenciaHasta/conDependencia (design.md D1/D3, Discrepancias 1 y 3) —
+    // ausentes en presupuestos leídos con una EF vieja o sin ninguno de los tres cargado.
+    vigenciaDesde: readOptionalString(value, 'vigenciaDesde'),
+    vigenciaHasta: readOptionalString(value, 'vigenciaHasta'),
+    conDependencia: readOptionalBoolean(value, 'conDependencia'),
+    datosTraslado: parseDatosTraslado(value),
   };
 }
 
@@ -146,6 +235,22 @@ export interface CrearPresupuestoPayload {
   archivoUrl?: string;
   prestacionId?: string;
   lineas?: LineaPresupuestoPayload[];
+  // 5.4: vigencia/dependencia (design.md D1/D3) + las 10 claves planas de datosTraslado (D2) —
+  // mismas columnas de `facturacion.presupuesto`, aplanadas: el bloque anidado es una comodidad del
+  // dominio, el contrato del servidor sigue siendo columnas sueltas.
+  vigenciaDesde?: string;
+  vigenciaHasta?: string;
+  conDependencia?: boolean;
+  origenIda?: string;
+  destinoIda?: string;
+  origenVuelta?: string;
+  destinoVuelta?: string;
+  horarioEntrada?: string;
+  horarioSalida?: string;
+  kmIda?: number;
+  kmVuelta?: number;
+  diasSemana?: DiaSemana[];
+  diasMensuales?: number;
 }
 
 /** `prestacionId` (PR 2, 2.5): se incluye la clave únicamente cuando `nuevo.prestacionId` está
@@ -168,6 +273,29 @@ export function toCrearPresupuestoPayload(nuevo: NuevoPresupuesto): CrearPresupu
   if (nuevo.prestacionId !== undefined) payload.prestacionId = nuevo.prestacionId;
   if (nuevo.lineas !== undefined) {
     payload.lineas = nuevo.lineas.map((linea) => ({ prestacionId: linea.prestacionId, monto: linea.monto, orden: linea.orden }));
+  }
+
+  // 5.4: vigenciaDesde/vigenciaHasta/conDependencia (D1/D3) — mismo criterio que prestacionId, la
+  // clave solo viaja si el dominio la trae. `conDependencia` puede ser `false` (SD decidido): el
+  // chequeo es `!== undefined`, nunca una comparación "truthy" que confundiría `false` con ausente.
+  if (nuevo.vigenciaDesde !== undefined) payload.vigenciaDesde = nuevo.vigenciaDesde;
+  if (nuevo.vigenciaHasta !== undefined) payload.vigenciaHasta = nuevo.vigenciaHasta;
+  if (nuevo.conDependencia !== undefined) payload.conDependencia = nuevo.conDependencia;
+
+  // datosTraslado (D2): se aplana entero cuando está presente. `diasSemana` viaja siempre que el
+  // bloque viaje, porque no es opcional dentro de `DatosTraslado` (columna `NOT NULL DEFAULT '{}'`).
+  if (nuevo.datosTraslado !== undefined) {
+    const datosTraslado = nuevo.datosTraslado;
+    if (datosTraslado.origenIda !== undefined) payload.origenIda = datosTraslado.origenIda;
+    if (datosTraslado.destinoIda !== undefined) payload.destinoIda = datosTraslado.destinoIda;
+    if (datosTraslado.origenVuelta !== undefined) payload.origenVuelta = datosTraslado.origenVuelta;
+    if (datosTraslado.destinoVuelta !== undefined) payload.destinoVuelta = datosTraslado.destinoVuelta;
+    if (datosTraslado.horarioEntrada !== undefined) payload.horarioEntrada = datosTraslado.horarioEntrada;
+    if (datosTraslado.horarioSalida !== undefined) payload.horarioSalida = datosTraslado.horarioSalida;
+    if (datosTraslado.kmIda !== undefined) payload.kmIda = datosTraslado.kmIda;
+    if (datosTraslado.kmVuelta !== undefined) payload.kmVuelta = datosTraslado.kmVuelta;
+    payload.diasSemana = datosTraslado.diasSemana;
+    if (datosTraslado.diasMensuales !== undefined) payload.diasMensuales = datosTraslado.diasMensuales;
   }
 
   return payload;
@@ -198,6 +326,30 @@ export function toActualizarPresupuestoPayload(cambios: ActualizacionPresupuesto
   // el campo `monto` simple). Aceptar lineas acá abriría un camino de reemplazo sin reemplazo
   // atómico (la PATCH de PostgREST no puede borrar+reinsertar en una transacción).
   // payload.lineas queda deliberadamente ausente.
+
+  // 5.4: vigenciaDesde/vigenciaHasta/conDependencia — mismo criterio D6b que el resto de esta
+  // función: clave ausente en `cambios` nunca viaja como `undefined` explícito.
+  if (cambios.vigenciaDesde !== undefined) payload.vigenciaDesde = cambios.vigenciaDesde;
+  if (cambios.vigenciaHasta !== undefined) payload.vigenciaHasta = cambios.vigenciaHasta;
+  if (cambios.conDependencia !== undefined) payload.conDependencia = cambios.conDependencia;
+
+  // datosTraslado (D2): a diferencia de `lineas`, SÍ viaja en una actualización — es un bloque de
+  // columnas propias del presupuesto (D2), no un desglose con problema de atomicidad como
+  // `presupuesto_linea`. Si el llamador pasa `datosTraslado`, se aplana entero (reemplaza el bloque
+  // completo); si no lo pasa, ninguna de las 10 claves aparece en el body (D6b).
+  if (cambios.datosTraslado !== undefined) {
+    const datosTraslado = cambios.datosTraslado;
+    if (datosTraslado.origenIda !== undefined) payload.origenIda = datosTraslado.origenIda;
+    if (datosTraslado.destinoIda !== undefined) payload.destinoIda = datosTraslado.destinoIda;
+    if (datosTraslado.origenVuelta !== undefined) payload.origenVuelta = datosTraslado.origenVuelta;
+    if (datosTraslado.destinoVuelta !== undefined) payload.destinoVuelta = datosTraslado.destinoVuelta;
+    if (datosTraslado.horarioEntrada !== undefined) payload.horarioEntrada = datosTraslado.horarioEntrada;
+    if (datosTraslado.horarioSalida !== undefined) payload.horarioSalida = datosTraslado.horarioSalida;
+    if (datosTraslado.kmIda !== undefined) payload.kmIda = datosTraslado.kmIda;
+    if (datosTraslado.kmVuelta !== undefined) payload.kmVuelta = datosTraslado.kmVuelta;
+    payload.diasSemana = datosTraslado.diasSemana;
+    if (datosTraslado.diasMensuales !== undefined) payload.diasMensuales = datosTraslado.diasMensuales;
+  }
 
   return payload;
 }

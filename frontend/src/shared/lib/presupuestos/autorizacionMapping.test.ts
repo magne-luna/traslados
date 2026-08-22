@@ -169,6 +169,110 @@ describe('toCrearAutorizacionPayload (2.6)', () => {
   });
 });
 
+// -----------------------------------------------------------------------------------------------
+// 5.2/5.6 — vigenciaHasta/conDependencia/archivo.tipoMime (design.md D1/D3/D6c de
+// presupuestos-vigencia-datos-traslado-vista-previa)
+// -----------------------------------------------------------------------------------------------
+
+describe('parseAutorizacionApi — vigenciaHasta y conDependencia (5.6)', () => {
+  it('vigenciaHasta/conDependencia presentes se mapean tal cual', () => {
+    const autorizacion = parseAutorizacionApi(
+      autorizacionApiCompleta({ vigenciaHasta: '2026-07-14', conDependencia: true }),
+    );
+
+    expect(autorizacion?.vigenciaHasta).toBe('2026-07-14');
+    expect(autorizacion?.conDependencia).toBe(true);
+  });
+
+  it('conDependencia: false se preserva (SD decidido, desmarcado aunque el presupuesto lo pida)', () => {
+    const autorizacion = parseAutorizacionApi(autorizacionApiCompleta({ conDependencia: false }));
+
+    expect(autorizacion?.conDependencia).toBe(false);
+  });
+
+  it('vigenciaHasta/conDependencia ausentes quedan undefined', () => {
+    const record = autorizacionApiCompleta();
+    delete record.vigenciaHasta;
+    delete record.conDependencia;
+
+    const autorizacion = parseAutorizacionApi(record);
+
+    expect(autorizacion?.vigenciaHasta).toBeUndefined();
+    expect(autorizacion?.conDependencia).toBeUndefined();
+  });
+});
+
+describe('parseAutorizacionApi — archivo.tipoMime (5.6, D6c)', () => {
+  it('archivoTipoMime presente se mapea a archivo.tipoMime', () => {
+    const autorizacion = parseAutorizacionApi(
+      autorizacionApiCompleta({
+        archivoUrl: 'autorizacion-1/9c1b-informe-final.pdf',
+        archivoNombre: 'informe final.pdf',
+        archivoCargadoEn: '2026-08-18T12:00:00.000Z',
+        archivoTipoMime: 'application/pdf',
+      }),
+    );
+
+    expect(autorizacion?.archivo?.tipoMime).toBe('application/pdf');
+  });
+
+  it('archivoTipoMime ausente (fila subida antes del 2026-08-18): tipoMime queda undefined, no descarta el archivo', () => {
+    const autorizacion = parseAutorizacionApi(
+      autorizacionApiCompleta({
+        archivoUrl: 'autorizacion-1/9c1b-informe-final.pdf',
+        archivoNombre: 'informe final.pdf',
+        archivoCargadoEn: '2026-08-18T12:00:00.000Z',
+      }),
+    );
+
+    expect(autorizacion?.archivo).toEqual({
+      nombre: 'informe final.pdf',
+      cargadoEn: '2026-08-18T12:00:00.000Z',
+      clave: 'autorizacion-1/9c1b-informe-final.pdf',
+      tipoMime: undefined,
+    });
+  });
+});
+
+describe('toCrearAutorizacionPayload — vigenciaHasta y conDependencia (5.6)', () => {
+  it('vigenciaHasta/conDependencia presentes viajan en el body', () => {
+    const payload = toCrearAutorizacionPayload(
+      nuevaAutorizacionMinima({ vigenciaHasta: '2026-07-14', conDependencia: false }),
+    );
+
+    expect(payload.vigenciaHasta).toBe('2026-07-14');
+    expect(payload.conDependencia).toBe(false);
+  });
+
+  it('vigenciaHasta/conDependencia ausentes: las claves no aparecen en el body', () => {
+    const payload = toCrearAutorizacionPayload(nuevaAutorizacionMinima());
+
+    expect('vigenciaHasta' in payload).toBe(false);
+    expect('conDependencia' in payload).toBe(false);
+  });
+});
+
+describe('toActualizarAutorizacionPayload — vigenciaHasta y conDependencia (5.6, D6b)', () => {
+  it('solo vigenciaHasta seteada: el body tiene únicamente vigenciaHasta', () => {
+    const payload = toActualizarAutorizacionPayload({ vigenciaHasta: '2026-07-14' });
+
+    expect(payload).toEqual({ vigenciaHasta: '2026-07-14' });
+  });
+
+  it('conDependencia: false seteado explícitamente viaja (desmarcar CD/SD, no se confunde con ausente)', () => {
+    const payload = toActualizarAutorizacionPayload({ conDependencia: false });
+
+    expect(payload).toEqual({ conDependencia: false });
+  });
+
+  it('objeto vacío -> ninguna de las 2 claves viaja', () => {
+    const payload = toActualizarAutorizacionPayload({});
+
+    expect('vigenciaHasta' in payload).toBe(false);
+    expect('conDependencia' in payload).toBe(false);
+  });
+});
+
 describe('toActualizarAutorizacionPayload (2.6) — clave ausente no viaja (D6b)', () => {
   it('solo estado seteado: el body tiene únicamente estado', () => {
     const payload = toActualizarAutorizacionPayload({ estado: 'rechazada' });

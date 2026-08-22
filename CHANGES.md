@@ -937,6 +937,40 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `knowledge-base/04_modelo_de_datos.md`; `AvisoModeloDatos` de `PresupuestoResumen.tsx`
   actualizado en el mismo WU. **Pendiente de confirmar con la usuaria** al aplicar la migración
   (`supabase db push`).
+- **🔶 Reapertura post-archivo (`presupuestos-vigencia-datos-traslado-vista-previa`, propose+apply
+  2026-08-21)**: `C-06` se reabre de nuevo, esta vez para agregar vigencia, dependencia (par
+  pedido/concedido, no solo del lado del presupuesto) y el bloque de datos de traslado del
+  formulario de la obra social, más el tipo MIME del adjunto de autorización y la vista previa de
+  ese adjunto (extracción de `ContenidoPreview`/`DocumentChecklist.tsx` a
+  `VistaPreviaArchivo.tsx`, reusable). **No reabre la #13** (desglose por prestación) ni toca
+  `monto`/`monto_autorizado`/la cardinalidad 1:1 Autorización↔Presupuesto. 13 columnas nuevas en
+  `facturacion.presupuesto`, 3 en `facturacion.autorizacion`, `CREATE OR REPLACE` de
+  `crear_presupuesto_completo`/`crear_presupuestos_lote` (mismas 2 funciones que reabrió
+  `presupuesto-prestaciones`). Bloqueada por orden hasta que `presupuesto-prestaciones` (D9,
+  bifurcación de `PresupuestoForm.tsx` en `simple`/`general`/`por-prestacion`) estuviera aplicado.
+  Detalle completo en
+  `openspec/changes/presupuestos-vigencia-datos-traslado-vista-previa/design.md`.
+- **⚠️ Discrepancia con Traslados-Modelo-Datos.docx** (detalle completo en
+  `openspec/changes/presupuestos-vigencia-datos-traslado-vista-previa/design.md` §Discrepancias):
+  cinco campos/bloques nuevos, ninguno en el docx, cada uno con su propio cartel
+  `AvisoModeloDatos`:
+  1. `presupuesto.vigencia_desde` / `vigencia_hasta` (`PresupuestoForm.tsx`, `PresupuestoResumen.tsx`).
+  2. `autorizacion.vigencia_hasta` (`AutorizacionForm.tsx`) — completa el par pedido/concedido que
+     ya había abierto `vigencia_desde` (bullet ✅ más arriba, "el frontend agregó
+     `Autorizacion.vigenciaDesde?`").
+  3. `presupuesto.con_dependencia` / `autorizacion.con_dependencia` (`PresupuestoForm.tsx`,
+     `AutorizacionForm.tsx`) — el docx solo tiene "dependencia y retorno" como texto libre en
+     **Factura**, no un booleano pedido/concedido acá.
+  4. Bloque completo de datos de traslado, 10 columnas (`PresupuestoForm.tsx`,
+     `PresupuestoResumen.tsx`) — replica el formulario en papel de la obra social; deliberadamente
+     **no reusa** `RecorridoHabitual` (ciclo de vida distinto, design.md D2).
+  5. `autorizacion.archivo_tipo_mime` (`AutorizacionForm.tsx`).
+
+  Las 5 quedan documentadas también en `knowledge-base/04_modelo_de_datos.md` §Discrepancias, sin
+  reabrir la #13. **Nota de reapertura post-archivo**: si en el futuro se necesita confirmar contra
+  el docx real (no solo documentar la discrepancia), este bullet es el punto de entrada — mismo
+  criterio que las reaperturas anteriores de `C-06` (`presupuesto-prestaciones`,
+  `facturacion-cambios-ui` WU1).
 
 ### [C-10] `hojas-de-ruta-recorridos`
 - **Estado**: `[x]` completado (FE-5 frontend-only, 2026-07-25)
