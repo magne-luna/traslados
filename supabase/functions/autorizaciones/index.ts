@@ -5,8 +5,10 @@
 // revalida aca -- ya la aplica el trigger `facturacion.validar_autorizacion_monto` (ver
 // 20260729130000_schema_autorizacion_monto_vigencia.sql) para no duplicar la regla en dos lugares.
 //
-// Soporta `?presupuestoId=` (ver AutorizacionRepository.getByPresupuestoId, relacion 1---1 con
-// Presupuesto) ademas del `:id` de path -- si vienen los dos, `:id` tiene prioridad.
+// Soporta `?presupuestoId=` (ver AutorizacionRepository.getByPresupuestoId, relacion 1:N con
+// Presupuesto -- autorizacion-mensual tasks.md Fase 2, design.md D5; antes 1---1, una fila por
+// mes cargado ademas de las legacy sin mes) ademas del `:id` de path -- si vienen los dos, `:id`
+// tiene prioridad.
 //
 // `archivoUrl`/`archivoNombre`/`archivoCargadoEn` exponen las columnas
 // `archivo_url`/`archivo_nombre`/`archivo_cargado_en` de facturacion.autorizacion, reabiertas por
@@ -45,6 +47,10 @@ interface AutorizacionRow {
   vigencia_hasta: string | null;
   con_dependencia: boolean | null;
   archivo_tipo_mime: string | null;
+  // autorizacion-mensual (tasks.md 2.1, design.md D1/D2/D3): DATE dia-1 absoluto (`YYYY-MM-01`).
+  // `NULL` == fila legacy, creada bajo el modelo 1:1 anterior a este change -- nunca se le fabrica
+  // un mes. Unico en (presupuesto_id, periodo_mes) via indice parcial (D1); ver GET ?presupuestoId=.
+  periodo_mes: string | null;
 }
 
 interface AutorizacionInput {
@@ -67,6 +73,11 @@ interface AutorizacionInput {
   conDependencia?: boolean;
   /** D6c: viaja desde `File.type` en el upload (tarea 7.3, fuera de alcance de esta fase). */
   archivoTipoMime?: string | null;
+  // autorizacion-mensual (tasks.md 2.1, design.md D2): mismo criterio `!== undefined` que el resto
+  // de esta API -- ausente == no tocar (partial update); presente == escribe (alta o correccion
+  // manual de mes en edicion, D11). Formato ISO `YYYY-MM-01`, normalizado en el frontend antes de
+  // llegar aca (`normalizarPeriodoMes`); el `CHECK` de la base es la segunda linea de defensa.
+  periodoMes?: string;
 }
 
 function toApi(row: AutorizacionRow) {
@@ -86,6 +97,8 @@ function toApi(row: AutorizacionRow) {
     vigenciaHasta: row.vigencia_hasta ?? undefined,
     conDependencia: row.con_dependencia ?? undefined,
     archivoTipoMime: row.archivo_tipo_mime ?? undefined,
+    // autorizacion-mensual (design.md D2/D3): `undefined` == legacy, nunca un mes inventado.
+    periodoMes: row.periodo_mes ?? undefined,
   };
 }
 
@@ -106,6 +119,8 @@ function toDb(input: AutorizacionInput): Record<string, unknown> {
   if (input.vigenciaHasta !== undefined) row.vigencia_hasta = input.vigenciaHasta;
   if (input.conDependencia !== undefined) row.con_dependencia = input.conDependencia;
   if (input.archivoTipoMime !== undefined) row.archivo_tipo_mime = input.archivoTipoMime;
+  // autorizacion-mensual (tasks.md 2.1): partial update, mismo patron que el resto del archivo.
+  if (input.periodoMes !== undefined) row.periodo_mes = input.periodoMes;
   return row;
 }
 
@@ -115,7 +130,11 @@ Deno.serve(async (req) => {
   }
 
   const id = extractIdFromPath(req, FUNCTION_NAME);
-  const presupuestoId = new URL(req.url).searchParams.get('presupuestoId');
+  const url = new URL(req.url);
+  const presupuestoId = url.searchParams.get('presupuestoId');
+  // autorizacion-mensual (tasks.md 2.3, design.md D5): filtro opcional para leer un mes puntual
+  // sin traer todas las filas del presupuesto. Solo tiene efecto junto con `?presupuestoId=`.
+  const periodoMes = url.searchParams.get('periodoMes');
   const nivel = req.method === 'GET' ? 'read' : 'write';
 
   const ctx = await requirePermiso(req, MODULO, nivel);
@@ -130,19 +149,24 @@ Deno.serve(async (req) => {
       return jsonResponse(200, toApi(data as AutorizacionRow));
     }
     if (presupuestoId) {
-      // Fase 6 (tasks.md 6.3, design.md D1): `.maybeSingle()` NO se toca en este change -- es la
-      // superficie que expone la cardinalidad 1:1 Presupuesto<->Autorizacion. El punto 7 (fuera de
-      // alcance de esta fase) es quien podria cuestionar esa cardinalidad; hasta que eso se decida,
-      // se deja tal cual.
-      const { data, error } = await userClient
+      // autorizacion-mensual (tasks.md 2.2, design.md D5): la cardinalidad Presupuesto<->Autorizacion
+      // paso de 1:1 a 1:N -- un presupuesto puede tener varias autorizaciones, una por
+      // `periodo_mes`, mas las legacy sin mes. `.maybeSingle()` sale: con N filas reales rompia
+      // (PostgREST devuelve error, no "la primera"). Se devuelve la LISTA completa, ordenada por
+      // `periodo_mes` (`NULLS FIRST` -- legacy primero, D3), y el `404` de "todavia no tiene
+      // autorizacion" desaparece: un presupuesto sin filas es `200 []`, no un error (D5).
+      let query = userClient
         .schema('facturacion')
         .from('autorizacion')
         .select('*')
         .eq('presupuesto_id', presupuestoId)
-        .maybeSingle();
+        .order('periodo_mes', { ascending: true, nullsFirst: true });
+      if (periodoMes) {
+        query = query.eq('periodo_mes', periodoMes);
+      }
+      const { data, error } = await query;
       if (error) return jsonResponse(400, { error: error.message });
-      if (!data) return jsonResponse(404, { error: 'este presupuesto todavia no tiene autorizacion asociada' });
-      return jsonResponse(200, toApi(data as AutorizacionRow));
+      return jsonResponse(200, (data as AutorizacionRow[]).map(toApi));
     }
     const { data, error } = await userClient.schema('facturacion').from('autorizacion').select('*');
     if (error) return jsonResponse(400, { error: error.message });

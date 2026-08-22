@@ -106,13 +106,36 @@
 
 ## Fase 2 — Edge Function `autorizaciones`
 
-- [ ] **2.1** `periodo_mes` en `AutorizacionRow` / `AutorizacionInput` / `toApi` / `toDb`
+- [x] **2.1** `periodo_mes` en `AutorizacionRow` / `AutorizacionInput` / `toApi` / `toDb`
       (patrón `!== undefined` = partial update, igual que el resto).
-- [ ] **2.2** `GET ?presupuestoId=` → lista ordenada por `periodo_mes NULLS FIRST`; **`.maybeSingle()`
+      **Hecho 2026-08-22**: `supabase/functions/autorizaciones/index.ts:50-53` (`AutorizacionRow.periodo_mes`),
+      `:76-80` (`AutorizacionInput.periodoMes?`), `:100-101` (`toApi`), `:122-123` (`toDb`, patrón
+      `!== undefined` idéntico al resto del archivo). `deno check` limpio (ver 2.4 más abajo).
+- [x] **2.2** `GET ?presupuestoId=` → lista ordenada por `periodo_mes NULLS FIRST`; **`.maybeSingle()`
       fuera**; `200 []` en lugar de `404` (D5). Reemplazar el comentario `:133-136` que dejaba el
       punto marcado, citando este change.
-- [ ] **2.3** Filtro opcional `&periodoMes=`.
-- [ ] **2.4** Actualizar la cabecera del archivo: la relación ya no es `1---1` (`:8-9`).
+      **Hecho 2026-08-22**: `supabase/functions/autorizaciones/index.ts:151-169`. `.maybeSingle()`
+      retirado; `.order('periodo_mes', { ascending: true, nullsFirst: true })`; devuelve
+      `(data as AutorizacionRow[]).map(toApi)` siempre (incluido `[]`), nunca `404`. Comentario
+      viejo (`:133-136` en la versión pre-edit, citaba "el punto 7... hasta que eso se decida")
+      reemplazado por uno que cita `tasks.md 2.2, design.md D5` de este change (`:152-157`).
+      ⚠️ **Riesgo explícito para Fase 4**: `SupabaseAutorizacionRepository.getByPresupuestoId`
+      (`:246-259`) todavía espera un objeto único (`parseAutorizacionApi(data)` sin `Array.isArray`)
+      y trata el `404` como "sin autorización" (`esErrorNotFound`). Con este cambio de EF ya en vivo,
+      esa llamada va a recibir un array (`200 [...]` o `200 []`) en lugar de `{...}`/`404` — el
+      repository queda roto hasta que Fase 4.1/4.2 lo conviertan a `listByPresupuestoId` y retiren
+      `esErrorNotFound` de esa consulta (exactamente lo que D5 anticipa: "los pasos 3 y 4-6 no se
+      pueden desplegar por separado"). No se tocó `SupabaseAutorizacionRepository.ts` en esta fase
+      (fuera de alcance asignado).
+- [x] **2.3** Filtro opcional `&periodoMes=`.
+      **Hecho 2026-08-22**: `supabase/functions/autorizaciones/index.ts:137` (lectura del query
+      param), `:164-166` (`.eq('periodo_mes', periodoMes)` aplicado solo dentro de la rama
+      `presupuestoId`, condicional a que venga).
+- [x] **2.4** Actualizar la cabecera del archivo: la relación ya no es `1---1` (`:8-9`).
+      **Hecho 2026-08-22**: `supabase/functions/autorizaciones/index.ts:8-11` — "relacion 1:N con
+      Presupuesto -- autorizacion-mensual tasks.md Fase 2, design.md D5; antes 1---1". Safety net:
+      reconstruido el archivo pre-edit vía `git show HEAD:supabase/functions/autorizaciones/index.ts`
+      y corrido `deno check` sobre ambas versiones — **0 errores en las dos** (baseline y editado).
 
 ## Fase 3 — Contrato y funciones puras (TDD estricto)
 
