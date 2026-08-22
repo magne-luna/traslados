@@ -177,12 +177,14 @@ al viaje de ida y vuelta al servidor.
 - **THEN** los dos valores vuelven distintos y con las fechas originales
 - **AND** el servidor no rechaza la vigencia retroactiva
 
-### Requirement: El adjunto se mapea sin inventar datos ni perder los existentes
+### Requirement: El adjunto se mapea desde columnas reales de metadata
 
-El sistema SHALL mapear `archivoUrl` al `archivo?: ArchivoAdjunto` del dominio derivando `nombre` del
-último segmento de la URL y `cargadoEn` de `fechaRespuesta`. El sistema MUST NOT inventar una fecha de
-carga tomada del reloj, y MUST NOT enviar un `archivoUrl` para un archivo recién elegido en el
-formulario, porque este change no implementa la subida a Storage.
+El sistema SHALL mapear el archivo adjunto de la autorización leyendo `archivo_url`, `archivo_nombre`
+y `archivo_cargado_en` como columnas reales e independientes de `facturacion.autorizacion`. El sistema
+MUST NOT derivar `nombre` del último segmento de la URL ni `cargadoEn` de `fechaRespuesta`. El sistema
+SHALL enviar `archivoUrl` (la clave del objeto subido a `documentos-autorizaciones`),
+`archivoNombre` y `archivoCargadoEn` en el body de `create`/`update` cuando el usuario sube o
+reemplaza un archivo.
 
 #### Scenario: Un adjunto existente sobrevive el viaje de ida y vuelta
 
@@ -190,13 +192,21 @@ formulario, porque este change no implementa la subida a Storage.
 - **WHEN** se lee, se cambia el estado y se vuelve a guardar
 - **THEN** el `archivo_url` original se conserva
 
-#### Scenario: Un archivo recién elegido no produce una URL falsa
+#### Scenario: Un archivo recién subido se persiste con su metadata real
 
-- **GIVEN** un formulario de autorización donde el usuario seleccionó un archivo local
+- **GIVEN** un formulario de autorización donde el usuario subió un archivo a
+  `documentos-autorizaciones`
 - **WHEN** se guarda
-- **THEN** el body de la invocación NO contiene `archivoUrl`
-- **AND** la pantalla muestra un `AvisoModeloDatos` indicando que el archivo todavía no se guarda en
-  el servidor
+- **THEN** el body de la invocación SÍ contiene `archivoUrl` con la clave del objeto subido
+- **AND** también contiene `archivoNombre` y `archivoCargadoEn` con los valores reales
+- **AND** la pantalla ya no muestra ningún `AvisoModeloDatos` de "todavía no se guarda"
+
+#### Scenario: Nombre y fecha se leen tal cual, sin derivarlos
+
+- **GIVEN** una fila con `archivo_nombre = "informe.pdf"` y `archivo_cargado_en = "2026-03-01"`
+- **WHEN** se mapea
+- **THEN** `archivo.nombre` es exactamente `"informe.pdf"` y `archivo.cargadoEn` es exactamente
+  `"2026-03-01"`, sin derivarlos de la URL ni de `fechaRespuesta`
 
 ### Requirement: Mapeo en funciones puras y aisladas
 

@@ -264,14 +264,14 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   reales de permisos mixtos. Detalle en
   `openspec/changes/archive/2026-08-11-documentos-checklist-items-por-actividad/`.
 - **Refinamiento posterior (`integracion-documentos-autorizaciones`, propose+apply 2026-08-18)**: ✅
-  **implementado y verificado en verde**; pendiente solo 5.2 (verificación manual con 2 cuentas
-  reales read/write, `tasks.md`) antes de archivar. Cierra el último pendiente declarado de carga de
-  archivos: el adjunto de la autorización (`AutorizacionForm.tsx:97-102`) vivía solo en el estado de
-  React y nunca viajaba al servidor — reportado por la clienta como "no funciona la carga de
-  archivos" en Autorizaciones, pero **no era un bug**: estaba escrito como requisito en
-  `openspec/specs/autorizacion-repository-supabase/spec.md` (*"MUST NOT enviar un `archivoUrl` para
-  un archivo recién elegido"*) y anunciado en pantalla vía `AvisoModeloDatos`. Replica el patrón de
-  este change (`C-03`) y de `integracion-documentos`: bucket privado nuevo
+  **archivado 2026-08-21**, 19/20 tasks; 5.2 (verificación manual con 2 cuentas reales read/write)
+  marcado como pendiente de la usuaria, deliberadamente no bloqueante para archivar. Cierra el último
+  pendiente declarado de carga de archivos: el adjunto de la autorización (`AutorizacionForm.tsx:97-102`)
+  vivía solo en el estado de React y nunca viajaba al servidor — reportado por la clienta como
+  "no funciona la carga de archivos" en Autorizaciones, pero **no era un bug**: estaba escrito como
+  requisito en `openspec/specs/autorizacion-repository-supabase/spec.md` (*"MUST NOT enviar un
+  `archivoUrl` para un archivo recién elegido"*) y anunciado en pantalla vía `AvisoModeloDatos`.
+  Replica el patrón de este change (`C-03`) y de `integracion-documentos`: bucket privado nuevo
   **`documentos-autorizaciones`** (`public = false`, el **quinto**) + 4 policies de `storage.objects`
   gateadas por `modulos.tiene_permiso('presupuestos', …)` — módulo existente desde
   `20260730140000_split_modulos_permisos.sql`, el mismo que ya gatea `facturacion.autorizacion`, no
@@ -303,7 +303,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   alcance de la descarga, queda declarado fuera de alcance arriba). Discrepancia `archivo_url` guarda
   la **clave del objeto en el bucket, no una URL absoluta** — mismo criterio que los otros dominios
   documentales — documentada en `knowledge-base/04_modelo_de_datos.md` §Discrepancias. Detalle en
-  `openspec/changes/integracion-documentos-autorizaciones/`.
+  `openspec/changes/archive/2026-08-21-integracion-documentos-autorizaciones/`.
 
 ### [C-04] `obras-sociales-prestadores`
 - **Estado**: ✅ `integracion-obra-social` — 69/70 tasks. Migraciones confirmadas aplicadas y

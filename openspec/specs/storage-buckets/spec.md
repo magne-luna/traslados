@@ -2,20 +2,27 @@
 
 ## Purpose
 
-Definir la creación y configuración de los 4 buckets privados de Supabase Storage que almacenan documentos adjuntos a pacientes, vehículos, conductores y facturas.
+Definir la creación y configuración de los 5 buckets privados de Supabase Storage que almacenan documentos adjuntos a pacientes, vehículos, conductores, facturas y autorizaciones.
 
 ## Requirements
 
-### Requirement: Creación de los 4 buckets
+### Requirement: Creación de los 5 buckets
 
-El sistema MUST crear 4 buckets con los nombres exactos `documentos-pacientes`, `documentos-vehiculos`, `documentos-conductores` y `documentos-facturas` mediante la migración inicial de Supabase.
+El sistema MUST crear 5 buckets con los nombres exactos `documentos-pacientes`, `documentos-vehiculos`, `documentos-conductores`, `documentos-facturas` y `documentos-autorizaciones` mediante migraciones de Supabase. El nuevo bucket `documentos-autorizaciones` SHALL gatearse por el módulo `presupuestos` ya existente, no por un módulo nuevo.
 
 #### Scenario: Buckets creados exitosamente
 
-- GIVEN la migración inicial se ha aplicado contra el proyecto Supabase
+- GIVEN las migraciones se han aplicado contra el proyecto Supabase
 - WHEN se consulta la lista de buckets desde el dashboard o API
-- THEN los 4 buckets existen con los nombres especificados
-- AND cada bucket corresponde a su entidad (pacientes, vehículos, conductores, facturas)
+- THEN los 5 buckets existen con los nombres especificados
+- AND cada bucket corresponde a su entidad (pacientes, vehículos, conductores, facturas, autorizaciones)
+
+#### Scenario: El bucket de autorizaciones se gatea por el módulo `presupuestos`
+
+- GIVEN el bucket `documentos-autorizaciones`
+- WHEN se inspeccionan sus policies de `storage.objects`
+- THEN todas usan `modulos.tiene_permiso('presupuestos', 'read'|'write')`
+- AND no existe ningún módulo `autorizaciones` ni `documentos-autorizaciones` nuevo
 
 ### Requirement: Buckets privados
 

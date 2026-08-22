@@ -145,13 +145,20 @@ antes de aplicar SQL**, sobre estos tres puntos:
 
 ## Success Criteria
 
-- [ ] Schema real de `facturacion.autorizacion` verificado en vivo antes de escribir código (§1).
-- [ ] Un archivo subido en Autorizaciones sobrevive a recargar la página y a reabrir la autorización.
-- [ ] `storage.buckets` tiene 5 buckets, los 5 con `public = false`.
-- [ ] Una cuenta con `presupuestos: read` ve el nombre del adjunto pero **no puede** subir ni quitar.
-- [ ] Una cuenta sin `presupuestos` no puede leer ningún objeto del bucket (verificado en vivo).
-- [ ] `archivo_url` nunca contiene `http://` ni `https://` (guarda la clave del bucket).
-- [ ] Un fallo del PATCH no deja fila apuntando a un archivo inexistente.
-- [ ] El `AvisoModeloDatos` de "todavía no se guarda" ya no aparece en `AutorizacionForm.tsx`.
-- [ ] `cd frontend && npx tsc -b --noEmit` y `npx vitest run` en verde, sin `any` ni `as` sobre datos
+- [x] Schema real de `facturacion.autorizacion` verificado en vivo antes de escribir código (§1).
+- [x] Un archivo subido en Autorizaciones sobrevive a recargar la página y a reabrir la autorización.
+- [x] `storage.buckets` tiene 5 buckets, los 5 con `public = false`.
+- [ ] Una cuenta con `presupuestos: read` ve el nombre del adjunto pero **no puede** subir ni quitar. ⚠️ **Pendiente** — requiere la verificación manual con 2 cuentas reales (ver tasks.md 5.2), no ejecutable por un agente.
+- [ ] Una cuenta sin `presupuestos` no puede leer ningún objeto del bucket (verificado en vivo). ⚠️ **Pendiente** — mismo motivo, tasks.md 5.2.
+- [x] `archivo_url` nunca contiene `http://` ni `https://` (guarda la clave del bucket).
+- [x] Un fallo del PATCH no deja fila apuntando a un archivo inexistente.
+- [x] El `AvisoModeloDatos` de "todavía no se guarda" ya no aparece en `AutorizacionForm.tsx`.
+- [x] `cd frontend && npx tsc -b --noEmit` y `npx vitest run` en verde, sin `any` ni `as` sobre datos
       externos.
+
+## Nota de archivado (2026-08-21)
+
+Change archivado con 19/20 tasks completas. La tarea 5.2 (verificación manual con 2 cuentas reales
+read/write contra el proyecto Supabase real) queda **deliberadamente diferida** — decisión explícita
+de la usuaria, no un olvido. Corresponde a los dos ítems de Success Criteria marcados arriba como
+pendientes. Ningún otro criterio de este documento depende de esa verificación.
