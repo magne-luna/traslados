@@ -186,7 +186,9 @@ export interface Presupuesto {
 
 export interface Autorizacion {
   id: string;
-  /** Referencia por id al presupuesto que responde (relación 1---1, design.md Decisión 2), nunca embebido. */
+  /** Referencia por id al presupuesto que responde (relación **1:N**, `autorizacion-mensual`
+   * design.md D1/D2 — reabre la relación 1---1 de `integracion-presupuestos` Decisión 2: un
+   * presupuesto puede tener una fila de autorización por mes). Nunca embebido. */
   presupuestoId: string;
   estado: EstadoAutorizacion;
   /** ISO date en que la obra social respondió. */
@@ -224,6 +226,20 @@ export interface Autorizacion {
   /** Cupo mensual de kilómetros habilitados a facturar (RN-PA-03). */
   cupoMensualKm?: number;
   archivo?: ArchivoAdjunto;
+  /**
+   * Mes calendario que esta fila responde (`autorizacion-mensual` design.md D1/D2/D3), persistido
+   * como `DATE` día-1 absoluto en ISO `YYYY-MM-01` (mismo criterio que `vigenciaDesde`/
+   * `fechaRespuesta`: string, no `Date`, no `{ anio, mes }`). Normalizar con
+   * `normalizarPeriodoMes` antes de enviar, nunca a mano.
+   *
+   * `undefined` = fila creada bajo el modelo anterior (1:1, sin período), **NUNCA** se infiere de
+   * `fechaRespuesta` ni de `vigenciaDesde` — sería fabricar un dato financiero que nadie cargó
+   * (design.md D3). Puede convivir con filas mensuales del mismo presupuesto: el índice único
+   * `(presupuestoId, periodoMes) WHERE periodoMes IS NOT NULL` no lo impide. La UI la ordena
+   * primero y la rotula "Sin mes cargado" (`etiquetaPeriodoMes`); `montoAutorizado` en una fila
+   * legacy conserva la semántica **anual** (D8), nunca la mensual.
+   */
+  periodoMes?: string;
 }
 
 /**

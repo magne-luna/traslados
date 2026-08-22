@@ -100,6 +100,9 @@ export function parseAutorizacionApi(value: unknown): Autorizacion | null {
     cupoMensualDias: readOptionalNumber(value, 'cupoMensualDias'),
     cupoMensualKm: readOptionalNumber(value, 'cupoMensualKm'),
     archivo: parseArchivo(value),
+    // 3.6 (autorizacion-mensual, design.md D2/D3): ausente = fila legacy sin período, nunca se
+    // deriva de fechaRespuesta/vigenciaDesde acá tampoco (mismo criterio que `archivo`, arriba).
+    periodoMes: readOptionalString(value, 'periodoMes'),
   };
 }
 
@@ -123,6 +126,8 @@ export interface CrearAutorizacionPayload {
   conDependencia?: boolean;
   cupoMensualDias?: number;
   cupoMensualKm?: number;
+  // 3.6 (autorizacion-mensual): ausente = no se cargó mes (legacy), nunca se manda `null`.
+  periodoMes?: string;
 }
 
 export function toCrearAutorizacionPayload(nueva: NuevaAutorizacion): CrearAutorizacionPayload {
@@ -140,6 +145,8 @@ export function toCrearAutorizacionPayload(nueva: NuevaAutorizacion): CrearAutor
   if (nueva.conDependencia !== undefined) payload.conDependencia = nueva.conDependencia;
   if (nueva.cupoMensualDias !== undefined) payload.cupoMensualDias = nueva.cupoMensualDias;
   if (nueva.cupoMensualKm !== undefined) payload.cupoMensualKm = nueva.cupoMensualKm;
+  // 3.6: mismo patrón `!== undefined` que el resto de los campos opcionales de este archivo.
+  if (nueva.periodoMes !== undefined) payload.periodoMes = nueva.periodoMes;
 
   return payload;
 }
@@ -165,6 +172,8 @@ export function toActualizarAutorizacionPayload(cambios: ActualizacionAutorizaci
   if (cambios.conDependencia !== undefined) payload.conDependencia = cambios.conDependencia;
   if (cambios.cupoMensualDias !== undefined) payload.cupoMensualDias = cambios.cupoMensualDias;
   if (cambios.cupoMensualKm !== undefined) payload.cupoMensualKm = cambios.cupoMensualKm;
+  // 3.6: editable en edición (design.md D11 — re-chequeo de unicidad lo hace el repository/EF).
+  if (cambios.periodoMes !== undefined) payload.periodoMes = cambios.periodoMes;
 
   return payload;
 }

@@ -52,22 +52,54 @@
 
 ## Fase 1 — SQL (artefactos de diseño; los aplica la usuaria, nunca el agente)
 
-- [ ] **1.1** `supabase/migrations/<ts>_autorizacion_periodo_mes.sql`: `ADD COLUMN periodo_mes DATE`
+- [x] **1.1** `supabase/migrations/20260822180000_autorizacion_periodo_mes.sql`: `ADD COLUMN periodo_mes DATE`
       con `CHECK (periodo_mes IS NULL OR EXTRACT(DAY FROM periodo_mes) = 1)` (D1).
-- [ ] **1.2** Mismo archivo: `CREATE UNIQUE INDEX … (presupuesto_id, periodo_mes) WHERE periodo_mes IS NOT NULL`.
+      **Hecho 2026-08-22**: `20260822180000_autorizacion_periodo_mes.sql:64-66`.
+- [x] **1.2** Mismo archivo: `CREATE UNIQUE INDEX … (presupuesto_id, periodo_mes) WHERE periodo_mes IS NOT NULL`.
       Justificar en la cabecera por qué es **parcial** (D1) y por qué **no** hay `DROP CONSTRAINT`
       (nunca hubo `UNIQUE`).
-- [ ] **1.3** Cabecera del `.sql`: sin RLS nueva (no hay tabla nueva, las policies de `presupuestos`
+      **Hecho 2026-08-22**: índice `idx_autorizacion_presupuesto_periodo` en
+      `20260822180000_autorizacion_periodo_mes.sql:68-70`; justificación del "no `DROP CONSTRAINT`"
+      (nunca hubo `UNIQUE`, solo `idx_autorizacion_presupuesto_id` no-único) en `:7-16`; motivo del
+      índice parcial en `:27-33`.
+- [x] **1.3** Cabecera del `.sql`: sin RLS nueva (no hay tabla nueva, las policies de `presupuestos`
       ya cubren la columna), sin backfill (D3), rollback = `DROP INDEX` + `DROP COLUMN`.
-- [ ] **1.4** `supabase/migrations/<ts>_presupuesto_rpc_autorizacion_primer_mes.sql`:
+      **Hecho 2026-08-22**: sin RLS en `20260822180000_autorizacion_periodo_mes.sql:35-41`, sin
+      backfill en `:43-51`, rollback en `:57-62`.
+- [x] **1.4** `supabase/migrations/20260822181000_presupuesto_rpc_autorizacion_primer_mes.sql`:
       `CREATE OR REPLACE` de `crear_presupuesto_completo` y `crear_presupuestos_lote` agregando
       `periodo_mes` al `INSERT` de autorización vía
       `date_trunc('month', NULLIF(… ->> 'vigencia_desde','')::date)::date` (D4).
       ⚠️ Conservar **byte por byte**: firma, `SECURITY INVOKER`, `SET search_path = ''`,
       códigos `45401`-`45404`, el bloque ⚠️⚠️ `NUNCA SECURITY DEFINER`.
-- [ ] **1.5** Actualizar el test de texto de fuente sobre las RPC (`presupuestoMigrations.test.ts`).
-- [ ] **1.6** ⚠️ **El agente NO ejecuta `supabase db push`.** La usuaria aplica; se registra evidencia
+      **Hecho 2026-08-22**: partido de la versión LIVE más reciente de las dos RPC
+      (`20260821172000_presupuesto_rpc_campos_nuevos.sql`, aplicada 2026-08-21 por
+      `presupuestos-vigencia-datos-traslado-vista-previa`), no de una versión vieja. `INSERT` de
+      autorización con `periodo_mes` en `20260822181000_presupuesto_rpc_autorizacion_primer_mes.sql:113-117`
+      (alta simple) y `:189-193` (lote). Firma, `SECURITY INVOKER`, `SET search_path = ''`,
+      18 columnas del `INSERT` de `presupuesto`, `insertar_lineas_presupuesto` y códigos
+      `45401`-`45403` conservados byte por byte; `45404` no vive en este archivo (pertenece al
+      helper de `20260816110000`, invocado sin redefinir) — verificado por test, ver 1.5.
+- [x] **1.5** Actualizar el test de texto de fuente sobre las RPC (`presupuestoMigrations.test.ts`).
+      **Hecho 2026-08-22**: `frontend/src/shared/lib/presupuestos/presupuestoMigrations.test.ts:266-350`
+      (nuevo `describe('migración 20260822181000_presupuesto_rpc_autorizacion_primer_mes.sql')`, 8
+      tests: `SECURITY INVOKER` ×2/no `DEFINER`, `search_path` ×2, firma sin cambios, `periodo_mes`
+      derivado con `date_trunc` en las dos funciones, sin código de error nuevo, 18 columnas del
+      `INSERT` de `presupuesto` intactas, llamada a `insertar_lineas_presupuesto` ×2, sin
+      `EXCEPTION WHEN`, `NO convertir a SECURITY DEFINER` ×2). Corrida: `cd frontend && npx vitest
+      run src/shared/lib/presupuestos/presupuestoMigrations.test.ts` → **31/31 passed** (23
+      preexistentes + 8 nuevos).
+- [x] **1.6** ⚠️ **El agente NO ejecuta `supabase db push`.** La usuaria aplica; se registra evidencia
       post-aplicación acá.
+      **Escrito, no aplicado (2026-08-22)** — las dos migraciones de esta fase
+      (`20260822180000_autorizacion_periodo_mes.sql`,
+      `20260822181000_presupuesto_rpc_autorizacion_primer_mes.sql`) quedan como artefacto de diseño
+      en `supabase/migrations/`, **sin ejecutar** ningún `supabase db push` / `migration up` / `db
+      query` de escritura desde el agente. **Pendiente de aplicación real por la usuaria o Enzo.**
+      Queda para después de aplicar: reverificar en vivo (a) `periodo_mes` existe y el `CHECK` día-1
+      funciona, (b) el índice único parcial rechaza un segundo mes duplicado del mismo presupuesto,
+      (c) las dos RPC siguen dando de alta presupuestos sin `vigencia_desde` con `periodo_mes NULL`
+      (paridad byte a byte con el comportamiento anterior).
 
 ## Fase 2 — Edge Function `autorizaciones`
 
@@ -81,17 +113,55 @@
 
 ## Fase 3 — Contrato y funciones puras (TDD estricto)
 
-- [ ] **3.1** `Autorizacion.periodoMes?: string` en `shared/types/presupuesto.ts`; reescribir el
+- [x] **3.1** `Autorizacion.periodoMes?: string` en `shared/types/presupuesto.ts`; reescribir el
       comentario `:189` (1---1 → 1:N) y documentar `NULL` = modelo anterior (D3).
-- [ ] **3.2** **RED/GREEN/TRIANGULATE** `periodoAutorizacion.ts` → `normalizarPeriodoMes`
+      **Hecho 2026-08-22**: campo en `frontend/src/shared/types/presupuesto.ts:242`
+      (`periodoMes?: string`, comentario `:225-241` documenta ISO `YYYY-MM-01`, `undefined` =
+      modelo anterior D3, convivencia con filas mensuales, orden/etiqueta y semántica anual D8).
+      Comentario de `presupuestoId` (`:189-191`) reescrito de "relación 1---1" a "relación **1:N**"
+      citando D1/D2 de este change. `npx tsc -b --noEmit` limpio tras el cambio.
+- [x] **3.2** **RED/GREEN/TRIANGULATE** `periodoAutorizacion.ts` → `normalizarPeriodoMes`
       (`'2026-03'`, `'2026-03-15'`, `'2026-03-01'` → `'2026-03-01'`; entrada inválida).
-- [ ] **3.3** Ídem `ordinalMes` — casos: orden normal, **mes salteado**, **carga fuera de orden**
+      **Hecho 2026-08-22**: `frontend/src/shared/lib/presupuestos/periodoAutorizacion.ts:32-42`
+      (impl), test `periodoAutorizacion.test.ts:16-49` (7 casos, incluye triangulación diciembre y
+      3 formas de entrada inválida). **Decisión (entrada inválida)**: `throw
+      PeriodoMesInvalidoError` (`:18-23`) — la firma de contrato de D2 declara retorno `string` no
+      opcional, así que ni se inventa un string ni se devuelve `undefined`; el llamador decide cómo
+      mostrar el error.
+- [x] **3.3** Ídem `ordinalMes` — casos: orden normal, **mes salteado**, **carga fuera de orden**
       (RN-PA-02), lista con legacy `undefined`.
-- [ ] **3.4** Ídem `etiquetaPeriodoMes` — incluye el caso `undefined → 'Sin mes cargado'` (nunca un mes
+      **Hecho 2026-08-22**: impl `periodoAutorizacion.ts:60-72`, test `periodoAutorizacion.test.ts:57-97`
+      (orden normal, mes salteado, fuera de orden RN-PA-02, legacy mezclado, período no encontrado).
+      **Decisión (tie-breaking/legacy)**: el ordinal se recalcula SIEMPRE por fecha ordenada
+      ascendente entre los períodos con mes, nunca por posición de inserción en el array de
+      entrada; las entradas `undefined` (legacy) no tienen ordinal propio y tampoco cuentan para la
+      numeración de las filas con mes (no corren la numeración, no son "Mes 0").
+- [x] **3.4** Ídem `etiquetaPeriodoMes` — incluye el caso `undefined → 'Sin mes cargado'` (nunca un mes
       inventado).
-- [ ] **3.5** Ídem `coincidePeriodoFacturado` / `validarCoherenciaPeriodo` (D7) — coincide, no coincide,
+      **Hecho 2026-08-22**: impl `periodoAutorizacion.ts:99-107`, test
+      `periodoAutorizacion.test.ts:104-115`. **Decisión (formato exacto)**: devuelve SOLO
+      `'{mes en minúscula} {año}'` (ej. `'marzo 2026'`), sin el prefijo "Mes N" — el design.md D10
+      (`Mes {ordinalMes}` + `etiquetaPeriodoMes` → *"Mes 2 · abril 2026"*) deja explícito que el
+      prefijo "Mes N" lo antepone quien llama (combinando con `ordinalMes`), no esta función; la
+      tabla de contrato de D2 confirma el mismo mapeo (`'2026-03-01'` → `'marzo 2026'`).
+- [x] **3.5** Ídem `coincidePeriodoFacturado` / `validarCoherenciaPeriodo` (D7) — coincide, no coincide,
       autorización legacy sin período.
-- [ ] **3.6** `autorizacionMapping.ts`: `periodoMes` en las 3 direcciones + round-trip test.
+      **Hecho 2026-08-22**: impl `periodoAutorizacion.ts:126-161`, test
+      `periodoAutorizacion.test.ts:122-176` (`coincidePeriodoFacturado`: coincide/mes distinto/año
+      distinto/legacy; `validarCoherenciaPeriodo`: los 3 estados). **Decisión (forma de retorno)**:
+      `coincidePeriodoFacturado` conserva el booleano de la tabla de contrato de D2 (insumo de la
+      preselección); `validarCoherenciaPeriodo` devuelve la unión `'coincide' | 'no-coincide' |
+      'legacy-sin-periodo'` (`:143`) — un booleano plano fusionaría "elegiste mal el mes" con "esta
+      fila es legacy y no tiene con qué comparar" en el mismo `false`, y D7 pide mensajes distintos
+      para cada caso en el aviso de Fase 6b.
+- [x] **3.6** `autorizacionMapping.ts`: `periodoMes` en las 3 direcciones + round-trip test.
+      **Hecho 2026-08-22**: `frontend/src/shared/lib/presupuestos/autorizacionMapping.ts:105`
+      (parse), `:130` (`CrearAutorizacionPayload.periodoMes?`), `:149` (`toCrearAutorizacionPayload`,
+      patrón `!== undefined`), `:176` (`toActualizarAutorizacionPayload`, mismo patrón). Test
+      `autorizacionMapping.test.ts:277-336` (8 casos: parse presente/ausente, create presente/ausente,
+      update presente/ausente, 2 round-trip incluyendo legacy). Safety net previo: 24/24 tests
+      pasando en `autorizacionMapping.test.ts` antes de tocar el archivo; 32/32 después (24 + 8
+      nuevos), sin romper ninguno de los existentes.
 
 ## Fase 4 — Repositories
 

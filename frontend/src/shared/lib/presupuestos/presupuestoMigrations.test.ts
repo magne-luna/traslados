@@ -261,3 +261,91 @@ describe('migración 20260816110000_presupuesto_lineas.sql', () => {
     expect(fuente).toContain('2026-08-16');
   });
 });
+
+// -----------------------------------------------------------------------------------------------
+// autorizacion-mensual (design.md D4, tasks.md 1.4/1.5): la cardinalidad Autorización↔Presupuesto
+// pasa de 1:1 a 1:N (una fila por mes de respuesta de la obra social). Esta migración NO cambia la
+// firma de ninguna RPC ni su lógica de negocio existente: solo agrega periodo_mes al INSERT de
+// autorización que las dos funciones ya hacían, derivado de vigencia_desde del propio payload.
+// -----------------------------------------------------------------------------------------------
+describe('migración 20260822181000_presupuesto_rpc_autorizacion_primer_mes.sql', () => {
+  const NOMBRE = '20260822181000_presupuesto_rpc_autorizacion_primer_mes.sql';
+
+  it('declara SECURITY INVOKER en las dos funciones y la cláusula activa nunca es SECURITY DEFINER', () => {
+    const fuente = leerMigracion(NOMBRE);
+    const codigoActivo = quitarComentariosYStrings(fuente);
+
+    const ocurrenciasInvoker = codigoActivo.match(/SECURITY INVOKER/g) ?? [];
+    expect(ocurrenciasInvoker.length).toBe(2); // crear_presupuesto_completo + crear_presupuestos_lote
+    expect(codigoActivo).not.toContain('SECURITY DEFINER');
+  });
+
+  it('declara SET search_path = \'\' en las dos funciones (código activo)', () => {
+    const fuente = leerMigracion(NOMBRE);
+    const codigoActivo = quitarComentariosYStrings(fuente);
+
+    const ocurrencias = codigoActivo.match(/SET search_path = ''/g) ?? [];
+    expect(ocurrencias.length).toBe(2);
+  });
+
+  it('mantiene la firma de las dos funciones sin cambios (jsonb, jsonb DEFAULT NULL -> uuid / jsonb -> uuid[])', () => {
+    const fuente = leerMigracion(NOMBRE);
+
+    expect(fuente).toContain(
+      'CREATE OR REPLACE FUNCTION facturacion.crear_presupuesto_completo(p_presupuesto jsonb, p_lineas jsonb DEFAULT NULL)',
+    );
+    expect(fuente).toContain('RETURNS uuid');
+    expect(fuente).toContain('CREATE OR REPLACE FUNCTION facturacion.crear_presupuestos_lote(p_presupuestos jsonb)');
+    expect(fuente).toContain('RETURNS uuid[]');
+  });
+
+  it('inserta periodo_mes en las dos autorizaciones, derivado de vigencia_desde con date_trunc(\'month\', ...)', () => {
+    const fuente = leerMigracion(NOMBRE);
+
+    expect(fuente).toContain(
+      "INSERT INTO facturacion.autorizacion (presupuesto_id, estado, periodo_mes) VALUES (\n    v_id,\n    'pendiente',\n    date_trunc('month', NULLIF(p_presupuesto ->> 'vigencia_desde', '')::date)::date\n  );",
+    );
+    expect(fuente).toContain(
+      "INSERT INTO facturacion.autorizacion (presupuesto_id, estado, periodo_mes) VALUES (\n      v_id,\n      'pendiente',\n      date_trunc('month', NULLIF(v_item ->> 'vigencia_desde', '')::date)::date\n    );",
+    );
+  });
+
+  it('no agrega ningún código de error nuevo (periodo_mes se deriva, nunca se exige)', () => {
+    const fuente = leerMigracion(NOMBRE);
+
+    expect(fuente).toContain("ERRCODE = '45401'");
+    expect(fuente).toContain("ERRCODE = '45402'");
+    expect(fuente).toContain("ERRCODE = '45403'");
+    // 45404 no vive en este archivo: pertenece a insertar_lineas_presupuesto (20260816110000),
+    // que esta migración invoca sin redefinir.
+    expect(fuente).not.toContain("ERRCODE = '45404'");
+  });
+
+  it('conserva las 18 columnas del INSERT de facturacion.presupuesto sin cambios (13 opcionales de presupuestos-vigencia + 5 originales)', () => {
+    const fuente = leerMigracion(NOMBRE);
+
+    expect(fuente).toContain(
+      'paciente_id, obra_social_id, monto, fecha_emision, archivo_url, prestacion_id,\n    vigencia_desde, vigencia_hasta, con_dependencia,\n    origen_ida, destino_ida, origen_vuelta, destino_vuelta,\n    horario_entrada, horario_salida, km_ida, km_vuelta,\n    dias_semana, dias_mensuales',
+    );
+  });
+
+  it('conserva la llamada a insertar_lineas_presupuesto en las dos funciones', () => {
+    const fuente = leerMigracion(NOMBRE);
+
+    const llamadasHelper = (fuente.match(/PERFORM facturacion\.insertar_lineas_presupuesto\(/g) ?? []).length;
+    expect(llamadasHelper).toBe(2);
+  });
+
+  it('sin BEGIN/EXCEPTION que capture errores (la atomicidad la da la transacción de la función)', () => {
+    const fuente = leerMigracion(NOMBRE);
+
+    expect(fuente).not.toMatch(/EXCEPTION\s+WHEN/i);
+  });
+
+  it('COMMENT ON FUNCTION de las dos funciones prohíbe explícitamente convertir a DEFINER', () => {
+    const fuente = leerMigracion(NOMBRE);
+
+    const ocurrenciasNoConvertir = (fuente.match(/NO convertir a SECURITY DEFINER/g) ?? []).length;
+    expect(ocurrenciasNoConvertir).toBe(2);
+  });
+});

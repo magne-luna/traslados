@@ -273,6 +273,77 @@ describe('toActualizarAutorizacionPayload — vigenciaHasta y conDependencia (5.
   });
 });
 
+// -----------------------------------------------------------------------------------------------
+// 3.6 — periodoMes (autorizacion-mensual, design.md D2/D3) en las 3 direcciones + round-trip
+// -----------------------------------------------------------------------------------------------
+
+describe('parseAutorizacionApi — periodoMes (3.6, autorizacion-mensual)', () => {
+  it('periodoMes presente se mapea tal cual', () => {
+    const autorizacion = parseAutorizacionApi(autorizacionApiCompleta({ periodoMes: '2026-03-01' }));
+
+    expect(autorizacion?.periodoMes).toBe('2026-03-01');
+  });
+
+  it('periodoMes ausente (fila legacy, D3) queda undefined, nunca inventado', () => {
+    const record = autorizacionApiCompleta();
+    delete record.periodoMes;
+
+    const autorizacion = parseAutorizacionApi(record);
+
+    expect(autorizacion?.periodoMes).toBeUndefined();
+  });
+});
+
+describe('toCrearAutorizacionPayload — periodoMes (3.6)', () => {
+  it('periodoMes presente viaja en el body', () => {
+    const payload = toCrearAutorizacionPayload(nuevaAutorizacionMinima({ periodoMes: '2026-03-01' }));
+
+    expect(payload.periodoMes).toBe('2026-03-01');
+  });
+
+  it('periodoMes ausente: la clave no aparece en el body (autorización legacy, mismo criterio !== undefined que el resto)', () => {
+    const payload = toCrearAutorizacionPayload(nuevaAutorizacionMinima());
+
+    expect('periodoMes' in payload).toBe(false);
+  });
+});
+
+describe('toActualizarAutorizacionPayload — periodoMes (3.6, D6b)', () => {
+  it('solo periodoMes seteado: el body tiene únicamente periodoMes (D11: editable en edición)', () => {
+    const payload = toActualizarAutorizacionPayload({ periodoMes: '2026-04-01' });
+
+    expect(payload).toEqual({ periodoMes: '2026-04-01' });
+  });
+
+  it('periodoMes ausente en el objeto de cambios: la clave no viaja, no pisa el mes ya cargado', () => {
+    const payload = toActualizarAutorizacionPayload({ estado: 'autorizada' });
+
+    expect('periodoMes' in payload).toBe(false);
+  });
+});
+
+describe('round-trip periodoMes (3.6): API -> dominio -> payload de actualización conserva el valor', () => {
+  it('un periodoMes que entra por parseAutorizacionApi sale idéntico en toActualizarAutorizacionPayload', () => {
+    const autorizacion = parseAutorizacionApi(autorizacionApiCompleta({ periodoMes: '2026-05-01' }));
+    expect(autorizacion).not.toBeNull();
+
+    const payload = toActualizarAutorizacionPayload({ periodoMes: autorizacion?.periodoMes });
+
+    expect(payload).toEqual({ periodoMes: '2026-05-01' });
+  });
+
+  it('una autorización legacy (periodoMes undefined) hace round-trip sin fabricar un mes', () => {
+    const record = autorizacionApiCompleta();
+    delete record.periodoMes;
+    const autorizacion = parseAutorizacionApi(record);
+
+    expect(autorizacion?.periodoMes).toBeUndefined();
+
+    const payload = toActualizarAutorizacionPayload({ periodoMes: autorizacion?.periodoMes });
+    expect('periodoMes' in payload).toBe(false);
+  });
+});
+
 describe('toActualizarAutorizacionPayload (2.6) — clave ausente no viaja (D6b)', () => {
   it('solo estado seteado: el body tiene únicamente estado', () => {
     const payload = toActualizarAutorizacionPayload({ estado: 'rechazada' });
