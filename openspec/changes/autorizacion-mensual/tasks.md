@@ -21,14 +21,20 @@
       trabajo real pendiente, no solo verificación humana diferida. La usuaria confirmó seguir sin
       archivarlo; queda anotado el riesgo de superposición sobre `autorizacionesPendientes.ts`/
       `FacturaForm.tsx` paso 2 para la Fase 5/6b de este change.
-- [ ] **0.2** ⚠️ **Firma G4 (D8)** — confirmar por escrito que `montoAutorizado` pasa a ser el tope
+- [x] **0.2** ⚠️ **Firma G4 (D8)** — confirmar por escrito que `montoAutorizado` pasa a ser el tope
       **del mes** para filas con `periodoMes`, conservando la semántica **anual** para las filas
       legacy, y que las dos semánticas conviven en `montoConsumido` sin refactor.
       **Sin esta firma no se escribe una línea de la Fase 6b.**
-- [ ] **0.3** ⚠️ **Firma G5 (D7)** — confirmar la política "preseleccionar el mes coincidente +
+      **Confirmado 2026-08-22** por la usuaria: OQ-1 se resuelve provisoriamente con la lectura (a)
+      — `presupuesto.monto` es el monto **mensual**, se compara cada mes contra ese mismo número, sin
+      trigger agregado. Decisión explícita de la usuaria ("hagámoslo contra monto mensual y si no
+      después lo ajustamos"), **no** confirmación de Andrea — queda anotado como provisorio en
+      `10_preguntas_abiertas.md` (OQ-1), a revisar si su respuesta real difiere.
+- [x] **0.3** ⚠️ **Firma G5 (D7)** — confirmar la política "preseleccionar el mes coincidente +
       advertir sin bloquear", explícitamente **en contra** de auto-resolver (rompería D6 de
       `facturacion-seleccion-autorizacion`) y de bloquear (rompería RN-PA-02).
       **Sin esta firma no se escribe una línea de la Fase 6b.**
+      **Confirmado 2026-08-22** por la usuaria.
 - [x] **0.4** Firma G2 (mes como `DATE` día-1 absoluto, ordinal derivado) y G3 (auto-creación de
       **un** mes, el primero).
       **Confirmado 2026-08-22** por la usuaria — se le explicaron ambas decisiones explícitamente

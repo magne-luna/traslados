@@ -494,6 +494,11 @@ específicamente la Fase 6b (facturación) de ese change — las Fases 1-6a no d
    puede no significar nada. El ejemplo del punto 8 de su pedido (326,60 km presupuestados vs. 264
    autorizados) describe un mes recortado, no aclara si el monto del presupuesto era mensual o total.
    **Hasta la respuesta, el trigger no se toca. Decisor**: Andrea.
+   **⚠️ Decisión provisoria de la usuaria (2026-08-22)**: implementar con la lectura (a) —
+   `presupuesto.monto` es el monto mensual — para destrabar la Fase 6b de `autorizacion-mensual`.
+   **No es la respuesta de Andrea**, es una decisión explícita de la usuaria para poder avanzar,
+   con la expectativa de ajustar si Andrea responde distinto. No cerrar esta pregunta hasta tener
+   su confirmación real.
 2. **¿La vigencia de la autorización de un mes tiene que estar contenida en ese mes?** Lo natural
    sería que sí, pero es una suposición: la obra social podría autorizar una ventana a caballo de dos
    meses, y RN-PA-02 ya admite vigencias retroactivas. **No se agrega esa restricción hasta tener
