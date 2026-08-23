@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Button, CamposSoloLectura } from '../../design-system/components';
+import { AvisoModeloDatos, Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert, EmptyState } from '../../design-system/feedback';
 import { Field, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
@@ -10,6 +10,8 @@ import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import { coincidePeriodoFacturado, validarCoherenciaPeriodo } from '../../shared/lib/presupuestos/periodoAutorizacion';
+import { AlertaCoherenciaPeriodo } from './AlertaCoherenciaPeriodo';
 import { AlertaCupo } from './AlertaCupo';
 import { AlertaMontoAutorizado } from './AlertaMontoAutorizado';
 import { DiasFacturablesSelector } from './DiasFacturablesSelector';
@@ -215,11 +217,63 @@ export function FacturaForm({
     };
   }, [values.pacienteId, presupuestoRepository, autorizacionRepository]);
 
+  // Preselección del Paso 2 (change `autorizacion-mensual`, design.md D7, tasks.md 6b.2, firma G5
+  // en tasks.md 0.3): "un default visible y cambiable, no una inferencia oculta" — nunca reemplaza
+  // D6 de `facturacion-seleccion-autorizacion` (el operador SIGUE eligiendo, D4). Se aplica una
+  // sola vez por lista de autorizaciones resuelta para este paciente (mismo patrón que
+  // `obraSocialIdPrecargada` de arriba: un ref evita repetir la preselección en cada render y
+  // permite volver a aplicarla si cambia el paciente elegido) y SOLO cuando existe EXACTAMENTE una
+  // autorización pendiente cuyo `periodoMes` coincide con `(values.mesFacturado,
+  // values.anioFacturado)` — dos o más coincidencias son una ambigüedad real (D7 no elige por vos),
+  // así que no se preselecciona nada. Nunca corre en edición (D4: "la edición no bifurca") ni pisa
+  // una elección manual ya hecha por el operador.
+  const preseleccionAplicadaRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (esEdicion || autorizaciones === null) return;
+    if (preseleccionAplicadaRef.current === values.pacienteId) return;
+    preseleccionAplicadaRef.current = values.pacienteId;
+    if (values.autorizacionId) return;
+    const coincidencias = autorizaciones.filter((item) =>
+      coincidePeriodoFacturado({
+        periodoMes: item.autorizacion.periodoMes,
+        mesFacturado: values.mesFacturado,
+        anioFacturado: values.anioFacturado,
+      }),
+    );
+    const unica = coincidencias.length === 1 ? coincidencias[0] : undefined;
+    if (unica) {
+      setValues((prev) => ({ ...prev, autorizacionId: unica.autorizacion.id }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo dispara por cambio de paciente/lista (ver ref arriba).
+  }, [esEdicion, autorizaciones, values.pacienteId]);
+
   const autorizacionSeleccionada = autorizaciones?.find((item) => item.autorizacion.id === values.autorizacionId);
   const autorizacionLabel = autorizacionSeleccionada ? etiquetaAutorizacion(autorizacionSeleccionada, paciente) : undefined;
   // Gateo del Paso 2 en modo alta (D4): bloqueado mientras no se resolvió la lista, si está vacía,
   // o si todavía no se eligió ninguna. En edición el paso no bifurca (D4) — nunca bloquea acá.
   const bloqueaAutorizacion = autorizaciones === null || autorizaciones.length === 0 || !values.autorizacionId;
+
+  // Aviso de coherencia no bloqueante (D7, tasks.md 6b.3, firma G5): compara el mes/año facturado
+  // (Paso 3) contra el `periodoMes` de la autorización elegida en el Paso 2. Reusa
+  // `validarCoherenciaPeriodo` de `periodoAutorizacion.ts` (Fase 3) tal cual — sin reimplementar la
+  // comparación acá. `null` mientras no hay autorización elegida (nada que comparar todavía).
+  const resultadoCoherenciaPeriodo = autorizacionSeleccionada
+    ? validarCoherenciaPeriodo({
+        periodoMes: autorizacionSeleccionada.autorizacion.periodoMes,
+        mesFacturado: values.mesFacturado,
+        anioFacturado: values.anioFacturado,
+      })
+    : null;
+
+  // `AvisoModeloDatos` de convivencia de modelos (D8 punto 4, tasks.md 6b.6): se muestra en el
+  // Paso 2 mientras, ENTRE LAS AUTORIZACIONES PENDIENTES de este paciente, convivan filas legacy
+  // (sin `periodoMes`) y filas mensuales (con `periodoMes`) — la ambigüedad de "¿esta lista mezcla
+  // los dos modelos?" es justo lo que puede llevar a elegir la fila equivocada en el selector.
+  const convivenModelosDeAutorizacion = Boolean(
+    autorizaciones &&
+      autorizaciones.some((item) => item.autorizacion.periodoMes === undefined) &&
+      autorizaciones.some((item) => item.autorizacion.periodoMes !== undefined),
+  );
 
   // Derivar "Prestación" desde la autorización elegida (feature `facturacion-derivar-prestacion`):
   // reusa `prestacionRealAutorizacion` (mismo criterio de resolución que ya usa
@@ -359,22 +413,35 @@ export function FacturaForm({
             }
           />
         ) : (
-          <CamposSoloLectura>
-            <Field label="Autorización" htmlFor={`${formId}-autorizacion`}>
-              <Select
-                id={`${formId}-autorizacion`}
-                value={values.autorizacionId ?? ''}
-                onChange={(e) => set('autorizacionId', e.target.value || undefined)}
-              >
-                <option value="">Seleccionar autorización…</option>
-                {autorizaciones.map((item) => (
-                  <option key={item.autorizacion.id} value={item.autorizacion.id}>
-                    {etiquetaAutorizacion(item, paciente)}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          </CamposSoloLectura>
+          <>
+            {/* autorizacion-mensual (design.md D8 punto 4, tasks.md 6b.6): mientras convivan
+                filas legacy y mensuales entre las PENDIENTES de este paciente, mismo componente
+                que el resto del proyecto (D9, AutorizacionForm.tsx 6a.6) -- nunca un cartel
+                hand-rolled nuevo. */}
+            {convivenModelosDeAutorizacion && (
+              <AvisoModeloDatos>
+                Este paciente tiene autorizaciones de los dos modelos pendientes de facturar:
+                algunas con <strong>mes cargado</strong> y otras sin él (modelo anterior a este
+                change). Fijate bien cuál elegís abajo.
+              </AvisoModeloDatos>
+            )}
+            <CamposSoloLectura>
+              <Field label="Autorización" htmlFor={`${formId}-autorizacion`}>
+                <Select
+                  id={`${formId}-autorizacion`}
+                  value={values.autorizacionId ?? ''}
+                  onChange={(e) => set('autorizacionId', e.target.value || undefined)}
+                >
+                  <option value="">Seleccionar autorización…</option>
+                  {autorizaciones.map((item) => (
+                    <option key={item.autorizacion.id} value={item.autorizacion.id}>
+                      {etiquetaAutorizacion(item, paciente)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </CamposSoloLectura>
+          </>
         )}
       </div>
     </div>
@@ -448,6 +515,14 @@ export function FacturaForm({
         />
         <AlertaCupo resultado={resultadoCupo} />
         {resultadoMonto !== null && <AlertaMontoAutorizado resultado={resultadoMonto} />}
+        {resultadoCoherenciaPeriodo !== null && (
+          <AlertaCoherenciaPeriodo
+            resultado={resultadoCoherenciaPeriodo}
+            periodoMes={autorizacionSeleccionada?.autorizacion.periodoMes}
+            mesFacturado={values.mesFacturado}
+            anioFacturado={values.anioFacturado}
+          />
+        )}
         {previaDescripcion !== null && (
           <div className="flex flex-col gap-xs rounded-sm border border-border bg-surface-soft p-md">
             <span className={labelClasses}>Vista previa de la descripción</span>

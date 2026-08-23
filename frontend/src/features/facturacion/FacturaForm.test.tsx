@@ -589,6 +589,171 @@ describe('FacturaForm — wizard de alta', () => {
   });
 });
 
+// `autorizacion-mensual` (design.md D7, tasks.md 6b.2/6b.3, firmas G4/G5 en tasks.md 0.2/0.3):
+// preselección del Paso 2 + aviso de coherencia no bloqueante del Paso 3. `values.mesFacturado`/
+// `values.anioFacturado` arrancan en el mes/año REAL de "hoy" (`valoresPorDefecto`, `new Date()`
+// sin mockear) -- estos tests calculan cada `periodoMes` de fixture relativo a "hoy" (offset en
+// meses, con `Date` normalizando el acarreo de año) para no depender de fake timers (que rompen
+// las esperas internas de `userEvent` en este proyecto) ni de en qué fecha real corra la suite.
+function periodoMesRelativoAHoy(offsetMeses: number): string {
+  const fecha = new Date();
+  fecha.setDate(1);
+  fecha.setMonth(fecha.getMonth() + offsetMeses);
+  const anio = fecha.getFullYear();
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  return `${anio}-${mes}-01`;
+}
+
+describe('FacturaForm — preselección y coherencia de período (D7, tasks.md 6b.2/6b.3)', () => {
+  it('Paso 2: con exactamente una autorización pendiente cuyo periodoMes coincide con el mes/año facturado, se preselecciona sola', async () => {
+    const presupuestos = [presupuesto({ id: 'presupuesto-mes-actual', pacienteId: 'paciente-martina' })];
+    const autorizaciones = new Map([
+      ['presupuesto-mes-actual', autorizacion({ id: 'autorizacion-mes-actual', presupuestoId: 'presupuesto-mes-actual', periodoMes: periodoMesRelativoAHoy(0) })],
+    ]);
+    renderForm({
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
+      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+    });
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const select = await screen.findByLabelText(/^autorización$/i);
+    await waitFor(() => expect(select).toHaveValue('autorizacion-mes-actual'));
+    // Preselección ≠ resolución (D7): "Siguiente" ya queda habilitado sin que el operador haya
+    // tocado el selector.
+    expect(screen.getByRole('button', { name: /siguiente/i })).toBeEnabled();
+  });
+
+  it('Paso 2: con dos autorizaciones pendientes que coinciden con el mismo mes/año, NO preselecciona ninguna (ambigüedad)', async () => {
+    const presupuestos = [
+      presupuesto({ id: 'presupuesto-mes-actual-a', pacienteId: 'paciente-martina' }),
+      presupuesto({ id: 'presupuesto-mes-actual-b', pacienteId: 'paciente-martina' }),
+    ];
+    const autorizaciones = new Map([
+      ['presupuesto-mes-actual-a', autorizacion({ id: 'autorizacion-mes-actual-a', presupuestoId: 'presupuesto-mes-actual-a', periodoMes: periodoMesRelativoAHoy(0) })],
+      ['presupuesto-mes-actual-b', autorizacion({ id: 'autorizacion-mes-actual-b', presupuestoId: 'presupuesto-mes-actual-b', periodoMes: periodoMesRelativoAHoy(0) })],
+    ]);
+    renderForm({
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
+      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+    });
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const select = await screen.findByLabelText(/^autorización$/i);
+    await waitFor(() => expect(within(select).getAllByRole('option').length).toBe(3)); // placeholder + 2
+    expect(select).toHaveValue('');
+    expect(screen.getByRole('button', { name: /siguiente/i })).toBeDisabled();
+  });
+
+  it('la preselección sigue siendo cambiable: el operador puede elegir otra autorización distinta después', async () => {
+    const presupuestos = [
+      presupuesto({ id: 'presupuesto-mes-actual', pacienteId: 'paciente-martina' }),
+      presupuesto({ id: 'presupuesto-mes-siguiente', pacienteId: 'paciente-martina' }),
+    ];
+    const autorizaciones = new Map([
+      ['presupuesto-mes-actual', autorizacion({ id: 'autorizacion-mes-actual', presupuestoId: 'presupuesto-mes-actual', periodoMes: periodoMesRelativoAHoy(0) })],
+      ['presupuesto-mes-siguiente', autorizacion({ id: 'autorizacion-mes-siguiente', presupuestoId: 'presupuesto-mes-siguiente', periodoMes: periodoMesRelativoAHoy(1) })],
+    ]);
+    renderForm({
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
+      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+    });
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    const select = await screen.findByLabelText(/^autorización$/i);
+    await waitFor(() => expect(select).toHaveValue('autorizacion-mes-actual'));
+
+    await userEvent.selectOptions(select, 'autorizacion-mes-siguiente');
+    expect(select).toHaveValue('autorizacion-mes-siguiente');
+  });
+
+  it('Paso 3: aviso no bloqueante cuando el mes facturado no coincide con el periodoMes de la autorización elegida', async () => {
+    const presupuestos = [presupuesto({ id: 'presupuesto-mes-siguiente', pacienteId: 'paciente-martina' })];
+    const autorizaciones = new Map([
+      ['presupuesto-mes-siguiente', autorizacion({ id: 'autorizacion-mes-siguiente', presupuestoId: 'presupuesto-mes-siguiente', periodoMes: periodoMesRelativoAHoy(2) })],
+    ]);
+    renderForm({
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
+      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+    });
+
+    // `mesFacturado`/`anioFacturado` default = hoy -- la autorización elegida (única pendiente,
+    // se elige automáticamente vía `elegirPrimeraAutorizacion` dentro de `avanzarHastaPaso3`) es
+    // de 2 meses en el futuro -> no coincide.
+    await avanzarHastaPaso3('paciente-martina');
+
+    expect(await screen.findByText(/no coincide/i)).toBeInTheDocument();
+    // No bloquea: Guardar sigue disponible y operable.
+    expect(screen.getByRole('button', { name: /guardar/i })).toBeEnabled();
+  });
+
+  it('Paso 3: aviso distinto (no bloqueante) cuando la autorización elegida es legacy sin periodoMes', async () => {
+    // `repositoriosPorDefecto` ya usa autorizaciones legacy (sin periodoMes) -- caso por defecto.
+    renderForm();
+
+    await avanzarHastaPaso3('paciente-martina');
+
+    expect(await screen.findByText(/sin mes cargado/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /guardar/i })).toBeEnabled();
+  });
+
+  it('Paso 3: cuando el mes facturado coincide con el periodoMes de la autorización elegida, el aviso lo confirma', async () => {
+    const presupuestos = [presupuesto({ id: 'presupuesto-mes-actual', pacienteId: 'paciente-martina' })];
+    const autorizaciones = new Map([
+      ['presupuesto-mes-actual', autorizacion({ id: 'autorizacion-mes-actual', presupuestoId: 'presupuesto-mes-actual', periodoMes: periodoMesRelativoAHoy(0) })],
+    ]);
+    renderForm({
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
+      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+    });
+
+    await avanzarHastaPaso3('paciente-martina');
+
+    expect(await screen.findByText(/coincide/i)).toBeInTheDocument();
+  });
+});
+
+// `autorizacion-mensual` (design.md D8 punto 4, tasks.md 6b.6): mientras convivan, entre las
+// autorizaciones PENDIENTES de un mismo paciente, filas legacy (sin `periodoMes`) y filas
+// mensuales (con `periodoMes`), se avisa -- mismo componente `AvisoModeloDatos` que el resto del
+// proyecto (D9, `AutorizacionForm.tsx` 6a.6), nunca un cartel hand-rolled nuevo.
+describe('FacturaForm — AvisoModeloDatos por convivencia de modelos (D8, tasks.md 6b.6)', () => {
+  it('Paso 2: muestra el aviso de convivencia cuando hay autorizaciones legacy y mensuales pendientes a la vez', async () => {
+    const presupuestos = [
+      presupuesto({ id: 'presupuesto-legacy', pacienteId: 'paciente-martina' }),
+      presupuesto({ id: 'presupuesto-marzo', pacienteId: 'paciente-martina' }),
+    ];
+    const autorizaciones = new Map([
+      ['presupuesto-legacy', autorizacion({ id: 'autorizacion-legacy', presupuestoId: 'presupuesto-legacy' })],
+      ['presupuesto-marzo', autorizacion({ id: 'autorizacion-marzo', presupuestoId: 'presupuesto-marzo', periodoMes: '2026-03-01' })],
+    ]);
+    renderForm({
+      presupuestoRepository: fakePresupuestoRepository(presupuestos),
+      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
+    });
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    expect(await screen.findByText(/modelo de datos/i)).toBeInTheDocument();
+  });
+
+  it('Paso 2: NO muestra el aviso de convivencia cuando todas las autorizaciones pendientes son del mismo modelo (todas legacy)', async () => {
+    renderForm(); // repositoriosPorDefecto: autorizaciones legacy únicamente
+
+    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
+
+    await elegirPrimeraAutorizacion();
+    expect(screen.queryByText(/modelo de datos/i)).not.toBeInTheDocument();
+  });
+});
+
 // WU2 de `facturacion-cambios-ui` (decisión usuaria 2026-08-16): el campo "Prestación" del Paso 3
 // desaparece del formulario. La prestación se deriva desde la autorización elegida solo a nivel de
 // datos (change `facturacion-derivar-prestacion`, mismo criterio que `prestacionRealAutorizacion`):

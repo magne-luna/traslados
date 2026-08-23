@@ -200,6 +200,43 @@ describe('useEmisionFactura — resolverCupoAutorizado (D6, tasks.md 3.6)', () =
     // 5 días facturados > 1 autorizado -> excede, se pide confirmación explícita en vez de emitir.
     await waitFor(() => expect(result.current.cupoParaConfirmar?.excedeDias).toBe(true));
   });
+
+  // `autorizacion-mensual` (design.md D7/D8, tasks.md 6b.5): confirma que esta función NO CAMBIÓ
+  // con el modelo 1:N mensual — ya recibía un `autorizacionId` explícito desde `D6` de
+  // `facturacion-seleccion-autorizacion` (no itera ni adivina), así que con dos filas mensuales del
+  // MISMO presupuesto (una por mes, cada una con su propio cupo) sigue derivando el cupo de la
+  // fila puntual elegida, nunca el de la otra fila del mismo presupuesto/paciente.
+  it('con dos autorizaciones mensuales del mismo presupuesto (una por mes): deriva el cupo del mes ELEGIDO, no el del otro mes', async () => {
+    const autorizaciones = new Map<string, Autorizacion>([
+      [
+        'autorizacion-marzo',
+        autorizacion({
+          id: 'autorizacion-marzo',
+          presupuestoId: 'presupuesto-1',
+          periodoMes: '2026-03-01',
+          cupoMensualDias: 10,
+          cupoMensualKm: 200,
+        }),
+      ],
+      [
+        'autorizacion-abril',
+        autorizacion({
+          id: 'autorizacion-abril',
+          presupuestoId: 'presupuesto-1',
+          periodoMes: '2026-04-01',
+          cupoMensualDias: 999,
+          cupoMensualKm: 999,
+        }),
+      ],
+    ]);
+    const { result } = setup(autorizaciones);
+
+    const cupoMarzo = await result.current.resolverCupoAutorizado('paciente-martina', 'autorizacion-marzo');
+    expect(cupoMarzo).toEqual({ pacienteId: 'paciente-martina', cupoMensualDias: 10, cupoMensualKm: 200, vigenciaDesde: undefined });
+
+    const cupoAbril = await result.current.resolverCupoAutorizado('paciente-martina', 'autorizacion-abril');
+    expect(cupoAbril).toEqual({ pacienteId: 'paciente-martina', cupoMensualDias: 999, cupoMensualKm: 999, vigenciaDesde: undefined });
+  });
 });
 
 // `sacar-prestadores` reexpone `ObraSocial.plazoCobroDias` (RF-306): `emitirFactura` deja de

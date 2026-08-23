@@ -412,16 +412,86 @@
 
 ## Fase 6b — Facturación (D7/D8) — ⚠️ BLOQUEADA POR 0.2 y 0.3
 
-- [ ] **6b.1** ⚠️ Confirmar que 0.2 y 0.3 están firmadas. Si no, **detenerse y reportar**.
-- [ ] **6b.2** `FacturaForm.tsx` Paso 2 (`:326-381`): preselección de la autorización cuyo `periodoMes`
+- [x] **6b.1** ⚠️ Confirmar que 0.2 y 0.3 están firmadas. Si no, **detenerse y reportar**.
+      **Hecho 2026-08-23**: verificado leyendo `tasks.md` — 0.2 (Firma G4/D8) `[x]` con evidencia
+      "Confirmado 2026-08-22 por la usuaria" (línea 28); 0.3 (Firma G5/D7) `[x]` con evidencia
+      "Confirmado 2026-08-22 por la usuaria" (línea 37). Ambas firmadas — se procede con 6b.2-6b.6.
+- [x] **6b.2** `FacturaForm.tsx` Paso 2: preselección de la autorización cuyo `periodoMes`
       coincide con `(mesFacturado, anioFacturado)` **solo si hay exactamente una**; siempre cambiable.
-- [ ] **6b.3** Aviso de coherencia no bloqueante, mismo tono/lugar que
+      **Hecho 2026-08-23**: `FacturaForm.tsx:229-247` (efecto `preseleccionAplicadaRef`, mismo
+      patrón de ref-por-identidad que `obraSocialIdPrecargada` ya usado en este archivo — corre una
+      sola vez por `pacienteId`, nunca en edición D4, nunca pisa una elección manual ya hecha).
+      Filtra con `coincidePeriodoFacturado` (reusada de `periodoAutorizacion.ts`, Fase 3, sin
+      reimplementar la comparación) y solo asigna `autorizacionId` si `coincidencias.length === 1`.
+      Siempre cambiable: el `<Select>` del Paso 2 (`:441-455`) no gana ningún `disabled` nuevo — el
+      operador puede reelegir libremente después de la preselección (test dedicado lo confirma).
+      **RED→GREEN**: 3 tests nuevos en `FacturaForm.test.tsx` (describe "preselección y coherencia
+      de período", exactamente una coincidencia / dos coincidencias ambiguas → ninguna preselección
+      / reelección manual post-preselección) corridos en rojo primero (timeout con `vi.useFakeTimers`
+      + `userEvent`, replanteados sin fake timers calculando `periodoMes` relativo a "hoy" real vía
+      `periodoMesRelativoAHoy`, y en rojo de nuevo por falta de implementación) antes de escribir
+      `preseleccionAplicadaRef`; verde después.
+- [x] **6b.3** Aviso de coherencia no bloqueante, mismo tono/lugar que
       `validarCupoFacturacion`/`validarMontoAutorizado`.
-- [ ] **6b.4** `montoConsumido.ts`: **cero cambios de código**; reescribir la cabecera `:4-9` con las
+      **Hecho 2026-08-23**: componente nuevo `AlertaCoherenciaPeriodo.tsx` (mismo molde que
+      `AlertaMontoAutorizado.tsx`: `role="status"`, mismas clases `chipColors`, 3 tonos —
+      `warning`/`no-coincide`, `secondary`/`legacy-sin-periodo`, `success`/`coincide`). Reusa
+      `validarCoherenciaPeriodo` de `periodoAutorizacion.ts` (Fase 3) sin reimplementar la
+      comparación. `FacturaForm.tsx:260-266` (`resultadoCoherenciaPeriodo`, `null` sin autorización
+      elegida), `:518-525` (render en la columna derecha del Paso 3, junto a `AlertaCupo`/
+      `AlertaMontoAutorizado`, mismo lugar). **NO bloquea**: no toca `handleSubmit`/
+      `validateFacturaForm` — Guardar sigue habilitado con cualquier resultado (test dedicado
+      "no coincide... Guardar sigue habilitado"). **RED→GREEN**: 3 tests nuevos (no-coincide,
+      legacy-sin-periodo, coincide) corridos en rojo antes de crear el componente/wiring, verde
+      después.
+- [x] **6b.4** `montoConsumido.ts`: **cero cambios de código**; reescribir la cabecera `:4-9` con las
       dos semánticas (D8) + 2 tests de regresión nominados (legacy anual / mensual).
-- [ ] **6b.5** Confirmar por test que `useEmisionFactura.resolverCupoAutorizado` (`:60-68`) **no
+      **Hecho 2026-08-23**: cabecera reescrita en `montoConsumido.ts:4-22` (documenta las dos
+      semánticas que conviven — legacy `periodoMes === undefined` sigue siendo tope ANUAL, filas con
+      `periodoMes` pasan a tope MENSUAL sin tocar el código — cita firma G4/tasks.md 0.2 y aclara que
+      es una decisión provisoria de la usuaria, no de Andrea). **Cero cambios en el cuerpo de la
+      función** (`montoConsumido(...)` línea 23 en adelante, idéntico al original, verificado por
+      diff). 2 tests nominados agregados en `montoConsumido.test.ts:81-102`: **"fila legacy: sigue
+      sumando el año (autorización sin periodoMes, modelo 1:1 anterior)"** y **"fila mensual: suma
+      solo su mes (autorización con periodoMes, modelo 1:N de este change)"** — ambos pasan sin
+      ningún cambio de implementación (confirma que el mismo filtro `autorizacionId + anio` ya
+      resuelve las dos semánticas).
+- [x] **6b.5** Confirmar por test que `useEmisionFactura.resolverCupoAutorizado` (`:60-68`) **no
       cambió** y que deriva el cupo del mes elegido.
-- [ ] **6b.6** `AvisoModeloDatos` en `FacturaForm` mientras convivan filas de los dos modelos.
+      **Hecho 2026-08-23**: `useEmisionFactura.ts` sin modificar en esta fase (confirmado por diff,
+      cero cambios). Test nuevo en `useEmisionFactura.test.ts:169-198` ("con dos autorizaciones
+      mensuales del mismo presupuesto (una por mes): deriva el cupo del mes ELEGIDO, no el del otro
+      mes") — dos filas `Autorizacion` con `periodoMes` distinto (`2026-03-01`/`2026-04-01`) y cupos
+      distintos, confirma que `resolverCupoAutorizado(pacienteId, autorizacionId)` sigue resolviendo
+      por el `autorizacionId` explícito recibido (patrón ya establecido por `facturacion-seleccion-
+      autorizacion` D6, sin iterar/adivinar), nunca el cupo de la otra fila del mismo presupuesto.
+      Pasa sin ningún cambio de implementación.
+- [x] **6b.6** `AvisoModeloDatos` en `FacturaForm` mientras convivan filas de los dos modelos.
+      **Hecho 2026-08-23**: `FacturaForm.tsx:268-274` (`convivenModelosDeAutorizacion`: `true` solo
+      cuando la lista de autorizaciones PENDIENTES del paciente elegido tiene al menos una fila SIN
+      `periodoMes` (legacy) Y al menos una CON `periodoMes` (mensual) simultáneamente), `:421-427`
+      (render condicional del `AvisoModeloDatos` — mismo componente del design system que el resto
+      del proyecto, D9/`AutorizacionForm.tsx` 6a.6, ningún cartel hand-rolled nuevo) dentro del
+      Paso 2, antes del `<Select>` de Autorización. **RED→GREEN**: 2 tests nuevos (describe
+      "AvisoModeloDatos por convivencia de modelos" — muestra el aviso con convivencia real / NO lo
+      muestra cuando todas las autorizaciones pendientes son legacy) corridos en rojo primero
+      (el positivo fallaba por ausencia del cartel; el negativo ya pasaba trivialmente sin
+      implementación, confirmado explícitamente antes de dar la tarea por resuelta), verde después
+      de la implementación.
+
+      **Verificación conjunta de toda la Fase 6b**: `NODE_OPTIONS=--no-experimental-webstorage npx
+      vitest run src/features/facturacion/FacturaForm.test.tsx
+      src/shared/lib/facturacion/montoConsumido.test.ts
+      src/features/facturacion/useEmisionFactura.test.ts` → **53/53 passed** (42 baseline + 11
+      nuevos: 8 en `FacturaForm.test.tsx`, 2 en `montoConsumido.test.ts`, 1 en
+      `useEmisionFactura.test.ts`), cero regresiones. Barrido más amplio: `npx vitest run
+      src/features/facturacion src/shared/lib/facturacion src/shared/lib/presupuestos
+      src/features/presupuestos` → **912/912 passed** (73 archivos). `cd frontend && npx tsc -b
+      --noEmit` → limpio. `npx oxlint` sobre los 3 archivos de producción tocados
+      (`FacturaForm.tsx`, `AlertaCoherenciaPeriodo.tsx`, `montoConsumido.ts`) → limpio (exit 0).
+      Archivo nuevo: `frontend/src/features/facturacion/AlertaCoherenciaPeriodo.tsx` (componente,
+      mismo molde que `AlertaMontoAutorizado.tsx`). Ningún archivo de la lista "no tocar" (Fase 3/4,
+      migraciones, `AutorizacionForm.tsx`, `PresupuestoDetail.tsx`) fue editado.
 
 ## Fase 7 — Documentación
 
