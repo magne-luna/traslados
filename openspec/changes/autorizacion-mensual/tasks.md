@@ -495,14 +495,58 @@
 
 ## Fase 7 — Documentación
 
-- [ ] **7.1** `knowledge-base/04_modelo_de_datos.md` §Discrepancias: `periodo_mes` (ausente del docx) +
+- [x] **7.1** `knowledge-base/04_modelo_de_datos.md` §Discrepancias: `periodo_mes` (ausente del docx) +
       el cambio de cardinalidad.
-- [ ] **7.2** `knowledge-base/05_reglas_de_negocio.md`: nota en RN-PA-01 (OQ-1 abierta) y RN-PA-03
+      **Hecho 2026-08-23**: entrada nueva "`periodo_mes` y el cambio de cardinalidad
+      Autorización↔Presupuesto" en `knowledge-base/04_modelo_de_datos.md:375-397` (2 discrepancias:
+      (1) `periodo_mes` ausente del docx, (2) 1:1 → 1:N, citando la verificación real de que
+      `presupuesto_id` nunca tuvo `UNIQUE` y que `getByPresupuestoId`/`.maybeSingle()` eran
+      convención de aplicación, no constraint de schema). No reabre la #13.
+- [x] **7.2** `knowledge-base/05_reglas_de_negocio.md`: nota en RN-PA-01 (OQ-1 abierta) y RN-PA-03
       (el cupo deja de ser "recurrente" y pasa a ser "de ese mes").
-- [ ] **7.3** `CHANGES.md` §C-06: nueva reapertura con ⚠️, citando `facturacion-seleccion-autorizacion/design.md:82,124`
+      **Hecho 2026-08-23**: ambos códigos existen literalmente en el archivo, sin necesidad de
+      buscar una formulación distinta. Nota en RN-PA-01 en `05_reglas_de_negocio.md:13-21` (OQ-1,
+      las 3 lecturas posibles de "contra qué se compara el monto de cada mes", trigger sin tocar).
+      Nota en RN-PA-03 en `05_reglas_de_negocio.md:26-34` (cupo recurrente → cupo del mes concreto,
+      firma G4 provisoria de la usuaria, dos semánticas conviviendo sin cambio de código en
+      `montoConsumido.ts`/`cupoConsumido`).
+- [x] **7.3** `CHANGES.md` §C-06: nueva reapertura con ⚠️, citando `facturacion-seleccion-autorizacion/design.md:82,124`
       como decisiones que este change **levanta**.
-- [ ] **7.4** Deltas de spec de las 3 capabilities nuevas + 6 modificadas (`proposal.md` §Capabilities).
+      **Hecho 2026-08-23**: `CHANGES.md:976-1003` (bullet ⚠️ "Reapertura post-archivo
+      (`autorizacion-mensual`...)", insertado antes de `### [C-10]` en `:1016`). ⚠️ **La cita
+      `design.md:124` del brief original no resistió la verificación**: `grep -rn "1:1\|1---1\|sin
+      excepciones" openspec/changes/facturacion-seleccion-autorizacion/` no encuentra la frase "NO
+      cambia la relación Autorización↔Presupuesto. Sigue siendo 1:1, sin excepciones" en ningún
+      archivo del change — la línea 124 real de ese `design.md` hoy es el "Riesgo asumido" de su D2
+      (RPC de facturas), sin relación con esta cita. `:82` sí se verificó verbatim (tabla de
+      atributos de su D1, columna `UNIQUE`: "cupo mensual recurrente... una autorización genera una
+      factura por mes"), y se cita tal cual. Para la segunda decisión que se "levanta", se citó en
+      su lugar el supuesto real y verificable (tipo de retorno 0..1 de
+      `getByPresupuestoId(): Promise<Autorizacion | null>`, confirmado en `design.md:9-11,27-30` de
+      ese mismo change) en vez de repetir una cita inexistente.
+- [x] **7.4** Deltas de spec de las 3 capabilities nuevas + 6 modificadas (`proposal.md` §Capabilities).
       ⚠️ **No escribir escenarios que dependan de OQ-1/OQ-2** — se especifica lo decidido, no lo abierto.
+      **Hecho 2026-08-23**: ⚠️ `proposal.md:107-129` §Capabilities lista **3 nuevas + 5
+      modificadas** (8 en total, no 6 — recontado dos veces contra el archivo antes de escribir,
+      `grep -c` sobre la sección confirma 5 bullets bajo "Modified Capabilities"). Se escribieron
+      las 8 que el archivo realmente lista, en
+      `openspec/changes/autorizacion-mensual/specs/`:
+      - Nuevas (`## ADDED Requirements`): `autorizacion-periodo-mensual/spec.md`,
+        `autorizacion-listado-por-presupuesto/spec.md`, `factura-coherencia-periodo/spec.md`.
+      - Modificadas (`## MODIFIED Requirements`, formato Given/When/Then igual al de
+        `facturacion-seleccion-autorizacion/specs/factura-crud/spec.md`, con bloque `> Nota:`
+        Reason/Migration para lo que se retira): `presupuesto-contract/spec.md`,
+        `autorizacion-gestion/spec.md`, `autorizacion-repository-supabase/spec.md`,
+        `factura-cupo-validacion/spec.md`, `factura-autorizacion-seleccion/spec.md` (esta última con
+        una nota de reconciliación explícita al tope del archivo: la capability vive hoy dentro de
+        `factura-crud`, y ese Requirement es en sí un delta sin archivar de
+        `facturacion-seleccion-autorizacion` — Fase 0.1 de este `tasks.md`).
+      Verificado que ningún escenario depende de OQ-1/OQ-2 como abiertas: la semántica G4 (D8,
+      confirmada 2026-08-22 por la usuaria, tasks.md 0.2) se especificó tal cual está decidida en
+      `factura-cupo-validacion/spec.md` (dos semánticas conviviendo, sin mencionar si Andrea la
+      confirmará distinto); ninguna spec nueva declara qué valida RN-PA-01 por mes ni si la vigencia
+      debe estar contenida en su propio mes (D9/OQ-1/OQ-2 quedan fuera, tal como instruye esta
+      tarea).
 
 ## Fase 8 — Verificación
 

@@ -372,6 +372,31 @@ así que queda anotado acá hasta que se construya esa feature.
   `viajes_mensuales` que comparar contra el docx. Pendiente de confirmar con quien mantiene el docx:
   las Open Questions 1-4 de `design.md`, replicadas en `10_preguntas_abiertas.md`.
 
+- **`periodo_mes` y el cambio de cardinalidad Autorización↔Presupuesto** (detalle completo en
+  `openspec/changes/autorizacion-mensual/design.md` D1-D5, propose+apply 2026-08-22): pedido
+  verbatim de Andrea (punto 7 de la llamada del 2026-08-21, *"una autorización por mes, no una sola
+  por presupuesto"*). Dos discrepancias nuevas contra el docx, ninguna resuelve adivinando:
+  1. **`facturacion.autorizacion.periodo_mes` no existe en el docx.** El docx modela `Autorización`
+     con cupos días/km + estado + vigencia + un archivo, sin ningún campo de período — la idea de
+     "una respuesta por mes" no está en el modelo real entregado por MagneStudios. Columna aditiva
+     `periodo_mes DATE` (`CHECK` día-1, nullable — `NULL` = autorización del modelo anterior a este
+     change, sin backfill), con índice único parcial `(presupuesto_id, periodo_mes) WHERE periodo_mes
+     IS NOT NULL`. Cartel `AvisoModeloDatos` en `AutorizacionForm.tsx` y `PresupuestoDetail.tsx`.
+  2. **La relación Autorización↔Presupuesto pasa de 1:1 a 1:N.** El docx (y todas las reaperturas
+     anteriores de esta sección, incluida la de "Vigencia, datos de traslado..." arriba, que la
+     dejaba explícitamente intacta) asumían que un presupuesto tiene **a lo sumo una** autorización
+     — convención de aplicación (`.maybeSingle()` en la Edge Function, `getByPresupuestoId(): Promise<Autorizacion
+     | null>` en el repository), nunca un `UNIQUE` de schema: verificado que
+     `facturacion.autorizacion.presupuesto_id` nunca tuvo esa restricción
+     (`20260724100005_schema_facturacion.sql:26-34`, solo `NOT NULL` + FK). La migración de este
+     change **no borra ningún constraint** (aditiva: columna + índice único parcial nuevo);
+     `getByPresupuestoId` se **reemplaza** (no convive) por `listByPresupuestoId(): Promise<Autorizacion[]>`,
+     y el `404` de "sin autorización" pasa a ser `200 []`. **No reabre la #13** (desglose por
+     prestación) ni toca `monto`/`monto_autorizado` como importes únicos por fila. La semántica de
+     `montoAutorizado` (tope anual → tope del mes para filas con `periodo_mes`, conviviendo con la
+     semántica anual de las filas legacy) queda documentada como Open Question 1 en
+     `10_preguntas_abiertas.md` — el trigger `validar_autorizacion_monto` (RN-PA-01) **no se toca**.
+
 - **Facturación y Cobros** (detalle completo en `openspec/changes/facturacion-ui/design.md`
   §Discrepancias, propose validado 2026-07-25): comparación entre esta sección y
   `docs/core/Traslados-Modelo-Datos.docx §5 Facturación` (entidades **Facturas** y **Cobros**).

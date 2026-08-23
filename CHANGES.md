@@ -973,6 +973,45 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   el docx real (no solo documentar la discrepancia), este bullet es el punto de entrada — mismo
   criterio que las reaperturas anteriores de `C-06` (`presupuesto-prestaciones`,
   `facturacion-cambios-ui` WU1).
+- **⚠️ Reapertura post-archivo (`autorizacion-mensual`, propose+apply 2026-08-22)**: `C-06` se reabre
+  de nuevo — esta vez para romper la cardinalidad 1:1 Autorización↔Presupuesto que las reaperturas
+  anteriores de esta sección habían dejado explícitamente intacta (bullet
+  `presupuestos-vigencia-datos-traslado-vista-previa` arriba: *"no toca... la cardinalidad 1:1
+  Autorización↔Presupuesto"*). Pedido verbatim de Andrea, punto 7 de la llamada del 2026-08-21:
+  *"Una autorización por mes, no una sola por presupuesto: el valor del km cambia mes a mes, así que
+  cada mes llega una autorización distinta con su propio monto."* Columna aditiva
+  `facturacion.autorizacion.periodo_mes DATE` (`CHECK` día-1, nullable = modelo anterior, sin
+  backfill) + índice único parcial `(presupuesto_id, periodo_mes) WHERE periodo_mes IS NOT NULL`.
+  **Sin `DROP CONSTRAINT`**: verificado que `presupuesto_id` nunca tuvo `UNIQUE`
+  (`20260724100005_schema_facturacion.sql:26-34`) — el 1:1 era convención de aplicación
+  (`.maybeSingle()` + `getByPresupuestoId(): Promise<Autorizacion | null>`), no un constraint de
+  schema. `getByPresupuestoId` se **reemplaza** (no convive) por `listByPresupuestoId(): Promise<Autorizacion[]>`;
+  el `404` de "sin autorización" pasa a `200 []`.
+  **Levanta dos decisiones de `facturacion-seleccion-autorizacion` que asumían el 1:1**, ambas
+  verificadas línea por línea antes de citarlas:
+  1. `facturacion-seleccion-autorizacion/design.md:82` (tabla de atributos de su D1, columna
+     `UNIQUE`) — cita verbatim, confirmada: *"La relación es N:1: cupoMensualDias/cupoMensualKm son
+     un cupo mensual recurrente y cupoConsumido ya suma facturas por período. Una autorización
+     genera una factura por mes. Un UNIQUE haría imposible facturar el segundo mes."* Con
+     `autorizacion-mensual` ya no hay "el mes recurrente" de una única autorización: cada mes es su
+     propia fila, y `cupoConsumido`/`montoConsumido` pasan a leerse **por mes** (D8) sin que cambie
+     una línea de esa función — las dos semánticas (anual para legacy, mensual para filas con
+     `periodo_mes`) conviven en el mismo código.
+  2. El supuesto 0..1 de `AutorizacionRepository.getByPresupuestoId(): Promise<Autorizacion | null>`,
+     confirmado en `facturacion-seleccion-autorizacion/design.md:9-11,27-30` (*"un paciente puede
+     tener varias autorizaciones vigentes al mismo tiempo, sin importar la modalidad"*, sobre la base
+     de que cada presupuesto tiene **0..1** autorización). ⚠️ **Corrección al brief original de este
+     change**: la línea `:124` que se le atribuía a la cita *"NO cambia la relación
+     Autorización↔Presupuesto. Sigue siendo 1:1, sin excepciones"* **no existe verbatim en el archivo**
+     (verificado con `grep -rn "1:1" facturacion-seleccion-autorizacion/` → sin resultados; la línea
+     124 real de ese `design.md` corresponde al "Riesgo asumido" de su D2, sobre RPC de facturas, sin
+     relación con esta cita). El supuesto real que se levanta es el tipo de retorno 0..1 citado
+     arriba, no una frase textual inexistente — `autorizacion-mensual/design.md` D5 lo reemplaza por
+     `listByPresupuestoId(): Promise<Autorizacion[]>`.
+  **No reabre la #13** (desglose por prestación) ni el `monto`/`monto_autorizado` como importes
+  únicos por fila. Detalle completo en `openspec/changes/autorizacion-mensual/design.md` D1-D12,
+  gates de governance G1-G6 en `proposal.md`. Bloqueante externo (Andrea): Open Questions 1 y 2
+  sobre RN-PA-01 por mes y sobre la vigencia contenida en el mes, `knowledge-base/10_preguntas_abiertas.md`.
 
 ### [C-10] `hojas-de-ruta-recorridos`
 - **Estado**: `[x]` completado (FE-5 frontend-only, 2026-07-25)

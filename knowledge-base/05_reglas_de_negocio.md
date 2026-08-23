@@ -10,8 +10,30 @@ Cada regla tiene un código único `RN-{DOMINIO}-{NN}` para trazabilidad. Extra�
 ## Dominio: Presupuestos y autorizaciones (RN-PA)
 
 - **RN-PA-01**: La autorización de la obra social puede coincidir con el presupuesto o ser menor; **nunca puede ser mayor** al presupuesto solicitado.
+  - ⚠️ **Nota sin resolver (`autorizacion-mensual`, propose+apply 2026-08-22 — OQ-1, prioridad Alta
+    en `10_preguntas_abiertas.md`)**: esta regla asume una única comparación
+    autorización↔presupuesto. Desde este change, un presupuesto puede tener **N autorizaciones, una
+    por mes calendario** (`periodo_mes`), y ni esta regla ni `Traslados-Modelo-Datos.docx` dicen
+    contra qué se compara el monto autorizado de **cada mes**: ¿`presupuesto.monto` es el tope
+    mensual (se compara igual cada mes), el total del período de vigencia (habría que sumar entre
+    meses), o no hay relación directa (el valor del km varía mes a mes, según Andrea)? El trigger
+    real `validar_autorizacion_monto` **no se toca** hasta que Andrea responda — sigue comparando
+    cada fila contra `presupuesto.monto` completo, que es la lectura (a) por omisión. Ver
+    `openspec/changes/autorizacion-mensual/design.md` D9/OQ-1. Regla dura del proyecto: no se
+    resuelve adivinando.
 - **RN-PA-02**: Las autorizaciones pueden cargarse con vigencia retroactiva (ej. autorizada en abril, habilita facturar traslados de enero a marzo).
 - **RN-PA-03**: El cupo mensual autorizado (días/km por mes) es la base para el control de facturación — no se puede facturar por encima de lo autorizado sin generar alerta (ver RN-FA-02).
+  - ⚠️ **Nota de reinterpretación, sin cambio de código (`autorizacion-mensual`, propose+apply
+    2026-08-22, firma G4 de la usuaria 2026-08-22 — provisoria, no confirmación de Andrea)**: "el
+    cupo mensual autorizado" deja de significar un cupo **recurrente** (una autorización, válida
+    todos los meses — lectura que tenía `facturacion-seleccion-autorizacion/design.md:82`: *"cupo
+    mensual recurrente... una autorización genera una factura por mes"*) y pasa a significar el
+    cupo **de ese mes concreto** (una fila `Autorizacion` por mes, `periodoMes`). Las filas creadas
+    antes de este change (`periodoMes` ausente) conservan la semántica anterior — **anual**, no
+    mensual — y conviven con las nuevas sin migración: `montoConsumido.ts`/`cupoConsumido` no
+    cambiaron una línea de código, solo su interpretación según si la fila tiene `periodoMes`. Ver
+    `openspec/changes/autorizacion-mensual/design.md` D8 (el riesgo más alto del change: una
+    validación financiera viva cambia de significado sin que ningún diff lo muestre).
 
 ## Dominio: Facturación y cobros (RN-FA)
 
