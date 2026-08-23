@@ -5,7 +5,7 @@
 // revalida aca -- ya la aplica el trigger `facturacion.validar_autorizacion_monto` (ver
 // 20260729130000_schema_autorizacion_monto_vigencia.sql) para no duplicar la regla en dos lugares.
 //
-// Soporta `?presupuestoId=` (ver AutorizacionRepository.getByPresupuestoId, relacion 1:N con
+// Soporta `?presupuestoId=` (ver AutorizacionRepository.listByPresupuestoId, relacion 1:N con
 // Presupuesto -- autorizacion-mensual tasks.md Fase 2, design.md D5; antes 1---1, una fila por
 // mes cargado ademas de las legacy sin mes) ademas del `:id` de path -- si vienen los dos, `:id`
 // tiene prioridad.
