@@ -178,7 +178,8 @@ describe('AutorizacionForm', () => {
   // montoAutorizado+vigenciaDesde agrupados), no 3 como en el bloque viejo campo-por-campo.
   // tasks.md 9.3 sumó un TERCER cartel (vigenciaHasta/conDependencia/archivoTipoMime, Discrepancias
   // 2/3/5 del design de `presupuestos-vigencia-datos-traslado-vista-previa`) — el conteo pasa a 3.
-  it('muestra exactamente 3 carteles de discrepancia (archivo; montoAutorizado+vigenciaDesde; vigenciaHasta+conDependencia+tipoMime)', () => {
+  // autorizacion-mensual (tasks.md 6a.6, design.md D9) suma un CUARTO cartel (OQ-1/OQ-2) — pasa a 4.
+  it('muestra exactamente 4 carteles de discrepancia (archivo; montoAutorizado+vigenciaDesde; vigenciaHasta+conDependencia+tipoMime; OQ-1+OQ-2)', () => {
     render(
       <AutorizacionForm
         montoPresupuesto={100_000}
@@ -188,12 +189,12 @@ describe('AutorizacionForm', () => {
       />,
     );
 
-    expect(screen.getAllByRole('note')).toHaveLength(3);
+    expect(screen.getAllByRole('note')).toHaveLength(4);
   });
 
-  // Triangulación: los 3 carteles se mantienen sin duplicarse también en modo edición, con
+  // Triangulación: los 4 carteles se mantienen sin duplicarse también en modo edición, con
   // montoAutorizado/vigenciaDesde ya precargados desde una autorización existente.
-  it('mantiene exactamente 3 carteles en modo edición con montoAutorizado/vigenciaDesde precargados', () => {
+  it('mantiene exactamente 4 carteles en modo edición con montoAutorizado/vigenciaDesde precargados', () => {
     render(
       <AutorizacionForm
         montoPresupuesto={100_000}
@@ -205,10 +206,30 @@ describe('AutorizacionForm', () => {
     );
 
     const notas = screen.getAllByRole('note');
-    expect(notas).toHaveLength(3);
-    const cartelCampos = notas.find((n) => /vigencia/i.test(n.textContent ?? ''));
+    expect(notas).toHaveLength(4);
+    const cartelCampos = notas.find((n) => /vigencia/i.test(n.textContent ?? '') && !/OQ-1/.test(n.textContent ?? ''));
     if (!cartelCampos) throw new Error('No se encontró el cartel de montoAutorizado/vigenciaDesde');
     expect(cartelCampos).not.toHaveTextContent(/pendiente de confirmar/i);
+  });
+
+  // autorizacion-mensual (tasks.md 6a.6, design.md D9): el cartel de OQ-1/OQ-2 reusa
+  // `AvisoModeloDatos` (decisión explícita de D9), nunca `AvisoPendienteCliente`.
+  it('muestra el AvisoModeloDatos de OQ-1 (tope mensual/total/sin relación) y OQ-2 (vigencia contenida en el mes)', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const notas = screen.getAllByRole('note');
+    const cartel = notas.find((n) => /OQ-1/.test(n.textContent ?? ''));
+    if (!cartel) throw new Error('No se encontró el cartel de OQ-1/OQ-2 (tasks.md 6a.6)');
+    expect(cartel).toHaveTextContent(/mensual/i);
+    expect(cartel).toHaveTextContent(/OQ-2/);
+    expect(cartel).toHaveTextContent(/andrea/i);
   });
 
   // tasks.md 9.3, design.md §Discrepancias #2/#3/#5: `vigenciaHasta` (autorización),
@@ -506,7 +527,11 @@ describe('AutorizacionForm — subida real del archivo (integracion-documentos-a
     await user.upload(screen.getByLabelText(/^archivo$/i), archivoPdf());
 
     expect(await screen.findByText('El archivo debe ser PDF, JPG o PNG.')).toBeInTheDocument();
-    expect(screen.queryByText(/cargado/i)).not.toBeInTheDocument();
+    // Regex acotada a "cargado <ISO date>" (el patrón real de `values.archivo`, `AutorizacionForm.tsx`
+    // "(cargado {cargadoEn})") — un `/cargado/i` sin acotar además matchea el rótulo nuevo "Sin mes
+    // cargado" del campo Mes (autorizacion-mensual, tasks.md 6a.4), que no tiene nada que ver con el
+    // archivo y siempre está presente.
+    expect(screen.queryByText(/cargado \d{4}-/i)).not.toBeInTheDocument();
   });
 
   it('sin autorizacionId (alta sin fila creada todavía), no llama a uploadArchivo y avisa que hay que guardar primero', async () => {
@@ -807,5 +832,184 @@ describe('AutorizacionForm — vigenciaHasta y CD/SD desmarcable (tasks.md 8.8)'
 
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByText(/período autorizado no puede exceder/i)).toBeInTheDocument();
+  });
+});
+
+// autorizacion-mensual (tasks.md 6a.4, design.md D2/D11): el campo de mes es el único campo de
+// identidad del formulario — <input type="month"> + rótulo "Mes N" derivado + prefill del primer
+// mes no cargado + re-chequeo de unicidad en vivo (6a.5).
+describe('AutorizacionForm — campo de mes (autorizacion-mensual, tasks.md 6a.4)', () => {
+  it('sin periodoMes (legacy o alta sin prefill posible): el input queda vacío y el rótulo dice "Sin mes cargado"', () => {
+    render(
+      <AutorizacionForm montoPresupuesto={100_000} repository={buildFakeArchivoRepository()} onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+
+    const input = screen.getByLabelText(/^mes$/i) as HTMLInputElement;
+    expect(input.type).toBe('month');
+    expect(input.value).toBe('');
+    expect(screen.getByText('Sin mes cargado')).toBeInTheDocument();
+  });
+
+  it('en ALTA, con vigenciaDesde del presupuesto y sin meses cargados todavía: prefillea el mes de vigenciaDesde', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        presupuestoVigenciaDesde="2026-03-15"
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/^mes$/i)).toHaveValue('2026-03');
+    expect(screen.getByText(/mes 1 · marzo 2026/i)).toBeInTheDocument();
+  });
+
+  // Triangulación: con marzo y abril ya cargados, prefillea mayo (el primer mes AUSENTE), no el mes
+  // de vigenciaDesde ni el siguiente numérico ciego.
+  it('en ALTA, con marzo y abril ya cargados: prefillea mayo, el primer mes ausente', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        presupuestoVigenciaDesde="2026-03-01"
+        periodosDelPresupuesto={['2026-03-01', '2026-04-01']}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/^mes$/i)).toHaveValue('2026-05');
+    expect(screen.getByText(/mes 3 · mayo 2026/i)).toBeInTheDocument();
+  });
+
+  // Triangulación de acarreo de año: diciembre + enero ya cargados -> prefillea febrero del año
+  // siguiente, no "enero" de nuevo.
+  it('prefillea correctamente cruzando el fin de año (diciembre y enero ya cargados -> febrero)', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        presupuestoVigenciaDesde="2025-12-01"
+        periodosDelPresupuesto={['2025-12-01', '2026-01-01']}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/^mes$/i)).toHaveValue('2026-02');
+  });
+
+  it('en edición, precarga el mes ya persistido y el rótulo lo ubica entre los demás meses del presupuesto', () => {
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        initial={{ estado: 'autorizada', periodoMes: '2026-04-01' }}
+        periodosDelPresupuesto={['2026-03-01', '2026-05-01']}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText(/^mes$/i)).toHaveValue('2026-04');
+    expect(screen.getByText(/mes 2 · abril 2026/i)).toBeInTheDocument();
+  });
+
+  it('cambiar el mes con el input normaliza a YYYY-MM-01 en el submit', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <AutorizacionForm montoPresupuesto={100_000} repository={buildFakeArchivoRepository()} onSubmit={onSubmit} onCancel={vi.fn()} />,
+    );
+
+    await user.type(screen.getByLabelText(/^mes$/i), '2026-06');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ periodoMes: '2026-06-01' }));
+  });
+
+  // tasks.md 6a.5, design.md D5/D11: el mensaje reusa TEXTUAL la constante de `edgeFunctionErrors.ts`
+  // (el mismo que la base devuelve mapeado desde el `23505` del índice único) — no se reimplementa.
+  it('elegir un mes que ya está cargado en otra fila del presupuesto bloquea el guardado con el mensaje de dominio del `23505`', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        presupuestoVigenciaDesde="2026-03-01"
+        periodosDelPresupuesto={['2026-03-01', '2026-04-01']}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    // El prefill sugiere mayo (2026-05) -- se lo pisa a propósito con un mes ya cargado (abril).
+    const input = screen.getByLabelText(/^mes$/i);
+    await user.clear(input);
+    await user.type(input, '2026-04');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText('Ya existe una autorización para ese mes en este presupuesto.')).toBeInTheDocument();
+  });
+
+  // Triangulación: en EDICIÓN, guardar la fila con SU PROPIO mes sin cambiarlo nunca es "duplicado"
+  // — el caller (PresupuestoDetail) excluye el propio periodoMes de `periodosDelPresupuesto`.
+  it('en edición, re-guardar la fila con su propio mes (excluido de periodosDelPresupuesto por el caller) no bloquea', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        initial={{ estado: 'autorizada', periodoMes: '2026-04-01' }}
+        periodosDelPresupuesto={['2026-03-01']}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ periodoMes: '2026-04-01' }));
+  });
+
+  it('el mes queda editable en edición (D11: "editable en edición, con re-chequeo de unicidad")', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(
+      <AutorizacionForm
+        montoPresupuesto={100_000}
+        initial={{ estado: 'autorizada', periodoMes: '2026-04-01' }}
+        periodosDelPresupuesto={['2026-03-01']}
+        repository={buildFakeArchivoRepository()}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByLabelText(/^mes$/i);
+    expect(input).not.toBeDisabled();
+    await user.clear(input);
+    await user.type(input, '2026-07');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ periodoMes: '2026-07-01' }));
+  });
+
+  // Gateo de escritura (mismo criterio que el resto de los campos de este form).
+  it('sin permiso de escritura, el campo de mes queda deshabilitado', () => {
+    renderConPermiso(
+      false,
+      <AutorizacionForm montoPresupuesto={100_000} repository={buildFakeArchivoRepository()} onSubmit={vi.fn()} onCancel={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText(/^mes$/i)).toBeDisabled();
   });
 });

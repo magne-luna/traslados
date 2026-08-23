@@ -9,6 +9,8 @@ import type { AutorizacionRepository } from '../../shared/lib/presupuestos/Autor
 import { validarAutorizacion, validarVigenciaAutorizacion } from '../../shared/lib/presupuestos/validarAutorizacion';
 import { VistaPreviaArchivo, type EstadoPrevisualizacion } from '../../shared/components/VistaPreviaArchivo';
 import { inferirTipoMime } from '../../shared/lib/documentos/documentoMapping';
+import { ordinalMes, etiquetaPeriodoMes, normalizarPeriodoMes, PeriodoMesInvalidoError } from '../../shared/lib/presupuestos/periodoAutorizacion';
+import { MENSAJE_AUTORIZACION_DUPLICADA } from '../../shared/lib/presupuestos/edgeFunctionErrors';
 
 function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Ocurrió un error inesperado.';
@@ -33,9 +35,57 @@ export interface AutorizacionFormValues {
    */
   conDependencia?: boolean;
   archivo?: ArchivoAdjunto;
+  /**
+   * Mes calendario que esta fila responde (`autorizacion-mensual` design.md D2/D11) — el ÚNICO
+   * campo de identidad del formulario: dos filas del mismo presupuesto no pueden compartir
+   * `periodoMes` (índice único parcial de D1). `undefined` = fila legacy sin mes (D3), nunca se
+   * inventa un valor. Se persiste ya normalizado a `'YYYY-MM-01'` (`normalizarPeriodoMes`).
+   */
+  periodoMes?: string;
 }
 
 const DEFAULT_VALUES: AutorizacionFormValues = { estado: 'pendiente' };
+
+/** Primer día del mes siguiente al de `periodoMes` (`'YYYY-MM-01'` -> `'YYYY-MM-01'` del mes
+ * siguiente), con acarreo de año (diciembre -> enero del año siguiente). Sin librería de fechas:
+ * mismo criterio que el resto del repo (`Date` nativo, aritmética UTC para no depender de la zona
+ * horaria del navegador). */
+function sumarUnMes(periodoMes: string): string {
+  const anio = Number(periodoMes.slice(0, 4));
+  const mesIndiceCero = Number(periodoMes.slice(5, 7)) - 1;
+  // `new Date(Date.UTC(anio, mesIndiceCero + 1, 1))` ya resuelve el acarreo de año: JS normaliza
+  // un índice de mes >11 incrementando el año, no hace falta un `if` para diciembre.
+  const siguiente = new Date(Date.UTC(anio, mesIndiceCero + 1, 1));
+  const anioSiguiente = siguiente.getUTCFullYear();
+  const mesSiguiente = String(siguiente.getUTCMonth() + 1).padStart(2, '0');
+  return `${anioSiguiente}-${mesSiguiente}-01`;
+}
+
+/** Primer mes NO cargado todavía para este presupuesto (design.md D11: "derivado del rango de
+ * vigencia del presupuesto y de los meses ya existentes", nunca persistido). Arranca en el mes de
+ * `presupuestoVigenciaDesde` y avanza de a uno hasta encontrar un mes ausente en
+ * `periodosExistentes`. Sin `vigenciaDesde` cargada no hay de dónde derivar el prefill — el campo
+ * queda en blanco (el operador lo completa a mano, mismo criterio que el resto de los campos
+ * derivados de esta pantalla cuando falta el insumo). Tope de 60 iteraciones (5 años) para no
+ * poder colgarse ante datos inconsistentes. */
+function primerMesNoCargado(presupuestoVigenciaDesde: string | undefined, periodosExistentes: ReadonlySet<string>): string | undefined {
+  if (presupuestoVigenciaDesde === undefined) return undefined;
+
+  let candidato: string;
+  try {
+    candidato = normalizarPeriodoMes(presupuestoVigenciaDesde);
+  } catch {
+    // vigenciaDesde con formato inesperado: no se inventa un mes de prefill (D3, mismo criterio
+    // que el resto de esta pantalla).
+    return undefined;
+  }
+
+  for (let i = 0; i < 60; i++) {
+    if (!periodosExistentes.has(candidato)) return candidato;
+    candidato = sumarUnMes(candidato);
+  }
+  return undefined;
+}
 
 const ESTADO_OPTIONS: { value: EstadoAutorizacion; label: string }[] = [
   { value: 'pendiente', label: 'Pendiente' },
@@ -64,6 +114,16 @@ interface AutorizacionFormProps {
    * más — nunca queda bloqueado ni se vuelve a derivar en edición.
    */
   presupuestoConDependencia?: boolean;
+  /**
+   * Períodos (`Autorizacion.periodoMes`) de las DEMÁS filas de este presupuesto (`autorizacion-
+   * mensual` design.md D2/D10/D11) — nunca incluye el `periodoMes` de la fila que este form está
+   * editando (si la hay). Insumos: (a) rótulo "Mes N" en vivo (`ordinalMes` cuenta esta fila +
+   * estas), (b) prefill del primer mes no cargado en ALTA, (c) re-chequeo de unicidad en vivo antes
+   * de llamar a `onSubmit` (sin esperar el `23505` del índice único de la base). Default `[]`
+   * (mismo criterio que el resto de props opcionales de listas de este form) para no romper los
+   * callers existentes que todavía no pasan este dato.
+   */
+  periodosDelPresupuesto?: ReadonlyArray<string | undefined>;
   /**
    * id de la autorización ya persistida (integracion-documentos-autorizaciones, tasks.md 4.1/4.2).
    * `undefined` solo en alta manual sin fila creada todavía (caso legado — ver comentario de
@@ -113,6 +173,7 @@ export function AutorizacionForm({
   presupuestoVigenciaDesde,
   presupuestoVigenciaHasta,
   presupuestoConDependencia,
+  periodosDelPresupuesto = [],
   autorizacionId,
   repository,
   onSubmit,
@@ -123,11 +184,21 @@ export function AutorizacionForm({
   // `presupuestoConDependencia` SOLO se usa como sugerencia inicial en ALTA (`initial` ausente,
   // tasks.md 8.8, design.md D3) — en edición el valor persistido no se re-deriva, mismo criterio
   // que `PresupuestoForm` con `obraSocialId` (D9 "la edición no bifurca"/no re-deriva).
+  // `periodoMes` en ALTA (autorizacion-mensual, tasks.md 6a.4, design.md D11): prefill del primer
+  // mes no cargado, derivado, nunca persistido hasta que se guarda de verdad.
   const [values, setValues] = useState<AutorizacionFormValues>(
-    initial ?? { ...DEFAULT_VALUES, conDependencia: presupuestoConDependencia },
+    initial ?? {
+      ...DEFAULT_VALUES,
+      conDependencia: presupuestoConDependencia,
+      periodoMes: primerMesNoCargado(
+        presupuestoVigenciaDesde,
+        new Set(periodosDelPresupuesto.filter((periodo): periodo is string => periodo !== undefined)),
+      ),
+    },
   );
   const [montoError, setMontoError] = useState<string | null>(null);
   const [vigenciaError, setVigenciaError] = useState<string | null>(null);
+  const [periodoMesError, setPeriodoMesError] = useState<string | null>(null);
   // integracion-documentos-autorizaciones (tasks.md 4.1/4.2, design.md D3/D5): estado propio de la
   // subida/quita del archivo, independiente de `submitting`/`submitError` (que son del submit de
   // los campos planos vía `onSubmit`) — son dos operaciones de I/O separadas a propósito.
@@ -197,8 +268,48 @@ export function AutorizacionForm({
   // previsualizar acá" + descarga (mismo criterio que ya usa el checklist documental).
   const tipoMimeEfectivo = values.archivo && (values.archivo.tipoMime ?? inferirTipoMime(values.archivo.nombre));
 
+  // Rótulo "Mes N" en vivo (design.md D11: "visible junto al campo, derivado en vivo"; D10:
+  // *"Mes 2 · abril 2026"*). `ordinalMes` necesita el período de ESTA fila incluido entre "los
+  // períodos cargados de ese presupuesto" (3.3) para poder ubicarla en la secuencia — se agrega acá
+  // sin persistirlo (esta pantalla no reimplementa `ordinalMes`/`etiquetaPeriodoMes`, los reusa
+  // tal cual de Fase 3).
+  const periodosParaOrdinal =
+    values.periodoMes !== undefined ? [...periodosDelPresupuesto, values.periodoMes] : periodosDelPresupuesto;
+  const ordinalEnVivo = ordinalMes(values.periodoMes, periodosParaOrdinal);
+  const etiquetaEnVivo = etiquetaPeriodoMes(values.periodoMes);
+  const rotuloMes = ordinalEnVivo !== undefined ? `Mes ${ordinalEnVivo} · ${etiquetaEnVivo}` : etiquetaEnVivo;
+
+  function handleMesChange(event: ChangeEvent<HTMLInputElement>) {
+    const raw = event.target.value; // '' o 'YYYY-MM' (formato nativo de <input type="month">)
+    if (raw === '') {
+      setValues((prev) => ({ ...prev, periodoMes: undefined }));
+      return;
+    }
+    try {
+      setValues((prev) => ({ ...prev, periodoMes: normalizarPeriodoMes(raw) }));
+    } catch (err) {
+      // No debería ocurrir con un <input type="month"> nativo (siempre entrega 'YYYY-MM' o ''),
+      // pero se cubre por si el navegador entrega algo fuera de formato — mismo criterio de "no
+      // fabricar un dato financiero" que el resto de este archivo.
+      if (err instanceof PeriodoMesInvalidoError) setPeriodoMesError(err.message);
+    }
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    // tasks.md 6a.4/6a.5, design.md D11 ("editable en edición, con re-chequeo de unicidad"): el
+    // mes es el ÚNICO campo de identidad del formulario — se re-chequea en vivo contra las demás
+    // filas de este presupuesto ANTES de llamar a `onSubmit`, reusando el mismo mensaje de dominio
+    // que `edgeFunctionErrors.ts` mapea desde el `23505` del índice único (tasks.md 4.3) — no se
+    // reimplementa el texto acá, se importa la constante. Esto cubre el caso local (elegir un mes
+    // ya cargado en esta misma pantalla); el `23505` real de la base sigue siendo la garantía
+    // última contra una carrera entre dos pestañas.
+    if (values.periodoMes !== undefined && periodosDelPresupuesto.includes(values.periodoMes)) {
+      setPeriodoMesError(MENSAJE_AUTORIZACION_DUPLICADA);
+      return;
+    }
+    setPeriodoMesError(null);
 
     const resultadoMonto = validarAutorizacion({ montoAutorizado: values.montoAutorizado, montoPresupuesto });
     if (!resultadoMonto.ok) {
@@ -304,10 +415,46 @@ export function AutorizacionForm({
         permite previsualizar el adjunto sin adivinarlo por la extensión del nombre.
       </AvisoModeloDatos>
 
+      {/* autorizacion-mensual (tasks.md 6a.6, design.md D9/OQ-1/OQ-2): a diferencia de los 3
+          carteles de arriba (discrepancias de CAMPOS contra el docx), este es sobre una regla de
+          negocio sin resolver — mismo componente (`AvisoModeloDatos`) por decisión explícita de
+          D9 ("la pregunta va a knowledge-base/10_preguntas_abiertas.md ... y a AvisoModeloDatos en
+          AutorizacionForm"), no `AvisoPendienteCliente` (reservado para el otro patrón ya en uso,
+          `PacienteDetail.tsx`). Se retira cuando Andrea conteste OQ-1/OQ-2. */}
+      <AvisoModeloDatos>
+        El trigger que valida <strong>Monto autorizado</strong> contra el presupuesto (RN-PA-01)
+        NO cambió con este mes: sigue comparando esta fila contra <code>presupuesto.monto</code>{' '}
+        completo. Con varios meses por presupuesto no está confirmado si ese monto es un tope{' '}
+        <strong>mensual</strong>, el <strong>total del período</strong> autorizado, o si no hay
+        relación directa entre ambos (OQ-1). Tampoco se exige todavía que{' '}
+        <strong>Vigencia desde/hasta</strong> de este mes queden contenidas en el mes calendario
+        elegido (OQ-2) — es una suposición sin confirmar, no una regla aplicada. Ver{' '}
+        <code>knowledge-base/10_preguntas_abiertas.md</code>. <strong>Decisor: Andrea.</strong>
+      </AvisoModeloDatos>
+
       {/* gateo-facturacion (design.md D3, tasks.md 3.2): un solo envoltorio cubre todo el bloque
           de campos. NO cubre la barra de acciones — Cancelar debe seguir operativo. */}
       <CamposSoloLectura>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
+        {/* autorizacion-mensual (tasks.md 6a.4, design.md D11): "el único campo de identidad del
+            formulario" — <input type="month"> en vez de un date picker completo porque el TIPO de
+            control es la validación (un día distinto de 1 rompería la unicidad del índice, D11
+            textual). Rótulo "Mes N" derivado en vivo al lado, nunca persistido (D2). */}
+        <div className="flex flex-col gap-xs">
+          <label htmlFor={`${formId}-periodo-mes`} className={labelClasses}>
+            Mes
+          </label>
+          <input
+            id={`${formId}-periodo-mes`}
+            type="month"
+            className="w-full rounded-sm border border-border-strong bg-surface px-md py-2 font-body text-[13px] text-text"
+            value={values.periodoMes ? values.periodoMes.slice(0, 7) : ''}
+            onChange={handleMesChange}
+          />
+          <span className="font-body text-xs text-muted">{rotuloMes}</span>
+          {periodoMesError && <span className="font-body text-xs text-danger">{periodoMesError}</span>}
+        </div>
+
         <Field label="Estado" htmlFor={`${formId}-estado`}>
           <Select
             id={`${formId}-estado`}

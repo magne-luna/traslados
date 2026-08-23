@@ -1,17 +1,9 @@
 import { useEffect, useState } from 'react';
-import {
-  AvisoModeloDatos,
-  Button,
-  Chip,
-  InlineIcon,
-  Section,
-  VolverAlListadoButton,
-  VolverAlListadoLink,
-} from '../../design-system/components';
+import { AvisoModeloDatos, Button, Chip, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
-import { Card } from '../../design-system/layout';
-import { iconCalendario, iconLapiz, iconMoneda } from '../../design-system/icons';
+import { Table, Td, Th, Tr } from '../../design-system/table';
 import { ESTADO_AUTORIZACION_CHIP_KIND, ESTADO_AUTORIZACION_LABEL } from '../../shared/lib/presupuestos/estadoAutorizacionCopy';
+import { ordinalMes, etiquetaPeriodoMes } from '../../shared/lib/presupuestos/periodoAutorizacion';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { ObraSocial } from '../../shared/types/obraSocial';
@@ -84,16 +76,13 @@ function toPersistedValues(values: PresupuestoFormValues): NuevoPresupuesto {
 // lista completa. Solo aplica una vez que el presupuesto existe (tiene id) — mismo criterio que
 // VehiculoDetail/PacienteDetail (mantenimiento/CUD solo en edición).
 //
-// ⚠️ `autorizacion-mensual` (design.md D5, tasks.md Fase 4): `getByPresupuestoId` (1 fila o `null`)
-// se reemplaza por `listByPresupuestoId` (N filas por mes). Esta pantalla sigue modelando UNA
-// `Autorizacion` en estado (`autorizacion: Autorizacion | null`) — la lista completa de meses con
-// su propia UI (Table, "Agregar mes", D10/D11) es trabajo de Fase 6a, no de esta fase (repository
-// layer). Adaptación mínima acá: toma la PRIMERA fila de la lista (con la Edge Function real
-// ordenando `periodo_mes NULLS FIRST`, D5, esa primera fila es la legacy si existe, o si no el mes
-// más antiguo) — hoy, sin backfill (D3), sigue siendo exactamente la única fila que existía antes
-// de este change para cualquier presupuesto ya creado.
-// TODO(autorizacion-mensual Fase 6a): reemplazar este estado singular por
-// `autorizaciones: Autorizacion[]` + Table de meses + "Agregar mes" (D10/D11).
+// `autorizacion-mensual` (design.md D5/D10/D11, tasks.md Fase 6a): reemplaza el estado singular
+// `autorizacion: Autorizacion | null` de la Fase 4 (adaptación mínima, ver git history) por
+// `autorizaciones: Autorizacion[]` + una `Table` de meses (D10) + acción "Agregar mes" (D4/D11).
+// `filaAbierta` reemplaza a `autorizacionEditing`: en vez de un booleano (solo servía para una
+// única fila posible), ahora identifica CUÁL fila está desplegada como `AutorizacionForm` inline —
+// `null` (se ve la Table), `'nueva'` (alta de un mes más) o el `id` de una fila existente (edición
+// de ESE mes). Nunca modal (D10, textual: "inline, nunca modal").
 export function PresupuestoDetail({
   presupuesto,
   crear,
@@ -111,15 +100,15 @@ export function PresupuestoDetail({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [autorizacion, setAutorizacion] = useState<Autorizacion | null>(null);
+  const [autorizaciones, setAutorizaciones] = useState<Autorizacion[]>([]);
   const [autorizacionLoading, setAutorizacionLoading] = useState(false);
-  const [autorizacionEditing, setAutorizacionEditing] = useState(false);
+  const [filaAbierta, setFilaAbierta] = useState<string | 'nueva' | null>(null);
   const [autorizacionSubmitting, setAutorizacionSubmitting] = useState(false);
   const [autorizacionError, setAutorizacionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (presupuesto === null) {
-      setAutorizacion(null);
+      setAutorizaciones([]);
       return;
     }
     let cancelled = false;
@@ -128,21 +117,13 @@ export function PresupuestoDetail({
       .listByPresupuestoId(presupuesto.id)
       .then((encontradas) => {
         if (cancelled) return;
-        // Adaptación mínima Fase 4 (ver comentario arriba): toma la primera fila de la lista, nunca
-        // descarta un array con más de una silenciosamente -- Fase 6a reemplaza esto por la Table
-        // completa de meses.
-        const found = encontradas.length > 0 ? (encontradas[0] ?? null) : null;
-        setAutorizacion(found);
-        // Requerimiento aprobado 2026-08-15 (migración `20260815090000_presupuesto_autoriza_pendiente.sql`):
-        // `facturacion.crear_presupuesto_completo`/`crear_presupuestos_lote` ahora crean la
-        // autorización 1:1 en 'pendiente' en la MISMA transacción que el presupuesto, así que
-        // `found` prácticamente nunca es null para un presupuesto creado después de esa migración
-        // -- `autorizacionEditing` queda en `false` y el bloque de abajo muestra el resumen
-        // (Card + "Editar autorización"), nunca dispara AutorizacionForm en modo ALTA. `found ===
-        // null` solo puede ocurrir para presupuestos creados ANTES de esa migración (dato legacy
-        // sin autorización todavía) -- para ese caso puntual sí corresponde el estado vacío con el
-        // form de alta manual, cubierto en PresupuestoDetail.test.tsx.
-        setAutorizacionEditing(found === null);
+        setAutorizaciones(encontradas);
+        // D10, estado "sin ninguna autorización" (legacy pre-2026-08-15, sin backfill D3): un
+        // presupuesto creado ANTES de la migración `20260815090000_presupuesto_autoriza_pendiente.sql`
+        // puede no tener ninguna fila todavía. Para ESE caso puntual se abre directo el form de alta
+        // (mismo criterio que la Fase 4) en vez de mostrar una Table vacía sin acción posible. Con al
+        // menos una fila (legacy sin mes, con mes, o ambas) se muestra la Table (D10).
+        setFilaAbierta(encontradas.length === 0 ? 'nueva' : null);
         setAutorizacionLoading(false);
       })
       .catch((err: unknown) => {
@@ -191,14 +172,14 @@ export function PresupuestoDetail({
     setAutorizacionSubmitting(true);
     setAutorizacionError(null);
     try {
-      if (autorizacion === null) {
+      if (filaAbierta === 'nueva') {
         const creada = await autorizacionRepository.create({ presupuestoId: presupuesto.id, ...values });
-        setAutorizacion(creada);
-      } else {
-        const actualizada = await autorizacionRepository.update(autorizacion.id, values);
-        setAutorizacion(actualizada);
+        setAutorizaciones((prev) => [...prev, creada]);
+      } else if (filaAbierta !== null) {
+        const actualizada = await autorizacionRepository.update(filaAbierta, values);
+        setAutorizaciones((prev) => prev.map((a) => (a.id === actualizada.id ? actualizada : a)));
       }
-      setAutorizacionEditing(false);
+      setFilaAbierta(null);
     } catch (err) {
       setAutorizacionError(toErrorMessage(err));
     } finally {
@@ -208,6 +189,11 @@ export function PresupuestoDetail({
 
   const paciente = presupuesto ? pacientes.find((p) => p.id === presupuesto.pacienteId) : undefined;
   const obraSocial = presupuesto ? obrasSociales.find((o) => o.id === presupuesto.obraSocialId) : undefined;
+
+  // `undefined` en ALTA ('nueva' o filaAbierta === null, la Table no se despliega en ese caso) —
+  // solo resuelve una fila real cuando `filaAbierta` es un `id` existente.
+  const autorizacionEnEdicion =
+    filaAbierta !== null && filaAbierta !== 'nueva' ? autorizaciones.find((a) => a.id === filaAbierta) : undefined;
 
   return (
     <div className="flex flex-col gap-xl py-xxl px-xl">
@@ -263,6 +249,18 @@ export function PresupuestoDetail({
 
       {presupuesto && (
         <Section label="Autorización" title="Respuesta de la obra social">
+          {/* autorizacion-mensual (tasks.md 6a.6, design.md D9/OQ-1/OQ-2): mismo cartel (mismo
+              componente, misma decisión de D9) que el de `AutorizacionForm.tsx` — acá se avisa a
+              nivel de la Table completa de meses, antes de entrar a cualquier fila puntual. */}
+          <AvisoModeloDatos>
+            Esta tabla ya admite <strong>un mes por fila</strong> (antes, una única autorización por
+            presupuesto). Dos reglas de negocio sobre esa cardinalidad siguen sin resolver con
+            Andrea: contra qué se compara el monto autorizado de cada mes — mensual, total del
+            período, o sin relación directa (OQ-1) — y si la vigencia de un mes tiene que quedar
+            contenida en ese mes calendario (OQ-2). Ver{' '}
+            <code>knowledge-base/10_preguntas_abiertas.md</code>.
+          </AvisoModeloDatos>
+
           {autorizacionError && (
             <div className="mb-md">
               <Alert tone="danger">{autorizacionError}</Alert>
@@ -271,84 +269,25 @@ export function PresupuestoDetail({
 
           {autorizacionLoading ? (
             <p className="font-body text-sm text-muted">Cargando autorización…</p>
-          ) : autorizacion && !autorizacionEditing ? (
-            <Card>
-              <div className="flex flex-wrap items-center justify-between gap-sm">
-                <Chip kind={ESTADO_AUTORIZACION_CHIP_KIND[autorizacion.estado]}>
-                  {ESTADO_AUTORIZACION_LABEL[autorizacion.estado]}
-                </Chip>
-              </div>
-
-              <div className="grid grid-cols-2 gap-md border-y border-border py-md md:grid-cols-4">
-                <div className="flex flex-col gap-0.5">
-                  <span className="flex items-center gap-xs font-body text-[11px] text-muted">
-                    <InlineIcon>{iconMoneda}</InlineIcon>
-                    Monto autorizado
-                  </span>
-                  <span className="font-mono text-[13px] font-semibold text-ink">
-                    {autorizacion.montoAutorizado !== undefined ? `$${autorizacion.montoAutorizado.toLocaleString('es-AR')}` : 'Sin definir'}
-                  </span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-body text-[11px] text-muted">Cupo mensual</span>
-                  <span className="font-body text-[13px] font-semibold text-ink">
-                    {autorizacion.cupoMensualDias ?? '—'} días · {autorizacion.cupoMensualKm ?? '—'} km
-                  </span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="flex items-center gap-xs font-body text-[11px] text-muted">
-                    <InlineIcon>{iconCalendario}</InlineIcon>
-                    Fecha de respuesta
-                  </span>
-                  <span className="font-body text-[13px] font-semibold text-ink">{autorizacion.fechaRespuesta ?? 'Sin definir'}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="flex items-center gap-xs font-body text-[11px] text-muted">
-                    <InlineIcon>{iconCalendario}</InlineIcon>
-                    Vigencia desde
-                  </span>
-                  <span className="font-body text-[13px] font-semibold text-ink">{autorizacion.vigenciaDesde ?? 'Sin definir'}</span>
-                </div>
-                {/* tasks.md 8.8, design.md D1: completa el par vigenciaDesde/vigenciaHasta ya
-                    visible acá — la autorización puede recortar el período pedido. */}
-                <div className="flex flex-col gap-0.5">
-                  <span className="flex items-center gap-xs font-body text-[11px] text-muted">
-                    <InlineIcon>{iconCalendario}</InlineIcon>
-                    Vigencia hasta
-                  </span>
-                  <span className="font-body text-[13px] font-semibold text-ink">{autorizacion.vigenciaHasta ?? 'Sin definir'}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="font-body text-[11px] text-muted">Con dependencia (CD/SD)</span>
-                  <span className="font-body text-[13px] font-semibold text-ink">
-                    {autorizacion.conDependencia === undefined ? 'No cargado' : autorizacion.conDependencia ? 'Sí' : 'No'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button variant="secondary" requiereEscritura onClick={() => setAutorizacionEditing(true)}>
-                  <InlineIcon>{iconLapiz}</InlineIcon>
-                  Editar autorización
-                </Button>
-              </div>
-            </Card>
-          ) : (
+          ) : filaAbierta !== null ? (
             <div className="flex flex-col gap-md">
-              {autorizacion === null && <p className="m-0 font-body text-sm text-muted">No hay autorización cargada todavía.</p>}
+              {autorizaciones.length === 0 && (
+                <p className="m-0 font-body text-sm text-muted">No hay autorización cargada todavía.</p>
+              )}
               <AutorizacionForm
                 initial={
-                  autorizacion
+                  autorizacionEnEdicion
                     ? {
-                        estado: autorizacion.estado,
-                        montoAutorizado: autorizacion.montoAutorizado,
-                        cupoMensualDias: autorizacion.cupoMensualDias,
-                        cupoMensualKm: autorizacion.cupoMensualKm,
-                        fechaRespuesta: autorizacion.fechaRespuesta,
-                        vigenciaDesde: autorizacion.vigenciaDesde,
-                        vigenciaHasta: autorizacion.vigenciaHasta,
-                        conDependencia: autorizacion.conDependencia,
-                        archivo: autorizacion.archivo,
+                        estado: autorizacionEnEdicion.estado,
+                        montoAutorizado: autorizacionEnEdicion.montoAutorizado,
+                        cupoMensualDias: autorizacionEnEdicion.cupoMensualDias,
+                        cupoMensualKm: autorizacionEnEdicion.cupoMensualKm,
+                        fechaRespuesta: autorizacionEnEdicion.fechaRespuesta,
+                        vigenciaDesde: autorizacionEnEdicion.vigenciaDesde,
+                        vigenciaHasta: autorizacionEnEdicion.vigenciaHasta,
+                        conDependencia: autorizacionEnEdicion.conDependencia,
+                        archivo: autorizacionEnEdicion.archivo,
+                        periodoMes: autorizacionEnEdicion.periodoMes,
                       }
                     : undefined
                 }
@@ -356,18 +295,98 @@ export function PresupuestoDetail({
                 presupuestoVigenciaDesde={presupuesto.vigenciaDesde}
                 presupuestoVigenciaHasta={presupuesto.vigenciaHasta}
                 presupuestoConDependencia={presupuesto.conDependencia}
-                // integracion-documentos-autorizaciones (tasks.md 4.2, design.md D3): `autorizacion`
-                // solo es `null` en el caso legado sin fila creada todavía (comentario más arriba,
-                // "found === null") — sin id, AutorizacionForm avisa que hay que guardar antes de
-                // poder adjuntar un archivo, en vez de intentar llamar a uploadArchivo/removeArchivo
-                // sin id real.
-                autorizacionId={autorizacion?.id}
+                // autorizacion-mensual (tasks.md 6a.4, design.md D11): nunca incluye el propio
+                // `periodoMes` de la fila en edición — re-guardar un mes sin cambiarlo no es un
+                // duplicado contra sí mismo.
+                periodosDelPresupuesto={autorizaciones
+                  .filter((a) => a.id !== autorizacionEnEdicion?.id)
+                  .map((a) => a.periodoMes)}
+                // integracion-documentos-autorizaciones (tasks.md 4.2, design.md D3): sin fila
+                // todavía (alta, `autorizacionEnEdicion` undefined) no hay id — AutorizacionForm
+                // avisa que hay que guardar antes de poder adjuntar un archivo, en vez de intentar
+                // llamar a uploadArchivo/removeArchivo sin id real.
+                autorizacionId={autorizacionEnEdicion?.id}
                 repository={autorizacionRepository}
                 onSubmit={handleSubmitAutorizacion}
-                onCancel={autorizacion ? () => setAutorizacionEditing(false) : onBack}
+                onCancel={autorizaciones.length > 0 ? () => setFilaAbierta(null) : onBack}
                 submitting={autorizacionSubmitting}
                 submitError={null}
               />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-md">
+              <Table caption="Autorizaciones mensuales del presupuesto">
+                <thead>
+                  <Tr>
+                    <Th scope="col" align="left">
+                      Mes
+                    </Th>
+                    <Th scope="col" align="left">
+                      Estado
+                    </Th>
+                    <Th scope="col" align="left">
+                      Monto autorizado
+                    </Th>
+                    <Th scope="col" align="left">
+                      Cupo
+                    </Th>
+                    <Th scope="col" align="left">
+                      Vigencia
+                    </Th>
+                    <Th scope="col" align="left">
+                      Adjunto
+                    </Th>
+                  </Tr>
+                </thead>
+                <tbody>
+                  {autorizaciones.map((a) => {
+                    const periodos = autorizaciones.map((x) => x.periodoMes);
+                    const ordinal = ordinalMes(a.periodoMes, periodos);
+                    const etiqueta = etiquetaPeriodoMes(a.periodoMes);
+                    const rotulo = ordinal !== undefined ? `Mes ${ordinal} · ${etiqueta}` : etiqueta;
+                    return (
+                      <Tr key={a.id} divided interactive onClick={() => setFilaAbierta(a.id)}>
+                        <Td>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setFilaAbierta(a.id);
+                            }}
+                            className="cursor-pointer border-none bg-transparent p-0 text-left font-body text-[13px] font-semibold text-primary"
+                          >
+                            {rotulo}
+                          </button>
+                        </Td>
+                        <Td>
+                          <Chip kind={ESTADO_AUTORIZACION_CHIP_KIND[a.estado]}>{ESTADO_AUTORIZACION_LABEL[a.estado]}</Chip>
+                        </Td>
+                        <Td>{a.montoAutorizado !== undefined ? `$${a.montoAutorizado.toLocaleString('es-AR')}` : 'Sin definir'}</Td>
+                        <Td>
+                          {a.cupoMensualDias ?? '—'} días · {a.cupoMensualKm ?? '—'} km
+                        </Td>
+                        <Td>
+                          {a.vigenciaDesde ?? '—'} → {a.vigenciaHasta ?? '—'}
+                        </Td>
+                        <Td>
+                          {/* D10/D12: "presencia + vista previa (reusa VistaPreviaArchivo)" — la
+                              vista previa REAL (Overlay + VistaPreviaArchivo, "Ver documento") ya
+                              vive en AutorizacionForm (D6b) y se reusa tal cual al abrir la fila;
+                              acá solo se indica presencia para no resolver N URLs firmadas en
+                              paralelo por cada fila de la tabla sin que nadie lo haya pedido. */}
+                          <Chip kind={a.archivo ? 'success' : 'info'}>{a.archivo ? 'Con archivo' : 'Sin archivo'}</Chip>
+                        </Td>
+                      </Tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+
+              <div className="flex justify-end">
+                <Button variant="secondary" requiereEscritura onClick={() => setFilaAbierta('nueva')}>
+                  + Agregar mes
+                </Button>
+              </div>
             </div>
           )}
         </Section>

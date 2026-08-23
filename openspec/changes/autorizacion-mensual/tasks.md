@@ -322,17 +322,87 @@
 
 ## Fase 6a — UI de presupuestos (D10/D11)
 
-- [ ] **6a.1** Safety Net: `PresupuestoDetail.test.tsx` (baseline), `AutorizacionForm.test.tsx`.
-- [ ] **6a.2** `PresupuestoDetail.tsx:103-141`: estado `autorizacion: Autorizacion | null` →
-      `autorizaciones: Autorizacion[]`; ajustar la lógica de `autorizacionEditing` (`:130`).
-- [ ] **6a.3** `PresupuestoDetail.tsx:249-320`: card única → `Table` de meses, fila clickeable,
-      acción "Agregar mes". Cubrir los 5 estados de D10.
-- [ ] **6a.4** `AutorizacionForm.tsx`: `<input type="month">` + rótulo "Mes N" derivado + prefill del
+- [x] **6a.1** Safety Net: `PresupuestoDetail.test.tsx` (baseline), `AutorizacionForm.test.tsx`.
+      **Hecho 2026-08-23**: baseline pre-edición `NODE_OPTIONS=--no-experimental-webstorage npx
+      vitest run src/features/presupuestos/PresupuestoDetail.test.tsx
+      src/features/presupuestos/AutorizacionForm.test.tsx` → **50/50 passed** (2 archivos), `cd
+      frontend && npx tsc -b --noEmit` limpio. Evidencia post-edición al final de esta fase (8a.8).
+- [x] **6a.2** `PresupuestoDetail.tsx:103-141` (línea real al momento de editar, ver git history):
+      estado `autorizacion: Autorizacion | null` → `autorizaciones: Autorizacion[]`; ajustar la
+      lógica de `autorizacionEditing` (`:130`).
+      **Hecho 2026-08-23**: `PresupuestoDetail.tsx:102` (`autorizaciones: Autorizacion[]`),
+      `:105` (`filaAbierta: string | 'nueva' | null` reemplaza el booleano `autorizacionEditing` —
+      identifica CUÁL fila está desplegada, no solo si "la" autorización se edita), `:110-129`
+      (efecto: `listByPresupuestoId` completo en `autorizaciones`, `filaAbierta` arranca en
+      `'nueva'` solo cuando `encontradas.length === 0`, D10 "sin ninguna autorización"),
+      `:174-188` (`handleSubmitAutorizacion`: `create()` cuando `filaAbierta === 'nueva'`,
+      `update(filaAbierta, …)` cuando es un id existente, agrega/reemplaza esa fila en el array sin
+      descartar las demás), `:195-196` (`autorizacionEnEdicion` derivado).
+- [x] **6a.3** `PresupuestoDetail.tsx:249-320` (línea real al momento de editar): card única →
+      `Table` de meses, fila clickeable, acción "Agregar mes". Cubrir los 5 estados de D10.
+      **Hecho 2026-08-23**: `PresupuestoDetail.tsx:318-386` (`Table`/`Th`/`Tr`/`Td` del design
+      system, `Tr interactive` + `<button>` interno para accesibilidad por teclado, mismo patrón
+      que `CuentasList.tsx`), columnas Mes/Estado/Monto autorizado/Cupo/Vigencia/Adjunto
+      (textuales de D10), `:387-390` botón "+ Agregar mes" (`requiereEscritura`, mismo patrón "+
+      Agregar X" que `DireccionesEditor`/`PrestacionesEditor`). Los 5 estados de D10 ("cargando ·
+      sin ninguna autorización (legacy pre-2026-08-15) · solo legacy sin mes · N meses · mezcla
+      legacy + meses", quote textual) cubiertos 1 test por estado en
+      `PresupuestoDetail.test.tsx` (`describe('PresupuestoDetail — Table de meses, los 5 estados
+      de D10')`). Columna "Adjunto" (D10/D12): presencia vía `Chip` ("Con archivo"/"Sin archivo"),
+      la vista previa REAL (Overlay + `VistaPreviaArchivo`) se reusa tal cual abriendo la fila —
+      decisión documentada in-line (`:372-378`) para no resolver N URLs firmadas en paralelo por
+      fila sin que estuviera pedido.
+- [x] **6a.4** `AutorizacionForm.tsx`: `<input type="month">` + rótulo "Mes N" derivado + prefill del
       primer mes no cargado; editable en edición con re-chequeo de unicidad.
-- [ ] **6a.5** Mensaje de dominio al intentar cargar un mes duplicado (viene de 4.3).
-- [ ] **6a.6** `AvisoModeloDatos` con OQ-1/OQ-2 en `AutorizacionForm` y `PresupuestoDetail`.
-- [ ] **6a.7** Test: reemplazar el adjunto del mes 2 **no toca** el del mes 1 (verificar D12, no
+      **Hecho 2026-08-23**: `AutorizacionForm.tsx:44` (`AutorizacionFormValues.periodoMes?:
+      string`), `:439-455` (`<input type="month">`, único campo de identidad, valor mostrado
+      `values.periodoMes.slice(0,7)`), `:277-280` (`rotuloMes` en vivo, reusa `ordinalMes`/
+      `etiquetaPeriodoMes` de `periodoAutorizacion.ts` **tal cual** — Fase 3, no reimplementadas),
+      `:282-296` (`handleMesChange`, normaliza con `normalizarPeriodoMes` — también reusada, no
+      reimplementada), `:71-88` (`primerMesNoCargado`, helper nuevo LOCAL de este archivo — prefill
+      derivado del rango de vigencia + meses ya existentes, D11 textual — con `sumarUnMes`,
+      `:53-62`, aritmética de fecha nativa con acarreo de año). Editable en edición: el `<input>` no
+      tiene ningún `disabled` condicionado a `initial` (solo al gateo de escritura general del
+      `CamposSoloLectura` que envuelve todo el bloque, igual que el resto de los campos) — test
+      dedicado en `AutorizacionForm.test.tsx` ("el mes queda editable en edición").
+- [x] **6a.5** Mensaje de dominio al intentar cargar un mes duplicado (viene de 4.3).
+      **Hecho 2026-08-23**: `AutorizacionForm.tsx:13` (import de `MENSAJE_AUTORIZACION_DUPLICADA`
+      desde `edgeFunctionErrors.ts` — reusado, NO reimplementado), `:305-311` (chequeo LOCAL contra
+      `periodosDelPresupuesto` antes de invocar `onSubmit`, bloquea con el mismo mensaje que el
+      `23505` real mapea). `PresupuestoDetail.tsx:301-304` pasa `periodosDelPresupuesto` (las DEMÁS
+      filas, excluyendo la propia en edición) para que el chequeo tenga los datos correctos. Tests:
+      `AutorizacionForm.test.tsx` (bloqueo directo + triangulación "re-guardar la fila con su propio
+      mes no bloquea") y `PresupuestoDetail.test.tsx` (`describe('PresupuestoDetail — mensaje de
+      dominio al cargar un mes duplicado')`, confirma el wiring de `periodosDelPresupuesto` end to
+      end).
+- [x] **6a.6** `AvisoModeloDatos` con OQ-1/OQ-2 en `AutorizacionForm` y `PresupuestoDetail`.
+      **Hecho 2026-08-23**: `AutorizacionForm.tsx:418-431` (cuarto `AvisoModeloDatos` del archivo,
+      sube el conteo de carteles de 3 a 4 — mismo componente que las discrepancias docx por
+      decisión explícita de design.md D9, no `AvisoPendienteCliente`); `PresupuestoDetail.tsx:255-262`
+      (`AvisoModeloDatos` nuevo dentro de `Section label="Autorización"`, antes de la Table/form).
+      Texto de ambos deriva de `knowledge-base/10_preguntas_abiertas.md:488-500` (OQ-1/OQ-2 ya
+      cargadas ahí en la Fase 0.7), sin inventar redacción nueva. Tests: `AutorizacionForm.test.tsx`
+      ("muestra el AvisoModeloDatos de OQ-1... y OQ-2...", conteo 4 carteles ×2) y
+      `PresupuestoDetail.test.tsx` (cartel de Facturación sigue contándose por separado vía filtro
+      de regex, no se rompe por el cartel nuevo).
+- [x] **6a.7** Test: reemplazar el adjunto del mes 2 **no toca** el del mes 1 (verificar D12, no
       asumirlo).
+      **Hecho 2026-08-23**: `PresupuestoDetail.test.tsx` (`describe('PresupuestoDetail — el
+      adjunto de un mes no afecta al de otro mes')`): sube un archivo para abril (Mes 2, id
+      `autorizacion-abril`), confirma `uploadArchivo` llamado con ESE id (nunca con
+      `autorizacion-marzo`), vuelve a la Table y reabre marzo (Mes 1) — su archivo sigue siendo el
+      propio (`marzo.pdf`), sin cruzarse con el recién subido para abril. Confirma D12 ("N filas
+      mensuales = N archivos independientes... se verifica con un test") a nivel de estado de
+      React (`setAutorizaciones` no cruza filas) — la garantía de storage por `id` de fila (D12,
+      capa de `SupabaseAutorizacionRepository`/bucket) ya estaba verificada por lectura en Fase 1-4
+      y no se re-implementa acá.
+      **Verificación de la fase completa**: `NODE_OPTIONS=--no-experimental-webstorage npx vitest
+      run src/features/presupuestos/PresupuestoDetail.test.tsx
+      src/features/presupuestos/AutorizacionForm.test.tsx` → **70/70 passed** (23 +
+      47, baseline 50 + 20 tests nuevos netos tras las reescrituras de 6a.2/6a.3/6a.4/6a.6). `cd
+      frontend && npx tsc -b --noEmit` limpio. `npx vitest run src/features/presupuestos/` completo
+      → 207/207 (14 archivos). Ver `apply-progress` (engram, o este mismo archivo si engram no
+      disponible) para el resultado de la corrida completa del repo.
 
 ## Fase 6b — Facturación (D7/D8) — ⚠️ BLOQUEADA POR 0.2 y 0.3
 
