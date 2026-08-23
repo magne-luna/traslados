@@ -70,7 +70,7 @@ function buildFakeAutorizacionRepository(overrides: Partial<AutorizacionReposito
   return {
     list: vi.fn().mockResolvedValue([]),
     getById: vi.fn().mockResolvedValue(null),
-    getByPresupuestoId: vi.fn().mockResolvedValue(null),
+    listByPresupuestoId: vi.fn().mockResolvedValue([]),
     create: vi.fn().mockResolvedValue(autorizacionMartina),
     update: vi.fn().mockResolvedValue(autorizacionMartina),
     uploadArchivo: vi.fn().mockResolvedValue(autorizacionMartina),
@@ -180,7 +180,7 @@ describe('PresupuestoDetail — modo edición', () => {
     const pacienteField = screen.getByLabelText(/^paciente$/i);
     expect(pacienteField).toHaveValue('paciente-martina');
 
-    // Con la autorización todavía sin cargar (getByPresupuestoId resuelve null), la sección de
+    // Con la autorización todavía sin cargar (listByPresupuestoId resuelve []), la sección de
     // Autorización también muestra su propio form con botón "Guardar" — se acota la búsqueda al
     // form del presupuesto (el que contiene el campo "Paciente").
     const presupuestoForm = pacienteField.closest('form');
@@ -190,7 +190,7 @@ describe('PresupuestoDetail — modo edición', () => {
     expect(actualizar).toHaveBeenCalledWith('presupuesto-martina-1', expect.objectContaining({ monto: 150_000 }));
   });
 
-  it('cuando no hay autorización asociada (getByPresupuestoId resuelve null), muestra el estado vacío y el form para crearla', async () => {
+  it('cuando no hay autorización asociada (listByPresupuestoId resuelve []), muestra el estado vacío y el form para crearla', async () => {
     const user = userEvent.setup();
     const create = vi.fn().mockResolvedValue(autorizacionMartina);
     const autorizacionRepository = buildFakeAutorizacionRepository({ create });
@@ -211,7 +211,7 @@ describe('PresupuestoDetail — modo edición', () => {
     );
 
     expect(await screen.findByText(/no hay autorización/i)).toBeInTheDocument();
-    expect(autorizacionRepository.getByPresupuestoId).toHaveBeenCalledWith('presupuesto-martina-1');
+    expect(autorizacionRepository.listByPresupuestoId).toHaveBeenCalledWith('presupuesto-martina-1');
 
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
@@ -222,7 +222,7 @@ describe('PresupuestoDetail — modo edición', () => {
     const user = userEvent.setup();
     const update = vi.fn().mockResolvedValue({ ...autorizacionMartina, estado: 'judicializada' });
     const autorizacionRepository = buildFakeAutorizacionRepository({
-      getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionMartina),
+      listByPresupuestoId: vi.fn().mockResolvedValue([autorizacionMartina]),
       update,
     });
 
@@ -317,7 +317,7 @@ describe('PresupuestoDetail — cartel de fuente mixta con Facturación (D11)', 
         obrasSociales={[osecac]}
         recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildFakeAutorizacionRepository({
-          getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionMartina),
+          listByPresupuestoId: vi.fn().mockResolvedValue([autorizacionMartina]),
         })}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -336,7 +336,7 @@ describe('PresupuestoDetail — cartel de fuente mixta con Facturación (D11)', 
 // autorización ("Editar autorización") queda visible pero no activable sin permiso de escritura.
 describe('PresupuestoDetail — gateo de escritura de la entrada a autorización', () => {
   function buildRepoConAutorizacionExistente(): AutorizacionRepository {
-    return buildFakeAutorizacionRepository({ getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionMartina) });
+    return buildFakeAutorizacionRepository({ listByPresupuestoId: vi.fn().mockResolvedValue([autorizacionMartina]) });
   }
 
   it('sin permiso de escritura: "Editar autorización" queda visible y no se puede activar', async () => {
@@ -394,7 +394,7 @@ describe('PresupuestoDetail — wiring de archivo hacia AutorizacionForm (integr
     const archivoSubido = { ...autorizacionMartina, archivo: { nombre: 'informe.pdf', cargadoEn: '2026-08-18T12:00:00.000Z', clave: 'autorizacion-martina-1/uuid-informe.pdf' } };
     const uploadArchivo = vi.fn().mockResolvedValue(archivoSubido);
     const autorizacionRepository = buildFakeAutorizacionRepository({
-      getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionMartina),
+      listByPresupuestoId: vi.fn().mockResolvedValue([autorizacionMartina]),
       uploadArchivo,
     });
 
@@ -442,7 +442,7 @@ describe('PresupuestoDetail — vigencia y CD/SD de la autorización (tasks.md 8
         obrasSociales={[osecac]}
         recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildFakeAutorizacionRepository({
-          getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionConVigenciaYDependencia),
+          listByPresupuestoId: vi.fn().mockResolvedValue([autorizacionConVigenciaYDependencia]),
         })}
         onCreated={vi.fn()}
         onBack={vi.fn()}
@@ -464,7 +464,7 @@ describe('PresupuestoDetail — vigencia y CD/SD de la autorización (tasks.md 8
         obrasSociales={[osecac]}
         recorridoHabitualRepository={recorridoHabitualRepositoryStub}
         autorizacionRepository={buildFakeAutorizacionRepository({
-          getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionMartina),
+          listByPresupuestoId: vi.fn().mockResolvedValue([autorizacionMartina]),
         })}
         onCreated={vi.fn()}
         onBack={vi.fn()}

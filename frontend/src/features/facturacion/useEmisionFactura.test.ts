@@ -28,7 +28,7 @@ function fakeAutorizacionRepository(autorizaciones: Map<string, Autorizacion>): 
   return {
     list: () => Promise.resolve([...autorizaciones.values()]),
     getById: (id: string) => Promise.resolve(autorizaciones.get(id) ?? null),
-    getByPresupuestoId: () => Promise.reject(new Error('no usado en este test')),
+    listByPresupuestoId: () => Promise.reject(new Error('no usado en este test')),
     create: () => Promise.reject(new Error('no usado en este test')),
     update: () => Promise.reject(new Error('no usado en este test')),
     uploadArchivo: () => Promise.reject(new Error('no usado en este test')),
@@ -173,7 +173,7 @@ describe('useEmisionFactura — resolverCupoAutorizado (D6, tasks.md 3.6)', () =
     const repo: AutorizacionRepository = {
       list: () => Promise.resolve([...autorizaciones.values()]),
       getById,
-      getByPresupuestoId: () => Promise.reject(new Error('no usado en este test')),
+      listByPresupuestoId: () => Promise.reject(new Error('no usado en este test')),
       create: () => Promise.reject(new Error('no usado en este test')),
       update: () => Promise.reject(new Error('no usado en este test')),
       uploadArchivo: () => Promise.reject(new Error('no usado en este test')),

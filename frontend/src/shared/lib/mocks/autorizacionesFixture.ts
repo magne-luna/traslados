@@ -50,5 +50,38 @@ export function buildAutorizacionesFixture(): Autorizacion[] {
       estado: 'rechazada',
       fechaRespuesta: isoMonthsAgo(1),
     },
+    // ---------------------------------------------------------------------------------------
+    // autorizacion-mensual (tasks.md 4.4, design.md D1/D5): 3 filas del MISMO presupuesto, cada
+    // una un mes distinto — la cardinalidad 1:N real que reemplaza el modelo legacy de arriba
+    // (las 4 filas anteriores, todas sin `periodoMes`, siguen representando presupuestos previos
+    // a la migración). Meses consecutivos, 2 ya respondidas y 1 todavía `pendiente` (mes recién
+    // cargado, sin respuesta de la obra social todavía).
+    {
+      id: 'autorizacion-camila-mes-1',
+      presupuestoId: 'presupuesto-camila-1',
+      estado: 'autorizada',
+      periodoMes: '2026-01-01',
+      fechaRespuesta: isoMonthsAgo(7),
+      montoAutorizado: 40_000,
+      cupoMensualDias: 15,
+      cupoMensualKm: 300,
+    },
+    {
+      id: 'autorizacion-camila-mes-2',
+      presupuestoId: 'presupuesto-camila-1',
+      estado: 'autorizada',
+      periodoMes: '2026-02-01',
+      fechaRespuesta: isoMonthsAgo(6),
+      montoAutorizado: 40_000,
+      cupoMensualDias: 15,
+      cupoMensualKm: 300,
+    },
+    {
+      // Mes 3: recién cargado, todavía sin respuesta de la obra social.
+      id: 'autorizacion-camila-mes-3',
+      presupuestoId: 'presupuesto-camila-1',
+      estado: 'pendiente',
+      periodoMes: '2026-03-01',
+    },
   ];
 }

@@ -15,7 +15,7 @@ function buildFakeRepository(overrides: Partial<AutorizacionRepository> = {}): A
   return {
     list: vi.fn().mockResolvedValue([autorizacionFacundo]),
     getById: vi.fn().mockResolvedValue(autorizacionFacundo),
-    getByPresupuestoId: vi.fn().mockResolvedValue(autorizacionFacundo),
+    listByPresupuestoId: vi.fn().mockResolvedValue([autorizacionFacundo]),
     create: vi.fn().mockResolvedValue(autorizacionFacundo),
     update: vi.fn().mockResolvedValue(autorizacionFacundo),
     uploadArchivo: vi.fn().mockResolvedValue(autorizacionFacundo),

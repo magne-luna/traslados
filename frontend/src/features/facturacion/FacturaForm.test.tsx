@@ -129,7 +129,14 @@ function fakeAutorizacionRepository(autorizacionesPorPresupuesto: Map<string, Au
   return {
     list: () => Promise.resolve(todas),
     getById: (id: string) => Promise.resolve(todas.find((a) => a.id === id) ?? null),
-    getByPresupuestoId: (presupuestoId: string) => Promise.resolve(autorizacionesPorPresupuesto.get(presupuestoId) ?? null),
+    // autorizacion-mensual (tasks.md 4.1/4.2, design.md D5): `listByPresupuestoId` reemplaza a
+    // `getByPresupuestoId` — este fake solo modela un mapa "un presupuesto -> una autorización" (el
+    // helper `repositoriosPorDefecto()` de este archivo no ejercita varios meses), así que envuelve
+    // la única coincidencia en un array de 0 o 1 elemento.
+    listByPresupuestoId: (presupuestoId: string) => {
+      const encontrada = autorizacionesPorPresupuesto.get(presupuestoId);
+      return Promise.resolve(encontrada ? [encontrada] : []);
+    },
     create: (_data: NuevaAutorizacion) => Promise.reject(new Error('no usado en este test')),
     update: (_id: string, _data: ActualizacionAutorizacion) => Promise.reject(new Error('no usado en este test')),
     uploadArchivo: (_id: string, _file: File) => Promise.reject(new Error('no usado en este test')),

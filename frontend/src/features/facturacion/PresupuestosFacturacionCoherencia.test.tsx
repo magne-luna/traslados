@@ -123,7 +123,7 @@ function buildFakeAutorizacionRepo(): AutorizacionRepository {
   return {
     list: vi.fn().mockResolvedValue([]),
     getById: vi.fn(),
-    getByPresupuestoId: vi.fn().mockResolvedValue(null),
+    listByPresupuestoId: vi.fn().mockResolvedValue([]),
     create: vi.fn(),
     update: vi.fn(),
     uploadArchivo: vi.fn(),

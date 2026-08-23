@@ -48,6 +48,10 @@ const ETIQUETAS: Record<EntidadEdgeFunction, Etiqueta> = {
 const MENSAJE_SESION_EXPIRADA = 'Tu sesión expiró. Volvé a iniciar sesión.';
 const MENSAJE_SIN_CONEXION = 'No se pudo conectar con el servidor.';
 export const MENSAJE_RN_PA_01 = 'La autorización no puede superar el monto del presupuesto.';
+/** Violación del índice único parcial `(presupuesto_id, periodo_mes) WHERE periodo_mes IS NOT
+ * NULL` (design.md D1/D5 de `autorizacion-mensual`, tasks.md Fase 4). Mismo criterio que
+ * RN-PA-01: el código crudo de Postgres (`23505`) nunca llega a la UI. */
+export const MENSAJE_AUTORIZACION_DUPLICADA = 'Ya existe una autorización para ese mes en este presupuesto.';
 
 /** Mensaje de violación de FK (23503): distinto según la entidad porque las columnas involucradas
  * son distintas — `presupuesto` referencia paciente/obra social, `autorizacion` referencia el
@@ -94,6 +98,12 @@ function esViolacionDeForeignKey(mensajeCrudo: string): boolean {
   return mensajeCrudo.includes('23503') || mensajeCrudo.toLowerCase().includes('foreign key');
 }
 
+/** `23505` = violación de índice/constraint único. Acá solo lo produce el índice parcial de
+ * `periodo_mes` (D1) — no hay otro `UNIQUE` en `facturacion.autorizacion` (tasks.md 0.5). */
+function esViolacionDeUnicidadPeriodo(mensajeCrudo: string): boolean {
+  return mensajeCrudo.includes('23505');
+}
+
 function esCamposFaltantes(mensajeCrudo: string): boolean {
   return mensajeCrudo.toLowerCase().startsWith('faltan campos requeridos');
 }
@@ -107,6 +117,7 @@ async function mapear400(context: Response, contexto: ContextoErrorEdgeFunction)
     if (isRecord(body) && typeof body.error === 'string') {
       const crudo = body.error;
       if (crudo.startsWith('RN-PA-01')) return new Error(MENSAJE_RN_PA_01);
+      if (esViolacionDeUnicidadPeriodo(crudo)) return new Error(MENSAJE_AUTORIZACION_DUPLICADA);
       if (esViolacionDeForeignKey(crudo)) return new Error(MENSAJE_FK[contexto.entidad]);
       if (esCamposFaltantes(crudo)) return new Error(mensajeCamposFaltantes(contexto));
     }
@@ -119,9 +130,12 @@ async function mapear400(context: Response, contexto: ContextoErrorEdgeFunction)
 /** Traduce el error de `supabase.functions.invoke` (Edge Functions `presupuestos`/`autorizaciones`)
  * a un `Error` con `.message` en castellano listo para pintar en la UI (design.md D7).
  *
- * El 404 de `getById`/`getByPresupuestoId` NO pasa por acá: el repository lo intercepta antes de
- * llamar a esta función y devuelve `null` (contrato explícito de la interfaz) — esta función solo
- * entra en la rama 404 cuando la llama `update()` (`contexto.operacion === 'actualizar'`).
+ * El 404 de `getById` NO pasa por acá: el repository lo intercepta antes de llamar a esta función
+ * y devuelve `null` (contrato explícito de la interfaz) — esta función solo entra en la rama 404
+ * cuando la llama `update()` (`contexto.operacion === 'actualizar'`). `listByPresupuestoId`
+ * (`autorizacion-mensual` design.md D5, tasks.md Fase 4) YA NO intercepta el 404: la Edge Function
+ * devuelve `200 []` cuando el presupuesto no tiene autorizaciones asociadas, nunca `404` — cualquier
+ * error de esa consulta pasa por acá como cualquier otra lectura.
  *
  * Distinción red vs. status no reconocido: si `error.context` no es un `Response` (falla de red
  * antes de llegar a una respuesta HTTP — el caso de `FunctionsFetchError`/`FunctionsRelayError` de
@@ -140,9 +154,11 @@ export async function mapearErrorEdgeFunction(error: unknown, contexto: Contexto
 }
 
 /** `true` cuando el error de `functions.invoke` es un 404 real (`error.context` es un `Response`
- * con `status === 404`). Lo usan `getById`/`getByPresupuestoId` de los dos repositories para
- * devolver `null` en vez de llamar a `mapearErrorEdgeFunction` — el 404 en esos dos casos **no es
- * un error para la interfaz** (D7): "no existe" es un resultado válido, no una excepción. */
+ * con `status === 404`). Lo usa `getById` de los dos repositories para devolver `null` en vez de
+ * llamar a `mapearErrorEdgeFunction` — el 404 en ese caso **no es un error para la interfaz** (D7):
+ * "no existe" es un resultado válido, no una excepción. `listByPresupuestoId` (`autorizacion-mensual`
+ * design.md D5, tasks.md Fase 4) YA NO usa este helper: con la Edge Function devolviendo `200 []`
+ * para "sin autorizaciones", un 404 real en esa consulta pasaría a ser un error de verdad. */
 export function esErrorNotFound(error: unknown): boolean {
   const context = isRecord(error) ? error.context : undefined;
   return context instanceof Response && context.status === 404;

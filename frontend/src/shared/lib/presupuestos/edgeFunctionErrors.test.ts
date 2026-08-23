@@ -92,7 +92,37 @@ describe('mapearErrorEdgeFunction (3.3 — rama RN-PA-01)', () => {
   });
 });
 
-describe('esErrorNotFound (helper compartido por getById/getByPresupuestoId, tasks.md 3.5/3.9)', () => {
+// autorizacion-mensual, tasks.md 4.3 (design.md D5): el índice único parcial
+// `(presupuesto_id, periodo_mes) WHERE periodo_mes IS NOT NULL` (D1) devuelve un `23505` crudo de
+// Postgres — se mapea a un mensaje de dominio, mismo criterio que RN-PA-01 y la FK (nunca el texto
+// crudo del motor a la UI).
+describe('mapearErrorEdgeFunction (autorizacion-mensual tasks.md 4.3 — 23505 del índice único de período)', () => {
+  it('un 400 con el código 23505 (índice único de periodo_mes) se traduce a "ya existe una autorización para ese mes"', async () => {
+    const textoCrudo =
+      'duplicate key value violates unique constraint "idx_autorizacion_presupuesto_periodo" (23505)';
+    const error = { context: new Response(JSON.stringify({ error: textoCrudo }), { status: 400 }) };
+
+    const traducido = await mapearErrorEdgeFunction(error, { entidad: 'autorizacion', operacion: 'crear' });
+
+    expect(traducido.message).toBe('Ya existe una autorización para ese mes en este presupuesto.');
+    expect(traducido.message).not.toContain('23505');
+    expect(traducido.message).not.toContain('idx_autorizacion_presupuesto_periodo');
+  });
+
+  // Triangulación: el mismo código, texto crudo distinto y operación distinta (`actualizar`, ej.
+  // reeditar el mes de una autorización existente a uno ya usado) — el mapeo depende del código,
+  // no de la redacción exacta del motor ni de si la operación es crear o actualizar.
+  it('el mismo código 23505 con otro texto crudo y en un update también se traduce al mismo mensaje', async () => {
+    const textoCrudo = 'ERROR:  23505: llave duplicada viola restricción de unicidad';
+    const error = { context: new Response(JSON.stringify({ error: textoCrudo }), { status: 400 }) };
+
+    const traducido = await mapearErrorEdgeFunction(error, { entidad: 'autorizacion', operacion: 'actualizar', id: 'a1' });
+
+    expect(traducido.message).toBe('Ya existe una autorización para ese mes en este presupuesto.');
+  });
+});
+
+describe('esErrorNotFound (helper usado por getById, tasks.md 3.5/3.9 — listByPresupuestoId ya NO lo usa, autorizacion-mensual tasks.md 4.3)', () => {
   it('true cuando el context es un Response con status 404', () => {
     const error = { context: new Response(null, { status: 404 }) };
 

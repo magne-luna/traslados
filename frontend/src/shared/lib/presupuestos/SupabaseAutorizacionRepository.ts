@@ -121,7 +121,7 @@ async function resolverUrlArchivo(id: string, modo: 'inline' | 'descarga'): Prom
   const actual = await obtenerAutorizacion(id);
   const archivo = actual?.archivo;
   // Sin archivo (o autorización inexistente) -> nada que firmar (D6b, mismo criterio que
-  // `getById`/`getByPresupuestoId`: resuelve `null`, nunca lanza).
+  // `getById`: resuelve `null`, nunca lanza).
   if (!archivo?.clave) return null;
 
   const { data, error } = await supabase.storage
@@ -243,19 +243,30 @@ export const supabaseAutorizacionRepository: AutorizacionRepository = {
 
   getById: obtenerAutorizacion,
 
-  async getByPresupuestoId(presupuestoId) {
-    // `presupuestoId` va como querystring, no como segmento de path (D4/nota de implementación):
-    // percent-encoded para no romper la URL si algún día deja de ser un UUID limpio.
-    const { data, error } = await supabase.functions.invoke(`autorizaciones?presupuestoId=${encodeURIComponent(presupuestoId)}`, {
-      method: 'GET',
-    });
+  async listByPresupuestoId(presupuestoId, periodoMes) {
+    // `presupuestoId`/`periodoMes` van como querystring, no como segmento de path (D4/D5, nota de
+    // implementación): percent-encoded para no romper la URL si algún día dejan de ser valores
+    // "limpios". `periodoMes` es opcional — solo se agrega si vino (patrón `!== undefined` idéntico
+    // al resto del archivo).
+    let ruta = `autorizaciones?presupuestoId=${encodeURIComponent(presupuestoId)}`;
+    if (periodoMes !== undefined) ruta += `&periodoMes=${encodeURIComponent(periodoMes)}`;
+
+    const { data, error } = await supabase.functions.invoke(ruta, { method: 'GET' });
     if (error) {
-      // El 404 acá es el caso normal (todavía no hay autorización asociada), no un error — mismo
-      // criterio que getById.
-      if (esErrorNotFound(error)) return null;
-      throw await mapearErrorEdgeFunction(error, { entidad: 'autorizacion', operacion: 'obtener' });
+      // A diferencia de getById, acá el 404 YA NO es el caso normal (design.md D5, tasks.md Fase
+      // 4): la Edge Function devuelve `200 []` cuando el presupuesto no tiene autorizaciones,
+      // nunca `404`. Cualquier error acá es un error real de lectura — se traduce igual que
+      // `list()`, nunca se intercepta con `esErrorNotFound`.
+      throw await mapearErrorEdgeFunction(error, { entidad: 'autorizacion', operacion: 'listar' });
     }
-    return parseAutorizacionApi(data);
+
+    const filas = Array.isArray(data) ? data : [];
+    const autorizaciones: Autorizacion[] = [];
+    for (const fila of filas) {
+      const parseada = parseAutorizacionApi(fila);
+      if (parseada) autorizaciones.push(parseada);
+    }
+    return autorizaciones;
   },
 
   async create(nueva) {

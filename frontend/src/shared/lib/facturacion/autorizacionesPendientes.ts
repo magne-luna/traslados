@@ -8,7 +8,7 @@ import type { AutorizacionRepository } from '../presupuestos/AutorizacionReposit
 //
 // Reusa, sin agregar costo nuevo, el mismo patrón O(N) que ya paga
 // `useEmisionFactura.ts` -> `resolverCupoAutorizado` (`presupuestoRepository.list()` filtrado por
-// `pacienteId` + N x `autorizacionRepository.getByPresupuestoId()`): `Autorizacion` no tiene
+// `pacienteId` + N x `autorizacionRepository.listByPresupuestoId()`): `Autorizacion` no tiene
 // `pacienteId` propio (solo `presupuestoId`), y ningún repository expone `listByPacienteId` — crear
 // uno tocaría dos interfaces, dos mocks y dos implementaciones Supabase para un dato ya alcanzable.
 //
@@ -18,6 +18,18 @@ import type { AutorizacionRepository } from '../presupuestos/AutorizacionReposit
 // mes ya facturado (asunción de negocio explícita, confirmada con la usuaria — riesgo aceptado, no
 // garantía del sistema): esta función NO recibe `facturasExistentes` ni ningún parámetro de
 // período, a propósito.
+//
+// ⚠️ `autorizacion-mensual` (design.md D5, tasks.md Fase 4/4.5): `getByPresupuestoId` (1 fila o
+// `null`) se reemplaza por `listByPresupuestoId` (N filas por mes). Adaptación MÍNIMA para este
+// change (Fase 4, repository layer) — `flatMap` sobre TODAS las filas de cada presupuesto, mismo
+// filtro de estado que antes aplicado por fila, para no descartar en silencio los meses ya
+// respondidos de un presupuesto con varios (el requisito explícito de esta fase). Lo que
+// `autorizacion-mensual` tasks.md 5.2/5.3 todavía no hace acá: ordenar por `periodoMes` (legacy
+// primero) y diferenciar la etiqueta por mes en el picker — eso es trabajo de Fase 5
+// (`etiquetaAutorizacion.ts`), no de esta fase.
+// TODO(autorizacion-mensual Fase 5): ordenar el resultado por `periodoMes` (legacy primero) antes
+// de devolverlo — hoy queda en el orden que resuelva `listByPresupuestoId` (la Edge Function real
+// ya ordena `periodo_mes NULLS FIRST`, D5; el mock lo replica, ver `mockAutorizacionRepository`).
 
 export interface AutorizacionPendiente {
   autorizacion: Autorizacion;
@@ -34,9 +46,11 @@ export async function autorizacionesPendientes(
 
   const pendientes: AutorizacionPendiente[] = [];
   for (const presupuesto of propios) {
-    const autorizacion = await autorizacionRepository.getByPresupuestoId(presupuesto.id);
-    if (autorizacion !== null && (autorizacion.estado === 'autorizada' || autorizacion.estado === 'judicializada')) {
-      pendientes.push({ autorizacion, presupuesto });
+    const autorizaciones = await autorizacionRepository.listByPresupuestoId(presupuesto.id);
+    for (const autorizacion of autorizaciones) {
+      if (autorizacion.estado === 'autorizada' || autorizacion.estado === 'judicializada') {
+        pendientes.push({ autorizacion, presupuesto });
+      }
     }
   }
 

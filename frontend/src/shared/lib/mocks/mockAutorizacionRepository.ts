@@ -9,7 +9,13 @@ import { buildAutorizacionesFixture } from './autorizacionesFixture';
 // mecánico — mismo patrón que mockPresupuestoRepository.
 
 const STORAGE_KEY = 'autorizaciones';
-const SCHEMA_VERSION = 1;
+// v1 -> v2 (autorizacion-mensual design.md D1/D5, tasks.md Fase 4): `Autorizacion` suma
+// `periodoMes?` (Fase 3, design.md D2/D3) y la cardinalidad por presupuesto pasa de 1:1 a 1:N. Un
+// payload viejo en localStorage con `schemaVersion: 1` no tiene por qué tener `periodoMes` en sus
+// filas y modela "una autorización por presupuesto" — se descarta y se resiembra (regla de
+// `openspec/config.yaml` §apply.guidelines), mismo criterio que `mockObraSocialRepository` en
+// `integracion-obra-social` D9.
+const SCHEMA_VERSION = 2;
 
 // getUrlArchivo() (presupuestos-vigencia-datos-traslado-vista-previa, tasks.md 7.4, design.md
 // D6b): mismo criterio que `archivoPorDocumentoId` de `mockDocumentoRepository.ts` — el `File` NO
@@ -75,9 +81,24 @@ export const mockAutorizacionRepository: AutorizacionRepository = {
     return withLatency(found);
   },
 
-  async getByPresupuestoId(presupuestoId) {
-    const found = readStore().find((autorizacion) => autorizacion.presupuestoId === presupuestoId) ?? null;
-    return withLatency(found);
+  async listByPresupuestoId(presupuestoId, periodoMes) {
+    const coincidencias = readStore().filter((autorizacion) => {
+      if (autorizacion.presupuestoId !== presupuestoId) return false;
+      if (periodoMes !== undefined && autorizacion.periodoMes !== periodoMes) return false;
+      return true;
+    });
+
+    // Mismo orden que la Edge Function real (design.md D5): legacy (`periodoMes === undefined`)
+    // primero, después ascendente por mes — para que el mock sea intercambiable sin sorpresas de
+    // orden (FE-8).
+    const ordenadas = [...coincidencias].sort((a, b) => {
+      if (a.periodoMes === b.periodoMes) return 0;
+      if (a.periodoMes === undefined) return -1;
+      if (b.periodoMes === undefined) return 1;
+      return a.periodoMes.localeCompare(b.periodoMes);
+    });
+
+    return withLatency(ordenadas);
   },
 
   async create(data: NuevaAutorizacion) {

@@ -191,15 +191,84 @@
 
 ## Fase 4 — Repositories
 
-- [ ] **4.1** `AutorizacionRepository`: `getByPresupuestoId` → `listByPresupuestoId(): Promise<Autorizacion[]>` (D5).
-- [ ] **4.2** `SupabaseAutorizacionRepository` (`:246-259`): plural; **retirar** el `esErrorNotFound`
+- [x] **4.1** `AutorizacionRepository`: `getByPresupuestoId` → `listByPresupuestoId(): Promise<Autorizacion[]>` (D5).
+      **Hecho 2026-08-23**: `frontend/src/shared/lib/presupuestos/AutorizacionRepository.ts:25`
+      (`listByPresupuestoId(presupuestoId: string, periodoMes?: string): Promise<Autorizacion[]>`),
+      docstring `:13-24` explica el reemplazo (no convivencia, mismo criterio que D6 de
+      `facturacion-seleccion-autorizacion` citado en design.md D5). Cabecera del archivo (`:3-8`)
+      actualizada de "relación 1---1" a "relación **1:N**".
+- [x] **4.2** `SupabaseAutorizacionRepository` (`:246-259`): plural; **retirar** el `esErrorNotFound`
       de esa consulta; `&periodoMes=` opcional.
-- [ ] **4.3** `edgeFunctionErrors.ts`: actualizar `:122,143` (el 404 ya no aplica a esta consulta) y
+      **Hecho 2026-08-23**: `frontend/src/shared/lib/presupuestos/SupabaseAutorizacionRepository.ts:246-269`
+      (`async listByPresupuestoId(presupuestoId, periodoMes)`). `esErrorNotFound` retirado de esta
+      consulta (`:259` comenta explícitamente por qué); cualquier error se traduce con
+      `mapearErrorEdgeFunction(..., { operacion: 'listar' })` igual que `list()`. `&periodoMes=`
+      opcional agregado a la querystring solo si vino (`:251-252`, patrón `!== undefined`). `data`
+      mapeado como array con el mismo patrón anti-N+1 que `list()` (`:262-268`). `esErrorNotFound`
+      sigue importado/usado por `getById`/`obtenerAutorizacion` (`:144`) — no se tocó ese camino.
+- [x] **4.3** `edgeFunctionErrors.ts`: actualizar `:122,143` (el 404 ya no aplica a esta consulta) y
       **mapear `23505` del índice único** a *"Ya existe una autorización para ese mes en este presupuesto."*
-- [ ] **4.4** `mockAutorizacionRepository.ts` (`:78`): plural + **bump de `SCHEMA_VERSION`** (regla del
+      **Hecho 2026-08-23**: comentarios de `mapearErrorEdgeFunction` (`:131-136` en el archivo
+      editado) y de `esErrorNotFound` (`:156-161`) reescritos para dejar explícito que
+      `listByPresupuestoId` YA NO pasa por el atajo de 404 (la EF devuelve `200 []`, tasks.md Fase 2).
+      `MENSAJE_AUTORIZACION_DUPLICADA` exportado en `:54-57`; helper `esViolacionDeUnicidadPeriodo`
+      (detecta `'23505'` crudo) en `:100-104`; rama nueva en `mapear400` en `:120` (antes de la FK,
+      después de RN-PA-01). **RED→GREEN**: 2 tests agregados primero en
+      `edgeFunctionErrors.test.ts:96-121` (mapeo básico + triangulación con texto crudo distinto y
+      operación `actualizar`) — corridos en rojo (`TypeError`/mensaje genérico, no el de dominio)
+      antes de escribir la implementación, y en verde después
+      (`npx vitest run src/shared/lib/presupuestos/edgeFunctionErrors.test.ts` → 19/19, 17
+      preexistentes + 2 nuevos).
+- [x] **4.4** `mockAutorizacionRepository.ts` (`:78`): plural + **bump de `SCHEMA_VERSION`** (regla del
       proyecto: cambió la forma persistida) + fixtures con 2-3 meses y al menos una fila legacy.
-- [ ] **4.5** Safety Net + actualización de los tests de repository existentes
+      **Hecho 2026-08-23**: `SCHEMA_VERSION` 1 → 2 en `mockAutorizacionRepository.ts:18`, comentario
+      `:12-17` explica el motivo (mismo patrón de bump que `mockObraSocialRepository` en
+      `integracion-obra-social` D9, verificado antes de escribir). `listByPresupuestoId` en `:84-100`
+      (filtra por `presupuestoId` + `periodoMes` opcional, ordena legacy primero y luego ascendente
+      por mes — mismo orden que la EF real). Fixtures nuevas en
+      `autorizacionesFixture.ts:59-86` (`presupuesto-camila-1`, 3 meses: 2 `autorizada` + 1
+      `pendiente`), las 4 filas legacy existentes (sin `periodoMes`) quedan intactas como caso legacy.
+      **RED→GREEN→TRIANGULATE**: tests nuevos escritos primero en `mockAutorizacionRepository.test.ts`
+      (corridos en rojo: `listByPresupuestoId is not a function`), implementación después, verde
+      confirmado (`npx vitest run .../mockAutorizacionRepository.test.ts` → 23/23).
+- [x] **4.5** Safety Net + actualización de los tests de repository existentes
       (`SupabaseAutorizacionRepository.test.ts:280-315`, `mockAutorizacionRepository.test.ts:71-85`).
+      **Hecho 2026-08-23**: Safety Net previo (antes de tocar nada) —
+      `NODE_OPTIONS=--no-experimental-webstorage npx vitest run` sobre los 13 archivos de este
+      change/dependientes → **162/162 passed** (baseline; el runner correcto necesita esa
+      `NODE_OPTIONS`, ver Issues). `SupabaseAutorizacionRepository.test.ts:280-364` reescrito
+      (describe `getByPresupuestoId()` → `listByPresupuestoId()`, 8 tests: querystring con/sin
+      `periodoMes`, array con varias filas, `[]` ya no es 404, `data` no-array, filas malformadas,
+      403, 404 real ya no interceptado). `mockAutorizacionRepository.test.ts:71-125` reescrito (4
+      tests: legacy 1 elemento, `[]` sin autorización, todas las filas multi-mes ordenadas, filtro
+      `periodoMes`) + conteos de longitud de fixture actualizados de 4 a 7 en 3 tests + 1 test nuevo
+      de bump de `SCHEMA_VERSION` (mismo patrón que `mockObraSocialRepository.test.ts:129-145`).
+      Verificación final (después de todos los cambios de Fase 4):
+      `NODE_OPTIONS=--no-experimental-webstorage npx vitest run` sobre los 13 archivos →
+      **173/173 passed** (162 baseline + 11 nuevos, cero regresiones). `cd frontend && npx tsc -b
+      --noEmit` → limpio. `npx vitest run` completo del repo (`--maxWorkers=2`, corrida completa
+      tarda ~4 min) → 3186/3210 passed; los 24 fallos restantes están en 6 archivos que NO mencionan
+      `Autorizacion` en absoluto (`ChecklistEditor.test.tsx`, `PacienteDetail.test.tsx`,
+      `PacientesPage.test.tsx`, `VehiculosPage.test.tsx` — error de fondo
+      `useCatalogoAccesoriosRepository debe usarse dentro de <CatalogoAccesoriosRepositoryProvider>`,
+      sin relación con este change) — **pre-existentes, no introducidos por esta fase**, reportados
+      sin tocar (regla de Safety Net: no arreglar fallas preexistentes).
+      **Callers adaptados fuera del repository layer** (para que `tsc -b` compile, D5 anticipa que
+      "los pasos 3 y 4-6 no se pueden desplegar por separado"):
+      - `PresupuestoDetail.tsx:81-95,120-135`: toma la primera fila de `listByPresupuestoId` (mínimo
+        correcto para esta fase) — `TODO(autorizacion-mensual Fase 6a)` explícito para la Table de
+        meses real. Test `PresupuestoDetail.test.tsx` actualizado (14/14 passed).
+      - `autorizacionesPendientes.ts:9-33,42-51`: `flatMap` sobre `listByPresupuestoId` (mismo filtro
+        de estado que antes, por fila) — no descarta meses en silencio; orden por `periodoMes`
+        queda `TODO(autorizacion-mensual Fase 5)`. Tests nuevos en
+        `autorizacionesPendientes.test.ts` prueban explícitamente que varios meses del mismo
+        presupuesto aportan una entrada cada uno (9/9 passed).
+      - Fakes de tests renombrados/adaptados (sin cambio de lógica de producción, solo conformidad
+        de interfaz): `AutorizacionRepositoryContext.test.tsx`, `useAutorizaciones.test.ts`,
+        `PresupuestosPage.test.tsx`, `FacturaDetail.test.tsx`, `FacturaForm.test.tsx`,
+        `FacturacionPage.test.tsx`, `useEmisionFactura.test.ts`,
+        `PresupuestosFacturacionCoherencia.test.tsx` — ver lista completa de call sites en el
+        reporte de apply-progress (engram `sdd/autorizacion-mensual/apply-progress`).
 
 ## Fase 5 — Selector de facturación (D6)
 

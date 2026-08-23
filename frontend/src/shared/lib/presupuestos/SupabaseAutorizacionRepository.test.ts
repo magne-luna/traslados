@@ -277,13 +277,15 @@ describe('supabaseAutorizacionRepository.update() (3.8 — mismo criterio de asi
   });
 });
 
-describe('supabaseAutorizacionRepository.getByPresupuestoId() (3.9)', () => {
+// autorizacion-mensual, tasks.md 4.1/4.2/4.5 (design.md D5): reemplaza getByPresupuestoId — la
+// Edge Function devuelve SIEMPRE un array (200, incluido `[]`), nunca `404` para esta consulta.
+describe('supabaseAutorizacionRepository.listByPresupuestoId() (autorizacion-mensual tasks.md 4.2/4.5)', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('invoca autorizaciones?presupuestoId=<id> con el id percent-encoded', async () => {
-    functionsInvoke.mockResolvedValue({ data: AUTORIZACION_API_COMPLETA, error: null });
+  it('invoca autorizaciones?presupuestoId=<id> con el id percent-encoded, sin periodoMes', async () => {
+    functionsInvoke.mockResolvedValue({ data: [AUTORIZACION_API_COMPLETA], error: null });
 
-    await supabaseAutorizacionRepository.getByPresupuestoId('id con espacio/raro');
+    await supabaseAutorizacionRepository.listByPresupuestoId('id con espacio/raro');
 
     expect(functionsInvoke).toHaveBeenCalledWith(
       `autorizaciones?presupuestoId=${encodeURIComponent('id con espacio/raro')}`,
@@ -291,27 +293,73 @@ describe('supabaseAutorizacionRepository.getByPresupuestoId() (3.9)', () => {
     );
   });
 
-  it('200 devuelve la Autorizacion mapeada', async () => {
-    functionsInvoke.mockResolvedValue({ data: AUTORIZACION_API_COMPLETA, error: null });
+  // Triangulación: con periodoMes agrega el filtro opcional a la querystring (tasks.md 4.2).
+  it('con periodoMes agrega &periodoMes=<valor> percent-encoded a la querystring', async () => {
+    functionsInvoke.mockResolvedValue({ data: [AUTORIZACION_API_COMPLETA], error: null });
 
-    const autorizacion = await supabaseAutorizacionRepository.getByPresupuestoId('p1');
+    await supabaseAutorizacionRepository.listByPresupuestoId('p1', '2026-03-01');
 
-    expect(autorizacion?.presupuestoId).toBe('p1');
+    expect(functionsInvoke).toHaveBeenCalledWith(
+      `autorizaciones?presupuestoId=${encodeURIComponent('p1')}&periodoMes=${encodeURIComponent('2026-03-01')}`,
+      { method: 'GET' },
+    );
   });
 
-  it('404 devuelve null — el presupuesto todavía no tiene autorización, es el caso normal, no un error', async () => {
-    functionsInvoke.mockResolvedValue({ data: null, error: { context: new Response(null, { status: 404 }) } });
+  it('200 devuelve el array de Autorizacion mapeado, incluidas varias filas del mismo presupuesto', async () => {
+    functionsInvoke.mockResolvedValue({
+      data: [AUTORIZACION_API_COMPLETA, { ...AUTORIZACION_API_COMPLETA, id: 'a2', periodoMes: '2026-04-01' }],
+      error: null,
+    });
 
-    const autorizacion = await supabaseAutorizacionRepository.getByPresupuestoId('p-sin-autorizacion');
+    const autorizaciones = await supabaseAutorizacionRepository.listByPresupuestoId('p1');
 
-    expect(autorizacion).toBeNull();
+    expect(autorizaciones).toHaveLength(2);
+    expect(autorizaciones.every((a) => a.presupuestoId === 'p1')).toBe(true);
+  });
+
+  it('200 con [] (presupuesto sin autorizaciones) devuelve array vacío — YA NO es un 404', async () => {
+    functionsInvoke.mockResolvedValue({ data: [], error: null });
+
+    const autorizaciones = await supabaseAutorizacionRepository.listByPresupuestoId('p-sin-autorizacion');
+
+    expect(autorizaciones).toEqual([]);
+  });
+
+  it('data no es un array devuelve lista vacía en vez de reventar (mismo criterio que list())', async () => {
+    functionsInvoke.mockResolvedValue({ data: null, error: null });
+
+    const autorizaciones = await supabaseAutorizacionRepository.listByPresupuestoId('p1');
+
+    expect(autorizaciones).toEqual([]);
+  });
+
+  it('descarta filas malformadas sin tumbar el listado (mismo criterio que list())', async () => {
+    functionsInvoke.mockResolvedValue({
+      data: [AUTORIZACION_API_COMPLETA, { esto: 'no es una autorizacion' }],
+      error: null,
+    });
+
+    const autorizaciones = await supabaseAutorizacionRepository.listByPresupuestoId('p1');
+
+    expect(autorizaciones).toHaveLength(1);
   });
 
   it('403 lanza con el mensaje de falta de permiso de lectura', async () => {
     functionsInvoke.mockResolvedValue({ data: null, error: { context: new Response(null, { status: 403 }) } });
 
-    await expect(supabaseAutorizacionRepository.getByPresupuestoId('p1')).rejects.toThrow(
+    await expect(supabaseAutorizacionRepository.listByPresupuestoId('p1')).rejects.toThrow(
       'No tenés permiso para ver autorizaciones.',
+    );
+  });
+
+  // Riesgo explícito documentado en tasks.md 2.2: con la EF ya devolviendo `200 []`, un 404 real
+  // acá (ej. ruta mal armada) ya no se intercepta como "sin autorización" — se propaga como
+  // cualquier otro error de lectura (D5).
+  it('un 404 real (no debería ocurrir en la práctica) ya NO se intercepta: se traduce como error, no como []', async () => {
+    functionsInvoke.mockResolvedValue({ data: null, error: { context: new Response(null, { status: 404 }) } });
+
+    await expect(supabaseAutorizacionRepository.listByPresupuestoId('p1')).rejects.toThrow(
+      'No existe una autorización con id "".',
     );
   });
 });

@@ -78,11 +78,22 @@ function toPersistedValues(values: PresupuestoFormValues): NuevoPresupuesto {
 
 // Composición de la pantalla de detalle (tasks.md 5.5, 5.6, 6.3): wire de PresupuestoForm contra
 // crear/actualizar (usePresupuestos), con manejo de error visible y sin loading infinito, más la
-// sección de Autorización asociada — resuelta vía AutorizacionRepository.getByPresupuestoId
+// sección de Autorización asociada — resuelta vía AutorizacionRepository.listByPresupuestoId
 // (spec presupuesto-crud, Scenario "La autorización se crea sobre un presupuesto existente") y
 // persistida vía AutorizacionRepository directamente (Decisión 10), sin pasar por un hook de
 // lista completa. Solo aplica una vez que el presupuesto existe (tiene id) — mismo criterio que
 // VehiculoDetail/PacienteDetail (mantenimiento/CUD solo en edición).
+//
+// ⚠️ `autorizacion-mensual` (design.md D5, tasks.md Fase 4): `getByPresupuestoId` (1 fila o `null`)
+// se reemplaza por `listByPresupuestoId` (N filas por mes). Esta pantalla sigue modelando UNA
+// `Autorizacion` en estado (`autorizacion: Autorizacion | null`) — la lista completa de meses con
+// su propia UI (Table, "Agregar mes", D10/D11) es trabajo de Fase 6a, no de esta fase (repository
+// layer). Adaptación mínima acá: toma la PRIMERA fila de la lista (con la Edge Function real
+// ordenando `periodo_mes NULLS FIRST`, D5, esa primera fila es la legacy si existe, o si no el mes
+// más antiguo) — hoy, sin backfill (D3), sigue siendo exactamente la única fila que existía antes
+// de este change para cualquier presupuesto ya creado.
+// TODO(autorizacion-mensual Fase 6a): reemplazar este estado singular por
+// `autorizaciones: Autorizacion[]` + Table de meses + "Agregar mes" (D10/D11).
 export function PresupuestoDetail({
   presupuesto,
   crear,
@@ -114,9 +125,13 @@ export function PresupuestoDetail({
     let cancelled = false;
     setAutorizacionLoading(true);
     autorizacionRepository
-      .getByPresupuestoId(presupuesto.id)
-      .then((found) => {
+      .listByPresupuestoId(presupuesto.id)
+      .then((encontradas) => {
         if (cancelled) return;
+        // Adaptación mínima Fase 4 (ver comentario arriba): toma la primera fila de la lista, nunca
+        // descarta un array con más de una silenciosamente -- Fase 6a reemplaza esto por la Table
+        // completa de meses.
+        const found = encontradas.length > 0 ? (encontradas[0] ?? null) : null;
         setAutorizacion(found);
         // Requerimiento aprobado 2026-08-15 (migración `20260815090000_presupuesto_autoriza_pendiente.sql`):
         // `facturacion.crear_presupuesto_completo`/`crear_presupuestos_lote` ahora crean la

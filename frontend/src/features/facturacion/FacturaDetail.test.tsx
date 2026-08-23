@@ -81,7 +81,7 @@ function buildAutorizacionRepository(): AutorizacionRepository {
   return {
     list: vi.fn().mockResolvedValue([]),
     getById: vi.fn(),
-    getByPresupuestoId: vi.fn().mockResolvedValue(null),
+    listByPresupuestoId: vi.fn().mockResolvedValue([]),
     create: vi.fn(),
     update: vi.fn(),
     uploadArchivo: vi.fn(),
@@ -343,7 +343,7 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
     };
     const autorizacionRepository: AutorizacionRepository = {
       ...buildAutorizacionRepository(),
-      getByPresupuestoId: vi.fn().mockResolvedValue({ id: 'auth-1', presupuestoId: 'pres-1', estado: 'autorizada' }),
+      listByPresupuestoId: vi.fn().mockResolvedValue([{ id: 'auth-1', presupuestoId: 'pres-1', estado: 'autorizada' }]),
     };
 
     renderDetailConPermiso(true, { factura: null, presupuestoRepository, autorizacionRepository });

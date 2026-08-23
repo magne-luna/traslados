@@ -28,12 +28,15 @@ describe('mockAutorizacionRepository', () => {
     vi.useRealTimers();
   });
 
-  it('siembra el fixture con una autorización por cada estado cuando no hay datos previos', async () => {
+  it('siembra el fixture con autorizaciones cubriendo los 4 estados relevantes cuando no hay datos previos', async () => {
     const autorizaciones = await flushLatency(mockAutorizacionRepository.list());
 
-    expect(autorizaciones).toHaveLength(4);
-    const estados = autorizaciones.map((a) => a.estado).sort();
-    expect(estados).toEqual(['autorizada', 'judicializada', 'pendiente', 'rechazada']);
+    // 7 filas (autorizacion-mensual tasks.md 4.4): las 4 legacy de siempre + 3 meses del mismo
+    // presupuesto (`presupuesto-camila-1`) — algunos estados se repiten entre filas, así que se
+    // verifica el conjunto de estados presentes, no una igualdad 1 a 1 con el array.
+    expect(autorizaciones).toHaveLength(7);
+    const estados = new Set(autorizaciones.map((a) => a.estado));
+    expect([...estados].sort()).toEqual(['autorizada', 'judicializada', 'pendiente', 'rechazada']);
   });
 
   it('list() resuelve una promesa con latencia simulada (loading states reales)', async () => {
@@ -68,21 +71,52 @@ describe('mockAutorizacionRepository', () => {
     expect(found).toBeNull();
   });
 
-  it('getByPresupuestoId resuelve la autorización asociada a un presupuesto', async () => {
+  // -----------------------------------------------------------------------------------------
+  // listByPresupuestoId (autorizacion-mensual tasks.md 4.1/4.4/4.5, design.md D5): reemplaza a
+  // getByPresupuestoId — devuelve un array, nunca `null`.
+  // -----------------------------------------------------------------------------------------
+
+  it('listByPresupuestoId resuelve un array de un solo elemento para un presupuesto legacy (paridad con el modelo anterior)', async () => {
     await flushLatency(mockAutorizacionRepository.list());
 
-    const found = await flushLatency(mockAutorizacionRepository.getByPresupuestoId('presupuesto-facundo-1'));
+    const encontradas = await flushLatency(mockAutorizacionRepository.listByPresupuestoId('presupuesto-facundo-1'));
 
-    expect(found?.presupuestoId).toBe('presupuesto-facundo-1');
-    expect(found?.estado).toBe('autorizada');
+    expect(encontradas).toHaveLength(1);
+    expect(encontradas[0]?.presupuestoId).toBe('presupuesto-facundo-1');
+    expect(encontradas[0]?.estado).toBe('autorizada');
   });
 
-  it('getByPresupuestoId resuelve null cuando el presupuesto no tiene autorización asociada', async () => {
+  it('listByPresupuestoId resuelve un array vacío cuando el presupuesto no tiene ninguna autorización asociada', async () => {
     await flushLatency(mockAutorizacionRepository.list());
 
-    const found = await flushLatency(mockAutorizacionRepository.getByPresupuestoId('presupuesto-sin-autorizacion'));
+    const encontradas = await flushLatency(mockAutorizacionRepository.listByPresupuestoId('presupuesto-sin-autorizacion'));
 
-    expect(found).toBeNull();
+    expect(encontradas).toEqual([]);
+  });
+
+  it('listByPresupuestoId resuelve TODAS las filas de un presupuesto con varios meses, ordenadas por periodoMes ascendente (D5)', async () => {
+    await flushLatency(mockAutorizacionRepository.list());
+
+    const encontradas = await flushLatency(mockAutorizacionRepository.listByPresupuestoId('presupuesto-camila-1'));
+
+    expect(encontradas.map((a) => a.periodoMes)).toEqual(['2026-01-01', '2026-02-01', '2026-03-01']);
+    expect(encontradas.map((a) => a.id)).toEqual([
+      'autorizacion-camila-mes-1',
+      'autorizacion-camila-mes-2',
+      'autorizacion-camila-mes-3',
+    ]);
+  });
+
+  // Triangulación: mismo presupuesto multi-mes, pero filtrando a un único mes puntual.
+  it('listByPresupuestoId con periodoMes filtra a un único mes puntual', async () => {
+    await flushLatency(mockAutorizacionRepository.list());
+
+    const encontradas = await flushLatency(
+      mockAutorizacionRepository.listByPresupuestoId('presupuesto-camila-1', '2026-02-01'),
+    );
+
+    expect(encontradas).toHaveLength(1);
+    expect(encontradas[0]?.id).toBe('autorizacion-camila-mes-2');
   });
 
   it('update() persiste los cambios y devuelve la entidad actualizada', async () => {
@@ -110,7 +144,7 @@ describe('mockAutorizacionRepository', () => {
 
     const autorizaciones = await flushLatency(mockAutorizacionRepository.list());
 
-    expect(autorizaciones).toHaveLength(4);
+    expect(autorizaciones).toHaveLength(7);
   });
 
   it('re-siembra desde el fixture si el payload de localStorage está corrupto (JSON inválido)', async () => {
@@ -118,7 +152,28 @@ describe('mockAutorizacionRepository', () => {
 
     const autorizaciones = await flushLatency(mockAutorizacionRepository.list());
 
-    expect(autorizaciones).toHaveLength(4);
+    expect(autorizaciones).toHaveLength(7);
+  });
+
+  // autorizacion-mensual tasks.md 4.4: SCHEMA_VERSION sube 1 -> 2 (Autorizacion suma
+  // `periodoMes?`, Fase 3; la cardinalidad por presupuesto pasa de 1:1 a 1:N, Fase 4). Un payload
+  // viejo con schemaVersion 1, guardado por una versión anterior de la app, se descarta y se
+  // resiembra — mismo criterio que integracion-obra-social D9.
+  it('re-siembra desde el fixture si el localStorage quedó en schemaVersion 1 (versión anterior de la app, antes de periodoMes)', async () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        autorizaciones: [
+          { id: 'autorizacion-vieja', presupuestoId: 'presupuesto-viejo', estado: 'autorizada' },
+        ],
+      }),
+    );
+
+    const autorizaciones = await flushLatency(mockAutorizacionRepository.list());
+
+    expect(autorizaciones).toHaveLength(7);
+    expect(autorizaciones.some((a) => a.id === 'autorizacion-vieja')).toBe(false);
   });
 
   // -----------------------------------------------------------------------------------------
