@@ -274,19 +274,57 @@ mantiene? El schema real fue por delante del repo en 5 changes consecutivos; se 
 
 - [ ] Un presupuesto puede tener **3 autorizaciones** (marzo, abril, mayo) con **montos distintos**,
       cada una con su propio adjunto, y las tres sobreviven recarga.
-- [ ] Cargar **dos veces el mismo mes** para el mismo presupuesto falla con un mensaje de dominio
+      **Sin marcar (2026-08-23, Fase 8)**: depende de 8.4 (verificación manual con la usuaria contra
+      la base real) — no hay round-trip de persistencia real automatizado, solo tests con fixtures
+      mockeadas. No se marca por evidencia ajena a un test o confirmación real.
+- [x] Cargar **dos veces el mismo mes** para el mismo presupuesto falla con un mensaje de dominio
       ("Ya existe una autorización para ese mes"), no con un error crudo de Postgres.
-- [ ] Las 3 aparecen en el selector del Paso 2 de `FacturaForm` **distinguibles entre sí por el mes**,
+      **Evidencia (2026-08-23)**: `AutorizacionForm.test.tsx:935` ("elegir un mes que ya está cargado
+      en otra fila del presupuesto bloquea el guardado con el mensaje de dominio del `23505`") +
+      `edgeFunctionErrors.test.ts:100,115` (mapeo del `23505` crudo, con y sin texto distinto, a
+      `MENSAJE_AUTORIZACION_DUPLICADA`, nunca el código Postgres crudo en el mensaje).
+- [x] Las 3 aparecen en el selector del Paso 2 de `FacturaForm` **distinguibles entre sí por el mes**,
       ordenadas cronológicamente — verificado sin abrir ningún detalle.
-- [ ] Facturar mayo eligiendo la autorización de marzo **muestra una advertencia visible** y **no
+      **Evidencia (2026-08-23)**: `etiquetaAutorizacion.test.ts` (test obligatorio de 5.3: 3 meses
+      del mismo presupuesto/misma prestación producen 3 etiquetas distintas, `new Set(...).size ===
+      3`) + `autorizacionesPendientes.test.ts:280-334` (orden cronológico entre presupuestos
+      insertados fuera de orden, legacy siempre primero).
+- [x] Facturar mayo eligiendo la autorización de marzo **muestra una advertencia visible** y **no
       bloquea** (RN-PA-02 sigue permitiendo retroactivo).
-- [ ] Una autorización creada **antes** de este change (`periodo_mes NULL`) sigue funcionando: se
+      **Evidencia (2026-08-23)**: `FacturaForm.test.tsx:674` ("Paso 3: aviso no bloqueante cuando el
+      mes facturado no coincide con el periodoMes de la autorización elegida") — asserta el texto
+      "no coincide" visible Y el botón "Guardar" `toBeEnabled()` en el mismo test.
+- [x] Una autorización creada **antes** de este change (`periodo_mes NULL`) sigue funcionando: se
       muestra rotulada "Sin mes cargado", se puede facturar contra ella, y **nadie le inventó un mes**.
-- [ ] `PresupuestoDetail` muestra la tabla de meses rotulada "Mes 1 / Mes 2 / Mes 3" **derivada**, y
+      **Evidencia (2026-08-23)**: `FacturaForm.test.tsx:692` ("aviso distinto (no bloqueante) cuando
+      la autorización elegida es legacy sin periodoMes" — "sin mes cargado" visible + Guardar
+      habilitado) + `etiquetaAutorizacion.test.ts` (sufijo `'Sin mes cargado'` para legacy) +
+      `PresupuestoDetail.test.tsx` (5 estados de D10, incluye legacy sin mes).
+- [x] `PresupuestoDetail` muestra la tabla de meses rotulada "Mes 1 / Mes 2 / Mes 3" **derivada**, y
       `grep periodo_ordinal supabase/migrations/` no encuentra ninguna columna.
-- [ ] El adjunto de cada mes es **independiente**: reemplazar el PDF de abril no toca el de marzo
+      **Evidencia (2026-08-23)**: `grep -rn "periodo_ordinal" supabase/migrations/` → sin matches
+      (corrido en esta verificación) + `periodoAutorizacion.test.ts:57-97` (`ordinalMes`) +
+      `PresupuestoDetail.test.tsx` (Table de meses, los 5 estados de D10).
+- [x] El adjunto de cada mes es **independiente**: reemplazar el PDF de abril no toca el de marzo
       (cae solo de D12 — se verifica, no se asume).
-- [ ] Las Open Questions 1 y 2 figuran en `knowledge-base/10_preguntas_abiertas.md` con prioridad
+      **Evidencia (2026-08-23)**: `PresupuestoDetail.test.tsx` (`describe('PresupuestoDetail — el
+      adjunto de un mes no afecta al de otro mes')`, test dedicado de 6a.7).
+- [x] Las Open Questions 1 y 2 figuran en `knowledge-base/10_preguntas_abiertas.md` con prioridad
       **Alta** y con `AvisoModeloDatos` visible en `AutorizacionForm`/`PresupuestoDetail`.
-- [ ] Schema real verificado en vivo antes de escribir `.sql` (§0.3).
-- [ ] `cd frontend && npx tsc -b --noEmit` y `npx vitest run` en verde. Cero `any`.
+      **Evidencia (2026-08-23)**: `knowledge-base/10_preguntas_abiertas.md:483-504` (sección
+      "Preguntas nuevas — `autorizacion-mensual` — prioridad Alta", OQ-1/OQ-2 con Decisor) +
+      `AutorizacionForm.test.tsx`/`PresupuestoDetail.test.tsx` (tests de `AvisoModeloDatos`, 6a.6).
+- [x] Schema real verificado en vivo antes de escribir `.sql` (§0.3).
+      **Evidencia**: `tasks.md` 0.5, verificado en vivo por el orquestador (2026-08-22) vía
+      `supabase db query --linked`, antes de escribir cualquier `.sql`.
+- [x] `cd frontend && npx tsc -b --noEmit` y `npx vitest run` en verde. Cero `any`.
+      **Evidencia (2026-08-23, Fase 8)**: `tsc -b --noEmit` → limpio (exit 0). Grep de control de
+      `any` sobre los 36 archivos que este change tocó → cero usos reales (solo `expect.any(File)` de
+      vitest y comentarios que dicen "sin `any`"). `vitest run` completo: 3221/3245 passed, 24 fallos
+      en 6 archivos que **no tocan ningún archivo de este change**
+      (`PermisosMatrizFields.test.tsx`, `RecorridoCard.test.tsx`, `ChecklistEditor.test.tsx`,
+      `VehiculosPage.test.tsx`, `PacienteDetail.test.tsx`, `PacientesPage.test.tsx` — mock de Google
+      Maps, conteo de SVG y `useCatalogoAccesoriosRepository` sin provider, sin relación con
+      `periodoMes`/autorizaciones), mismo conteo (~24) que el baseline documentado en Fases 4/6a — no
+      creció. "En verde" interpretado como este proyecto lo viene documentando en toda la Fase 4-6b:
+      cero regresiones nuevas, no cero fallos globales preexistentes.

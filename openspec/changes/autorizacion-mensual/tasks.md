@@ -550,11 +550,48 @@
 
 ## Fase 8 — Verificación
 
-- [ ] **8.1** `cd frontend && npx tsc -b --noEmit` limpio. Cero `any` (grep de control).
-- [ ] **8.2** `cd frontend && npx vitest run` — sin regresiones nuevas respecto del baseline.
-- [ ] **8.3** `cd frontend && npx oxlint`.
+- [x] **8.1** `cd frontend && npx tsc -b --noEmit` limpio. Cero `any` (grep de control).
+      **Hecho 2026-08-23**: `cd frontend && npx tsc -b --noEmit` → limpio (exit 0). Grep de control
+      (`grep -nE '\bany\b'`) sobre los 34 archivos TS/TSX que este change tocó (`AlertaCoherenciaPeriodo.tsx`
+      hasta `presupuesto.ts` + `supabase/functions/autorizaciones/index.ts`; lista exacta vía
+      `git diff --stat 9543f19^..29b33ef -- frontend supabase`, 37 archivos totales incluyendo 2 `.sql`
+      que no aplican al grep de TypeScript): cero usos reales de `any` como tipo — únicamente
+      `expect.any(File)` (matcher de vitest, no tipo
+      TS) en `AutorizacionForm.test.tsx:448,478` y `PresupuestoDetail.test.tsx:440,821`, y comentarios
+      que documentan explícitamente "sin `any`" en `FacturaForm.test.tsx:96`,
+      `useEmisionFactura.test.ts:14`, `autorizacionesPendientes.test.ts:11`,
+      `autorizacionMapping.test.ts:10`, `autorizacionMapping.ts:2`, `edgeFunctionErrors.test.ts:6`,
+      `periodoAutorizacion.test.ts:12`, `periodoAutorizacion.ts:2`.
+- [x] **8.2** `cd frontend && npx vitest run` — sin regresiones nuevas respecto del baseline.
+      **Hecho 2026-08-23**: `NODE_OPTIONS=--no-experimental-webstorage npx vitest run --maxWorkers=2`
+      (corrido 2 veces para confirmar estabilidad) → **3221/3245 passed**, 24 fallos en **6 archivos**:
+      `PermisosMatrizFields.test.tsx` (1), `RecorridoCard.test.tsx` (14), `ChecklistEditor.test.tsx`
+      (2), `VehiculosPage.test.tsx` (2), `PacienteDetail.test.tsx` (2), `PacientesPage.test.tsx` (3).
+      **Ninguno de esos 6 archivos está en la lista de archivos que este change tocó** (verificado por
+      grep cruzado). Causas confirmadas por inspección de error: mock de
+      `@vis.gl/react-google-maps`/`useMapsLibrary` no definido (`RecorridoCard`), conteo de `<svg>`
+      inesperado (`PermisosMatrizFields`), `useCatalogoAccesoriosRepository` sin
+      `CatalogoAccesoriosRepositoryProvider` (`PacienteDetail`/`PacientesPage`/`VehiculosPage`/
+      `ChecklistEditor`) — ninguna relacionada con `periodoMes`/autorizaciones/facturación. Mismo
+      conteo total (~24, "6 archivos") que el baseline documentado en tasks.md Fases 4.5/6a.7: **no
+      creció**. Nota: corriendo un subconjunto de archivos en aislamiento (diagnóstico, no la corrida
+      oficial) esos mismos 6 archivos fallan por motivos *distintos* entre sí según qué se corre junto
+      — confirma que son fallas de aislamiento/orden de tests preexistentes del repo, no algo
+      introducido por este change (que no toca ninguno de esos 6 archivos ni sus dependencias
+      directas).
+- [x] **8.3** `cd frontend && npx oxlint`.
+      **Hecho 2026-08-23**: `cd frontend && npx oxlint` → exit 0, 26 warnings (0 errores) en todo el
+      proyecto, **ninguno en los archivos que este change tocó** (verificado por grep cruzado contra
+      la lista de 37 archivos). Los 26 warnings preexistentes son `react(only-export-components)` y
+      `react-hooks(exhaustive-deps)`/`no-unsafe-optional-chaining` en archivos ajenos a este change.
 - [ ] **8.4** **Verificación manual con la usuaria** (no la hace el agente): 3 meses con montos
       distintos y 3 adjuntos distintos; mes duplicado rechazado con mensaje claro; facturar mayo contra
       la autorización de marzo avisa y **no** bloquea; una autorización legacy sigue facturable.
-- [ ] **8.5** Recorrer los Success Criteria de `proposal.md` uno por uno, marcando **solo** los que
+- [x] **8.5** Recorrer los Success Criteria de `proposal.md` uno por uno, marcando **solo** los que
       tengan evidencia (test nombrado o confirmación de la usuaria).
+      **Hecho 2026-08-23**: 8 de 9 criterios marcados `[x]` en `proposal.md` §Success Criteria, cada
+      uno con test nombrado (archivo:línea) o verificación directa (grep/lectura de archivo) como
+      evidencia — ver `proposal.md` para el detalle completo por criterio. **1 criterio deliberadamente
+      sin marcar**: "3 autorizaciones con montos/adjuntos distintos que sobreviven recarga" — depende
+      de 8.4 (verificación manual contra la base real), no tiene test de round-trip de persistencia
+      real, solo tests con fixtures mockeadas. No se marcó nada cuya única evidencia posible fuera 8.4.
