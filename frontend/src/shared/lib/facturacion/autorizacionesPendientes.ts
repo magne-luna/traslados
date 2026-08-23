@@ -19,17 +19,16 @@ import type { AutorizacionRepository } from '../presupuestos/AutorizacionReposit
 // garantía del sistema): esta función NO recibe `facturasExistentes` ni ningún parámetro de
 // período, a propósito.
 //
-// ⚠️ `autorizacion-mensual` (design.md D5, tasks.md Fase 4/4.5): `getByPresupuestoId` (1 fila o
-// `null`) se reemplaza por `listByPresupuestoId` (N filas por mes). Adaptación MÍNIMA para este
-// change (Fase 4, repository layer) — `flatMap` sobre TODAS las filas de cada presupuesto, mismo
-// filtro de estado que antes aplicado por fila, para no descartar en silencio los meses ya
-// respondidos de un presupuesto con varios (el requisito explícito de esta fase). Lo que
-// `autorizacion-mensual` tasks.md 5.2/5.3 todavía no hace acá: ordenar por `periodoMes` (legacy
-// primero) y diferenciar la etiqueta por mes en el picker — eso es trabajo de Fase 5
-// (`etiquetaAutorizacion.ts`), no de esta fase.
-// TODO(autorizacion-mensual Fase 5): ordenar el resultado por `periodoMes` (legacy primero) antes
-// de devolverlo — hoy queda en el orden que resuelva `listByPresupuestoId` (la Edge Function real
-// ya ordena `periodo_mes NULLS FIRST`, D5; el mock lo replica, ver `mockAutorizacionRepository`).
+// `autorizacion-mensual` (design.md D5/D6c, tasks.md Fase 4/5): `getByPresupuestoId` (1 fila o
+// `null`) se reemplazó por `listByPresupuestoId` (N filas por mes) en Fase 4 — `flatMap` sobre
+// TODAS las filas de cada presupuesto, mismo filtro de estado que antes aplicado por fila, para no
+// descartar en silencio los meses ya respondidos de un presupuesto con varios. Fase 5 (tasks.md
+// 5.2) agrega el orden: el resultado final se ordena por `periodoMes` ascendente, legacy
+// (`undefined`) primero — mismo criterio que ya usa `mockAutorizacionRepository.listByPresupuestoId`
+// para que el picker del Paso 2 (`FacturaForm.tsx`) se lea "mes 1, mes 2, mes 3…" como Andrea lo
+// piensa, sin depender del orden de `presupuestoRepository.list()` ni de a qué presupuesto
+// pertenece cada mes (design.md D6c: el orden es sobre TODA la lista de pendientes, no por
+// presupuesto).
 
 export interface AutorizacionPendiente {
   autorizacion: Autorizacion;
@@ -54,5 +53,19 @@ export async function autorizacionesPendientes(
     }
   }
 
-  return pendientes;
+  return ordenarPorPeriodoMes(pendientes);
+}
+
+// design.md D6c: legacy (`periodoMes === undefined`) primero, después ascendente por mes -- mismo
+// comparador que `mockAutorizacionRepository.listByPresupuestoId` (design.md D5) para que el orden
+// del picker no dependa de qué repository esté detrás.
+function ordenarPorPeriodoMes(pendientes: AutorizacionPendiente[]): AutorizacionPendiente[] {
+  return [...pendientes].sort((a, b) => {
+    const periodoA = a.autorizacion.periodoMes;
+    const periodoB = b.autorizacion.periodoMes;
+    if (periodoA === periodoB) return 0;
+    if (periodoA === undefined) return -1;
+    if (periodoB === undefined) return 1;
+    return periodoA.localeCompare(periodoB);
+  });
 }

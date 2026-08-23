@@ -270,4 +270,64 @@ describe('autorizacionesPendientes (D3, tasks.md 2.6)', () => {
       'autorizacion-2-mes-1',
     ]);
   });
+
+  // -----------------------------------------------------------------------------------------
+  // autorizacion-mensual (design.md D6c, tasks.md 5.2): orden por `periodoMes` ascendente, legacy
+  // (`undefined`) primero -- para que el picker se lea "mes 1, mes 2, mes 3…" como Andrea lo
+  // piensa, en vez de depender del orden de `presupuestoRepository.list()`.
+  // -----------------------------------------------------------------------------------------
+
+  it('ordena el resultado por periodoMes ascendente, entre presupuestos distintos (D6c)', async () => {
+    const p1 = presupuesto({ id: 'presupuesto-1' });
+    const p2 = presupuesto({ id: 'presupuesto-2' });
+    const p3 = presupuesto({ id: 'presupuesto-3' });
+    // Insertados deliberadamente fuera de orden cronológico para que el test no pase "por
+    // casualidad" si la implementación simplemente conservara el orden de entrada.
+    const autorizaciones = new Map<string, Autorizacion[]>([
+      ['presupuesto-1', [autorizacion({ id: 'autorizacion-marzo', presupuestoId: 'presupuesto-1', estado: 'autorizada', periodoMes: '2026-03-01' })]],
+      ['presupuesto-2', [autorizacion({ id: 'autorizacion-enero', presupuestoId: 'presupuesto-2', estado: 'autorizada', periodoMes: '2026-01-01' })]],
+      ['presupuesto-3', [autorizacion({ id: 'autorizacion-febrero', presupuestoId: 'presupuesto-3', estado: 'autorizada', periodoMes: '2026-02-01' })]],
+    ]);
+
+    const resultado = await autorizacionesPendientes(
+      'paciente-martina',
+      fakePresupuestoRepository([p1, p2, p3]),
+      fakeAutorizacionRepositoryMultiMes(autorizaciones),
+    );
+
+    expect(resultado.map((r) => r.autorizacion.id)).toEqual([
+      'autorizacion-enero',
+      'autorizacion-febrero',
+      'autorizacion-marzo',
+    ]);
+  });
+
+  // Triangulación: las filas legacy (`periodoMes: undefined`) van SIEMPRE primero, aunque
+  // aparezcan últimas en el orden de entrada -- mismo criterio que `mockAutorizacionRepository`
+  // ya usa para `listByPresupuestoId` (D5).
+  it('las autorizaciones legacy (sin periodoMes) van primero, antes de cualquier mes con fecha (D6c)', async () => {
+    const p1 = presupuesto({ id: 'presupuesto-1' });
+    const autorizaciones = new Map<string, Autorizacion[]>([
+      [
+        'presupuesto-1',
+        [
+          autorizacion({ id: 'autorizacion-abril', presupuestoId: 'presupuesto-1', estado: 'autorizada', periodoMes: '2026-04-01' }),
+          autorizacion({ id: 'autorizacion-legacy', presupuestoId: 'presupuesto-1', estado: 'autorizada', periodoMes: undefined }),
+          autorizacion({ id: 'autorizacion-enero', presupuestoId: 'presupuesto-1', estado: 'autorizada', periodoMes: '2026-01-01' }),
+        ],
+      ],
+    ]);
+
+    const resultado = await autorizacionesPendientes(
+      'paciente-martina',
+      fakePresupuestoRepository([p1]),
+      fakeAutorizacionRepositoryMultiMes(autorizaciones),
+    );
+
+    expect(resultado.map((r) => r.autorizacion.id)).toEqual([
+      'autorizacion-legacy',
+      'autorizacion-enero',
+      'autorizacion-abril',
+    ]);
+  });
 });

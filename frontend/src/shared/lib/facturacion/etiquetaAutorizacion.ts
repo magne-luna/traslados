@@ -1,6 +1,7 @@
 import type { Paciente } from '../../types/paciente';
 import type { Prestacion } from '../../types/prestacion';
 import type { AutorizacionPendiente } from './autorizacionesPendientes';
+import { etiquetaPeriodoMes } from '../presupuestos/periodoAutorizacion';
 
 // Resuelve la `Prestacion` real de una autorización pendiente contra el catálogo del paciente
 // (`presupuesto.prestacionId` → `paciente.prestaciones`), o `undefined` cuando no hay una
@@ -23,10 +24,23 @@ export function prestacionRealAutorizacion(item: AutorizacionPendiente, paciente
 // autorizaciones simultáneas en modalidad `por-prestacion`, y se cae al fallback de `design.md`
 // (fecha de emisión + monto + cupos) solo cuando no hay `prestacionId` o no se encuentra en el
 // catálogo del paciente (modalidad `general`, o un catálogo desactualizado).
+//
+// `autorizacion-mensual` (design.md D6b, tasks.md 5.3): el período entra en la etiqueta SIEMPRE,
+// como sufijo -- `{prestación o fallback} · {mes}`. NO es cosmética: bajo el modelo mensual, N
+// filas del mismo presupuesto (misma prestación, mismo fallback) sin este sufijo renderizan la
+// MISMA cadena -- N opciones idénticas en el `<select>`, exactamente el problema "presupuestos
+// indistinguibles entre sí" que design.md señala. El sufijo reusa `etiquetaPeriodoMes`
+// (`periodoAutorizacion.ts`, ya construida y testeada en Fase 3) en vez de reimplementar el
+// mapeo mes→español acá: para `periodoMes: undefined` (legacy) devuelve `'Sin mes cargado'`,
+// nunca un mes inventado -- mismo criterio D3 que el resto del change.
 export function etiquetaAutorizacion(item: AutorizacionPendiente, paciente: Paciente | undefined): string {
   const prestacion = prestacionRealAutorizacion(item, paciente);
-  if (prestacion) return prestacion.nombre;
+  const base = prestacion ? prestacion.nombre : etiquetaFallback(item);
 
+  return `${base} · ${etiquetaPeriodoMes(item.autorizacion.periodoMes)}`;
+}
+
+function etiquetaFallback(item: AutorizacionPendiente): string {
   const partes: string[] = [`Presupuesto del ${item.presupuesto.fechaEmision}`, `$${item.presupuesto.monto.toLocaleString('es-AR')}`];
   if (item.autorizacion.cupoMensualDias !== undefined) partes.push(`${item.autorizacion.cupoMensualDias} días/mes`);
   if (item.autorizacion.cupoMensualKm !== undefined) partes.push(`${item.autorizacion.cupoMensualKm} km/mes`);

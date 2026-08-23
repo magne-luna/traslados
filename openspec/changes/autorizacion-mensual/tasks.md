@@ -272,13 +272,53 @@
 
 ## Fase 5 — Selector de facturación (D6)
 
-- [ ] **5.1** Safety Net: correr `autorizacionesPendientes.test.ts` + `FacturaForm.test.tsx` y anotar
+- [x] **5.1** Safety Net: correr `autorizacionesPendientes.test.ts` + `FacturaForm.test.tsx` y anotar
       el baseline.
-- [ ] **5.2** `autorizacionesPendientes.ts`: `flatMap` sobre `listByPresupuestoId`, filtro
+      **Hecho 2026-08-23**: `NODE_OPTIONS=--no-experimental-webstorage npx vitest run
+      src/shared/lib/facturacion/autorizacionesPendientes.test.ts
+      src/features/facturacion/FacturaForm.test.tsx` → **35/35 passed** (9 +
+      26, baseline, antes de tocar nada). También se corrió
+      `etiquetaAutorizacion.test.ts` de forma preventiva (8/8, no pedido explícitamente por 5.1 pero
+      tocado por 5.3 más abajo).
+- [x] **5.2** `autorizacionesPendientes.ts`: `flatMap` sobre `listByPresupuestoId`, filtro
       `autorizada|judicializada` **por mes**, orden por `periodoMes` (legacy primero).
-- [ ] **5.3** `etiquetaAutorizacion.ts`: el período entra en la etiqueta.
+      **Hecho 2026-08-23**: el `flatMap`/filtro por fila ya venía de la Fase 4
+      (`autorizacionesPendientes.ts:48-56`, sin cambios de lógica en esta fase); lo que agrega 5.2 es
+      el orden: `ordenarPorPeriodoMes` en `autorizacionesPendientes.ts:56,62-72` (legacy `undefined`
+      primero, después ascendente por `periodoMes` — mismo comparador que
+      `mockAutorizacionRepository.listByPresupuestoId`, D5). TODO de Fase 4 retirado, cabecera del
+      archivo reescrita citando D6c (`:5-14`). **RED**: 2 tests nuevos en
+      `autorizacionesPendientes.test.ts:280-334` (orden entre presupuestos distintos insertados
+      fuera de orden cronológico; legacy siempre primero) corridos en rojo ANTES de implementar
+      (`npx vitest run .../autorizacionesPendientes.test.ts` → 2 failed, 9 passed) — confirmado que
+      fallaban por falta de orden, no por otro motivo. **GREEN**: implementación, mismo comando →
+      **11/11 passed**. Sin necesidad de refactor adicional (función ya extraída y documentada).
+- [x] **5.3** `etiquetaAutorizacion.ts`: el período entra en la etiqueta.
       **Test obligatorio**: 3 meses del mismo presupuesto y la misma prestación producen
       **3 etiquetas distintas** (si no, son 3 opciones idénticas en el `<select>`).
+      **Hecho 2026-08-23**: `etiquetaAutorizacion.ts:36-40` — sufijo ` · {etiquetaPeriodoMes(...)}`
+      SIEMPRE agregado (reusa `etiquetaPeriodoMes` de `periodoAutorizacion.ts`, Fase 3, sin
+      reimplementar el mapeo mes→español); fallback existente extraído a `etiquetaFallback`
+      (`:43-48`) para que la función principal quede legible. **RED**: 4 tests preexistentes de
+      `etiquetaAutorizacion.test.ts` actualizados al nuevo contrato (sufijo `'Sin mes cargado'` para
+      legacy) + 2 tests nuevos (`:89-99` con `periodoMes` real; `:102-113` **el test obligatorio**,
+      3 meses/misma prestación/mismo presupuesto) — corridos en rojo primero (6/10 failed,
+      exactamente las 6 que dependían del formato viejo o del período). **GREEN**: implementación,
+      `npx vitest run .../etiquetaAutorizacion.test.ts` → **10/10 passed**. **Triangulación**
+      confirmada por el test obligatorio: `['Kinesiología · enero 2026', 'Kinesiología · febrero
+      2026', 'Kinesiología · marzo 2026']`, las 3 distintas (`new Set(...).size === 3`).
+      **Efecto de contrato en un consumidor de test** (no producción): `FacturaForm.test.tsx:538-539`
+      esperaba el nombre exacto `'Kinesiología'`/`'Fonoaudiología'` como `option` — con el sufijo
+      nuevo esas dos autorizaciones (legacy, sin `periodoMes` en su fixture) pasan a
+      `'Kinesiología · Sin mes cargado'`/`'Fonoaudiología · Sin mes cargado'`; assertions
+      actualizadas al nuevo contrato (mismo test, no se tocó `FacturaForm.tsx` de producción).
+      Verificación conjunta final: `NODE_OPTIONS=--no-experimental-webstorage npx vitest run
+      src/features/facturacion/FacturaForm.test.tsx
+      src/shared/lib/facturacion/autorizacionesPendientes.test.ts
+      src/shared/lib/facturacion/etiquetaAutorizacion.test.ts` → **47/47 passed**. Barrido más
+      amplio: `npx vitest run src/features/facturacion src/shared/lib/facturacion
+      src/shared/lib/presupuestos` → **694/694 passed** (59 archivos), cero regresiones. `cd
+      frontend && npx tsc -b --noEmit` → limpio.
 
 ## Fase 6a — UI de presupuestos (D10/D11)
 

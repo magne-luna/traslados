@@ -534,9 +534,12 @@ describe('FacturaForm — wizard de alta', () => {
     await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
+    // `autorizacion-mensual` (design.md D6b, tasks.md 5.3): la etiqueta ahora SIEMPRE lleva el
+    // sufijo de período -- estas dos autorizaciones son legacy (sin `periodoMes` en el fixture de
+    // arriba), así que el sufijo es literal `'Sin mes cargado'`, no un mes inventado (D3).
     const select = await screen.findByLabelText(/^autorización$/i);
-    expect(within(select).getByRole('option', { name: 'Kinesiología' })).toBeInTheDocument();
-    expect(within(select).getByRole('option', { name: 'Fonoaudiología' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: 'Kinesiología · Sin mes cargado' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: 'Fonoaudiología · Sin mes cargado' })).toBeInTheDocument();
   });
 
   it('"Atrás" conserva los valores ya cargados al volver a un paso anterior', async () => {
