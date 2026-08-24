@@ -1013,6 +1013,14 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   gates de governance G1-G6 en `proposal.md`. Bloqueante externo (Andrea): Open Questions 1 y 2
   sobre RN-PA-01 por mes y sobre la vigencia contenida en el mes, `knowledge-base/10_preguntas_abiertas.md`.
 
+  **✅ Fases 1-8 implementadas y verificadas (2026-08-22)** — migración aplicada en la base real
+  (`pkryfoljypuzfifofdwp`), Edge Function, tipos, repositories, selector de facturación, UI de tabla
+  de meses en `PresupuestoDetail`, preselección + aviso no bloqueante en `FacturaForm`. `tsc`/tests/
+  `oxlint` limpios, cero regresiones. **G4 firmado con decisión PROVISORIA de la usuaria** (no de
+  Andrea): OQ-1 se resuelve leyendo `presupuesto.monto` como tope **mensual** — a revisar si la
+  respuesta real de Andrea difiere. **Sin archivar todavía** — pendientes: 8.4 (verificación manual
+  con 2 cuentas reales) y 0.6 (enviar OQ-1/OQ-2 a Andrea, OQ-3 a Enzo).
+
 ### [C-10] `hojas-de-ruta-recorridos`
 - **Estado**: `[x]` completado (FE-5 frontend-only, 2026-07-25)
 - **Scope**:
