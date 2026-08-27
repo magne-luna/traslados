@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import type { VehiculoRepository } from '../../shared/lib/vehiculos/VehiculoRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { VehiculoRepositoryProvider } from './VehiculoRepositoryContext';
+import { renderConSesion } from '../../shared/test/renderConSesion';
+import { CatalogoAccesoriosRepositoryProvider } from '../pacientes/CatalogoAccesoriosRepositoryContext';
+import { mockCatalogoAccesoriosRepository } from '../../shared/lib/mocks/mockCatalogoAccesoriosRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { VehiculosPage } from './VehiculosPage';
 
@@ -43,11 +46,22 @@ function buildFakeDocumentoRepository(): DocumentoRepository {
   };
 }
 
+// El detalle compone <PacienteForm>/<VehiculoForm>, que a su vez montan
+// <AccesoriosMovilidadSelector> — ese selector consume el repository del catálogo por context y
+// LANZA si no está provisto. Los tests a nivel de formulario ya lo envolvían
+// (PacienteForm.test.tsx, VehiculoForm.test.tsx, VehiculoDetail.test.tsx); estos, que llegan al
+// mismo formulario desde la página, se quedaron sin el provider al incorporarse el selector.
+// `renderConSesion` (design.md D11) en vez de `render` pelado: <AccesoriosMovilidadSelector>, que
+// entra por el formulario del detalle, resuelve `usePermiso('pacientes','write')` vía useAuth y
+// lanza sin <AuthProvider>. El default de renderConSesion es "admin con todos los permisos" — el
+// mismo supuesto implícito que ya tenían estos tests antes de que existiera el selector.
 function renderPage(repository: VehiculoRepository) {
-  return render(
-    <VehiculoRepositoryProvider repository={repository}>
-      <VehiculosPage documentoRepository={buildFakeDocumentoRepository()} />
-    </VehiculoRepositoryProvider>,
+  return renderConSesion(
+    <CatalogoAccesoriosRepositoryProvider repository={mockCatalogoAccesoriosRepository}>
+      <VehiculoRepositoryProvider repository={repository}>
+        <VehiculosPage documentoRepository={buildFakeDocumentoRepository()} />
+      </VehiculoRepositoryProvider>
+    </CatalogoAccesoriosRepositoryProvider>,
   );
 }
 
@@ -83,11 +97,13 @@ describe('VehiculosPage', () => {
 // Gateo de escritura — aviso de solo lectura (gateo-conductores, design.md D6, tasks.md 4.4): se
 // monta en las dos vistas (listado y detalle), sin permiso de escritura.
 function renderPageConPermiso(puedeEscribir: boolean, repository: VehiculoRepository) {
-  return render(
+  return renderConSesion(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
-      <VehiculoRepositoryProvider repository={repository}>
-        <VehiculosPage documentoRepository={buildFakeDocumentoRepository()} />
-      </VehiculoRepositoryProvider>
+      <CatalogoAccesoriosRepositoryProvider repository={mockCatalogoAccesoriosRepository}>
+        <VehiculoRepositoryProvider repository={repository}>
+          <VehiculosPage documentoRepository={buildFakeDocumentoRepository()} />
+        </VehiculoRepositoryProvider>
+      </CatalogoAccesoriosRepositoryProvider>
     </PuedeEscribirContext.Provider>,
   );
 }

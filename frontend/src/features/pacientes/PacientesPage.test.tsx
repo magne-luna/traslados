@@ -13,6 +13,8 @@ import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { RequireAuth } from '../../shared/auth/RequireAuth';
 import { renderConSesion } from '../../shared/test/renderConSesion';
 import { PacienteRepositoryProvider } from './PacienteRepositoryContext';
+import { CatalogoAccesoriosRepositoryProvider } from './CatalogoAccesoriosRepositoryContext';
+import { mockCatalogoAccesoriosRepository } from '../../shared/lib/mocks/mockCatalogoAccesoriosRepository';
 import { PacientesPage } from './PacientesPage';
 
 const osecac: ObraSocial = {
@@ -73,20 +75,33 @@ function buildFakeDocumentoRepository(): DocumentoRepository {
   };
 }
 
+// El detalle compone <PacienteForm>/<VehiculoForm>, que a su vez montan
+// <AccesoriosMovilidadSelector> — ese selector consume el repository del catálogo por context y
+// LANZA si no está provisto. Los tests a nivel de formulario ya lo envolvían
+// (PacienteForm.test.tsx, VehiculoForm.test.tsx, VehiculoDetail.test.tsx); estos, que llegan al
+// mismo formulario desde la página, se quedaron sin el provider al incorporarse el selector.
+// `renderConSesion` (design.md D11) en vez de `render` pelado: <AccesoriosMovilidadSelector>, que
+// entra por el formulario del detalle, resuelve `usePermiso('pacientes','write')` vía useAuth y
+// lanza sin <AuthProvider>. El default de renderConSesion es "admin con todos los permisos" — el
+// mismo supuesto implícito que ya tenían estos tests antes de que existiera el selector.
 function renderPage(pacienteRepository: PacienteRepository) {
-  return render(
-    <PacienteRepositoryProvider repository={pacienteRepository}>
-      <PacientesPage obraSocialRepository={buildFakeObraSocialRepository()} documentoRepository={buildFakeDocumentoRepository()} />
-    </PacienteRepositoryProvider>,
+  return renderConSesion(
+    <CatalogoAccesoriosRepositoryProvider repository={mockCatalogoAccesoriosRepository}>
+      <PacienteRepositoryProvider repository={pacienteRepository}>
+        <PacientesPage obraSocialRepository={buildFakeObraSocialRepository()} documentoRepository={buildFakeDocumentoRepository()} />
+      </PacienteRepositoryProvider>
+    </CatalogoAccesoriosRepositoryProvider>,
   );
 }
 
 function renderPageConPermiso(puedeEscribir: boolean, pacienteRepository: PacienteRepository) {
-  return render(
+  return renderConSesion(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
-      <PacienteRepositoryProvider repository={pacienteRepository}>
-        <PacientesPage obraSocialRepository={buildFakeObraSocialRepository()} documentoRepository={buildFakeDocumentoRepository()} />
-      </PacienteRepositoryProvider>
+      <CatalogoAccesoriosRepositoryProvider repository={mockCatalogoAccesoriosRepository}>
+        <PacienteRepositoryProvider repository={pacienteRepository}>
+          <PacientesPage obraSocialRepository={buildFakeObraSocialRepository()} documentoRepository={buildFakeDocumentoRepository()} />
+        </PacienteRepositoryProvider>
+      </CatalogoAccesoriosRepositoryProvider>
     </PuedeEscribirContext.Provider>,
   );
 }

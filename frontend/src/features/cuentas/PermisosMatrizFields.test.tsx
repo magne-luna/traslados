@@ -50,7 +50,10 @@ describe('PermisosMatrizFields', () => {
 
   it('muestra un ícono de identidad por módulo, uno por cada una de las 7 filas (triangulación)', () => {
     const { container } = render(<PermisosMatrizFields valores={filasVacias()} onCambiarNivel={vi.fn()} idPrefix="test" />);
-    expect(container.querySelectorAll('svg')).toHaveLength(MODULOS.length);
+    // Se cuentan SOLO los íconos del badge de identidad de cada fila, no todos los <svg> de la
+    // pantalla: `Select` (design-system/form.tsx) rinde además su propio chevron por fila, así
+    // que un `querySelectorAll('svg')` pelado devolvía 14 y no medía lo que la prueba afirma.
+    expect(container.querySelectorAll('span.rounded-pill svg')).toHaveLength(MODULOS.length);
     expect(MODULOS).toHaveLength(7);
   });
 
