@@ -6,6 +6,7 @@ import { agregarParada, quitarParada } from '../../shared/lib/hojas-de-ruta/para
 import { pacienteDisponibleEnRecorrido } from '../../shared/lib/hojas-de-ruta/pacienteDisponibleEnRecorrido';
 import { sugerirOrdenPorCercania } from '../../shared/lib/hojas-de-ruta/sugerirOrdenPorCercania';
 import { vehiculosCompatibles } from '../../shared/lib/hojas-de-ruta/vehiculosCompatibles';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { Conductor } from '../../shared/types/conductor';
 import type { Paciente } from '../../shared/types/paciente';
 import type { Recorrido } from '../../shared/types/hojaDeRuta';
@@ -37,6 +38,11 @@ interface RecorridoCardProps {
   /** Hoja proveniente del repository real (design.md Checkpoint 2): se propaga a RecorridoMapa
    * para que el mapa vacío (coordenadas nunca persisten) se explique como diseño, no como bug. */
   desdeRepositoryReal?: boolean;
+  /** Fecha ISO de la hoja — se propaga a AsignacionPanel para agrupar los destinos habituales
+   *  del paciente por el día de la semana que corresponde a esa fecha. */
+  fecha?: string;
+  /** Destinos habituales del paciente (RF-110) — atajo opcional del panel de asignación. */
+  recorridoHabitualRepository?: Pick<RecorridoHabitualRepository, 'list'>;
 }
 
 // Tarjeta de un recorrido (tasks.md 5.4, 6.3, 7.1, 7.2, RN-HR-01/RF-702/RF-703): compone
@@ -58,6 +64,8 @@ export function RecorridoCard({
   onUpdateRecorrido,
   numero = 1,
   desdeRepositoryReal = false,
+  fecha = '',
+  recorridoHabitualRepository,
 }: RecorridoCardProps) {
   const formId = useId();
   const [editing, setEditing] = useState(false);
@@ -205,6 +213,8 @@ export function RecorridoCard({
             pacientes={pacientesDisponibles}
             pacienteId={pacienteEnCursoId}
             onPacienteIdChange={setPacienteEnCursoId}
+            fecha={fecha}
+            recorridoHabitualRepository={recorridoHabitualRepository}
             onAgregar={(parada) => {
               onUpdateRecorrido({ ...recorrido, paradas: agregarParada(recorrido.paradas, parada) });
               setPacienteEnCursoId('');

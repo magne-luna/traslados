@@ -1,6 +1,7 @@
 import { supabaseConductorRepository } from '../../shared/lib/conductores/SupabaseConductorRepository';
 import { supabaseHojaDeRutaRepository } from '../../shared/lib/hojas-de-ruta/SupabaseHojaDeRutaRepository';
 import { supabasePacienteRepository } from '../../shared/lib/pacientes/SupabasePacienteRepository';
+import { supabaseRecorridoHabitualRepository } from '../../shared/lib/pacientes/SupabaseRecorridoHabitualRepository';
 import { supabaseVehiculoRepository } from '../../shared/lib/vehiculos/SupabaseVehiculoRepository';
 import { HojaDeRutaPage } from './HojaDeRutaPage';
 import { HojaDeRutaRepositoryProvider } from './HojaDeRutaRepositoryContext';
@@ -25,6 +26,7 @@ export function HojaDeRutaRoute() {
         pacienteRepository={supabasePacienteRepository}
         vehiculoRepository={supabaseVehiculoRepository}
         conductorRepository={supabaseConductorRepository}
+        recorridoHabitualRepository={supabaseRecorridoHabitualRepository}
         desdeRepositoryReal
       />
     </HojaDeRutaRepositoryProvider>

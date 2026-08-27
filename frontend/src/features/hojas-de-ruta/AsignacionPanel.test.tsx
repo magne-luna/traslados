@@ -386,3 +386,107 @@ describe('AsignacionPanel — gateo de escritura', () => {
     expect(screen.getByRole('button', { name: /agregar pasajero/i })).toBeEnabled();
   });
 });
+
+// Atajo "Destino habitual" (feedback de usuario, 2026-08-27): AsignacionPanel y NuevoRecorridoForm
+// son "el mismo formulario" — el atajo aparece en los dos, con el mismo comportamiento
+// copy-on-create.
+describe('AsignacionPanel · destino habitual del paciente', () => {
+  const pacienteConDirecciones = buildPaciente({
+    id: 'p-hab',
+    direcciones: [
+      { id: 'dir-casa', tipo: 'domicilio', calle: 'Rivadavia 100', localidad: 'CABA' },
+      { id: 'dir-escuela', tipo: 'escuela', calle: 'Mitre 200', localidad: 'CABA' },
+    ],
+  });
+
+  const HABITUAL_JUEVES = {
+    id: 'h-jueves',
+    pacienteId: 'p-hab',
+    direccionInicialId: 'dir-casa',
+    direccionFinalId: 'dir-escuela',
+    diaSemana: 'jueves' as const,
+    hora: '08:15',
+  };
+
+  // 2026-08-27 es jueves.
+  const JUEVES = '2026-08-27';
+
+  it('completa hora, origen y destino de la parada al elegir un destino habitual', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+
+    renderConPermiso(
+      true,
+      <AsignacionPanel
+        recorrido={buildRecorrido({ paradas: [] })}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[pacienteConDirecciones]}
+        fecha={JUEVES}
+        recorridoHabitualRepository={{ list: vi.fn().mockResolvedValue([HABITUAL_JUEVES]) }}
+        onAgregar={onAgregar}
+      />,
+    );
+
+    await user.selectOptions(await screen.findByLabelText(/destino habitual/i), 'h-jueves');
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+
+    expect(onAgregar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pacienteId: 'p-hab',
+        direccionOrigenId: 'dir-casa',
+        direccionDestinoId: 'dir-escuela',
+        horaEstimada: '08:15',
+      }),
+    );
+  });
+
+  it('el destino habitual pisa la sugerencia de vuelta invertida: el operador lo pidió explícitamente', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+    // El paciente ya tiene la ida casa -> escuela: sin atajo, RN-HR-02 sugeriría escuela -> casa.
+    const recorridoConIda = buildRecorrido({
+      paradas: [
+        {
+          id: 'parada-ida',
+          pacienteId: 'p-hab',
+          tramo: 'ida',
+          direccionOrigenId: 'dir-casa',
+          direccionDestinoId: 'dir-escuela',
+          orden: 0,
+        },
+      ],
+    });
+
+    renderConPermiso(
+      true,
+      <AsignacionPanel
+        recorrido={recorridoConIda}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[pacienteConDirecciones]}
+        fecha={JUEVES}
+        recorridoHabitualRepository={{ list: vi.fn().mockResolvedValue([HABITUAL_JUEVES]) }}
+        onAgregar={onAgregar}
+      />,
+    );
+
+    await user.selectOptions(await screen.findByLabelText(/destino habitual/i), 'h-jueves');
+
+    expect(screen.getByLabelText(/dirección de origen/i)).toHaveValue('dir-casa');
+    expect(screen.getByLabelText(/dirección de destino/i)).toHaveValue('dir-escuela');
+  });
+
+  it('sin repository inyectado el panel funciona exactamente como antes', () => {
+    renderConPermiso(
+      true,
+      <AsignacionPanel
+        recorrido={buildRecorrido({ paradas: [] })}
+        vehiculo={vehiculoConSillaPlegable}
+        pacientes={[pacienteConDirecciones]}
+        onAgregar={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByLabelText(/destino habitual/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/dirección de origen/i)).toBeInTheDocument();
+  });
+});

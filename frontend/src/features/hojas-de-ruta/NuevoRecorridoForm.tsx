@@ -2,11 +2,14 @@ import { useId, useState } from 'react';
 import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { Label, Textarea } from '../../design-system/form';
+import { camposDesdeRecorridoHabitual } from '../../shared/lib/hojas-de-ruta/camposDesdeRecorridoHabitual';
 import { conductoresDisponibles, vehiculosDisponibles } from '../../shared/lib/hojas-de-ruta/disponibilidad';
 import { sugerirRecorridoExistente } from '../../shared/lib/hojas-de-ruta/sugerirRecorridoExistente';
 import { vehiculosCompatibles } from '../../shared/lib/hojas-de-ruta/vehiculosCompatibles';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { Conductor } from '../../shared/types/conductor';
 import type { NuevaParadaRecorrido, Recorrido, Tramo } from '../../shared/types/hojaDeRuta';
+import type { RecorridoHabitual } from '../../shared/types/recorridoHabitual';
 import type { Paciente } from '../../shared/types/paciente';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
@@ -14,6 +17,8 @@ import { CarIcon, PlusIcon, UserIcon } from './icons';
 import { PacienteTramoCampos } from './PacienteTramoCampos';
 import { RequisitosPaciente } from './RequisitosPaciente';
 import { SelectorPaciente } from './SelectorPaciente';
+import { SelectorRecorridoHabitual } from './SelectorRecorridoHabitual';
+import { useRecorridosHabituales } from './useRecorridosHabituales';
 
 export interface NuevoRecorridoPayload {
   vehiculoId: string;
@@ -30,6 +35,12 @@ interface NuevoRecorridoFormProps {
   /** Recorridos de HOY (feedback de usuario, RN-HR-01) — habilita sugerir sumarse a uno
    *  compatible en vez de crear uno nuevo desde cero. Sin recorridos que ofrecer todavía. */
   recorridos?: Recorrido[];
+  /** Fecha ISO de la hoja de ruta — decide qué destinos habituales del paciente son "de este día"
+   *  (SelectorRecorridoHabitual). Sin fecha el selector sigue funcionando, sin agrupar por día. */
+  fecha?: string;
+  /** Destinos habituales del paciente (RF-110). Opcional: sin repository el atajo "Destino
+   *  habitual" no se ofrece y el formulario se completa a mano, como antes. */
+  recorridoHabitualRepository?: Pick<RecorridoHabitualRepository, 'list'>;
   onCrear: (data: NuevoRecorridoPayload) => void;
   /** Sumar el paciente elegido a un recorrido EXISTENTE en vez de crear uno nuevo — nunca
    *  automático, el operador decide si usa la sugerencia (ver `sugerirRecorridoExistente.ts`). */
@@ -67,6 +78,8 @@ export function NuevoRecorridoForm({
   conductores,
   pacientes,
   recorridos = [],
+  fecha = '',
+  recorridoHabitualRepository,
   onCrear,
   onAgregarAExistente,
 }: NuevoRecorridoFormProps) {
@@ -79,8 +92,14 @@ export function NuevoRecorridoForm({
   const [tramo, setTramo] = useState<Tramo>('ida');
   const [direccionOrigenId, setDireccionOrigenId] = useState('');
   const [direccionDestinoId, setDireccionDestinoId] = useState('');
+  const [recorridoHabitualId, setRecorridoHabitualId] = useState('');
 
   const pacienteSeleccionado = pacientes.find((p) => p.id === pacienteId);
+  const {
+    recorridos: recorridosHabituales,
+    loading: cargandoHabituales,
+    error: errorHabituales,
+  } = useRecorridosHabituales(recorridoHabitualRepository, pacienteId);
   const candidatos = vehiculosCompatibles(disponibles, pacienteSeleccionado ? [pacienteSeleccionado] : []);
 
   const [vehiculoId, setVehiculoId] = useState(candidatos[0]?.id ?? '');
@@ -111,12 +130,29 @@ export function NuevoRecorridoForm({
     setPacienteId(id);
     setDireccionOrigenId('');
     setDireccionDestinoId('');
+    // Los destinos habituales son de UN paciente: arrastrar el elegido al cambiar de paciente
+    // dejaría el select apuntando a una opción que ya no está en la lista.
+    setRecorridoHabitualId('');
 
     const nuevoSeleccionado = pacientes.find((p) => p.id === id);
     const nuevosCandidatos = vehiculosCompatibles(disponibles, nuevoSeleccionado ? [nuevoSeleccionado] : []);
     if (!nuevosCandidatos.some((v) => v.id === vehiculoId)) {
       setVehiculoId(nuevosCandidatos[0]?.id ?? '');
     }
+  }
+
+  // Copy-on-create (camposDesdeRecorridoHabitual.ts): completa los campos y los deja EDITABLES —
+  // la parada que se cree no queda ligada al habitual de origen. Volver a "— Sin destino
+  // habitual —" solo suelta la selección: NO borra lo ya completado, porque el operador pudo
+  // haber ajustado la hora a mano después de traerlo.
+  function handleRecorridoHabitual(habitual: RecorridoHabitual | undefined) {
+    setRecorridoHabitualId(habitual?.id ?? '');
+    if (habitual === undefined || !pacienteSeleccionado) return;
+
+    const campos = camposDesdeRecorridoHabitual(habitual, pacienteSeleccionado.direcciones);
+    setDireccionOrigenId(campos.direccionOrigenId);
+    setDireccionDestinoId(campos.direccionDestinoId);
+    setHoraEstimada(campos.horaEstimada);
   }
 
   function handleSubmit() {
@@ -170,7 +206,10 @@ export function NuevoRecorridoForm({
           autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes', 'write').
           Mismo comentario que permisos.ts, usePuedeEscribir.ts y las pantallas ya cableadas. */}
       <CamposSoloLectura>
-      <div className="grid grid-cols-1 gap-md sm:grid-cols-2 lg:grid-cols-5 pb-3">
+      {/* 6 columnas desde `lg` (antes 5): entró "Destino habitual" entre el paciente y la hora —
+          el atajo completa la hora y las dos direcciones que están a su derecha, así que va
+          pegado al paciente del que dependen, no al final de la fila. */}
+      <div className="grid grid-cols-1 gap-md sm:grid-cols-2 lg:grid-cols-6 pb-3">
         {pacientes.length > 0 && (
           <SelectorPaciente
             formId={formId}
@@ -178,6 +217,23 @@ export function NuevoRecorridoForm({
             value={pacienteId}
             onChange={handlePacienteChange}
             permitirVacio
+          />
+        )}
+
+        {/* El campo se monta siempre que la pantalla haya inyectado el repository — sin
+            habituales queda deshabilitado explicando por qué (feedback de la usuaria: escondido
+            no se distinguía de "roto"). Sin repository no se monta: la función no está cableada
+            en esa pantalla. */}
+        {pacienteSeleccionado && recorridoHabitualRepository !== undefined && (
+          <SelectorRecorridoHabitual
+            formId={formId}
+            recorridos={recorridosHabituales}
+            direcciones={pacienteSeleccionado.direcciones}
+            fecha={fecha}
+            value={recorridoHabitualId}
+            loading={cargandoHabituales}
+            error={errorHabituales}
+            onSelect={handleRecorridoHabitual}
           />
         )}
 

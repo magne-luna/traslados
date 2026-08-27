@@ -621,3 +621,149 @@ describe('NuevoRecorridoForm — gateo de escritura', () => {
     expect(screen.getByRole('button', { name: /agregar a este recorrido/i })).toBeEnabled();
   });
 });
+
+// Atajo "Destino habitual" (feedback de usuario, 2026-08-27): elegir uno de los destinos
+// habituales del paciente (RF-110, cargados en su ficha) COMPLETA hora estimada, origen y destino
+// — copy-on-create, los campos quedan editables y la parada no queda ligada al habitual.
+describe('NuevoRecorridoForm · destino habitual del paciente', () => {
+  const pacienteConDirecciones = buildPaciente({
+    id: 'p-hab',
+    direcciones: [
+      { id: 'dir-casa', tipo: 'domicilio', calle: 'Rivadavia 100', localidad: 'CABA' },
+      { id: 'dir-escuela', tipo: 'escuela', calle: 'Mitre 200', localidad: 'CABA' },
+    ],
+  });
+
+  const HABITUAL_JUEVES = {
+    id: 'h-jueves',
+    pacienteId: 'p-hab',
+    direccionInicialId: 'dir-casa',
+    direccionFinalId: 'dir-escuela',
+    diaSemana: 'jueves' as const,
+    hora: '08:15',
+  };
+
+  // 2026-08-27 es jueves.
+  const JUEVES = '2026-08-27';
+
+  function repositoryCon(habituales: typeof HABITUAL_JUEVES[]) {
+    return { list: vi.fn().mockResolvedValue(habituales) };
+  }
+
+  function renderForm(onCrear = vi.fn(), habituales = [HABITUAL_JUEVES]) {
+    renderConPermiso(
+      true,
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo()]}
+        conductores={[buildConductor()]}
+        pacientes={[pacienteConDirecciones]}
+        fecha={JUEVES}
+        recorridoHabitualRepository={repositoryCon(habituales)}
+        onCrear={onCrear}
+      />,
+    );
+    return onCrear;
+  }
+
+  it('completa hora, origen y destino al elegir un destino habitual', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+    await user.selectOptions(await screen.findByLabelText(/destino habitual/i), 'h-jueves');
+
+    expect(screen.getByLabelText(/hora estimada/i)).toHaveValue('08:15');
+    expect(screen.getByLabelText(/dirección de origen/i)).toHaveValue('dir-casa');
+    expect(screen.getByLabelText(/dirección de destino/i)).toHaveValue('dir-escuela');
+  });
+
+  it('crea la parada con los campos traídos del destino habitual', async () => {
+    const user = userEvent.setup();
+    const onCrear = renderForm();
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+    await user.selectOptions(await screen.findByLabelText(/destino habitual/i), 'h-jueves');
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+
+    expect(onCrear).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paradas: [
+          expect.objectContaining({
+            pacienteId: 'p-hab',
+            direccionOrigenId: 'dir-casa',
+            direccionDestinoId: 'dir-escuela',
+            horaEstimada: '08:15',
+          }),
+        ],
+      }),
+    );
+  });
+
+  it('los campos traídos siguen siendo editables a mano (copy-on-create, no referencia viva)', async () => {
+    const user = userEvent.setup();
+    const onCrear = renderForm();
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+    await user.selectOptions(await screen.findByLabelText(/destino habitual/i), 'h-jueves');
+    await user.clear(screen.getByLabelText(/hora estimada/i));
+    await user.type(screen.getByLabelText(/hora estimada/i), '09:45');
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+
+    expect(onCrear).toHaveBeenCalledWith(
+      expect.objectContaining({ paradas: [expect.objectContaining({ horaEstimada: '09:45' })] }),
+    );
+  });
+
+  // Feedback de la usuaria (2026-08-27): el campo NO se esconde cuando el paciente no tiene
+  // ninguno — escondido era indistinguible de "la función no anda". Queda a la vista,
+  // deshabilitado y con el motivo escrito.
+  it('muestra el atajo deshabilitado y explica por qué cuando el paciente no tiene ninguno', async () => {
+    const user = userEvent.setup();
+    renderForm(vi.fn(), []);
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+
+    expect(await screen.findByLabelText(/destino habitual/i)).toBeDisabled();
+    expect(screen.getByText('Este paciente no tiene destinos habituales cargados en su ficha.')).toBeInTheDocument();
+  });
+
+  it('un fallo de la consulta se muestra como error, no como "no tiene ninguno"', async () => {
+    const user = userEvent.setup();
+    renderConPermiso(
+      true,
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo()]}
+        conductores={[buildConductor()]}
+        pacientes={[pacienteConDirecciones]}
+        fecha={JUEVES}
+        recorridoHabitualRepository={{
+          list: vi.fn().mockRejectedValue(new Error('No se pudieron cargar los destinos habituales.')),
+        }}
+        onCrear={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+
+    expect(await screen.findByText('No se pudieron cargar los destinos habituales.')).toBeInTheDocument();
+    expect(screen.queryByText(/no tiene destinos habituales cargados/i)).not.toBeInTheDocument();
+  });
+
+  it('sin repository inyectado el formulario funciona exactamente como antes', async () => {
+    const user = userEvent.setup();
+    renderConPermiso(
+      true,
+      <NuevoRecorridoForm
+        vehiculos={[buildVehiculo()]}
+        conductores={[buildConductor()]}
+        pacientes={[pacienteConDirecciones]}
+        onCrear={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+
+    expect(screen.queryByLabelText(/destino habitual/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/dirección de origen/i)).toBeInTheDocument();
+  });
+});
