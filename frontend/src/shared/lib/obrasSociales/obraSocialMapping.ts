@@ -17,6 +17,7 @@
 
 import type {
   ActualizacionObraSocial,
+  CondicionIvaArca,
   FormatoAfiliado,
   IdentificadorOrigenFactura,
   ModalidadFacturacion,
@@ -26,6 +27,7 @@ import type {
   PlantillaCampo,
   TipoComprobante,
 } from '../../types/obraSocial';
+import { esCondicionIvaArca } from '../../types/obraSocial';
 import type { ChecklistItem } from '../../types/documento';
 
 // Type guard mínimo sobre `unknown` para filas que llegan de PostgREST — mismo criterio que
@@ -75,6 +77,14 @@ function parseTipoComprobante(value: unknown): TipoComprobante | undefined {
     : undefined;
 }
 
+/** `condicion_iva` -> `CondicionIvaArca` (change `facturacion-electronica-arca` D4-bis). Tolerante:
+ * un valor fuera de los 8 códigos de ARCA (o NULL) -> `undefined`, mismo criterio que el resto de
+ * las uniones cerradas. La migración `20260828120200` limpia los valores libres viejos, pero esto
+ * cubre cualquier fila que quede fuera de rango sin romper el listado. */
+function parseCondicionIva(value: unknown): CondicionIvaArca | undefined {
+  return esCondicionIvaArca(value) ? value : undefined;
+}
+
 const ORIGENES_CAMPO_VALIDOS = new Set<OrigenCampoPlantilla>([
   'paciente.nombre',
   'paciente.dni',
@@ -119,7 +129,7 @@ export interface ObraSocialCamposBase {
   codigo?: string;
   direccion?: string;
   telefono?: string;
-  condicionIva?: string;
+  condicionIva?: CondicionIvaArca;
   modalidadFacturacion: ModalidadFacturacion;
   admitePagosParciales: boolean;
   identificadorOrigen: IdentificadorOrigenFactura;
@@ -143,7 +153,7 @@ export function parseObraSocialRow(row: unknown): ObraSocialCamposBase {
     codigo: readOptionalString(record, 'codigo'),
     direccion: readOptionalString(record, 'direccion'),
     telefono: readOptionalString(record, 'telefono'),
-    condicionIva: readOptionalString(record, 'condicion_iva'),
+    condicionIva: parseCondicionIva(record.condicion_iva),
     modalidadFacturacion: parseModalidadFacturacion(record.modalidad_facturacion),
     admitePagosParciales: typeof record.admite_pagos_parciales === 'boolean' ? record.admite_pagos_parciales : false,
     identificadorOrigen: parseIdentificadorOrigen(record.identificador_origen),

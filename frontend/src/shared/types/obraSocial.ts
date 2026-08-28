@@ -9,6 +9,38 @@ import type { ChecklistItem } from './documento';
 /** RN-FA-07: tipo de comprobante fiscal que emite el prestador para esa obra social. */
 export type TipoComprobante = 'A' | 'B' | 'C';
 
+/**
+ * Condición frente al IVA de la obra social receptora (change `facturacion-electronica-arca`,
+ * D4-bis — cierra la discrepancia #14). Unión cerrada con los ocho códigos que acepta ARCA (README
+ * del miniserver `arca-miniserver`); es el valor que viaja al payload de emisión de Factura A. La
+ * columna `obra_social.condicion_iva` gana un `CHECK` con estos mismos valores. Decisión de la
+ * usuaria (2026-08-28): deja de ser `string` libre.
+ */
+export type CondicionIvaArca =
+  | 'IVA_RESPONSABLE_INSCRIPTO'
+  | 'IVA_SUJETO_EXENTO'
+  | 'CONSUMIDOR_FINAL'
+  | 'IVA_RESPONSABLE_MONOTRIBUTO'
+  | 'MONOTRIBUTO'
+  | 'PROVEEDOR_DEL_EXTERIOR'
+  | 'CLIENTE_DEL_EXTERIOR'
+  | 'IVA_LIBERADO';
+
+export const CONDICIONES_IVA_ARCA: readonly CondicionIvaArca[] = [
+  'IVA_RESPONSABLE_INSCRIPTO',
+  'IVA_SUJETO_EXENTO',
+  'CONSUMIDOR_FINAL',
+  'IVA_RESPONSABLE_MONOTRIBUTO',
+  'MONOTRIBUTO',
+  'PROVEEDOR_DEL_EXTERIOR',
+  'CLIENTE_DEL_EXTERIOR',
+  'IVA_LIBERADO',
+] as const;
+
+export function esCondicionIvaArca(valor: unknown): valor is CondicionIvaArca {
+  return typeof valor === 'string' && (CONDICIONES_IVA_ARCA as readonly string[]).includes(valor);
+}
+
 /** Facturación por cada prestación individual, o una factura general consolidada. */
 export type ModalidadFacturacion = 'por-prestacion' | 'general';
 
@@ -61,12 +93,10 @@ export interface ObraSocial {
   id: string;
   nombre: string;
   /**
-   * CUIT — ambigüedad sin confirmar (integracion-obra-social D8, discrepancia #12): la base real
-   * tiene `obra_social.cuit` y `prestadores.cuit` como columnas distintas, y no está confirmado si
-   * este campo corresponde a la obra social (entidad pagadora) o al prestador. RN-ID-01 solo separa
-   * CUIT (empresa) de CUIL (titular del paciente) — no dice cuál empresa. Ver
-   * `AvisoModeloDatos` en `ObraSocialDetail.tsx` y `knowledge-base/04_modelo_de_datos.md`
-   * §Discrepancias. No se resuelve acá.
+   * CUIT de la **obra social** (entidad pagadora / receptora de la Factura A). Discrepancia #12
+   * cerrada por decisión de la usuaria (2026-08-28, change `facturacion-electronica-arca` D4):
+   * `obra_social.cuit` es el de la obra social, no el del prestador. RN-ID-01 lo separa del CUIL
+   * del titular del paciente.
    */
   cuit: string;
   modalidadFacturacion: ModalidadFacturacion;
@@ -90,12 +120,12 @@ export interface ObraSocial {
   /** Teléfono de la obra social (D9, discrepancia #11). Columna `obra_social.telefono`, NULLable. */
   telefono?: string;
   /**
-   * Condición frente al IVA (D9, discrepancia #11 y #14). Columna `obra_social.condicion_iva`,
-   * `TEXT` libre — ninguna fuente (docx ni KB) enumera sus valores posibles, así que se modela
-   * como `string` libre y no como unión de literales inventada. Pregunta abierta en
-   * `knowledge-base/10_preguntas_abiertas.md`.
+   * Condición frente al IVA (columna `obra_social.condicion_iva`). Unión cerrada con los ocho
+   * códigos de ARCA (`CondicionIvaArca`) — cierra la discrepancia #14 (change
+   * `facturacion-electronica-arca` D4-bis, decisión de la usuaria 2026-08-28). Opcional: sin
+   * cargar (`undefined`) el alta de la OS no se bloquea, pero no se puede emitir Factura A.
    */
-  condicionIva?: string;
+  condicionIva?: CondicionIvaArca;
   /**
    * Plazo de cobro propio de esta obra social, en días desde `fechaFactura` (columna
    * `obra_social.plazo_cobro_dias`, ya existente — anterior al módulo `Prestador`, que la había

@@ -1,5 +1,7 @@
-// Validación de campos requeridos del formulario de Obra Social (RF-300, tasks.md 4.3).
+// Validación de campos del formulario de Obra Social (RF-300, tasks.md 4.3).
 // Función pura: sin acceso a DOM ni al repository, para poder testearla aislada del componente.
+
+import { esCondicionIvaArca } from '../../shared/types/obraSocial';
 
 export interface ObraSocialFormInput {
   nombre: string;
@@ -10,12 +12,15 @@ export interface ObraSocialFormInput {
   codigo?: string;
   direccion?: string;
   telefono?: string;
+  /** '' = sin especificar (válido); cualquier otra cosa debe ser uno de los 8 códigos de ARCA
+   * (change `facturacion-electronica-arca` D4-bis). */
   condicionIva?: string;
 }
 
 export interface ObraSocialFormErrors {
   nombre?: string;
   cuit?: string;
+  condicionIva?: string;
 }
 
 export function validateObraSocialForm(input: ObraSocialFormInput): ObraSocialFormErrors {
@@ -27,6 +32,10 @@ export function validateObraSocialForm(input: ObraSocialFormInput): ObraSocialFo
 
   if (input.cuit.trim() === '') {
     errors.cuit = 'El CUIT es obligatorio.';
+  }
+
+  if (input.condicionIva !== undefined && input.condicionIva !== '' && !esCondicionIvaArca(input.condicionIva)) {
+    errors.condicionIva = 'Elegí una condición frente al IVA válida.';
   }
 
   return errors;

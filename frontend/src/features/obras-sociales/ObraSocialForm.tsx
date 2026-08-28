@@ -3,8 +3,9 @@ import { Button, CamposSoloLectura, FieldGroupHeading } from '../../design-syste
 import { Alert } from '../../design-system/feedback';
 import { Field, Input, Select } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
-import type { FormatoAfiliado, ModalidadFacturacion, TipoComprobante } from '../../shared/types/obraSocial';
+import type { CondicionIvaArca, FormatoAfiliado, ModalidadFacturacion, TipoComprobante } from '../../shared/types/obraSocial';
 import { DEFAULT_FORMATO_AFILIADO, FORMATO_AFILIADO_LABELS, FORMATO_AFILIADO_OPTIONS } from '../pacientes/formatoAfiliadoOptions';
+import { CONDICION_IVA_LABELS, CONDICION_IVA_OPTIONS } from './condicionIvaOptions';
 import { validateObraSocialForm, type ObraSocialFormErrors } from './validateObraSocialForm';
 
 export interface ObraSocialFormValues {
@@ -21,7 +22,9 @@ export interface ObraSocialFormValues {
   codigo: string;
   direccion: string;
   telefono: string;
-  condicionIva: string;
+  /** Unión cerrada de los 8 códigos de ARCA, o `''` = sin especificar (change
+   * `facturacion-electronica-arca` D4-bis). */
+  condicionIva: CondicionIvaArca | '';
   /**
    * Plazo de cobro propio de esta obra social, en días (RF-306, change `sacar-prestadores`).
    * `undefined` = sin configurar — `calcularFechaEstimadaCobro` cae en el default general
@@ -65,7 +68,13 @@ interface ObraSocialFormProps {
 // senior-frontend compact rules). La validación de requeridos vive en validateObraSocialForm
 // (función pura) para poder testearla aislada del DOM.
 export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false, submitError = null }: ObraSocialFormProps) {
-  const [values, setValues] = useState<ObraSocialFormValues>({ ...DEFAULT_VALUES, ...initial });
+  const [values, setValues] = useState<ObraSocialFormValues>({
+    ...DEFAULT_VALUES,
+    ...initial,
+    // `initial` puede traer `condicionIva: undefined` (columna NULL) y eso dejaría el <select> sin
+    // controlar — se normaliza a '' (sin especificar).
+    condicionIva: initial?.condicionIva ?? '',
+  });
   const [errors, setErrors] = useState<ObraSocialFormErrors>({});
   const formId = useId();
 
@@ -138,13 +147,22 @@ export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false
             />
           </Field>
 
-          <Field label="Condición frente al IVA" htmlFor={`${formId}-condicion-iva`}>
-            <Input
+          <Field label="Condición frente al IVA" htmlFor={`${formId}-condicion-iva`} error={errors.condicionIva}>
+            <Select
               id={`${formId}-condicion-iva`}
               density="comfortable"
               value={values.condicionIva}
-              onChange={(event) => setValues((prev) => ({ ...prev, condicionIva: event.target.value }))}
-            />
+              onChange={(event) =>
+                setValues((prev) => ({ ...prev, condicionIva: event.target.value as CondicionIvaArca | '' }))
+              }
+            >
+              <option value="">Sin especificar</option>
+              {CONDICION_IVA_OPTIONS.map((codigo) => (
+                <option key={codigo} value={codigo}>
+                  {CONDICION_IVA_LABELS[codigo]}
+                </option>
+              ))}
+            </Select>
           </Field>
 
           <Field label="Formato del número de afiliado" htmlFor={`${formId}-formato-afiliado`}>

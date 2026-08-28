@@ -76,10 +76,10 @@ describe('useObrasSocialesPaginado', () => {
     vi.mocked(repository.listPage).mockClear();
 
     await act(async () => {
-      await result.current.actualizar('osecac', { condicionIva: 'Monotributo' });
+      await result.current.actualizar('osecac', { condicionIva: 'MONOTRIBUTO' });
     });
 
-    expect(repository.update).toHaveBeenCalledWith('osecac', { condicionIva: 'Monotributo' });
+    expect(repository.update).toHaveBeenCalledWith('osecac', { condicionIva: 'MONOTRIBUTO' });
     await waitFor(() => expect(repository.listPage).toHaveBeenCalledTimes(1));
   });
 
@@ -96,7 +96,7 @@ describe('useObrasSocialesPaginado', () => {
     await waitFor(() => expect(result.current.pagina).toBe(3));
 
     await act(async () => {
-      await result.current.actualizar('osecac', { condicionIva: 'Monotributo' });
+      await result.current.actualizar('osecac', { condicionIva: 'MONOTRIBUTO' });
     });
 
     expect(result.current.pagina).toBe(3);

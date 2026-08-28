@@ -24,7 +24,7 @@ function filaObraSocialCompleta(overrides: Record<string, unknown> = {}): Record
     codigo: 'OS-01',
     direccion: 'Callao 100',
     telefono: '11-1111-2222',
-    condicion_iva: 'Exento',
+    condicion_iva: 'IVA_SUJETO_EXENTO',
     tipo_comprobante: 'A',
     plazo_cobro_dias: 90,
     modalidad_facturacion: 'por-prestacion',
@@ -49,7 +49,7 @@ describe('parseObraSocialRow (3.1)', () => {
     expect(base.codigo).toBe('OS-01');
     expect(base.direccion).toBe('Callao 100');
     expect(base.telefono).toBe('11-1111-2222');
-    expect(base.condicionIva).toBe('Exento');
+    expect(base.condicionIva).toBe('IVA_SUJETO_EXENTO');
     expect(base.modalidadFacturacion).toBe('por-prestacion');
     expect(base.admitePagosParciales).toBe(false);
     expect(base.identificadorOrigen).toBe('paciente.numeroAfiliado');
@@ -228,7 +228,7 @@ describe('ensamblarObraSocial (3.5)', () => {
       codigo: 'OS-01',
       direccion: 'Callao 100',
       telefono: '11-1111-2222',
-      condicionIva: 'Exento',
+      condicionIva: 'IVA_SUJETO_EXENTO',
       modalidadFacturacion: 'por-prestacion',
       admitePagosParciales: false,
       formatoAfiliado: 'numero-documento',
@@ -334,13 +334,13 @@ describe('toCrearObraSocialPayload (3.6)', () => {
       codigo: 'SM-01',
       direccion: 'Av. Corrientes 1234',
       telefono: '11-4000-5000',
-      condicionIva: 'Responsable Inscripto',
+      condicionIva: 'IVA_RESPONSABLE_INSCRIPTO',
     });
 
     expect(payload.codigo).toBe('SM-01');
     expect(payload.direccion).toBe('Av. Corrientes 1234');
     expect(payload.telefono).toBe('11-4000-5000');
-    expect(payload.condicion_iva).toBe('Responsable Inscripto');
+    expect(payload.condicion_iva).toBe('IVA_RESPONSABLE_INSCRIPTO');
   });
 
   it('con checklist: el orden se deriva del índice del array; nunca se envía el id del ítem', () => {
@@ -433,7 +433,7 @@ describe('toActualizarObraSocialPayload (3.7) — semántica parcial (D6)', () =
       codigo: 'C-01',
       direccion: 'Calle Nueva 1',
       telefono: '11-0000-0000',
-      condicionIva: 'Monotributo',
+      condicionIva: 'MONOTRIBUTO',
       modalidadFacturacion: 'general',
       admitePagosParciales: true,
     });
@@ -444,16 +444,23 @@ describe('toActualizarObraSocialPayload (3.7) — semántica parcial (D6)', () =
       codigo: 'C-01',
       direccion: 'Calle Nueva 1',
       telefono: '11-0000-0000',
-      condicion_iva: 'Monotributo',
+      condicion_iva: 'MONOTRIBUTO',
       modalidad_facturacion: 'general',
       admite_pagos_parciales: true,
     });
   });
 
   it('campos opcionales vaciados (cadena vacía) se guardan como NULL, no como cadena vacía', () => {
-    const payload = toActualizarObraSocialPayload({ codigo: '', direccion: '', telefono: '', condicionIva: '' });
+    const payload = toActualizarObraSocialPayload({ codigo: '', direccion: '', telefono: '' });
 
-    expect(payload).toEqual({ codigo: null, direccion: null, telefono: null, condicion_iva: null });
+    expect(payload).toEqual({ codigo: null, direccion: null, telefono: null });
+  });
+
+  it('condicionIva es una unión cerrada: undefined = clave ausente, un código válido viaja', () => {
+    expect('condicion_iva' in toActualizarObraSocialPayload({ condicionIva: undefined })).toBe(false);
+    expect(toActualizarObraSocialPayload({ condicionIva: 'IVA_SUJETO_EXENTO' })).toEqual({
+      condicion_iva: 'IVA_SUJETO_EXENTO',
+    });
   });
 
   it('plantillaFactura presente: viaja como plantilla_factura con identificador_origen y campos', () => {

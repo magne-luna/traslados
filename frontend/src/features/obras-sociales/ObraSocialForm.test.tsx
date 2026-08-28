@@ -110,7 +110,7 @@ describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
     await user.type(screen.getByLabelText(/^código$/i), 'SM-01');
     await user.type(screen.getByLabelText(/^dirección$/i), 'Av. Corrientes 1234');
     await user.type(screen.getByLabelText(/^teléfono$/i), '11-4000-5000');
-    await user.type(screen.getByLabelText(/condición frente al iva/i), 'Responsable Inscripto');
+    await user.selectOptions(screen.getByLabelText(/condición frente al iva/i), 'IVA_RESPONSABLE_INSCRIPTO');
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(onSubmit).toHaveBeenCalledWith<[ObraSocialFormValues]>(
@@ -118,7 +118,7 @@ describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
         codigo: 'SM-01',
         direccion: 'Av. Corrientes 1234',
         telefono: '11-4000-5000',
-        condicionIva: 'Responsable Inscripto',
+        condicionIva: 'IVA_RESPONSABLE_INSCRIPTO',
       }),
     );
   });
@@ -186,7 +186,7 @@ describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
           codigo: 'OS-01',
           direccion: 'Callao 100',
           telefono: '11-1111-2222',
-          condicionIva: 'Exento',
+          condicionIva: 'IVA_SUJETO_EXENTO',
         }}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
@@ -196,7 +196,7 @@ describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
     expect(screen.getByLabelText(/^código$/i)).toHaveValue('OS-01');
     expect(screen.getByLabelText(/^dirección$/i)).toHaveValue('Callao 100');
     expect(screen.getByLabelText(/^teléfono$/i)).toHaveValue('11-1111-2222');
-    expect(screen.getByLabelText(/condición frente al iva/i)).toHaveValue('Exento');
+    expect(screen.getByLabelText(/condición frente al iva/i)).toHaveValue('IVA_SUJETO_EXENTO');
   });
 
   it('en modo edición sin los 4 campos completos, se precargan vacíos (no rompe con undefined)', () => {

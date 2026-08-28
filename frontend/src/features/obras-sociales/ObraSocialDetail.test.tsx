@@ -69,7 +69,7 @@ describe('ObraSocialDetail — los 4 campos del docx en el resumen (2.7)', () =>
       codigo: 'OS-01',
       direccion: 'Callao 100',
       telefono: '11-1111-2222',
-      condicionIva: 'Exento',
+      condicionIva: 'IVA_SUJETO_EXENTO',
     };
 
     render(<ObraSocialDetail obraSocial={conDatos} crear={vi.fn()} actualizar={vi.fn()} onCreated={vi.fn()} onBack={vi.fn()} />);
@@ -77,7 +77,7 @@ describe('ObraSocialDetail — los 4 campos del docx en el resumen (2.7)', () =>
     expect(screen.getByText('OS-01')).toBeInTheDocument();
     expect(screen.getByText('Callao 100')).toBeInTheDocument();
     expect(screen.getByText('11-1111-2222')).toBeInTheDocument();
-    expect(screen.getByText('Exento')).toBeInTheDocument();
+    expect(screen.getByText('IVA Sujeto Exento')).toBeInTheDocument();
   });
 
   it('no rompe el resumen cuando los 4 campos están ausentes (obra social vieja del mock v1)', () => {

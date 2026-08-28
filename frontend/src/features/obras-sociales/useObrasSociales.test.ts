@@ -78,10 +78,10 @@ describe('useObrasSociales', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
-      await result.current.actualizar('osecac', { condicionIva: 'Monotributo' });
+      await result.current.actualizar('osecac', { condicionIva: 'MONOTRIBUTO' });
     });
 
-    expect(repository.update).toHaveBeenCalledWith('osecac', { condicionIva: 'Monotributo' });
+    expect(repository.update).toHaveBeenCalledWith('osecac', { condicionIva: 'MONOTRIBUTO' });
     expect(repository.list).toHaveBeenCalledTimes(2);
   });
 

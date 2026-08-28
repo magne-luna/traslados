@@ -104,14 +104,14 @@ describe('mockObraSocialRepository', () => {
     if (!osecac) throw new Error('OSECAC debería existir tras el seed inicial');
 
     const actualizada = await flushLatency(
-      mockObraSocialRepository.update(osecac.id, { condicionIva: 'Monotributo' }),
+      mockObraSocialRepository.update(osecac.id, { condicionIva: 'MONOTRIBUTO' }),
     );
 
-    expect(actualizada.condicionIva).toBe('Monotributo');
+    expect(actualizada.condicionIva).toBe('MONOTRIBUTO');
     expect(actualizada.nombre).toBe('OSECAC');
 
     const releida = await flushLatency(mockObraSocialRepository.getById(osecac.id));
-    expect(releida?.condicionIva).toBe('Monotributo');
+    expect(releida?.condicionIva).toBe('MONOTRIBUTO');
   });
 
   it('re-siembra desde el fixture si el schemaVersion en localStorage no coincide (dato corrupto/viejo)', async () => {

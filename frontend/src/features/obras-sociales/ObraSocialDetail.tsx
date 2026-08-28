@@ -6,6 +6,7 @@ import type { ActualizacionObraSocial, NuevaObraSocial, ObraSocial } from '../..
 import { ChecklistEditor } from './ChecklistEditor';
 import { DEFAULT_IDENTIFICADOR_ORIGEN } from './origenCampoOptions';
 import { ObraSocialForm, type ObraSocialFormValues } from './ObraSocialForm';
+import { etiquetaCondicionIva } from './condicionIvaOptions';
 import { PlantillaFacturaEditor } from './PlantillaFacturaEditor';
 
 interface ObraSocialDetailProps {
@@ -38,16 +39,18 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
   async function handleSubmitGeneral(values: ObraSocialFormValues) {
     setSubmitting(true);
     setSubmitError(null);
+    // `''` (sin especificar) -> `undefined`: la columna es nullable y `CondicionIvaArca` no admite ''.
+    const datos = { ...values, condicionIva: values.condicionIva || undefined };
     try {
       if (obraSocial === null) {
         const creada = await crear({
-          ...values,
+          ...datos,
           checklist: [],
           plantillaFactura: { campos: [], identificadorOrigen: DEFAULT_IDENTIFICADOR_ORIGEN },
         });
         onCreated(creada);
       } else {
-        await actualizar(obraSocial.id, values);
+        await actualizar(obraSocial.id, datos);
         setEditing(false);
       }
     } catch (err) {
@@ -146,7 +149,9 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
               {obraSocial.condicionIva && (
                 <div className="flex flex-col gap-0.5">
                   <span className="font-body text-[11px] text-muted">Condición frente al IVA</span>
-                  <span className="font-body text-[13px] font-semibold text-ink">{obraSocial.condicionIva}</span>
+                  <span className="font-body text-[13px] font-semibold text-ink">
+                    {etiquetaCondicionIva(obraSocial.condicionIva)}
+                  </span>
                 </div>
               )}
             </div>
