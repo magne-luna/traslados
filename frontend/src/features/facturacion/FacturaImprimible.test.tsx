@@ -82,6 +82,28 @@ describe('FacturaImprimible', () => {
     render(<FacturaImprimible factura={factura} asistencias={factura.asistencias} paciente={paciente} obraSocial={obraSocial} cobros={[]} />);
     expect(screen.queryByText(/cobros registrados/i)).not.toBeInTheDocument();
   });
+
+  it('emitida: el encabezado muestra número de comprobante, CAE y vencimiento', () => {
+    const emitida: Factura = {
+      ...factura,
+      cae: '75123456789012',
+      caeVencimiento: '2026-09-12',
+      cbteNro: 45,
+      ptoVta: 3,
+      arcaAmbiente: 'production',
+    };
+    render(<FacturaImprimible factura={emitida} asistencias={emitida.asistencias} paciente={paciente} obraSocial={obraSocial} cobros={[]} />);
+    expect(screen.getByText(/0003-00000045/)).toBeInTheDocument();
+    expect(screen.getByText(/CAE 75123456789012/)).toBeInTheDocument();
+    expect(screen.getByText(/Vto\. CAE 2026-09-12/)).toBeInTheDocument();
+    expect(screen.queryByText(/sin valor fiscal/i)).not.toBeInTheDocument();
+  });
+
+  it('emitida en homologación: el encabezado la marca como comprobante de prueba', () => {
+    const homolog: Factura = { ...factura, cae: '70000000000001', cbteNro: 1, ptoVta: 1, arcaAmbiente: 'homologacion' };
+    render(<FacturaImprimible factura={homolog} asistencias={homolog.asistencias} paciente={paciente} obraSocial={obraSocial} cobros={[]} />);
+    expect(screen.getByText(/sin valor fiscal/i)).toBeInTheDocument();
+  });
 });
 
 // Lectura preservada (gateo-facturacion, tasks.md 6.1/6.2, design.md D4). `FacturaImprimible` es

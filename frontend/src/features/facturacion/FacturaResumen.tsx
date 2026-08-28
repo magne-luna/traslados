@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Chip, InlineIcon } from '../../design-system/components';
+import { Button, Chip, InlineIcon } from '../../design-system/components';
 import { Card } from '../../design-system/layout';
 import { iconCalendario, iconDocumento, iconMoneda, iconReloj, iconVelocimetro } from '../../design-system/icons';
 import type { EstadoFactura, Factura } from '../../shared/types/factura';
@@ -70,7 +70,52 @@ function ResumenItem({ label, value }: { label: string; value: string }) {
 // de km — todos campos reales de Factura/Paciente, ninguno inventado) con el total destacado, y
 // fecha de factura/fecha estimada de cobro con el motivo del plazo aplicado (RF-406) al pie.
 // Extraído de FacturaDetail para mantener ambos componentes bajo las ~200 líneas (tasks.md 12.3).
-export function FacturaResumen({ factura, paciente }: { factura: Factura; paciente: Paciente | undefined }) {
+interface FacturaResumenProps {
+  factura: Factura;
+  paciente: Paciente | undefined;
+  /** Abre el PDF del comprobante (signed URL). Ausente = no se ofrece el botón. */
+  onVerComprobante?: () => void;
+}
+
+/** Bloque del comprobante fiscal electrónico (facturacion-electronica-arca, §6): número, CAE,
+ * vencimiento del CAE y —si la emisión fue contra homologación— la leyenda de "sin valor fiscal".
+ * Solo se renderiza cuando la factura ya tiene `cae`. */
+function ComprobanteElectronico({ factura, onVerComprobante }: { factura: Factura; onVerComprobante?: () => void }) {
+  if (!factura.cae) return null;
+  const nro =
+    factura.ptoVta !== undefined && factura.cbteNro !== undefined
+      ? `${String(factura.ptoVta).padStart(4, '0')}-${String(factura.cbteNro).padStart(8, '0')}`
+      : '—';
+
+  return (
+    <Card radius="sm" padding="md" gap="sm">
+      <div className="flex flex-wrap items-center justify-between gap-sm">
+        <span className="flex items-center gap-xs font-body text-[13px] font-semibold text-ink">
+          <InlineIcon size={16}>{iconDocumento}</InlineIcon>
+          Comprobante {factura.tipoComprobante} {nro}
+        </span>
+        {factura.arcaAmbiente === 'homologacion' && <Chip kind="warning">PRUEBA — sin valor fiscal</Chip>}
+      </div>
+      <div className="grid grid-cols-1 gap-x-xl gap-y-xs sm:grid-cols-2">
+        <span className="font-body text-[13px] text-text">
+          <span className="font-semibold text-ink">CAE:</span> <span className="font-mono">{factura.cae}</span>
+        </span>
+        {factura.caeVencimiento && (
+          <span className="font-body text-[13px] text-text">
+            <span className="font-semibold text-ink">Vto. CAE:</span> {factura.caeVencimiento}
+          </span>
+        )}
+      </div>
+      {factura.comprobantePdfUrl && onVerComprobante && (
+        <div>
+          <Button variant="secondary" onClick={onVerComprobante}>Ver comprobante (PDF)</Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export function FacturaResumen({ factura, paciente, onVerComprobante }: FacturaResumenProps) {
   const vencida = estadoVencimientoFactura({
     fechaEstimadaCobro: factura.fechaEstimadaCobro,
     hoy: new Date().toISOString().slice(0, 10),
@@ -141,6 +186,8 @@ export function FacturaResumen({ factura, paciente }: { factura: Factura; pacien
           </div>
         </div>
       </Card>
+
+      <ComprobanteElectronico factura={factura} onVerComprobante={onVerComprobante} />
 
       {(factura.fechaFactura || factura.fechaEstimadaCobro) && (
         <div className="grid grid-cols-1 gap-sm sm:grid-cols-2">

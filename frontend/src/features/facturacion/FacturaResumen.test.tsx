@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { Factura } from '../../shared/types/factura';
 import type { Paciente } from '../../shared/types/paciente';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
@@ -71,6 +72,49 @@ describe('FacturaResumen — lectura preservada en modo solo lectura', () => {
 // RF-406 (cambio confirmado con la usuaria 2026-08-12): el wiring pasa `fechaEstimadaCobro`, no
 // `fechaFactura`, a `estadoVencimientoFactura` — una factura con `fechaFactura` muy vieja pero
 // `fechaEstimadaCobro` todavía no vencida NO debe mostrar el chip "Vencida".
+describe('FacturaResumen — comprobante fiscal electrónico', () => {
+  const emitida: Factura = {
+    ...factura,
+    estado: 'facturado',
+    fechaFactura: '2026-09-02',
+    cae: '75123456789012',
+    caeVencimiento: '2026-09-12',
+    cbteNro: 45,
+    ptoVta: 3,
+    arcaAmbiente: 'production',
+    comprobantePdfUrl: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+  };
+
+  it('con CAE: muestra número de comprobante, CAE y vencimiento del CAE', () => {
+    render(<FacturaResumen factura={emitida} paciente={paciente} />);
+    expect(screen.getByText(/0003-00000045/)).toBeInTheDocument();
+    expect(screen.getByText('75123456789012')).toBeInTheDocument();
+    expect(screen.getByText(/2026-09-12/)).toBeInTheDocument();
+  });
+
+  it('sin CAE (a-facturar): no muestra el bloque de comprobante', () => {
+    render(<FacturaResumen factura={factura} paciente={paciente} />);
+    expect(screen.queryByText(/CAE/i)).not.toBeInTheDocument();
+  });
+
+  it('ambiente homologación: marca el comprobante como de prueba', () => {
+    render(<FacturaResumen factura={{ ...emitida, arcaAmbiente: 'homologacion' }} paciente={paciente} />);
+    expect(screen.getByText(/prueba|sin valor fiscal/i)).toBeInTheDocument();
+  });
+
+  it('producción: sin la leyenda de prueba', () => {
+    render(<FacturaResumen factura={emitida} paciente={paciente} />);
+    expect(screen.queryByText(/sin valor fiscal/i)).not.toBeInTheDocument();
+  });
+
+  it('con comprobantePdfUrl y handler: ofrece "Ver comprobante (PDF)"', async () => {
+    const onVer = vi.fn();
+    render(<FacturaResumen factura={emitida} paciente={paciente} onVerComprobante={onVer} />);
+    await userEvent.click(screen.getByRole('button', { name: /ver comprobante/i }));
+    expect(onVer).toHaveBeenCalledOnce();
+  });
+});
+
 describe('FacturaResumen — chip "Vencida" usa fechaEstimadaCobro, no fechaFactura', () => {
   it('fechaFactura muy vieja pero fechaEstimadaCobro futura: no muestra "Vencida"', () => {
     const facturaNoVencida: Factura = {

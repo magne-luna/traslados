@@ -28,7 +28,16 @@ export function FacturaImprimible({ factura, asistencias, paciente, obraSocial, 
         </h1>
         <p className="m-0 font-body text-[13px] text-muted">
           {obraSocial?.nombre ?? 'Obra social desconocida'} · Período {factura.mesFacturado}/{factura.anioFacturado} · Comprobante {factura.tipoComprobante}
+          {factura.ptoVta !== undefined && factura.cbteNro !== undefined &&
+            ` ${String(factura.ptoVta).padStart(4, '0')}-${String(factura.cbteNro).padStart(8, '0')}`}
         </p>
+        {factura.cae && (
+          <p className="m-0 font-body text-[12px] text-muted">
+            CAE {factura.cae}
+            {factura.caeVencimiento && ` · Vto. CAE ${factura.caeVencimiento}`}
+            {factura.arcaAmbiente === 'homologacion' && ' · COMPROBANTE DE PRUEBA — SIN VALOR FISCAL'}
+          </p>
+        )}
       </header>
 
       <section className="flex flex-col gap-xs">
