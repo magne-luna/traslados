@@ -529,6 +529,25 @@ así que queda anotado acá hasta que se construya esa feature.
      `facturaMapping.ts` ni en las RPC) — eran un remanente de un change ya revertido
      (`sacar-prestadores`) sin backend real detrás. Su baja es limpieza de frontend, no cambio de
      schema.
+  N8. **Facturación electrónica — `facturacion-electronica-arca` (2026-08-28).** El docx no modela
+     ningún dato fiscal de emisión. Este change agrega:
+     - 7 columnas nullables en `facturacion.facturas` (`cae`, `cae_vencimiento`, `cbte_nro`,
+       `pto_vta`, `arca_ambiente` con `CHECK IN ('production','homologacion')`, `comprobante_pdf_url`,
+       `arca_respuesta JSONB`) — migración `20260828120000_factura_arca.sql`, aplicada 2026-08-28.
+       Aditivas, la RPC `actualizar_factura_completa` se extendió con el patrón `p_cambios ? 'clave'`
+       (sigue `SECURITY INVOKER`). Son agregados sobre el docx, no discrepancias a resolver.
+     - **`Factura.monto` es un total único, no desglosa neto + IVA.** El miniserver de ARCA pide
+       `neto` + código de alícuota. Se asume **IVA 21 % "por dentro"** (`neto = round(monto / 1.21, 2)`,
+       total = `monto`), overrideable por secret (`ARCA_IVA_MODO`). Sub-pregunta abierta menor:
+       confirmar por-dentro vs por-fuera con el contador (ver `10_preguntas_abiertas.md`).
+     - **Factura C no soportada por el miniserver `arca-miniserver`** (solo `FACTURA_A` / `FACTURA_B`).
+       El enum `facturacion.tipo_factura` tiene `'C'`. Si una factura es C, la Edge Function `facturar`
+       devuelve `422 EMISION_TIPO_NO_SOPORTADO` y la operadora la emite por afuera y sube el PDF a
+       mano (flujo actual, que no se rompe). `AvisoModeloDatos` pendiente en `FacturaFormEconomicos.tsx`
+       (§6.6 del change, bloqueado por el swap §5). **No se resuelve acá** — queda para confirmar si
+       alguna obra social factura como C y si el miniserver se extiende.
+     - Bucket privado nuevo `facturas-emitidas` (migración `20260828120100`, aplicada) para el PDF del
+       comprobante — no es una entidad del docx.
 
 - **Panel principal y reportes** (detalle completo en `openspec/changes/dashboard-ui/design.md`
   §Discrepancias, propose validado 2026-07-25): comparación entre US-800 (`06_funcionalidades.md`
@@ -668,13 +687,19 @@ así que queda anotado acá hasta que se construya esa feature.
      abierta, ver `10_preguntas_abiertas.md`.
   11. `codigo`, `direccion`, `telefono`, `condicion_iva` (columnas sin campo frontend) — resuelto,
      sumados al tipo y a la UI.
-  12. **`cuit` ambiguo — NO resuelto**: la base tiene `obra_social.cuit` **y** `prestadores.cuit`
-     como columnas distintas de tablas distintas, y el docx solo dice "CUIT del prestador/entidad
-     pagadora" sin aclarar cuál. Cartel en `ObraSocialDetail.tsx`.
+  12. **`cuit` ambiguo — RESUELTO (2026-08-28, decisión de la usuaria, change
+     `facturacion-electronica-arca` D4)**: `obra_social.cuit` es el CUIT de la **obra social**
+     (entidad pagadora / receptora de la Factura A). `prestadores.cuit` es el del prestador y es
+     otra cosa. Se retiró el cartel `AvisoModeloDatos` de `ObraSocialDetail.tsx`.
   13. `obra_social.prestadores` sin contraparte en el frontend — **decidido**: change propio
      `prestadores-crud` (ver bullet dedicado arriba).
-  14. `condicion_iva` sin valores enumerados en ninguna fuente — **NO resuelto**, queda `TEXT` libre
-     sin `CHECK`; pregunta abierta.
+  14. `condicion_iva` sin valores enumerados — **RESUELTO (2026-08-28, decisión de la usuaria, change
+     `facturacion-electronica-arca` D4-bis)**: los ocho códigos de ARCA
+     (`IVA_RESPONSABLE_INSCRIPTO`, `IVA_SUJETO_EXENTO`, `CONSUMIDOR_FINAL`,
+     `IVA_RESPONSABLE_MONOTRIBUTO`, `MONOTRIBUTO`, `PROVEEDOR_DEL_EXTERIOR`, `CLIENTE_DEL_EXTERIOR`,
+     `IVA_LIBERADO`). Migración `20260828120200_obra_social_condicion_iva_enum.sql`: `CHECK` con esos
+     valores + backfill (`'Exento' → 'IVA_SUJETO_EXENTO'`; valores libres restantes → `NULL`). Tipo
+     TS `CondicionIvaArca` (unión cerrada), `<select>` en el formulario.
   15. `Paciente.numeroAfiliado.formato` (RN-ID-02, heredada de `integracion-pacientes`) — **cerrada
      el 2026-07-31, versión final: sí se deriva de la obra social**, tal como decidía D12
      originalmente y como pide RF-106 literal. Una nota anterior acá decía lo contrario (D12

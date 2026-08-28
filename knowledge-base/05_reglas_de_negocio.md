@@ -43,7 +43,22 @@ Cada regla tiene un código único `RN-{DOMINIO}-{NN}` para trazabilidad. Extra�
 - **RN-FA-04**: La fecha estimada de cobro se calcula según un plazo configurable (por defecto 90 días) desde la fecha de factura. Si el paciente tiene amparo judicial, el plazo por defecto es de 45 días, contados desde la fecha de factura (no desde la prestación ni la autorización).
 - **RN-FA-05**: El valor del kilómetro (nomenclador nacional) lo fija el Estado, no la empresa, y se carga manualmente por el usuario — no se automatiza (fuera de alcance Fase 1).
 - **RN-FA-06**: Los ajustes de valores de facturas ya emitidas no son retroactivos: se cobra al valor vigente a la fecha de facturación (fuera de alcance Fase 1).
+  - Extensión (`facturacion-electronica-arca`, 2026-08-28): una factura con `cae` es un **documento
+    fiscal emitido**. No se re-emite (la Edge Function `facturar` es idempotente: segunda llamada →
+    `409 YA_EMITIDA`), no se vuelve a `a-facturar` desde la app, y su PDF archivado no se regenera si
+    después se corrige algún campo. Anular / emitir nota de crédito está fuera de alcance.
 - **RN-FA-07**: El tipo de comprobante (A, B o C) depende de la obra social/empresa receptora.
+  - ⚠️ Restricción de la integración (`facturacion-electronica-arca`, 2026-08-28): el miniserver
+    `arca-miniserver` solo emite `FACTURA_A` y `FACTURA_B`. Una factura tipo C no se puede emitir
+    electrónicamente — se emite por afuera y se sube el PDF a mano. Ver `04_modelo_de_datos.md`
+    §Discrepancias N8.
+- **RN-FA-EMIS** (`facturacion-electronica-arca`, 2026-08-28): "Emitir factura" obtiene un **CAE real**
+  de ARCA a través del miniserver, mediado por la Edge Function `facturar`. La transición
+  `a-facturar → facturado` **solo** ocurre si ARCA aprueba el comprobante; un rechazo, un problema de
+  identidad fiscal o un miniserver caído dejan la factura en `a-facturar`, editable, con el motivo
+  visible. La identidad fiscal (CUIT, certificado, clave, punto de venta) vive **solo como secrets de
+  la Edge Function**, nunca en el repo, la base ni el frontend. Condición IVA del receptor = los 8
+  códigos de ARCA (`CondicionIvaArca`); una Factura A sin condición IVA cargada no se puede emitir.
 - **RN-FA-08**: El checklist de documentación requerido para facturar es configurable por obra social (no es una lista única fija); el orden y los ítems deben respetarse en la interfaz tal como los exige cada obra social.
   - ⚠️ **Discrepancia sin confirmar (`documentos-checklist-items-por-actividad`, 2026-08-10/11)**: esta
     RN describe UN eje de configuración (por obra social). El frontend agrega, además, un eje **por

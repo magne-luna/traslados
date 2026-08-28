@@ -163,3 +163,21 @@ La versión anterior leía `ARCA_CERT`, `ARCA_KEY` y `ARCA_CUIT` del entorno. Ah
 1. Codificar el certificado y la clave a base64.
 2. Agregar `cuit`, `certB64`, `keyB64` (y `environment` si factura en producción) a cada `POST /facturar`.
 3. La API key (`X-Api-Key`) pasó a ser obligatoria.
+
+## Consumidor en el proyecto Traslados
+
+Este miniserver es consumido por la **Edge Function `facturar`** del proyecto Traslados
+(`supabase/functions/facturar/index.ts`, change `openspec/changes/facturacion-electronica-arca/`).
+La EF nunca expone la identidad fiscal al frontend: la lee de sus propios secrets y arma el `POST
+/facturar`. Secrets que la EF espera (a cargar con `supabase secrets set`):
+
+| Secret de la EF | Se mapea a |
+|---|---|
+| `ARCA_MINISERVER_URL` | URL base de este servidor (sin `/facturar`) |
+| `ARCA_MINISERVER_API_KEY` | header `X-Api-Key` |
+| `ARCA_CUIT` | `cuit` del body |
+| `ARCA_CERT_B64` / `ARCA_KEY_B64` | `certB64` / `keyB64` del body |
+| `ARCA_PTO_VTA` | `ptoVta` del body |
+| `ARCA_AMBIENTE` | `environment` (`production` \| `homologacion`, default `homologacion`) |
+
+Sin estos secrets la EF responde `503 EMISION_NO_CONFIGURADA` y no llama a este servidor.

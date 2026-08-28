@@ -1080,7 +1080,7 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - Exclusión de feriados en el cálculo (salvo sábados según prestación — regla configurable, no uniforme, RN-FA-03).
   - Cálculo de fecha estimada de cobro: **90 días por defecto desde fecha de factura; 45 días si hay amparo judicial** (confirmar con cliente, ver pregunta abierta) — ambos valores configurables, no hardcodeados.
   - Alerta de factura vencida sin cobro (ej. 60 días — confirmar) para seguimiento ante la Superintendencia.
-  - Documentación adjunta por factura (comprobante ARCA, asistencia, CODEM) usando el patrón de `C-03`. Integración con ARCA: implementar **como adjunto manual del comprobante** (mínimo viable) dejando la arquitectura abierta a una integración automática futura (nivel de automatización aún sin confirmar con el cliente).
+  - Documentación adjunta por factura (comprobante ARCA, asistencia, CODEM) usando el patrón de `C-03`. Integración con ARCA: ~~adjunto manual del comprobante (mínimo viable)~~ → **emisión automática** vía la Edge Function `facturar` + el miniserver `arca-miniserver` (change `facturacion-electronica-arca`, 2026-08-28 — ver bullet 🔶 más abajo). El adjunto manual "Comprobante ARCA" deja de ser obligatorio cuando la factura ya tiene `cae`.
   - Exportación/impresión de factura + asistencia para subir al portal de la obra social o enviar por mail.
   - Tests: alerta al superar cupo autorizado, cálculo correcto de fecha estimada de cobro (caso general y caso amparo judicial), exclusión de feriados, transición completa de estados a facturar→facturado→cobrado→pagado parcialmente.
 - **Dependencias**: `C-04`, `C-05`, `C-06`, `C-03`
@@ -1191,6 +1191,33 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   aditivos (§2) completos con TDD (340 tests verdes); migraciones escritas pero **no aplicadas**
   (§1B, las aplica la usuaria/Enzo); el swap real del wizard (§3) sigue **bloqueado** hasta que se
   apliquen. Detalle completo en `openspec/changes/facturacion-seleccion-autorizacion/`.
+- **🔶 En progreso — `facturacion-electronica-arca`** (propose + apply parcial 2026-08-28, dominio
+  CRÍTICO; la usuaria dio "empezá a aplicar"). **Cierra la pregunta abierta Alta "Integración con
+  ARCA"**: "Emitir factura" pasa de un cambio de estado local a obtener un **CAE real** de ARCA a
+  través del miniserver `arca-miniserver` (repo `facturas/`, de Enzo), mediado por una Edge Function
+  nueva `facturar`. Identidad fiscal 100 % por secrets de EF (`ARCA_*`) — nunca en repo/base/frontend.
+  El PDF del comprobante se genera server-side con `pdf-lib` y se guarda en el bucket privado nuevo
+  `facturas-emitidas`.
+  - **Decisiones de la usuaria (2026-08-28)**: IVA **21 % "por dentro"** (`neto = monto/1.21`,
+    overrideable por secret); `obra_social.cuit` = CUIT de la **obra social** pagadora (cierra
+    discrepancia #12 de `04_modelo_de_datos.md`); `obra_social.condicion_iva` → **enum tipado** con
+    los 8 códigos de ARCA (`CondicionIvaArca`, cierra discrepancia #14). Sub-pregunta abierta menor:
+    IVA por-dentro vs por-fuera → contador.
+  - **Discrepancia documentada, no resuelta**: el miniserver no emite **Factura C** (solo A/B) —
+    §Discrepancias N8. `Factura.monto` es un total, no desglosa neto+IVA (se asume IVA por dentro).
+  - **3 migraciones aplicadas a producción (2026-08-28, `supabase db push` con el pooler)**:
+    `20260828120000_factura_arca.sql` (7 columnas fiscales en `facturacion.facturas` + `CREATE OR
+    REPLACE` de `actualizar_factura_completa`, sigue `SECURITY INVOKER`),
+    `20260828120100_bucket_facturas_emitidas.sql` (bucket privado + 4 policies),
+    `20260828120200_obra_social_condicion_iva_enum.sql` (backfill `'Exento'→'IVA_SUJETO_EXENTO'` + `CHECK`).
+  - **Estado a la fecha (branch `feat/facturacion-electronica-arca`, 8 commits)**: §4 (campos fiscales
+    en `Factura`), §2.5/§3 (cliente de emisión: `SupabaseEmisionRepository` + tabla de errores D9 +
+    mock), §2/§2B (Edge Function `facturar` + funciones puras, `deno check`/`deno test` limpios),
+    §4B (enum `condicion_iva` en el frontend), §6-parcial (`FacturaResumen`/`FacturaImprimible` muestran
+    CAE/nº/vto/homologación) — **todo verificado**. **Bloqueado**: el swap de `useEmisionFactura` (§5) y
+    el flujo de rechazo 422 dependen de que se despliegue la Edge Function; `supabase functions deploy`
+    da 403 con la cuenta de Enzo (rol en la org sin acceso a la Management API) — deploy pendiente vía
+    dashboard o cuenta Owner. Detalle en `openspec/changes/facturacion-electronica-arca/`.
 - **Historial de la decisión de governance (a cargo de Enzo/backend, ya resuelto)** — portón §0 de
   `tasks.md`, gobernanza CRITICO, las 5 decisiones que bloqueaban el apply:
   - **D3** — agregar `facturacion.facturas.fecha_factura DATE` (nullable). Única modificación de

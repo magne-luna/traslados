@@ -263,30 +263,27 @@
 
 ## 6. Componentes — mostrar el comprobante emitido
 
-- [ ] 6.1 **RED → GREEN** — `FacturaResumen.tsx` / `FacturaAccionesEmision.tsx`: cuando
-      `factura.cae` existe, mostrar CAE, `caeVencimiento`, `Comprobante {cbteTipo} {ptoVta}-{cbteNro}`
-      y un botón "Ver comprobante (PDF)" (link a la signed URL). El botón "Emitir" se oculta cuando
-      `factura.cae` existe (además de cuando `estado !== 'a-facturar'`).
-- [ ] 6.2 **RED → GREEN** — cuando la última emisión fue rechazada (error `422` capturado en
-      `submitError`), mostrar el motivo con `Alert tone="warning"` y dejar la factura editable.
-      Mensaje de homologación si `arcaAmbiente === 'homologacion'` ("Comprobante de PRUEBA, sin
-      valor fiscal").
-- [ ] 6.3 **RED → GREEN** — `FacturaImprimible.tsx`: sumar CAE / vto CAE / nº de comprobante al
-      encabezado (sin reemplazar el componente).
-- [ ] 6.4 **RED → GREEN** — `FacturaDocumentos.tsx` / `checklistDocumentosFactura.ts`: el ítem
-      "Comprobante ARCA" deja de ser `requerido: true` de carga manual cuando la factura ya tiene
-      `cae` (el PDF generado es el respaldo). `AvisoModeloDatos` explicando el cambio.
-- [ ] 6.5 **RED → GREEN** — obtención de la signed URL del PDF: helper en `SupabaseFacturaRepository`
-      o EF de lectura (según lo resuelto en apply, `design.md` §Open Questions).
-- [ ] 6.6 `AvisoModeloDatos` en `FacturaFormEconomicos.tsx` / pantalla de emisión: Factura C no
-      soportada electrónicamente; `monto` es total, no neto+IVA (se emite con IVA 21 % por dentro).
-      **Quitar** el `AvisoModeloDatos` de ambigüedad de CUIT de `ObraSocialDetail.tsx` (#12 resuelta).
+- [x] 6.1 (parcial, commit `feat(facturacion): mostrar el comprobante fiscal emitido`) —
+      `FacturaResumen.tsx`: bloque de comprobante cuando `factura.cae` existe (nº, CAE, vto, chip
+      "PRUEBA — sin valor fiscal" en homologación, botón "Ver comprobante (PDF)" con prop
+      `onVerComprobante` opcional). El botón "Emitir" ya se oculta con `estado !== 'a-facturar'`
+      (cae implica facturado). **Falta**: cablear `onVerComprobante` a la signed URL (6.5, con §5).
+- [ ] 6.2 **con §5** — cuando la última emisión fue rechazada (error `422` en `submitError`),
+      mostrar el motivo con `Alert`. Depende del swap de `useEmisionFactura`.
+- [x] 6.3 (mismo commit) — `FacturaImprimible.tsx`: encabezado con nº de comprobante + CAE + vto +
+      leyenda de homologación.
+- [ ] 6.4 **con §5** — `FacturaDocumentos.tsx` / `checklistDocumentosFactura.ts`: "Comprobante ARCA"
+      deja de ser `requerido` cuando la factura tiene `cae`.
+- [ ] 6.5 **con §5** — signed URL del PDF (helper). Bloqueado por el deploy de la EF.
+- [x] 6.6 (parcial, commit `feat(obras-sociales): condicion_iva…`) — **quitado** el `AvisoModeloDatos`
+      de ambigüedad de CUIT (`ObraSocialDetail.tsx`, #12 resuelta). **Falta**: `AvisoModeloDatos` de
+      Factura C no soportada + `monto` total vs neto en `FacturaFormEconomicos.tsx` (con §5).
 - [ ] 6.7 `rg 'style=\{\{'` sobre los archivos tocados → sin resultados. `npx tsc -b --noEmit` +
       `oxlint` limpios. Suite focalizada de `features/facturacion/` verde.
 
 ## 7. Documentación (obligatoria)
 
-- [ ] 7.1 `knowledge-base/10_preguntas_abiertas.md`:
+- [x] 7.1 `knowledge-base/10_preguntas_abiertas.md`:
       - La pregunta *"Integración con ARCA"* pasa a **RESUELTA**: integración automática vía
         miniserver `arca-miniserver`, config íntegra por secrets de Edge Function; la única
         dependencia externa es el despliegue del miniserver.
@@ -295,20 +292,20 @@
         de ARCA (discrepancia #14); alícuota de IVA = 21 % (falta solo por-dentro/por-fuera → contador).
       - Sumar: datos del emisor para el PDF (secrets vs. tabla editable), punto de venta único vs.
         múltiple, anulación / nota de crédito, IVA por dentro vs. por fuera.
-- [ ] 7.2 `knowledge-base/04_modelo_de_datos.md` §Discrepancias — #12 (`cuit`) → **resuelta**: CUIT
+- [x] 7.2 `knowledge-base/04_modelo_de_datos.md` §Discrepancias — #12 (`cuit`) → **resuelta**: CUIT
       de la obra social; #14 (`condicion_iva`) → **resuelta**: enum tipado. Sumar: Factura C no
       soportada por el miniserver; `Factura.monto` es total y no desglosa neto+IVA (se asume IVA por
       dentro); 7 columnas nuevas de `facturas` + `CHECK` de `condicion_iva`.
-- [ ] 7.3 `knowledge-base/05_reglas_de_negocio.md` — nota en RN-FA-07 (tipo de comprobante) sobre la
+- [x] 7.3 `knowledge-base/05_reglas_de_negocio.md` — nota en RN-FA-07 (tipo de comprobante) sobre la
       restricción A/B del miniserver, y una RN-FA nueva (o nota) sobre emisión electrónica: una
       factura con `cae` es un documento fiscal, no se re-emite ni se vuelve a `a-facturar` desde la
       app (RN-FA-06).
-- [ ] 7.4 `knowledge-base/08_arquitectura_propuesta.md` — sección de integración ARCA: el miniserver
+- [x] 7.4 `knowledge-base/08_arquitectura_propuesta.md` — sección de integración ARCA: el miniserver
       como servicio externo, la EF `facturar` como proxy, los secrets, el bucket.
-- [ ] 7.5 `CHANGES.md` §C-07 y §Plan de integración — emisión electrónica real; checklist manual de
+- [x] 7.5 `CHANGES.md` §C-07 y §Plan de integración — emisión electrónica real; checklist manual de
       comprobante ARCA cerrado.
-- [ ] 7.6 `ROADMAP-FRONTEND.md` — fila C-07.
-- [ ] 7.7 `facturas/README.md` — nota (o issue en ese repo) de que el consumidor de producción es la
+- [x] 7.6 `ROADMAP-FRONTEND.md` — fila C-07.
+- [x] 7.7 `facturas/README.md` — nota (o issue en ese repo) de que el consumidor de producción es la
       EF `facturar` de este proyecto; documentar los nombres de secret que este proyecto esportará.
 
 ## 8. Verificación final

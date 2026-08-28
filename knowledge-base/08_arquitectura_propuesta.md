@@ -116,7 +116,40 @@ traslados/                     ← raíz del repo: KB, roadmap, openspec (planif
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave de servicio (solo backend/funciones) | Sí |
 | `GOOGLE_MAPS_API_KEY` | Clave para geolocalización (RF-701) | Sí (restringir por dominio/IP) |
 | `GOOGLE_DRIVE_CLIENT_ID` / `SECRET` | Integración con Drive de facturación existente | Sí |
+| `ARCA_MINISERVER_URL` / `ARCA_MINISERVER_API_KEY` | Miniserver de emisión electrónica (secrets de la Edge Function `facturar`) | Sí — solo en la EF |
+| `ARCA_CUIT` / `ARCA_CERT_B64` / `ARCA_KEY_B64` / `ARCA_PTO_VTA` / `ARCA_AMBIENTE` | Identidad fiscal ante ARCA (secrets de la Edge Function `facturar`) | Sí — solo en la EF, nunca en repo/base/frontend |
+| `ARCA_IVA_CODIGO` / `ARCA_IVA_MODO` | Override de la alícuota de IVA (default `IVA_21` / `por_dentro`) | No |
+| `ARCA_EMISOR_RAZON_SOCIAL` / `_DOMICILIO` / `_IIBB` / `_INICIO_ACT` | Datos del emisor para el PDF del comprobante | No |
 
-## Nota sobre integración con ARCA
+## Integración con ARCA — **RESUELTA (2026-08-28, change `facturacion-electronica-arca`)**
 
-El nivel de integración (API automática vs. carga/descarga manual del comprobante) está pendiente de confirmar con el cliente — ver `10_preguntas_abiertas.md`. La arquitectura debe soportar ambos escenarios: almacenamiento del comprobante como documento adjunto (mínimo viable) y, si resulta factible, una integración más automatizada a futuro (alineado con RNF-06 de escalabilidad).
+Emisión electrónica automática. Arquitectura:
+
+```
+FacturaDetail (UI)
+  → SupabaseEmisionRepository.emitir(facturaId)      (frontend/src/shared/lib/facturacion/)
+      → supabase.functions.invoke('facturar', { body: { facturaId } })
+          → Edge Function `facturar` (Deno)          (supabase/functions/facturar/)
+              1. requirePermiso('facturacion', 'write')
+              2. lee los secrets ARCA_* (si falta config → 503 EMISION_NO_CONFIGURADA)
+              3. SELECT factura + paciente + obra social + plantilla + cobertura
+              4. construirPayloadArca (_shared/arca.ts, puro)
+              5. fetch al miniserver `arca-miniserver` (POST /facturar, X-Api-Key, timeout 25s)
+              6. si aprobada → persiste CAE/nº/ptoVta/ambiente + snapshots (RPC actualizar_factura_completa)
+              7. genera el PDF (pdf-lib) y lo sube al bucket privado `facturas-emitidas`
+```
+
+- **El miniserver** (`arca-miniserver`, repo `facturas/`, de Enzo) es un proxy Node.js que habla WSAA
+  + WSFE con AFIP/ARCA (firma CMS con `node-forge`, que Deno no hace bien). Multi-titular: la identidad
+  viaja en cada request. Es infraestructura externa, no parte de este repo.
+- **La identidad fiscal nunca toca el repo, la base ni el frontend** — solo vive como secrets de la
+  Edge Function. Lo único que falta para producción es la URL del miniserver desplegado + los
+  documentos de ARCA (certificado, clave, CUIT, punto de venta).
+- **Sin config**, la EF responde `503` y "Emitir" muestra "no está configurada" — nunca crashea.
+- **El PDF del comprobante** (layout tipo AFIP: emisor / receptor / detalle / totales / CAE + código
+  de barras / anexo de asistencias) se genera server-side con `pdf-lib` y se guarda en el bucket
+  privado `facturas-emitidas` (RLS por `modulos.tiene_permiso('facturacion', …)`). El frontend accede
+  solo por signed URL.
+
+El ítem manual "Comprobante ARCA" del checklist documental sigue existiendo pero deja de ser
+obligatorio cuando la factura ya tiene `cae`.

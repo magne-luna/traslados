@@ -25,7 +25,7 @@ Extraídas literalmente de la sección 10 ("Supuestos y puntos a confirmar") y s
 | Alta | Año en facturación (RF-400): ¿el año se carga manualmente o se genera de forma estructurada desde la aplicación? | Diseño del formulario de facturación | Cliente / equipo técnico |
 | Alta | Identificador del paciente en la factura: ¿es el DNI o el número de afiliado? (ver IN-01) | Plantilla de facturación (RF-302, RF-400) | Cliente |
 | Media | Anotación manuscrita "ida/vuelta": verificar el texto completo contra el checklist físico (imagen cortada en el margen del documento fuente). | Completitud del checklist de OSECAC | Cliente (reenviar imagen completa) |
-| Alta | Integración con ARCA: ¿es viable descargar/consultar comprobantes de forma automática, o se trabaja con carga manual del PDF? | Diseño de la integración de facturación (sección 7 y 8) | Cliente / equipo técnico |
+| ~~Alta~~ **RESUELTA (2026-08-28)** | Integración con ARCA: ~~¿automática o manual?~~ → **emisión automática** vía el miniserver `arca-miniserver` (repo `facturas/`, proxy WSAA+WSFE), mediada por la Edge Function `facturar`. Config íntegra por secrets de EF; el PDF del comprobante se genera server-side y se guarda en el bucket `facturas-emitidas`. Change `openspec/changes/facturacion-electronica-arca/`. | Diseño de la integración de facturación (sección 7 y 8) | Cliente / equipo técnico |
 | Media | Alcance del ordenamiento por cercanía (RF-701): ¿alcanza con ordenar pasajeros ya cargados, o se espera detección geográfica automática de proximidad (ej. sugerir combinaciones no cargadas)? | Diseño del módulo de Hojas de ruta | Cliente / equipo técnico |
 | Alta | Plazos por defecto: confirmar 90 días (cobro general), 60 días (alerta) y 45 días (amparo). | Configuración de RF-405 y RF-406 | Cliente |
 
@@ -54,11 +54,16 @@ de cerrar el esquema del backend `C-07` (governance CRITICO):
   del DRF) es: amparo judicial (45 días) gana sobre el plazo propio de la obra social, que gana
   sobre el default general (90 días). **A confirmar**: los tres valores y, sobre todo, si el
   amparo judicial realmente debe ganarle al plazo propio de la obra social.
-- **Integración con ARCA**: el default implementado es **carga manual** del comprobante como un
-  ítem más del checklist documental de la factura (`FacturaDocumentos.tsx`), cero llamadas a API,
-  cero cliente HTTP, cero variable de entorno de ARCA. **A confirmar**: si el cliente espera
-  integración automática en esta fase; si sí, es un change de backend aparte, no un cambio de
-  estas pantallas.
+- **Integración con ARCA** — **RESUELTA (2026-08-28, change `facturacion-electronica-arca`)**: se
+  implementó la emisión automática. "Emitir factura" invoca la Edge Function `facturar`, que arma el
+  payload fiscal, llama al miniserver `arca-miniserver` (`POST /facturar`, auth `X-Api-Key`), y al
+  recibir `aprobada: true` persiste `cae` / `cae_vencimiento` / `cbte_nro` / `pto_vta` y genera+archiva
+  el PDF. Identidad fiscal 100% por secrets de EF (`ARCA_*`) — nunca en repo/base/frontend. Rechazo de
+  ARCA = la factura queda en `a-facturar` con el motivo visible. Idempotente. El ítem manual
+  "Comprobante ARCA" del checklist deja de ser obligatorio cuando la factura ya tiene `cae`.
+  **Sub-pregunta abierta menor**: IVA 21 % "por dentro" (`neto = monto/1.21`, default) vs "por fuera"
+  (`neto = monto`, total = `monto*1.21`) — confirmar con el contador. Cambio sin deploy vía el secret
+  `ARCA_IVA_MODO`.
 
 Además, la alerta de cupo excedido (RN-FA-02) se implementó como **aviso con confirmación
 explícita, sin bloquear la emisión** — ver Open Question correspondiente en
@@ -121,19 +126,22 @@ este change** (tarea 1B.5 de `tasks.md`):
 
 ## Preguntas nuevas — `integracion-obra-social` (2026-07-31)
 
-Tres preguntas que este change abre y **no cierra** (`design.md` §Open Questions), más una cuarta
-puramente técnica (índices) que sí quedó resuelta:
+Tres preguntas que este change abrió y no cerró en su momento (`design.md` §Open Questions), más una
+cuarta puramente técnica (índices) que sí quedó resuelta. **Dos de las tres se cerraron el 2026-08-28**
+(decisión de la usuaria en el change `facturacion-electronica-arca`): `obra_social.cuit` y
+`condicion_iva`. Sigue abierta solo la de `prestadores.cuit`.
 
-- **¿`ObraSocial.cuit` es el CUIT de la obra social o el del prestador?** El tipo del frontend lo
-  documenta como *"CUIT del prestador/entidad pagadora"*, pero la base real tiene `obra_social.cuit`
-  **y** `prestadores.cuit` como columnas distintas de tablas distintas. RN-ID-01 solo separa CUIT
-  (empresa) de CUIL (titular del paciente); no dice cuál empresa. Si el campo del frontend está
-  guardando el CUIT equivocado, lo arrastran las facturas. Cartel en `ObraSocialDetail.tsx`.
-  **Decisor**: cliente / quien mantiene el docx.
-- **¿Qué valores admite `condicion_iva`?** El docx tiene el campo pero ninguna fuente enumera los
-  valores. Queda `TEXT` libre sin `CHECK` en la base y `string` opcional en el frontend. Si son los
-  de ARCA (Responsable Inscripto / Monotributo / Exento / Consumidor Final), conviene cerrarlo antes
-  de que Facturación (`C-07`) lo consuma. **Decisor**: cliente / equipo técnico.
+- **¿`ObraSocial.cuit` es el CUIT de la obra social o el del prestador?** — **RESUELTA
+  (2026-08-28, decisión de la usuaria, change `facturacion-electronica-arca` D4)**: es el CUIT de la
+  **obra social** (entidad pagadora / receptora de la Factura A). Se retiró el `AvisoModeloDatos` de
+  ambigüedad de `ObraSocialDetail.tsx`. `prestadores.cuit` es otra cosa (ver §Discrepancias #12 de
+  `04_modelo_de_datos.md`).
+- **¿Qué valores admite `condicion_iva`?** — **RESUELTA (2026-08-28, decisión de la usuaria, change
+  `facturacion-electronica-arca` D4-bis)**: los **ocho códigos de ARCA** (`IVA_RESPONSABLE_INSCRIPTO`,
+  `IVA_SUJETO_EXENTO`, `CONSUMIDOR_FINAL`, `IVA_RESPONSABLE_MONOTRIBUTO`, `MONOTRIBUTO`,
+  `PROVEEDOR_DEL_EXTERIOR`, `CLIENTE_DEL_EXTERIOR`, `IVA_LIBERADO`). La columna gana un `CHECK`
+  (migración `20260828120200`), el tipo TS pasa a la unión cerrada `CondicionIvaArca`, y el
+  formulario usa un `<select>`.
 - **¿Quién administra `obra_social.tipos_documento`?** No hay pantalla para ver, renombrar ni borrar
   tipos de documento, y el catálogo es compartido por **tres** consumidores con `ON DELETE
   RESTRICT` (`pacientes.documentos`, `facturacion.documento_factura`, y el propio
