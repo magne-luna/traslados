@@ -418,6 +418,109 @@ describe('parseFacturaRow (2.2, facturacion-seleccion-autorizacion) — autoriza
 });
 
 // -------------------------------------------------------------------------------------------
+// facturacion-electronica-arca 4.2 — comprobante fiscal: 6 renombres snake->camel, ausentes si NULL
+// -------------------------------------------------------------------------------------------
+
+describe('parseFacturaRow (facturacion-electronica-arca) — campos del comprobante fiscal', () => {
+  const filaEmitida = {
+    cae: '75123456789012',
+    cae_vencimiento: '2026-04-12',
+    cbte_nro: 45,
+    pto_vta: 3,
+    arca_ambiente: 'production',
+    comprobante_pdf_url: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+    arca_respuesta: { aprobada: true, cae: '75123456789012' },
+  };
+
+  it('mapea las 6 columnas del comprobante emitido a camelCase', () => {
+    const factura = parseFacturaRow(filaFacturaCompleta(filaEmitida));
+
+    expect(factura).toMatchObject({
+      cae: '75123456789012',
+      caeVencimiento: '2026-04-12',
+      cbteNro: 45,
+      ptoVta: 3,
+      arcaAmbiente: 'production',
+      comprobantePdfUrl: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+    });
+  });
+
+  it('segundo caso (triangulación): homologación con otros valores mapea igual de bien', () => {
+    const factura = parseFacturaRow(
+      filaFacturaCompleta({ ...filaEmitida, arca_ambiente: 'homologacion', cbte_nro: 7, pto_vta: 1 }),
+    );
+    expect(factura).toMatchObject({ arcaAmbiente: 'homologacion', cbteNro: 7, ptoVta: 1 });
+  });
+
+  it('una factura en a-facturar (todas las columnas fiscales NULL) deja los 6 campos ausentes', () => {
+    const factura = parseFacturaRow(
+      filaFacturaCompleta({
+        cae: null,
+        cae_vencimiento: null,
+        cbte_nro: null,
+        pto_vta: null,
+        arca_ambiente: null,
+        comprobante_pdf_url: null,
+      }),
+    );
+
+    expect(factura.cae).toBeUndefined();
+    expect(factura.caeVencimiento).toBeUndefined();
+    expect(factura.cbteNro).toBeUndefined();
+    expect(factura.ptoVta).toBeUndefined();
+    expect(factura.arcaAmbiente).toBeUndefined();
+    expect(factura.comprobantePdfUrl).toBeUndefined();
+  });
+
+  it('las columnas fiscales ausentes del todo (no solo NULL) tampoco filtran undefined a un valor', () => {
+    const fila = filaFacturaCompleta();
+    const factura = parseFacturaRow(fila);
+    expect('cae' in factura).toBe(false);
+    expect('cbteNro' in factura).toBe(false);
+  });
+
+  it('arca_ambiente con un valor fuera de la unión cerrada queda ausente, no se filtra', () => {
+    const factura = parseFacturaRow(filaFacturaCompleta({ ...filaEmitida, arca_ambiente: 'staging' }));
+    expect(factura.arcaAmbiente).toBeUndefined();
+  });
+
+  it('arca_respuesta NO se expone al dominio del frontend (es auditoría de servidor)', () => {
+    const factura = parseFacturaRow(filaFacturaCompleta(filaEmitida));
+    expect('arcaRespuesta' in factura).toBe(false);
+    expect(Object.values(factura)).not.toContainEqual(filaEmitida.arca_respuesta);
+  });
+});
+
+describe('toActualizarFacturaPayload (facturacion-electronica-arca) — campos del comprobante fiscal', () => {
+  it('cada campo fiscal presente viaja con su renombre snake_case', () => {
+    const payload = toActualizarFacturaPayload({
+      cae: '75123456789012',
+      caeVencimiento: '2026-04-12',
+      cbteNro: 45,
+      ptoVta: 3,
+      arcaAmbiente: 'production',
+      comprobantePdfUrl: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+    });
+
+    expect(payload).toEqual({
+      cae: '75123456789012',
+      cae_vencimiento: '2026-04-12',
+      cbte_nro: 45,
+      pto_vta: 3,
+      arca_ambiente: 'production',
+      comprobante_pdf_url: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+    });
+  });
+
+  it('editar solo el estado no arrastra ninguna clave fiscal (semántica parcial)', () => {
+    const payload = toActualizarFacturaPayload({ estado: 'cobrado' });
+    expect('cae' in payload).toBe(false);
+    expect('cbte_nro' in payload).toBe(false);
+    expect('comprobante_pdf_url' in payload).toBe(false);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
 // 2.8 — toCrearFacturaPayload
 // -------------------------------------------------------------------------------------------
 

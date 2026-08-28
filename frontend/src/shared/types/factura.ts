@@ -132,6 +132,24 @@ export interface Factura {
   /** Snapshot congelado al emitir (ver `IdentificadorFactura`). Ausente mientras no se emitió. */
   identificadorFactura?: IdentificadorFactura;
 
+  // --- Comprobante fiscal electrónico (change `facturacion-electronica-arca`, agregados sobre el
+  // docx: el docx no modela facturación electrónica). Todos opcionales y AUSENTES mientras la
+  // factura está en `a-facturar`. Los escribe únicamente la Edge Function de emisión `facturar`,
+  // nunca el alta ni la edición manual (RN-FA-06: una factura con `cae` es un documento fiscal). ---
+
+  /** Código de Autorización Electrónico devuelto por ARCA. Su presencia = factura emitida. */
+  cae?: string;
+  /** ISO date: vencimiento del CAE. */
+  caeVencimiento?: string;
+  /** Número de comprobante asignado por ARCA. */
+  cbteNro?: number;
+  /** Punto de venta usado al emitir (snapshot de la config fiscal). */
+  ptoVta?: number;
+  /** Ambiente contra el que se emitió: `homologacion` = comprobante de prueba, sin valor fiscal. */
+  arcaAmbiente?: 'production' | 'homologacion';
+  /** Ruta del PDF del comprobante en el bucket privado `facturas-emitidas` (se resuelve a signed URL). */
+  comprobantePdfUrl?: string;
+
   /** Prestaciones/asistencias declaradas del período (Discrepancia 1). Embebidas, sin repository propio. */
   asistencias: AsistenciaPrestacion[];
 }

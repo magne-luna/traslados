@@ -103,6 +103,45 @@ const IDENTIFICADORES_ORIGEN_VALIDOS = new Set<IdentificadorOrigenFactura>(['pac
 /** Si cualquiera de las dos columnas es NULL (o no pertenece a la unión cerrada), el campo queda
  * AUSENTE — nunca un objeto con string vacío (D1). Es el snapshot congelado al emitir (IN-01): una
  * factura en `a-facturar` legítimamente no tiene ninguna de las dos. */
+// -------------------------------------------------------------------------------------------
+// facturacion-electronica-arca (D3) — comprobante fiscal electrónico. 6 columnas nullables:
+// una factura en `a-facturar` no tiene ninguna. `arca_respuesta` (JSONB de auditoría) NO se
+// expone al dominio del frontend. `arca_ambiente` es una unión cerrada: un valor fuera de rango
+// queda ausente en vez de filtrarse (mismo criterio que el estado y el tipo de comprobante).
+// -------------------------------------------------------------------------------------------
+
+const ARCA_AMBIENTES_VALIDOS = new Set<'production' | 'homologacion'>(['production', 'homologacion']);
+
+function readOptionalNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === 'number' ? value : undefined;
+}
+
+function parseArcaAmbiente(value: unknown): 'production' | 'homologacion' | undefined {
+  return typeof value === 'string' && ARCA_AMBIENTES_VALIDOS.has(value as 'production' | 'homologacion')
+    ? (value as 'production' | 'homologacion')
+    : undefined;
+}
+
+function parseComprobanteFiscal(record: Record<string, unknown>): Partial<
+  Pick<Factura, 'cae' | 'caeVencimiento' | 'cbteNro' | 'ptoVta' | 'arcaAmbiente' | 'comprobantePdfUrl'>
+> {
+  const campos: ReturnType<typeof parseComprobanteFiscal> = {};
+  const cae = readOptionalString(record, 'cae');
+  if (cae !== undefined) campos.cae = cae;
+  const caeVencimiento = readOptionalString(record, 'cae_vencimiento');
+  if (caeVencimiento !== undefined) campos.caeVencimiento = caeVencimiento;
+  const cbteNro = readOptionalNumber(record, 'cbte_nro');
+  if (cbteNro !== undefined) campos.cbteNro = cbteNro;
+  const ptoVta = readOptionalNumber(record, 'pto_vta');
+  if (ptoVta !== undefined) campos.ptoVta = ptoVta;
+  const arcaAmbiente = parseArcaAmbiente(record.arca_ambiente);
+  if (arcaAmbiente !== undefined) campos.arcaAmbiente = arcaAmbiente;
+  const comprobantePdfUrl = readOptionalString(record, 'comprobante_pdf_url');
+  if (comprobantePdfUrl !== undefined) campos.comprobantePdfUrl = comprobantePdfUrl;
+  return campos;
+}
+
 function parseIdentificadorFactura(origen: unknown, valor: unknown): IdentificadorFactura | undefined {
   if (typeof origen !== 'string' || !IDENTIFICADORES_ORIGEN_VALIDOS.has(origen as IdentificadorOrigenFactura)) {
     return undefined;
@@ -144,6 +183,7 @@ export function parseFacturaRow(row: unknown): Omit<Factura, 'asistencias'> {
     domicilioId: readString(record, 'domicilio_id'),
     identificadorFactura: parseIdentificadorFactura(record.identificador_origen, record.identificador_valor),
     autorizacionId: readOptionalString(record, 'autorizacion_id'),
+    ...parseComprobanteFiscal(record),
   };
 }
 
@@ -337,6 +377,16 @@ export function toActualizarFacturaPayload(cambios: ActualizacionFactura): Recor
   // payload — así editar solo el estado (la operación más frecuente del circuito) no borra el
   // vínculo con la autorización ya persistida.
   if (cambios.autorizacionId !== undefined) payload.autorizacion_id = cambios.autorizacionId;
+  // facturacion-electronica-arca (D3): campos del comprobante fiscal. Misma semántica parcial —
+  // clave ausente = no tocar. En la práctica los escribe la Edge Function `facturar`, no el
+  // formulario de edición; van acá para que `ActualizacionFactura` no tenga campos que el payload
+  // descarte en silencio.
+  if (cambios.cae !== undefined) payload.cae = cambios.cae;
+  if (cambios.caeVencimiento !== undefined) payload.cae_vencimiento = cambios.caeVencimiento;
+  if (cambios.cbteNro !== undefined) payload.cbte_nro = cambios.cbteNro;
+  if (cambios.ptoVta !== undefined) payload.pto_vta = cambios.ptoVta;
+  if (cambios.arcaAmbiente !== undefined) payload.arca_ambiente = cambios.arcaAmbiente;
+  if (cambios.comprobantePdfUrl !== undefined) payload.comprobante_pdf_url = cambios.comprobantePdfUrl;
   // ⚠️ No usar `?? []` ni ningún fallback acá: si `cambios.asistencias` es `undefined`, la clave
   // debe quedar TOTALMENTE ausente del payload (ver comentario de la función).
   if (cambios.asistencias !== undefined) payload.asistencias = cambios.asistencias.map(asistenciaAPayload);
