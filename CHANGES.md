@@ -1311,8 +1311,8 @@ Para arrancar: `/opsx:propose C-01-foundation-setup`
 
 | Change | Qué arregla | Evidencia medida | Costo estimado | Estado |
 |---|---|---|---|---|
-| `migracion-react-query` | Re-fetch al navegar entre pantallas | Padrones pedidos 1 vez por visita a cada pantalla; vehículos **2 veces simultáneas** en Conductores | 4-6 días | **Propuesto** |
-| `code-splitting-rutas` | LCP de carga fría (3,24 s) | `dist/assets/index-*.js` = **1,4 MB**; solo `CuentasRoute` usa `lazy` | ~1 día | Pendiente |
+| `migracion-react-query` | Re-fetch al navegar entre pantallas | Padrones pedidos 1 vez por visita a cada pantalla; vehículos **2 veces simultáneas** en Conductores | 4-6 días | ✅ **Hecho** (2026-08-29) |
+| `code-splitting-rutas` | LCP de carga fría (3,24 s) | Bundle inicial **419 → 141 KB gzip (−66 %)**; de 2 a 48 chunks | ~1 día | ✅ **Hecho** (2026-08-29) |
 | `select-liviano-selectores` | Payload de los combos | `list()` trae `SELECT_*_COMPLETO` con 7 relaciones anidadas; `FacturacionPage:89` usa **2 campos** | 1-2 días | Pendiente |
 | `preconnect-indices-supabase` | Latencia de red y de consulta | Sin `preconnect` a Supabase en `index.html` | ~½ día | Pendiente |
 
@@ -1330,15 +1330,37 @@ y por qué; §D3 la frescura escalonada; §D7 el costo real, que está en los te
 
 ⚠️ **No mejora el LCP de carga fría.** Al contrario: suma ~13 KB gzip al critical path.
 
-### `code-splitting-rutas` — carga fría
+### `code-splitting-rutas` — carga fría ✅ HECHO (2026-08-29)
 
-Governance: **BAJO**. El patrón ya existe en el repo: `router.tsx` usa `lazy` para `CuentasRoute`
-(por un motivo de tests, no de performance). Replicarlo en cada ruta saca `pdfjs-dist` (1,2 MB),
-`jszip` y Google Maps del critical path.
+Governance: **BAJO**. Implementado **directo, sin change de OpenSpec** (decisión de la usuaria): es un
+archivo y medio, mecánico, y el patrón ya existía en el repo.
 
-**Es el mejor retorno por hora de los cuatro.** Si hay que elegir uno solo, es este.
+**Resultado medido** (`npm run build` antes y después, misma máquina):
 
-**Leer antes**: `frontend/src/app/router.tsx` (el patrón `lazy` ya escrito).
+| | crudo | gzip | chunks |
+|---|---|---|---|
+| antes | 1513 KB | **419 KB** | 2 |
+| después | 488 KB | **141 KB** | 48 |
+
+`pdfjs-dist` (≈420 KB, vía `VistaPreviaArchivo`), Google Maps y `jszip` salieron del critical path:
+ahora bajan solo cuando la pantalla que los usa se abre.
+
+**Qué se cambió:** `router.tsx` pasa de importar las nueve pantallas estáticamente a `lazy: async
+() => ({ Component })` — el patrón que `/cuentas` ya usaba desde `auth-frontend-real`, generalizado.
+`/design-system` también salió del bundle inicial. `PlaceholderPage` se deja estática a propósito:
+partirla sería un round-trip por cero beneficio.
+
+⚠️ **El hallazgo que no era obvio: `HydrateFallback` es obligatorio.** Con la ruta inicial `lazy`,
+react-router renderiza un `<div />` vacío durante la hidratación si no se lo provee — o sea, el
+code-splitting mal hecho cambia "tarda 3 s mostrando algo" por "tarda 3 s mostrando NADA". Se agregó
+`shared/components/CargandoPantalla.tsx` con el mismo `Cargando…` que ya usan los listados. En las
+navegaciones posteriores no aparece: react-router conserva la pantalla anterior mientras resuelve.
+
+**Efecto colateral:** el fallo preexistente de `router.cuentas.test.tsx` **dejó de fallar**. Era el
+mismo problema —`/cuentas` era `lazy` sin `HydrateFallback`— que este change vino a resolver para
+todas las rutas. Tests: **3276/3276 en 284 archivos**, contra una línea base de 3275/3276.
+
+**Leer antes**: `frontend/src/app/router.tsx`.
 
 ### `select-liviano-selectores` — payload
 
