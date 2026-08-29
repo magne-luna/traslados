@@ -1303,6 +1303,86 @@ Para arrancar: `/opsx:propose C-01-foundation-setup`
 
 ---
 
+## Changes transversales de performance (fuera del roadmap C-NN)
+
+> Diagnóstico del 2026-08-29, medido sobre el código y el bundle reales. Son cuatro problemas
+> **distintos** con cuatro arreglos distintos: ninguno reemplaza a otro, y aplicar uno solo no
+> resuelve los demás. No dependen entre sí; se pueden hacer en cualquier orden.
+
+| Change | Qué arregla | Evidencia medida | Costo estimado | Estado |
+|---|---|---|---|---|
+| `migracion-react-query` | Re-fetch al navegar entre pantallas | Padrones pedidos 1 vez por visita a cada pantalla; vehículos **2 veces simultáneas** en Conductores | 4-6 días | **Propuesto** |
+| `code-splitting-rutas` | LCP de carga fría (3,24 s) | Bundle inicial **419 → 141 KB gzip (−66 %)**; de 2 a 48 chunks | ~1 día | ✅ **Hecho** (2026-08-29, rama `feat/code-splitting-rutas`) |
+| `select-liviano-selectores` | Payload de los combos | `list()` trae `SELECT_*_COMPLETO` con 7 relaciones anidadas; `FacturacionPage:89` usa **2 campos** | 1-2 días | Pendiente |
+| `preconnect-indices-supabase` | Latencia de red y de consulta | Sin `preconnect` a Supabase en `index.html` | ~½ día | Pendiente |
+
+### `migracion-react-query` — navegación
+
+Governance: **MEDIA-ALTA**. Reemplaza el estado de fetch de los ~21 hooks por TanStack Query v5, con
+frescura escalonada por clase de dato (referencia 5 min / transaccional 0 / paginado 0 / sensible 0).
+Repositories, interfaces y componentes **no se tocan**.
+
+Reusa el change `cache-listas-referencia` (2026-08-12), que quedó bloqueado en su checkpoint D1; la
+usuaria lo resolvió a favor de la librería el 2026-08-29 y amplió el alcance a toda la app.
+
+**Leer antes**: `openspec/changes/migracion-react-query/design.md` (§D1 registra la decisión invertida
+y por qué; §D3 la frescura escalonada; §D7 el costo real, que está en los tests).
+
+⚠️ **No mejora el LCP de carga fría.** Al contrario: suma ~13 KB gzip al critical path.
+
+### `code-splitting-rutas` — carga fría ✅ HECHO (2026-08-29)
+
+Governance: **BAJO**. Implementado **directo, sin change de OpenSpec** (decisión de la usuaria): es un
+archivo y medio, mecánico, y el patrón ya existía en el repo.
+
+**Resultado medido** (`npm run build` antes y después, misma máquina):
+
+| | crudo | gzip | chunks |
+|---|---|---|---|
+| antes | 1513 KB | **419 KB** | 2 |
+| después | 488 KB | **141 KB** | 48 |
+
+`pdfjs-dist` (≈420 KB, vía `VistaPreviaArchivo`), Google Maps y `jszip` salieron del critical path:
+ahora bajan solo cuando la pantalla que los usa se abre.
+
+**Qué se cambió:** `router.tsx` pasa de importar las nueve pantallas estáticamente a `lazy: async
+() => ({ Component })` — el patrón que `/cuentas` ya usaba desde `auth-frontend-real`, generalizado.
+`/design-system` también salió del bundle inicial. `PlaceholderPage` se deja estática a propósito:
+partirla sería un round-trip por cero beneficio.
+
+⚠️ **El hallazgo que no era obvio: `HydrateFallback` es obligatorio.** Con la ruta inicial `lazy`,
+react-router renderiza un `<div />` vacío durante la hidratación si no se lo provee — o sea, el
+code-splitting mal hecho cambia "tarda 3 s mostrando algo" por "tarda 3 s mostrando NADA". Se agregó
+`shared/components/CargandoPantalla.tsx` con el mismo `Cargando…` que ya usan los listados. En las
+navegaciones posteriores no aparece: react-router conserva la pantalla anterior mientras resuelve.
+
+**Efecto colateral:** el fallo preexistente de `router.cuentas.test.tsx` **dejó de fallar**. Era el
+mismo problema —`/cuentas` era `lazy` sin `HydrateFallback`— que este change vino a resolver para
+todas las rutas. Tests: **3276/3276 en 284 archivos**, contra una línea base de 3275/3276.
+
+**Leer antes**: `frontend/src/app/router.tsx`.
+
+### `select-liviano-selectores` — payload
+
+Governance: **MEDIO**. `list()` (el universo completo que puebla los combos) trae
+`SELECT_PACIENTE_COMPLETO`: 10 columnas más CUD, clínicos, personas a cargo, direcciones, accesorios y
+prestaciones. `FacturacionPage.tsx:89` consume de todo eso exactamente `{ id, nombre }`.
+
+Arreglo: método `listResumen()` en el repository con `select` de solo las columnas del combo, sin
+embeds. Reducción de payload estimada en 90-95 %.
+
+⚠️ **Toca las interfaces de repository** — por eso va aparte de `migracion-react-query`, que promete
+explícitamente no tocarlas. Si el padrón crece mucho, el paso siguiente es autocompletado server-side
+(`ilike` + `limit`), que ya cambia los componentes de selector.
+
+### `preconnect-indices-supabase` — latencia
+
+Governance: **BAJO**. `<link rel="preconnect">` a Supabase en `index.html` (ahorra el handshake TLS
+del primer request) e índices en las columnas de búsqueda que ya filtra el server-side
+(`apellido`, `nombre`, `dni`, `cuil`).
+
+---
+
 ## ⚠️ Checklist de seguridad — antes de lanzar a producción
 
 Pendiente de que Enzo lo haga a mano en el dashboard de Supabase (no automatizable desde acá).

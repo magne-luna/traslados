@@ -1,21 +1,12 @@
-import type { ReactElement } from 'react';
+import type { ComponentType } from 'react';
 import { createBrowserRouter } from 'react-router';
 import { AppShell } from './AppShell';
 import { APP_ROUTES } from './routes';
 import { RequireAuth } from '../shared/auth/RequireAuth';
 import { LoginPage } from '../features/auth/LoginPage';
-import { ConductoresRoute } from '../features/conductores/ConductoresRoute';
-import { DashboardRoute } from '../features/dashboard/DashboardRoute';
-import { FacturacionRoute } from '../features/facturacion/FacturacionRoute';
-import { HojaDeRutaRoute } from '../features/hojas-de-ruta/HojaDeRutaRoute';
-import { ObraSocialesRoute } from '../features/obras-sociales/ObraSocialesRoute';
-import { RequisitosActividadRoute } from '../features/obras-sociales/RequisitosActividadRoute';
-import { PacientesRoute } from '../features/pacientes/PacientesRoute';
-import { PresupuestosRoute } from '../features/presupuestos/PresupuestosRoute';
-import { VehiculosRoute } from '../features/vehiculos/VehiculosRoute';
 import { PlaceholderPage } from '../shared/components/PlaceholderPage';
 import { NotFoundPage } from '../shared/components/NotFoundPage';
-import DesignSystem from '../design-system/DesignSystem';
+import { CargandoPantalla } from '../shared/components/CargandoPantalla';
 
 // Composición del router (Decisión 1 de design.md): data router con createBrowserRouter.
 // /login es la única ruta pública (Decisión 4: "sistema interno, sin acceso público" —
@@ -52,33 +43,65 @@ import DesignSystem from '../design-system/DesignSystem';
 // (prestadores-crud, PrestadoresRoute) se removió por completo (change `sacar-prestadores`,
 // decisión de Andrea 2026-08-04 confirmada por Enzo 2026-08-06): ya no queda ninguna ruta ni
 // entrada de navegación para el módulo Prestador.
-const ROUTE_ELEMENTS: Partial<Record<string, () => ReactElement>> = {
-  '/': () => <DashboardRoute />,
-  '/obras-sociales': () => <ObraSocialesRoute />,
+// code-splitting-rutas: cada módulo se importa con `import()` dinámico en vez de estáticamente.
+// Antes, `router.tsx` importaba las nueve pantallas arriba, así que el bundle inicial arrastraba
+// TODAS las features —con `pdfjs-dist`, `jszip` y Google Maps adentro— aunque la usuaria solo
+// abriera el dashboard. Medido antes del cambio: un único chunk de 1513 KB (419 KB gzip).
+//
+// El patrón (`lazy: async () => ({ Component })`) NO es nuevo acá: es exactamente el que ya usaba
+// `/cuentas` más abajo, donde se adoptó por un motivo distinto (diferir la validación de env vars
+// en los tests). Lo que hace este change es generalizarlo, que es para lo que existe.
+const ROUTE_LAZY: Partial<Record<string, () => Promise<{ Component: ComponentType }>>> = {
+  '/': async () => ({ Component: (await import('../features/dashboard/DashboardRoute')).DashboardRoute }),
+  '/obras-sociales': async () => ({
+    Component: (await import('../features/obras-sociales/ObraSocialesRoute')).ObraSocialesRoute,
+  }),
   // documentos-checklist-items-por-actividad (tasks.md 5.2): pantalla propia, mismo criterio de
   // composición que el resto — inyecta supabaseRequisitosActividadRepository en su propio Route.
-  '/documentacion-por-actividad': () => <RequisitosActividadRoute />,
-  '/vehiculos': () => <VehiculosRoute />,
-  '/pacientes': () => <PacientesRoute />,
-  '/conductores': () => <ConductoresRoute />,
-  '/presupuestos': () => <PresupuestosRoute />,
-  '/hojas-de-ruta': () => <HojaDeRutaRoute />,
-  '/facturacion': () => <FacturacionRoute />,
+  '/documentacion-por-actividad': async () => ({
+    Component: (await import('../features/obras-sociales/RequisitosActividadRoute')).RequisitosActividadRoute,
+  }),
+  '/vehiculos': async () => ({ Component: (await import('../features/vehiculos/VehiculosRoute')).VehiculosRoute }),
+  '/pacientes': async () => ({ Component: (await import('../features/pacientes/PacientesRoute')).PacientesRoute }),
+  '/conductores': async () => ({
+    Component: (await import('../features/conductores/ConductoresRoute')).ConductoresRoute,
+  }),
+  '/presupuestos': async () => ({
+    Component: (await import('../features/presupuestos/PresupuestosRoute')).PresupuestosRoute,
+  }),
+  '/hojas-de-ruta': async () => ({
+    Component: (await import('../features/hojas-de-ruta/HojaDeRutaRoute')).HojaDeRutaRoute,
+  }),
+  '/facturacion': async () => ({
+    Component: (await import('../features/facturacion/FacturacionRoute')).FacturacionRoute,
+  }),
 };
 
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   {
     element: <RequireAuth />,
+    // code-splitting-rutas: con la ruta inicial `lazy`, react-router necesita algo que renderizar
+    // durante la hidratación. Sin `HydrateFallback` la primera carga muestra un `<div />` vacío
+    // —pantalla en blanco— hasta que baja el chunk. No aplica a las navegaciones posteriores: ahí
+    // se conserva la pantalla anterior mientras resuelve.
+    HydrateFallback: CargandoPantalla,
     children: [
       {
         element: <AppShell />,
         children: [
-          ...APP_ROUTES.map((route) => ({
-            index: route.path === '/',
-            path: route.path === '/' ? undefined : route.path.slice(1),
-            element: ROUTE_ELEMENTS[route.path]?.() ?? <PlaceholderPage moduleName={route.label} />,
-          })),
+          ...APP_ROUTES.map((route) => {
+            const comun = {
+              index: route.path === '/',
+              path: route.path === '/' ? undefined : route.path.slice(1),
+            };
+            const cargar = ROUTE_LAZY[route.path];
+            // Los módulos sin pantalla propia todavía siguen con `element` estático: PlaceholderPage
+            // pesa nada y partirla en un chunk sería un round-trip por cero beneficio.
+            return cargar
+              ? { ...comun, lazy: cargar }
+              : { ...comun, element: <PlaceholderPage moduleName={route.label} /> };
+          }),
           // /cuentas (auth-frontend-real, tasks.md 7.9, design.md D4): admin-only, `modulo: null`
           // — no forma parte de APP_ROUTES/la navegación de módulos (se gobierna por rol, no por
           // módulo), pero SÍ vive dentro de AppShell (a diferencia de /design-system, que es una
@@ -102,7 +125,12 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      { path: '/design-system', element: <DesignSystem /> },
+      // La vitrina del design system no es una pantalla del negocio: no tiene por qué viajar en el
+      // bundle que espera la usuaria para ver el dashboard.
+      {
+        path: '/design-system',
+        lazy: async () => ({ Component: (await import('../design-system/DesignSystem')).default }),
+      },
     ],
   },
   { path: '*', element: <NotFoundPage /> },
