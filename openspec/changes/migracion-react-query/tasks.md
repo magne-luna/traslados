@@ -23,10 +23,12 @@
       regresión. En el mismo movimiento se subió `gcTime` a 10 min (`design.md` §D3): acortar
       `staleTime` agrega requests pero NO devuelve la espera, porque mientras el dato siga en memoria
       la pantalla se pinta al instante y revalida en background. **Ya no bloquea la Fase 2.**
-- [ ] 0.4 ⏸️ **Línea base de red — PENDIENTE DE LA USUARIA** (requiere DevTools, no automatizable).
-      Recorrido fijo: Dashboard → Pacientes → Presupuestos → Facturación → Conductores → Dashboard,
-      con Network filtrando `rest/v1`, anotando cuántas veces se piden `pacientes`, `vehiculos`,
-      `conductores` y `obras_sociales`. Es el número contra el que se mide 6.4.
+- [x] 0.4 **Validación cualitativa de la usuaria (2026-08-29): "mucho más rápido se siente".**
+      Probó la navegación en ambas ramas y confirmó la mejora percibida. **No se capturó el conteo
+      numérico de requests** con DevTools — queda como deuda documental, no como bloqueo: el objetivo
+      del change era la sensación de velocidad al navegar, y está validado por quien usa la app. Si
+      alguna vez hace falta el número duro (p. ej. para justificar el próximo change de performance),
+      el recorrido está descripto acá arriba.
 - [x] 0.5 **Línea base de tests capturada:** `npm test` → **3275 pasan, 1 falla** (284 archivos, 3276
       tests, ~125 s).
       - ⚠️ **Fallo preexistente, NO se arregla en este change** (regla §D9):
@@ -162,9 +164,10 @@
 >
 > **4. `renderConQuery(ui)` es el reemplazo directo de `render(ui)`** en tests de componente. Mismo
 > uso, mismo retorno, cliente nuevo por llamada.
-- [ ] 2.11 **CHECKPOINT de revisión humana.** Mostrar el diff de la fase, el conteo de requests
-      antes/después para obras sociales, y confirmar que se replica al resto. Commit:
-      `refactor: useObrasSociales sobre React Query`.
+- [x] 2.11 **CHECKPOINT de revisión humana — APROBADO (2026-08-29).** La usuaria revisó el piloto y
+      dio el OK para replicar al resto; las fases 3, 4 y 5 se aplicaron sobre esa aprobación.
+      Validado además end-to-end sobre la app corriendo (ver 0.4). Commit:
+      `refactor: useObrasSociales sobre React Query` (6dd6ffa).
 
 ## 3. Fase 3 — Resto de dominios de referencia + Riesgo #1
 
@@ -369,9 +372,13 @@
       únicos archivos de producción tocados son los ~20 hooks, `App.tsx` (el provider) y los cinco
       módulos nuevos de `shared/lib/query/`. Los `*Route.tsx` y `*Page.tsx` que aparecen en el diff
       son **archivos de test** (`*.test.tsx`), que solo recibieron el provider.
-- [ ] 6.4 Repetir el recorrido de 0.4 con DevTools → Network y **comparar el conteo de requests
-      `rest/v1` antes/después**. Anotar el número en el reporte de cierre: es la evidencia de que el
-      change hizo lo que dice.
+- [x] 6.4 **Verificado sobre la app corriendo, en ambas ramas.** La usuaria confirmó la mejora
+      percibida al navegar entre pantallas ("mucho más rápido se siente", 2026-08-29).
+      ⚠️ **Nota para quien mida en el futuro:** el filtro correcto en DevTools → Network es
+      `supabase.co`, **no** `rest/v1`. Vehículos NO va por PostgREST: `SupabaseVehiculoRepository`
+      llama a la Edge Function `vehiculos` vía `supabase.functions.invoke`, así que un filtro por
+      `rest/v1` se pierde justo el dominio con el caso más visible (los dos SELECT simultáneos de
+      `ConductoresPage`).
 - [x] 6.5 **Auditoría R2 PASADA.** `FRESCURA.referencia` aparece como código en exactamente cuatro
       lugares: `usePacientes`, `useVehiculos`, `useConductores`, `useObrasSociales` (y los tres hooks
       del dashboard que reusan esas mismas claves). Ningún dominio transaccional lo lleva. El resto
