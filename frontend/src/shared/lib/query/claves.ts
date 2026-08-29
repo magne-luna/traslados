@@ -52,6 +52,8 @@ export const claves = {
   cobros: {
     todos: () => ['cobros'] as const,
     lista: () => ['cobros', 'lista'] as const,
+    /** Los cobros se consultan SIEMPRE acotados a una factura (`listByFactura`). */
+    deFactura: (facturaId: string) => ['cobros', 'deFactura', facturaId] as const,
   },
   presupuestos: {
     todos: () => ['presupuestos'] as const,
@@ -64,6 +66,8 @@ export const claves = {
   hojasDeRuta: {
     todos: () => ['hojasDeRuta'] as const,
     lista: () => ['hojasDeRuta', 'lista'] as const,
+    /** La hoja del día se consulta SIEMPRE por fecha (`getByFecha`). */
+    deFecha: (fecha: string) => ['hojasDeRuta', 'deFecha', fecha] as const,
   },
   recorridosHabituales: {
     todos: () => ['recorridosHabituales'] as const,
@@ -72,7 +76,10 @@ export const claves = {
   },
   documentos: {
     todos: () => ['documentos'] as const,
-    deEntidad: (entidad: string, entidadId: string) => ['documentos', entidad, entidadId] as const,
+    /** `agrupacionId` instancia N checklists independientes dentro de una misma entidad;
+     * `refreshToken` fuerza una relectura sin remontar el componente (ver useDocumentChecklist). */
+    deEntidad: (entidad: string, entidadId: string, agrupacionId?: string, refreshToken?: number) =>
+      ['documentos', entidad, entidadId, agrupacionId ?? null, refreshToken ?? 0] as const,
   },
 
   // --- Dominios sensibles (FRESCURA.sensible) -------------------------------------------------

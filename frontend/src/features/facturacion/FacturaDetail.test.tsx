@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Cobro, Factura } from '../../shared/types/factura';
 import type { Paciente } from '../../shared/types/paciente';
@@ -135,7 +136,7 @@ function renderDetail(overrides: Partial<React.ComponentProps<typeof FacturaDeta
   const onCreated = vi.fn();
   const onBack = vi.fn();
 
-  render(
+  renderConQuery(
     <AuthProvider repository={mockAuthRepository}>
       <TiposDocumentoRepositoryProvider repository={buildTiposDocumentoRepository()}>
         <FacturaDetail
@@ -166,7 +167,7 @@ function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React
   const onCreated = vi.fn();
   const onBack = vi.fn();
 
-  render(
+  renderConQuery(
     <AuthProvider repository={mockAuthRepository}>
       <PuedeEscribirContext.Provider value={puedeEscribir}>
         <TiposDocumentoRepositoryProvider repository={buildTiposDocumentoRepository()}>

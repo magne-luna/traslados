@@ -56,7 +56,11 @@ export function elementoConQuery(ui: ReactElement, client: QueryClient = crearQu
 
 /** `render` de RTL dentro de un `QueryClientProvider` con cliente propio. Es el reemplazo directo
  * de `render(...)` en los tests de componente que montan pantallas con hooks migrados: mismo uso,
- * mismo retorno, más el provider que React Query exige. Un cliente nuevo por llamada (§D7). */
+ * mismo retorno, más el provider que React Query exige. Un cliente nuevo por llamada (§D7).
+ *
+ * ⚠️ Usa la opción `wrapper` de RTL, NO `render(<Provider>{ui}</Provider>)`. Con la segunda forma,
+ * el `rerender` que devuelve RTL vuelve a montar el elemento nuevo SIN el provider y el test
+ * revienta con "No QueryClient set" — un fallo que solo aparece en los tests que usan `rerender`. */
 export function renderConQuery(ui: ReactElement, client: QueryClient = crearQueryClientDeTest()): RenderResult {
-  return render(<ProveedorDeQuery client={client}>{ui}</ProveedorDeQuery>);
+  return render(ui, { wrapper: ({ children }) => <ProveedorDeQuery client={client}>{children}</ProveedorDeQuery> });
 }

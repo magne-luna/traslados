@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { ChecklistItem, DocumentoAdjunto, EntidadDocumental } from '../../types/documento';
 import type { DocumentoRepository } from './DocumentoRepository';
@@ -27,6 +28,17 @@ function buildFakeRepository(overrides: Partial<DocumentoRepository> = {}): Docu
 // pacientes-documentos-multiples, tasks.md 3.1/3.2: el hook deja de reemplazar por itemId al
 // subir y pasa a filtrar por id de documento al quitar.
 
+// migracion-react-query (Fase 4): las aserciones sobre `documentos` que seguían a un `upload`/
+// `remove` pasaron de síncronas a `waitFor`. El estado ya no vive en un `useState` del hook sino en
+// la caché de React Query, y su notificación a los observadores llega un tick después de que la
+// promesa resuelve. La INTENCIÓN de cada test no cambia y se sigue verificando.
+//
+// Para quien usa la app significa que el documento aparece un frame más tarde. No queda nada en
+// blanco ni contradictorio en el medio — a diferencia del error de mutación de la Fase 2, donde el
+// camino de FALLO no reportaba nada durante un render y por eso ahí SÍ se preservó el timing exacto
+// seteando el error desde `onError`. El criterio en ambos casos fue el mismo: importa si hay un
+// render que muestra algo incorrecto, no si el reloj cambió.
+
 describe('useDocumentChecklist — upload() acumula en vez de reemplazar (tasks.md 3.1)', () => {
   it('sin documentos previos, subir uno deja exactamente ese documento en el estado', async () => {
     const nuevo: DocumentoAdjunto = {
@@ -37,14 +49,15 @@ describe('useDocumentChecklist — upload() acumula en vez de reemplazar (tasks.
     };
     const repository = buildFakeRepository({ upload: vi.fn().mockResolvedValue(nuevo) });
 
-    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    const { result } = renderHookConQuery(() => useDocumentChecklist('paciente', 'p1', items, repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
       await result.current.upload('item-presupuesto', archivo('presupuesto-2026.pdf'));
     });
 
-    expect(result.current.documentos).toEqual([nuevo]);
+    // `waitFor` por la notificación diferida de React Query — ver nota al inicio del archivo.
+    await waitFor(() => expect(result.current.documentos).toEqual([nuevo]));
   });
 
   it('con un documento ya cargado, subir otro del mismo itemId conserva ambos en el estado (escenario central)', async () => {
@@ -65,13 +78,15 @@ describe('useDocumentChecklist — upload() acumula en vez de reemplazar (tasks.
       upload: vi.fn().mockResolvedValue(nuevo),
     });
 
-    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    const { result } = renderHookConQuery(() => useDocumentChecklist('paciente', 'p1', items, repository));
     await waitFor(() => expect(result.current.documentos).toEqual([existente]));
 
     await act(async () => {
       await result.current.upload('item-presupuesto', archivo('presupuesto-2026.pdf'));
     });
 
+    // `waitFor` por la notificación diferida de React Query — ver nota al inicio del archivo.
+    await waitFor(() => expect(result.current.documentos).toHaveLength(2));
     expect(result.current.documentos).toEqual(
       expect.arrayContaining([existente, nuevo]),
     );
@@ -95,7 +110,7 @@ describe('useDocumentChecklist — remove() filtra por id de documento (tasks.md
     };
     const repository = buildFakeRepository({ listByEntity: vi.fn().mockResolvedValue([uno, dos]) });
 
-    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    const { result } = renderHookConQuery(() => useDocumentChecklist('paciente', 'p1', items, repository));
     await waitFor(() => expect(result.current.documentos).toHaveLength(2));
 
     await act(async () => {
@@ -103,7 +118,8 @@ describe('useDocumentChecklist — remove() filtra por id de documento (tasks.md
     });
 
     expect(repository.remove).toHaveBeenCalledWith('paciente', 'p1', 'doc-1');
-    expect(result.current.documentos).toEqual([dos]);
+    // `waitFor` por la notificación diferida de React Query — ver nota al inicio del archivo.
+    await waitFor(() => expect(result.current.documentos).toEqual([dos]));
   });
 });
 
@@ -117,7 +133,7 @@ describe('useDocumentChecklist — resolverPrevisualizacion() delega en el repos
       resolverPrevisualizacion: vi.fn().mockResolvedValue('blob:mock-url'),
     });
 
-    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    const { result } = renderHookConQuery(() => useDocumentChecklist('paciente', 'p1', items, repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -133,7 +149,7 @@ describe('useDocumentChecklist — resolverPrevisualizacion() maneja los tres de
     const repository = buildFakeRepository({
       resolverPrevisualizacion: vi.fn().mockResolvedValue('blob:doc-1-url'),
     });
-    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    const { result } = renderHookConQuery(() => useDocumentChecklist('paciente', 'p1', items, repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     let url: string | null = null;
@@ -149,7 +165,7 @@ describe('useDocumentChecklist — resolverPrevisualizacion() maneja los tres de
       resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
       transferirAgrupacion: vi.fn(),
     });
-    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    const { result } = renderHookConQuery(() => useDocumentChecklist('paciente', 'p1', items, repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     let url: string | null = 'sin-tocar';
@@ -165,7 +181,7 @@ describe('useDocumentChecklist — resolverPrevisualizacion() maneja los tres de
     const repository = buildFakeRepository({
       resolverPrevisualizacion: vi.fn().mockRejectedValue(fallo),
     });
-    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    const { result } = renderHookConQuery(() => useDocumentChecklist('paciente', 'p1', items, repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await expect(result.current.resolverPrevisualizacion('doc-1')).rejects.toThrow(
@@ -188,7 +204,7 @@ describe('useDocumentChecklist — acepta agrupacionId y lo pasa al repository (
   it('con agrupacionId, listByEntity() se llama con la agrupación como 3.er argumento', async () => {
     const repository = buildFakeRepository();
 
-    renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository, 'direccion-terapia'));
+    renderHookConQuery(() => useDocumentChecklist('paciente', 'p1', items, repository, 'direccion-terapia'));
 
     await waitFor(() =>
       expect(repository.listByEntity).toHaveBeenCalledWith('paciente', 'p1', 'direccion-terapia'),
@@ -198,7 +214,7 @@ describe('useDocumentChecklist — acepta agrupacionId y lo pasa al repository (
   it('sin agrupacionId (los otros 3 dominios), listByEntity() se llama con la misma aridad de siempre — sin agregar un 3.er argumento undefined (sin regresión)', async () => {
     const repository = buildFakeRepository();
 
-    renderHook(() => useDocumentChecklist('vehiculo', 'v1', items, repository));
+    renderHookConQuery(() => useDocumentChecklist('vehiculo', 'v1', items, repository));
 
     await waitFor(() => expect(repository.listByEntity).toHaveBeenCalledWith('vehiculo', 'v1'));
   });
@@ -213,7 +229,7 @@ describe('useDocumentChecklist — acepta agrupacionId y lo pasa al repository (
     };
     const repository = buildFakeRepository({ upload: vi.fn().mockResolvedValue(nuevo) });
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       useDocumentChecklist('paciente', 'p1', items, repository, 'direccion-terapia'),
     );
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -230,7 +246,8 @@ describe('useDocumentChecklist — acepta agrupacionId y lo pasa al repository (
       undefined,
       'direccion-terapia',
     );
-    expect(result.current.documentos).toEqual([nuevo]);
+    // `waitFor` por la notificación diferida de React Query — ver nota al inicio del archivo.
+    await waitFor(() => expect(result.current.documentos).toEqual([nuevo]));
   });
 
   it('sin agrupacionId, upload() se llama con la misma aridad de siempre (4 argumentos) — sin regresión (triangulación)', async () => {
@@ -242,7 +259,7 @@ describe('useDocumentChecklist — acepta agrupacionId y lo pasa al repository (
     };
     const repository = buildFakeRepository({ upload: vi.fn().mockResolvedValue(nuevo) });
 
-    const { result } = renderHook(() => useDocumentChecklist('vehiculo', 'v1', items, repository));
+    const { result } = renderHookConQuery(() => useDocumentChecklist('vehiculo', 'v1', items, repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -262,7 +279,7 @@ describe('useDocumentChecklist — revocarPrevisualizacion() libera el ObjectURL
     const repository = buildFakeRepository({
       resolverPrevisualizacion: vi.fn().mockResolvedValue('blob:doc-1-url'),
     });
-    const { result } = renderHook(() => useDocumentChecklist('paciente', 'p1', items, repository));
+    const { result } = renderHookConQuery(() => useDocumentChecklist('paciente', 'p1', items, repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     const revokeSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});

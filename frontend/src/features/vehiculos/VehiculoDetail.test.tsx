@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
@@ -20,7 +21,7 @@ function renderDetail(ui: React.ReactElement) {
     usuario: EMPLEADO,
     permisos: { vehiculos: 'write', pacientes: 'write' },
   });
-  return render(
+  return renderConQuery(
     <AuthProvider repository={authRepository}>
       <CatalogoAccesoriosRepositoryProvider repository={mockCatalogoAccesoriosRepository}>
         <PuedeEscribirContext.Provider value={true}>{ui}</PuedeEscribirContext.Provider>

@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { ActualizacionAutorizacion, Autorizacion, NuevaAutorizacion } from '../../shared/types/presupuesto';
+import type { ActualizacionAutorizacion, NuevaAutorizacion, Autorizacion } from '../../shared/types/presupuesto';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import { claves } from '../../shared/lib/query/claves';
+import { FRESCURA } from '../../shared/lib/query/frescura';
+import { useListaDeDominio } from '../../shared/lib/query/useListaDeDominio';
 
 export interface UseAutorizacionesResult {
   autorizaciones: Autorizacion[];
@@ -11,62 +13,24 @@ export interface UseAutorizacionesResult {
   actualizar: (id: string, data: ActualizacionAutorizacion) => Promise<Autorizacion>;
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Ocurrió un error inesperado.';
-}
-
-// Wiring de estado entre las pantallas de Autorizaciones y un AutorizacionRepository (mock hoy,
-// Supabase el día de mañana — ver AutorizacionRepository.ts). Mismo patrón que usePresupuestos.
+// Wiring de estado entre las pantallas de Autorizaciones y un AutorizacionRepository.
+//
+// migracion-react-query, Fase 4 (dominio TRANSACCIONAL). **`UseAutorizacionesResult` NO cambió.**
+//
+// ⚠️ `FRESCURA.transaccional` es CERO, y no es un olvido: una autorización habilita o bloquea facturación, y su vigencia cambia dentro de la sesión. Ponerle
+// `FRESCURA.referencia` sería el riesgo R2 del change — mostrarle a la usuaria plata
+// desactualizada. Con frescura cero se conservan igual la deduplicación de peticiones concurrentes
+// y la invalidación automática por mutación; lo único que no se hace es servir un dato viejo desde
+// memoria.
 export function useAutorizaciones(repository: AutorizacionRepository): UseAutorizacionesResult {
-  const [autorizaciones, setAutorizaciones] = useState<Autorizacion[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { datos, ...resto } = useListaDeDominio<Autorizacion, NuevaAutorizacion, ActualizacionAutorizacion>({
+    claveDominio: claves.autorizaciones.todos(),
+    claveLista: claves.autorizaciones.lista(),
+    cargar: () => repository.list(),
+    crear: (data) => repository.create(data),
+    actualizar: (id, data) => repository.update(id, data),
+    frescuraMs: FRESCURA.transaccional,
+  });
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await repository.list();
-      setAutorizaciones(data);
-    } catch (err) {
-      setError(toErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [repository]);
-
-  useEffect(() => {
-    void cargar();
-  }, [cargar]);
-
-  const crear = useCallback(
-    async (data: NuevaAutorizacion) => {
-      try {
-        const creada = await repository.create(data);
-        await cargar();
-        return creada;
-      } catch (err) {
-        setError(toErrorMessage(err));
-        throw err;
-      }
-    },
-    [repository, cargar],
-  );
-
-  const actualizar = useCallback(
-    async (id: string, data: ActualizacionAutorizacion) => {
-      try {
-        const actualizada = await repository.update(id, data);
-        await cargar();
-        return actualizada;
-      } catch (err) {
-        setError(toErrorMessage(err));
-        throw err;
-      }
-    },
-    [repository, cargar],
-  );
-
-  return { autorizaciones, loading, error, recargar: cargar, crear, actualizar };
+  return { autorizaciones: datos, ...resto };
 }

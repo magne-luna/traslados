@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { Cobro } from '../../shared/types/factura';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
@@ -20,7 +21,7 @@ describe('useCobros', () => {
   it('arranca en loading y expone los cobros de la factura una vez que listByFactura() resuelve', async () => {
     const repository = buildFakeRepository();
 
-    const { result } = renderHook(() => useCobros(repository, 'factura-1'));
+    const { result } = renderHookConQuery(() => useCobros(repository, 'factura-1'));
 
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -32,7 +33,7 @@ describe('useCobros', () => {
   it('expone un error legible cuando listByFactura() rechaza la promesa', async () => {
     const repository = buildFakeRepository({ listByFactura: vi.fn().mockRejectedValue(new Error('caído')) });
 
-    const { result } = renderHook(() => useCobros(repository, 'factura-1'));
+    const { result } = renderHookConQuery(() => useCobros(repository, 'factura-1'));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.error).toBe('caído');
@@ -41,7 +42,7 @@ describe('useCobros', () => {
 
   it('registrar() llama a repository.create() y recarga los cobros de la factura', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useCobros(repository, 'factura-1'));
+    const { result } = renderHookConQuery(() => useCobros(repository, 'factura-1'));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -54,7 +55,7 @@ describe('useCobros', () => {
 
   it('eliminar() llama a repository.remove() y recarga los cobros de la factura', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useCobros(repository, 'factura-1'));
+    const { result } = renderHookConQuery(() => useCobros(repository, 'factura-1'));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {

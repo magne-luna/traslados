@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { HojaDeRuta } from '../../shared/types/hojaDeRuta';
 import type { HojaDeRutaRepository } from '../../shared/lib/hojas-de-ruta/HojaDeRutaRepository';
@@ -31,7 +32,7 @@ describe('useHojasDeRuta', () => {
   it('arranca en loading, invoca getByFecha(fecha) — nunca list() — y expone la hoja del día una vez que resuelve (tasks.md 8.1/8.7)', async () => {
     const repository = buildFakeRepository();
 
-    const { result } = renderHook(() => useHojasDeRuta(repository, '2026-07-24'));
+    const { result } = renderHookConQuery(() => useHojasDeRuta(repository, '2026-07-24'));
 
     expect(result.current.loading).toBe(true);
 
@@ -47,7 +48,7 @@ describe('useHojasDeRuta', () => {
   it('expone null cuando getByFecha() resuelve sin hoja para ese día (triangulación 8.3)', async () => {
     const repository = buildFakeRepository({ getByFecha: vi.fn().mockResolvedValue(null) });
 
-    const { result } = renderHook(() => useHojasDeRuta(repository, '2026-07-25'));
+    const { result } = renderHookConQuery(() => useHojasDeRuta(repository, '2026-07-25'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -65,7 +66,7 @@ describe('useHojasDeRuta', () => {
       .mockResolvedValueOnce(hojaDelDia25);
     const repository = buildFakeRepository({ getByFecha });
 
-    const { result, rerender } = renderHook(({ fecha }) => useHojasDeRuta(repository, fecha), {
+    const { result, rerender } = renderHookConQuery(({ fecha }) => useHojasDeRuta(repository, fecha), {
       initialProps: { fecha: '2026-07-24' },
     });
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -82,7 +83,7 @@ describe('useHojasDeRuta', () => {
   it('expone un error legible cuando getByFecha() rechaza la promesa (triangulación 8.5)', async () => {
     const repository = buildFakeRepository({ getByFecha: vi.fn().mockRejectedValue(new Error('caído')) });
 
-    const { result } = renderHook(() => useHojasDeRuta(repository, '2026-07-24'));
+    const { result } = renderHookConQuery(() => useHojasDeRuta(repository, '2026-07-24'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -92,7 +93,7 @@ describe('useHojasDeRuta', () => {
 
   it('crear() llama a repository.create() y recarga por fecha (getByFecha, nunca list)', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useHojasDeRuta(repository, '2026-07-24'));
+    const { result } = renderHookConQuery(() => useHojasDeRuta(repository, '2026-07-24'));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -106,7 +107,7 @@ describe('useHojasDeRuta', () => {
 
   it('actualizar() llama a repository.update() y recarga por fecha (getByFecha, nunca list)', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useHojasDeRuta(repository, '2026-07-24'));
+    const { result } = renderHookConQuery(() => useHojasDeRuta(repository, '2026-07-24'));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -133,7 +134,7 @@ describe('useHojasDeRuta', () => {
     const repository = buildFakeRepository({
       getByFecha: vi.fn().mockResolvedValueOnce(hojaDeHoy).mockReturnValueOnce(refetchPendiente),
     });
-    const { result } = renderHook(() => useHojasDeRuta(repository, '2026-07-24'));
+    const { result } = renderHookConQuery(() => useHojasDeRuta(repository, '2026-07-24'));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     let actualizarPromise!: Promise<HojaDeRuta>;
@@ -160,7 +161,7 @@ describe('useHojasDeRuta', () => {
     const repository = buildFakeRepository({
       getByFecha: vi.fn().mockResolvedValueOnce(hojaDeHoy).mockReturnValueOnce(refetchPendiente),
     });
-    const { result } = renderHook(() => useHojasDeRuta(repository, '2026-07-24'));
+    const { result } = renderHookConQuery(() => useHojasDeRuta(repository, '2026-07-24'));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     let crearPromise!: Promise<HojaDeRuta>;
@@ -181,7 +182,7 @@ describe('useHojasDeRuta', () => {
 
   it('crear() propaga el error del repository sin dejar loading colgado (borde)', async () => {
     const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('falló create')) });
-    const { result } = renderHook(() => useHojasDeRuta(repository, '2026-07-24'));
+    const { result } = renderHookConQuery(() => useHojasDeRuta(repository, '2026-07-24'));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {

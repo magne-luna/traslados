@@ -241,20 +241,65 @@
 > **Regla de la fase:** ninguno de estos dominios lleva `FRESCURA.referencia`. Si uno lo lleva, es un
 > bug de R2 (mostrar plata desactualizada), no una optimización.
 
-- [ ] 4.1 **Safety net** de la fase: correr los tests de facturación, presupuestos, hojas de ruta,
+- [x] 4.1 **Safety net** de la fase: correr los tests de facturación, presupuestos, hojas de ruta,
       cuentas y documentos; anotar la línea base.
-- [ ] 4.2 **RED/GREEN** — `useFacturas.ts` y `useCobros.ts` con `staleTime: FRESCURA.transaccional`.
+- [x] 4.2 **RED/GREEN** — `useFacturas.ts` y `useCobros.ts` con `staleTime: FRESCURA.transaccional`.
       **Test explícito de R2:** dos montajes sucesivos consultan al servidor **las dos veces**.
-- [ ] 4.3 **RED/GREEN** — `usePresupuestos.ts` y `useAutorizaciones.ts`, ídem. Verificar que crear una
+- [x] 4.3 **RED/GREEN** — `usePresupuestos.ts` y `useAutorizaciones.ts`, ídem. Verificar que crear una
       autorización invalida **presupuestos y autorizaciones** (mutación que toca dos dominios, §D5).
-- [ ] 4.4 **RED/GREEN** — `useHojasDeRuta.ts` y `useRecorridosHabituales.ts`, ídem.
-- [ ] 4.5 **RED/GREEN** — `useCuentas.ts` con `staleTime: FRESCURA.sensible`, conservando su matiz
+- [x] 4.4 **RED/GREEN** — `useHojasDeRuta.ts` y `useRecorridosHabituales.ts`, ídem.
+- [x] 4.5 **RED/GREEN** — `useCuentas.ts` con `staleTime: FRESCURA.sensible`, conservando su matiz
       actual: si `crearCuenta`/`actualizarPermisos` rechazan, **no** se recarga el listado y el error
       crudo llega al formulario.
-- [ ] 4.6 **RED/GREEN** — `useDocumentChecklist.ts`, conservando su forma pública.
-- [ ] 4.7 Revisar `useEmisionFactura.ts`: es estado de flujo del asistente, no de servidor. Decidir y
-      **documentar acá** si queda fuera de React Query (recomendado) o si alguna de sus lecturas entra.
-- [ ] 4.8 `npx tsc -b --noEmit` + `npm test` completo en verde. Commits separados por dominio.
+- [x] 4.6 **RED/GREEN** — `useDocumentChecklist.ts`, conservando su forma pública.
+- [x] 4.7 **`useEmisionFactura` queda FUERA de React Query.** Sus lecturas (`getById` de autorización
+      y de presupuesto) son imperativas y de una sola vez, dentro de un flujo de acción disparado por
+      un clic, con parámetros que recién se conocen en ese momento — no son suscripciones a estado de
+      servidor. Su único `useState` es estado del asistente (`cupoParaConfirmar`, el diálogo de
+      confirmación de cupo), que no es dato remoto. Envolverlo en `useQuery` no aportaría caché ni
+      deduplicación y complicaría un flujo secuencial.
+- [x] 4.8 `npx tsc -b --noEmit` + `npm test` completo en verde. **3304/3304 en 287 archivos.**
+      **Auditoría R2 adelantada (tarea 6.5): `FRESCURA.referencia` aparece como código solo en los
+      cuatro dominios de referencia.** Ningún dominio transaccional lo lleva.
+
+> ### Hallazgos de la Fase 4
+>
+> **1. ⚠️ Casi cambio una firma pública sin darme cuenta.** Al reescribir `useCobros` dejé un solo
+> parámetro; el hook real recibe `(repository, facturaId)` y lee por `listByFactura`. Lo atrapó
+> `tsc` al compilar `FacturaDetail.tsx`. La clave quedó acotada por factura
+> (`claves.cobros.deFactura`). **Moraleja para las fases que queden: leer la firma completa antes de
+> reescribir, no inferirla del patrón.**
+>
+> **2. El "refetch silencioso" de `useHojasDeRuta` salió GRATIS.** Era el comportamiento más
+> delicado del lote (fix de 2026-08-11: una mutación que tildara `loading` desmontaba todos los
+> `RecorridoCard` y sacaba al operador del modo edición). Con `loading` saliendo de `isPending`, la
+> revalidación posterior a una mutación ocurre con `isPending: false` — exactamente el "silencioso"
+> que antes había que pasar a mano. Usar `isFetching` reintroduciría el bug. Los dos tests de
+> regresión 8.6 pasan sin tocarlos.
+>
+> **3. ⚠️ `useDocumentChecklist` necesitó `placeholderData: keepPreviousData`, y lo detectó un
+> test.** Al subir `refreshToken` la clave es nueva y su caché arranca vacía: el checklist parpadeaba
+> a "0 de N documentos" hasta que llegaba la relectura. El estado local anterior conservaba los
+> documentos viejos mientras recargaba. Es un cambio de comportamiento REAL y se arregló en el hook,
+> no en el test (test 6.8 de documentos-transferencia-actividad).
+>
+> **4. `useCuentas` NO lleva `errorMutacion`, a propósito.** Si `crearCuenta`/`actualizarPermisos`
+> rechazan no se recarga el listado y el formulario necesita el error CRUDO (401/403/404/400 con
+> mensajes distintos), no un string genérico. Que la invalidación viva en `onSuccess` es lo que
+> garantiza que una mutación fallida no dispare recarga.
+>
+> **5. Mutaciones que tocan dos dominios:** cobros invalida también facturas (cambia el saldo);
+> presupuestos invalida también autorizaciones (cambia lo autorizable).
+>
+> **6. ⚠️ DESVIACIÓN: cuatro aserciones de `useDocumentChecklist` pasaron de síncronas a `waitFor`,
+> y dos de `AsignacionPanel` esperan a que el selector se habilite.** Causa común: React Query
+> notifica a sus observadores un tick después de que la promesa resuelve. El criterio aplicado en
+> todo el change, y que conviene mantener: **importa si hay un render que muestra algo incorrecto, no
+> si el reloj cambió.** Por eso el error de mutación de la Fase 2 SÍ preservó timing exacto (el
+> camino de fallo no reportaba nada por un render) y estos casos no (nada queda en blanco ni
+> contradictorio; el dato llega un frame después).
+>
+> **7. Archivos de test que necesitaron provider: 17.** Acumulado del change: 36.
 
 ## 5. Fase 5 — Hooks del dashboard
 

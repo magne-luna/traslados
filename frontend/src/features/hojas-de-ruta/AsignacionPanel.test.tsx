@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Paciente } from '../../shared/types/paciente';
 import type { Recorrido } from '../../shared/types/hojaDeRuta';
@@ -8,7 +9,7 @@ import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { AsignacionPanel } from './AsignacionPanel';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
-  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+  return renderConQuery(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
 
 // RN-VE-01 (accesorio incompatible) y capacidad de vehículo (tasks.md 5.3, 9.2): la asignación
@@ -74,7 +75,7 @@ describe('AsignacionPanel', () => {
       accesorioMovilidad: ['silla-rigida'],
     });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={buildRecorrido()}
         vehiculo={vehiculoConSillaPlegable}
@@ -102,7 +103,7 @@ describe('AsignacionPanel', () => {
       ],
     });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={recorridoLleno}
         vehiculo={vehiculoConSillaPlegable}
@@ -123,7 +124,7 @@ describe('AsignacionPanel', () => {
     const onAgregar = vi.fn();
     const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={buildRecorrido()}
         vehiculo={vehiculoConSillaPlegable}
@@ -150,7 +151,7 @@ describe('AsignacionPanel', () => {
   it('al elegir un paciente con accesorios, los muestra como chips (feedback de usuario: mismo formulario que Nuevo recorrido)', async () => {
     const conAccesorio = buildPaciente({ id: 'paciente-acc', apellido: 'Ledesma', accesorioMovilidad: ['silla-plegable'] });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={buildRecorrido()}
         vehiculo={vehiculoConSillaPlegable}
@@ -167,7 +168,7 @@ describe('AsignacionPanel', () => {
     const onAgregar = vi.fn();
     const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={buildRecorrido()}
         vehiculo={vehiculoConSillaPlegable}
@@ -189,7 +190,7 @@ describe('AsignacionPanel', () => {
     const onAgregar = vi.fn();
     const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={buildRecorrido()}
         vehiculo={vehiculoConSillaPlegable}
@@ -210,7 +211,7 @@ describe('AsignacionPanel', () => {
     const onAgregar = vi.fn();
     const sinAccesorios = buildPaciente({ accesorioMovilidad: [] });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={buildRecorrido()}
         vehiculo={vehiculoConSillaPlegable}
@@ -236,7 +237,7 @@ describe('AsignacionPanel', () => {
       paradas: [{ id: 'p-ida', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'a', direccionDestinoId: 'b', orden: 0 }],
     });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={recorridoConIdaCargada}
         vehiculo={vehiculoConSillaPlegable}
@@ -264,7 +265,7 @@ describe('AsignacionPanel', () => {
       ],
     });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={recorridoConIdaCargada}
         vehiculo={vehiculoConSillaPlegable}
@@ -280,7 +281,7 @@ describe('AsignacionPanel', () => {
   it('sin ninguna parada previa del paciente, origen/destino arrancan vacíos (borde, comportamiento previo)', async () => {
     const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
 
-    render(
+    renderConQuery(
       <AsignacionPanel recorrido={buildRecorrido()} vehiculo={vehiculoConSillaPlegable} pacientes={[compatible]} onAgregar={vi.fn()} />,
     );
 
@@ -296,7 +297,7 @@ describe('AsignacionPanel', () => {
       paradas: [{ id: 'p-ida', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'a', direccionDestinoId: 'b', orden: 0 }],
     });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={recorridoConIdaCargada}
         vehiculo={vehiculoConSillaPlegable}
@@ -321,7 +322,7 @@ describe('AsignacionPanel', () => {
       paradas: [{ id: 'p-ida', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'a', direccionDestinoId: 'b', orden: 0 }],
     });
 
-    render(
+    renderConQuery(
       <AsignacionPanel
         recorrido={recorridoConIdaCargada}
         vehiculo={vehiculoConSillaPlegable}
@@ -427,7 +428,12 @@ describe('AsignacionPanel · destino habitual del paciente', () => {
       />,
     );
 
-    await user.selectOptions(await screen.findByLabelText(/destino habitual/i), 'h-jueves');
+    // migracion-react-query: se espera la OPCIÓN, no el select. El select existe desde el primer
+    // render (deshabilitado mientras carga), así que `findByLabelText` lo encontraba vacío y
+    // `selectOptions` corría antes de que llegara el dato: React Query notifica a sus observadores
+    // un tick después de que la promesa resuelve. La intención del test no cambia.
+    await waitFor(() => expect(screen.getByLabelText(/destino habitual/i)).toBeEnabled());
+    await user.selectOptions(screen.getByLabelText(/destino habitual/i), 'h-jueves');
     await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
 
     expect(onAgregar).toHaveBeenCalledWith(
@@ -469,7 +475,12 @@ describe('AsignacionPanel · destino habitual del paciente', () => {
       />,
     );
 
-    await user.selectOptions(await screen.findByLabelText(/destino habitual/i), 'h-jueves');
+    // migracion-react-query: se espera la OPCIÓN, no el select. El select existe desde el primer
+    // render (deshabilitado mientras carga), así que `findByLabelText` lo encontraba vacío y
+    // `selectOptions` corría antes de que llegara el dato: React Query notifica a sus observadores
+    // un tick después de que la promesa resuelve. La intención del test no cambia.
+    await waitFor(() => expect(screen.getByLabelText(/destino habitual/i)).toBeEnabled());
+    await user.selectOptions(screen.getByLabelText(/destino habitual/i), 'h-jueves');
 
     expect(screen.getByLabelText(/dirección de origen/i)).toHaveValue('dir-casa');
     expect(screen.getByLabelText(/dirección de destino/i)).toHaveValue('dir-escuela');

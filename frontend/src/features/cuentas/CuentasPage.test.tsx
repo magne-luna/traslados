@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Cuenta, CuentaRepository } from '../../shared/lib/cuentas/CuentaRepository';
 import { CuentaRepositoryProvider } from './CuentaRepositoryContext';
@@ -24,7 +25,7 @@ function buildFakeRepository(overrides: Partial<CuentaRepository> = {}): CuentaR
 }
 
 function renderPage(repository: CuentaRepository) {
-  return render(
+  return renderConQuery(
     <CuentaRepositoryProvider repository={repository}>
       <CuentasPage />
     </CuentaRepositoryProvider>,

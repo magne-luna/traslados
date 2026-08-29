@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ChecklistItem, DocumentoAdjunto, EntidadDocumental } from '../../types/documento';
 import type { DocumentoRepository } from './DocumentoRepository';
+import { claves } from '../query/claves';
+import { FRESCURA } from '../query/frescura';
 
 // Wiring de estado entre <DocumentChecklist /> (presentacional) y un DocumentoRepository
 // (mock hoy, Supabase Storage el día de mañana — ver DocumentoRepository.ts).
@@ -28,31 +31,37 @@ export function useDocumentChecklist(
   // Nunca lo pasan los otros 3 dominios (Vehículos/Conductores/Facturas) — `undefined` de sobra.
   refreshToken?: number,
 ) {
-  const [documentos, setDocumentos] = useState<DocumentoAdjunto[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const clave = claves.documentos.deEntidad(entidad, entidadId, agrupacionId, refreshToken);
 
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    // documentos-checklist-por-actividad (tasks.md 2.6): llama al repository con exactamente los
-    // mismos 2 argumentos posicionales de siempre cuando no hay agrupación — nunca agrega un 3.er
-    // argumento `undefined` explícito. No es solo estética: los tests existentes de los otros 3
-    // dominios (VehiculoDocumentos.test.tsx, ConductorDocumentos.test.tsx,
-    // FacturaDocumentos.test.tsx) verifican `toHaveBeenCalledWith(entidad, entidadId)` con exactitud
-    // de aridad — un `undefined` explícito de más los rompe aunque el valor sea equivalente.
-    const promesa =
+  // migracion-react-query, Fase 4. Tres cosas que se preservan tal cual:
+  //
+  //   1. **Aridad exacta.** Sin agrupación se llama a `listByEntity` con exactamente 2 argumentos,
+  //      nunca con un tercero `undefined`. Los tests de Vehículos/Conductores/Facturas verifican
+  //      `toHaveBeenCalledWith(entidad, entidadId)` con exactitud de aridad.
+  //   2. **`refreshToken` viaja en la CLAVE**, no en las deps de un efecto: subirlo produce una
+  //      clave nueva y por lo tanto una relectura, sin remontar el componente ni tocar la identidad
+  //      de `items` (la trampa que design.md D6 de documentos-transferencia-actividad advierte).
+  //   3. **`upload`/`remove` NO recargan**: mutan la caché con `setQueryData`, igual que antes
+  //      mutaban el estado local. Recargar acá sería un cambio de comportamiento y un round-trip
+  //      de más.
+  const { data, isPending } = useQuery({
+    queryKey: clave,
+    queryFn: () =>
       agrupacionId !== undefined
         ? repository.listByEntity(entidad, entidadId, agrupacionId)
-        : repository.listByEntity(entidad, entidadId);
-    promesa.then((docs) => {
-      if (!active) return;
-      setDocumentos(docs);
-      setLoading(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, [entidad, entidadId, agrupacionId, repository, refreshToken]);
+        : repository.listByEntity(entidad, entidadId),
+    staleTime: FRESCURA.transaccional,
+    // ⚠️ Sin esto, subir `refreshToken` (o cambiar de agrupación) produce una clave NUEVA cuya
+    // caché arranca vacía, y el checklist parpadea a "0 de N documentos" hasta que llega la
+    // relectura. La implementación anterior no tenía ese bajón porque el estado local conservaba
+    // los documentos viejos mientras el efecto recargaba. `keepPreviousData` restituye exactamente
+    // ese comportamiento. Lo detectó el test 6.8 de documentos-transferencia-actividad.
+    placeholderData: keepPreviousData,
+  });
+
+  const documentos = data ?? [];
+  const loading = isPending;
 
   // pacientes-documentos-multiples (tasks.md 3.1): acumula en vez de reemplazar — ya no filtra
   // por itemId antes de agregar el documento nuevo al estado local.
@@ -65,9 +74,10 @@ export function useDocumentChecklist(
         agrupacionId !== undefined
           ? await repository.upload(entidad, entidadId, itemId, file, undefined, agrupacionId)
           : await repository.upload(entidad, entidadId, itemId, file);
-      setDocumentos((prev) => [...prev, doc]);
+      queryClient.setQueryData<DocumentoAdjunto[]>(clave, (prev) => [...(prev ?? []), doc]);
     },
-    [entidad, entidadId, agrupacionId, repository],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [entidad, entidadId, agrupacionId, repository, queryClient, JSON.stringify(clave)],
   );
 
   // pacientes-documentos-multiples (tasks.md 3.2, design.md D1): filtra por `id` del documento,
@@ -75,9 +85,12 @@ export function useDocumentChecklist(
   const remove = useCallback(
     async (documentoId: string) => {
       await repository.remove(entidad, entidadId, documentoId);
-      setDocumentos((prev) => prev.filter((d) => d.id !== documentoId));
+      queryClient.setQueryData<DocumentoAdjunto[]>(clave, (prev) =>
+        (prev ?? []).filter((d) => d.id !== documentoId),
+      );
     },
-    [entidad, entidadId, repository],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [entidad, entidadId, repository, queryClient, JSON.stringify(clave)],
   );
 
   // documentos-previsualizacion (tasks.md 4.1, design.md D2): delega directo en el repository, sin

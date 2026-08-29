@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { crearQueryClientDeTest, renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { Factura } from '../../shared/types/factura';
 import type { FacturaRepository } from '../../shared/lib/facturacion/FacturaRepository';
@@ -39,7 +40,7 @@ describe('useFacturas', () => {
   it('arranca en loading y expone la lista una vez que list() resuelve', async () => {
     const repository = buildFakeRepository();
 
-    const { result } = renderHook(() => useFacturas(repository));
+    const { result } = renderHookConQuery(() => useFacturas(repository));
 
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -51,7 +52,7 @@ describe('useFacturas', () => {
   it('expone un error legible cuando list() rechaza la promesa', async () => {
     const repository = buildFakeRepository({ list: vi.fn().mockRejectedValue(new Error('caído')) });
 
-    const { result } = renderHook(() => useFacturas(repository));
+    const { result } = renderHookConQuery(() => useFacturas(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.error).toBe('caído');
@@ -60,7 +61,7 @@ describe('useFacturas', () => {
 
   it('crear() llama a repository.create() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useFacturas(repository));
+    const { result } = renderHookConQuery(() => useFacturas(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -90,7 +91,7 @@ describe('useFacturas', () => {
 
   it('actualizar() llama a repository.update() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useFacturas(repository));
+    const { result } = renderHookConQuery(() => useFacturas(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -98,6 +99,22 @@ describe('useFacturas', () => {
     });
 
     expect(repository.update).toHaveBeenCalledWith('factura-martina-1', { monto: 999 });
+    expect(repository.list).toHaveBeenCalledTimes(2);
+  });
+
+  // migracion-react-query, tasks.md 4.2/4.3 — REGLA DURA de la Fase 4 (riesgo R2).
+  it('es TRANSACCIONAL: dos montajes sucesivos consultan al servidor las DOS veces', async () => {
+    const repository = buildFakeRepository();
+    const client = crearQueryClientDeTest();
+
+    const primero = renderHookConQuery(() => useFacturas(repository), { client });
+    await waitFor(() => expect(primero.result.current.loading).toBe(false));
+    primero.unmount();
+
+    const segundo = renderHookConQuery(() => useFacturas(repository), { client });
+    await waitFor(() => expect(segundo.result.current.loading).toBe(false));
+
+    // Si esto llegara a dar 1, alguien le puso FRESCURA.referencia a un dominio que es dinero.
     expect(repository.list).toHaveBeenCalledTimes(2);
   });
 });
