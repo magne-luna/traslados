@@ -1305,6 +1305,27 @@ Para arrancar: `/opsx:propose C-01-foundation-setup`
 
 ## Changes transversales de performance (fuera del roadmap C-NN)
 
+> ## ✅ Resultado medido en producción (2026-08-29)
+>
+> Sobre `https://traslados-demo.vercel.app/`, con `migracion-react-query` y `code-splitting-rutas`
+> ya desplegados (Chrome DevTools → Performance → Local metrics):
+>
+> | Métrica | Antes | Después | Umbral "bueno" |
+> |---|---|---|---|
+> | **LCP** | 3,24 s | **1,94 s** (−40 %) | < 2,5 s ✅ |
+> | **CLS** | — | **0,06** | < 0,1 ✅ |
+> | **INP** | — | **32 ms** | < 200 ms ✅ |
+>
+> Las tres Core Web Vitals en verde. El INP de 32 ms no era un objetivo declarado: es consecuencia
+> de que el hilo principal dejó de parsear 1,4 MB de JavaScript en el arranque.
+>
+> **Consecuencia para lo que queda:** `preconnect-indices-supabase` BAJA de prioridad — con el LCP
+> ya en verde, media jornada para arañar el handshake TLS no se justifica sola.
+> `select-liviano-selectores` sigue en pie, pero por otro motivo: no por el LCP, sino por el ancho de
+> banda y porque el problema crece con el padrón.
+>
+> ---
+>
 > Diagnóstico del 2026-08-29, medido sobre el código y el bundle reales. Son cuatro problemas
 > **distintos** con cuatro arreglos distintos: ninguno reemplaza a otro, y aplicar uno solo no
 > resuelve los demás. No dependen entre sí; se pueden hacer en cualquier orden.
