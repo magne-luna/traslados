@@ -135,7 +135,7 @@ describe('ChecklistEditor — gateo de escritura', () => {
     renderConPermiso(false, <ChecklistEditor items={items} onChange={vi.fn()} />);
 
     expect(screen.getByLabelText(/nuevo ítem/i)).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^agregar$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^\+ agregar$/i })).toBeDisabled();
     expect(screen.getByLabelText(/subir prescripción/i)).toBeDisabled();
     expect(screen.getByLabelText(/bajar prescripción/i)).toBeDisabled();
     expect(screen.getByLabelText(/quitar rhc/i)).toBeDisabled();
@@ -154,7 +154,7 @@ describe('ChecklistEditor — gateo de escritura', () => {
     renderConPermiso(true, <ChecklistEditor items={items} onChange={onChange} />);
 
     expect(screen.getByLabelText(/nuevo ítem/i)).toBeEnabled();
-    expect(screen.getByRole('button', { name: /^agregar$/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^\+ agregar$/i })).toBeEnabled();
 
     await user.click(screen.getByLabelText(/quitar rhc/i));
     expect(onChange).toHaveBeenCalledWith([items[1], items[2]]);

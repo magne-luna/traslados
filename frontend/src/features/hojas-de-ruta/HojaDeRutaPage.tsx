@@ -6,6 +6,7 @@ import { agregarParada, quitarParada } from '../../shared/lib/hojas-de-ruta/para
 import { ordenarRecorridosPorHorario } from '../../shared/lib/hojas-de-ruta/ordenarRecorridosPorHorario';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
+import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { VehiculoRepository } from '../../shared/lib/vehiculos/VehiculoRepository';
 import type { NuevaParadaRecorrido, ParadaRecorrido, Recorrido } from '../../shared/types/hojaDeRuta';
 import { useConductores } from '../conductores/useConductores';
@@ -24,6 +25,11 @@ interface HojaDeRutaPageProps {
   pacienteRepository: PacienteRepository;
   vehiculoRepository: VehiculoRepository;
   conductorRepository: ConductorRepository;
+  /** Destinos habituales de los pacientes (RF-110, `pacientes.recorridos`) — solo lectura, igual
+   * que los otros tres. Habilita el atajo "Destino habitual" al armar un recorrido: elegir uno
+   * completa hora estimada, origen y destino, en vez de tipearlos de nuevo cada día. Opcional:
+   * sin él las dos pantallas de armado funcionan exactamente como antes. */
+  recorridoHabitualRepository?: Pick<RecorridoHabitualRepository, 'list'>;
   /** La hoja que se muestra proviene del repository real: si un recorrido no tiene coordenadas
    * es porque su dirección todavía no se geocodificó (o el geocoding falló al guardarla) — el
    * geocoding real ya está implementado (RF-701), no es una limitación de diseño. Lo fija el
@@ -65,7 +71,13 @@ function atajosFecha(): { label: string; valor: string }[] {
 // conductor (un RecorridoCard por recorrido = por combinación vehículo+conductor), cartel
 // AvisoModeloDatos siempre visible (design.md Decisión 8) y navegación a la vista global (7.5) y
 // a la vista imprimible (8.1). < ~200 líneas — el resto vive en subcomponentes.
-export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conductorRepository, desdeRepositoryReal = false }: HojaDeRutaPageProps) {
+export function HojaDeRutaPage({
+  pacienteRepository,
+  vehiculoRepository,
+  conductorRepository,
+  recorridoHabitualRepository,
+  desdeRepositoryReal = false,
+}: HojaDeRutaPageProps) {
   const formId = useId();
   const hojaRepository = useHojaDeRutaRepository();
   const { pacientes } = usePacientes(pacienteRepository);
@@ -250,6 +262,8 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
               conductores={conductores}
               pacientes={pacientes}
               recorridos={hojaDelDia.recorridos}
+              fecha={fecha}
+              recorridoHabitualRepository={recorridoHabitualRepository}
               onCrear={handleCrearRecorrido}
               onAgregarAExistente={handleAgregarAExistente}
             />
@@ -272,6 +286,8 @@ export function HojaDeRutaPage({ pacienteRepository, vehiculoRepository, conduct
                     pacientes={pacientes}
                     onUpdateRecorrido={handleUpdateRecorrido}
                     desdeRepositoryReal={desdeRepositoryReal}
+                    fecha={fecha}
+                    recorridoHabitualRepository={recorridoHabitualRepository}
                   />
                 ))}
               </div>

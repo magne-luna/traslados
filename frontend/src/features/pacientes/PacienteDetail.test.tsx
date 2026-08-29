@@ -9,6 +9,9 @@ import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { Paciente } from '../../shared/types/paciente';
 import type { Prestacion } from '../../shared/types/prestacion';
+import { renderConSesion } from '../../shared/test/renderConSesion';
+import { mockCatalogoAccesoriosRepository } from '../../shared/lib/mocks/mockCatalogoAccesoriosRepository';
+import { CatalogoAccesoriosRepositoryProvider } from './CatalogoAccesoriosRepositoryContext';
 import { PacienteDetail } from './PacienteDetail';
 
 function buildFakeObraSocialRepository(): ObraSocialRepository {
@@ -67,13 +70,23 @@ const basePaciente: Paciente = {
   amparoJudicial: false,
 };
 
+// Solo las pruebas de ALTA (paciente null) montan <PacienteForm> directamente, y ese formulario
+// compone <AccesoriosMovilidadSelector>, que resuelve el catálogo por context y `usePermiso` por
+// useAuth — sin los dos providers, lanza. Las de EDICIÓN arrancan colapsadas en el resumen: no
+// llegan al formulario y por eso siguen con `render` pelado, sin envolverlas de más.
+function renderAlta(ui: React.ReactElement) {
+  return renderConSesion(
+    <CatalogoAccesoriosRepositoryProvider repository={mockCatalogoAccesoriosRepository}>{ui}</CatalogoAccesoriosRepositoryProvider>,
+  );
+}
+
 describe('PacienteDetail', () => {
   it('en alta (paciente null) muestra el formulario directamente y llama a onCreated tras crear', async () => {
     const user = userEvent.setup();
     const crear = vi.fn().mockResolvedValue(basePaciente);
     const onCreated = vi.fn();
 
-    render(
+    renderAlta(
       <PacienteDetail
         paciente={null}
         crear={crear}
@@ -809,7 +822,7 @@ describe('PacienteDetail — sección Destinos habituales (RF-110)', () => {
   });
 
   it('en alta (paciente null) la sección no se muestra aunque haya recorridoHabitualRepository', () => {
-    render(
+    renderAlta(
       <PacienteDetail
         paciente={null}
         crear={vi.fn()}

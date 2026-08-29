@@ -22,10 +22,23 @@ function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
 // En edición también se puede cambiar vehículo/conductor (feedback de usuario), con el mismo
 // filtro de compatibilidad (RN-VE-01/capacidad) que NuevoRecorridoForm aplica sobre el GRUPO de
 // pacientes ya asignados a este recorrido.
+// El mapa no es lo que se prueba acá (tiene su propio RecorridoMapa.test.tsx): este mock solo
+// evita que RecorridoMapa explote al montarse dentro de la tarjeta. Tiene que cubrir TODO lo que
+// RecorridoMapa importa — `Polyline` y `useMapsLibrary` entraron con el trazo de ruta real y este
+// mock se quedó viejo, lo que rompía las 14 pruebas del archivo con "No useMapsLibrary export is
+// defined on the mock".
+//
+// `useMapsLibrary` devuelve `null` a propósito: es el estado REAL de "la librería todavía no
+// cargó" (es async), el efecto de requests de TrazoRecorrido corta ahí y el mapa cae al trazo
+// recto de fallback. Además `null` es una referencia estable — devolver un objeto nuevo por
+// render re-dispararía el efecto en loop y colgaría el worker de vitest (ver el comentario largo
+// de RecorridoMapa.test.tsx sobre esto mismo).
 vi.mock('@vis.gl/react-google-maps', () => ({
   APIProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Map: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   AdvancedMarker: () => <div />,
+  Polyline: () => <div />,
+  useMapsLibrary: () => null,
 }));
 
 const vehiculo: Vehiculo = {

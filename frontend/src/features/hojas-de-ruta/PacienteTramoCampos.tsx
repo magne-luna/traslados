@@ -1,17 +1,13 @@
 import type { Direccion, Tramo } from '../../shared/types/hojaDeRuta';
-import { TIPO_DIRECCION_LABELS, TRAMO_LABELS, TRAMO_OPTIONS } from '../pacientes/direccionOptions';
+import { TRAMO_LABELS, TRAMO_OPTIONS } from '../pacientes/direccionOptions';
 import { Field, Select } from '../../design-system/form';
+import { etiquetaDireccion } from './etiquetaDireccion';
 import { HoraEstimadaCombo } from './HoraEstimadaCombo';
 import { HORARIOS_SUGERIDOS } from './horaOptions';
 
-// Etiqueta de una opción del select de dirección: tipo + descripción (si la tiene, para
-// diferenciar dos direcciones del mismo tipo — ej. dos "Terapia") + calle.
-function etiquetaDireccion(direccion: Direccion): string {
-  const tipoYDescripcion = direccion.descripcion
-    ? `${TIPO_DIRECCION_LABELS[direccion.tipo]} (${direccion.descripcion})`
-    : TIPO_DIRECCION_LABELS[direccion.tipo];
-  return `${tipoYDescripcion} — ${direccion.calle}`;
-}
+// `etiquetaDireccion` vivía acá; se movió a etiquetaDireccion.ts sin cambiarle una coma cuando
+// SelectorRecorridoHabitual necesitó nombrar las MISMAS direcciones en la misma fila (ver el
+// comentario de ese módulo).
 
 interface PacienteTramoCamposProps {
   formId: string;
