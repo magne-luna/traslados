@@ -8,7 +8,7 @@ import { sugerirOrdenPorCercania } from '../../shared/lib/hojas-de-ruta/sugerirO
 import { vehiculosCompatibles } from '../../shared/lib/hojas-de-ruta/vehiculosCompatibles';
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { Conductor } from '../../shared/types/conductor';
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { TRAMO_LABELS } from '../pacientes/direccionOptions';
@@ -30,7 +30,7 @@ interface RecorridoCardProps {
   vehiculos: Vehiculo[];
   /** Universo completo — habilita el selector de cambio de conductor en modo edición. */
   conductores: Conductor[];
-  pacientes: Paciente[];
+  pacientes: PacienteResumen[];
   onUpdateRecorrido: (recorrido: Recorrido) => void;
   /** Posición del recorrido en la lista del día (feedback de usuario) — puramente de despliegue,
    * no identifica al recorrido (eso lo hace `recorrido.id`). */

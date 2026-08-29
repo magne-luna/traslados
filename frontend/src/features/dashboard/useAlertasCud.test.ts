@@ -27,7 +27,7 @@ const paciente: Paciente = {
 };
 
 function buildRepository(overrides: Partial<PacienteRepository> = {}): PacienteRepository {
-  return { list: vi.fn().mockResolvedValue([paciente]), listPage: vi.fn(), getById: vi.fn(), create: vi.fn(), update: vi.fn(), ...overrides };
+  return { list: vi.fn().mockResolvedValue([paciente]), listCompleto: vi.fn().mockResolvedValue([]), listPage: vi.fn(), getById: vi.fn(), create: vi.fn(), update: vi.fn(), ...overrides };
 }
 
 describe('useAlertasCud', () => {

@@ -55,6 +55,9 @@ interface RecordedCall {
   orFilters?: string[];
   /** paginacion-listados (tasks.md 12.1): `.range(desde, hasta)`. */
   range?: { desde: number; hasta: number };
+  /** select-liviano-selectores: las columnas/embeds pedidos, para poder afirmar sobre QUÉ se
+   * trae y no solo sobre qué se devuelve. Antes se descartaban (`_columns`). */
+  columns?: string;
   /** paginacion-listados (tasks.md 12.7): `.in(columna, valores)` — usado para acotar
    * `leerCoberturasBatch` a los pacientes de la página. */
   in?: Array<[string, readonly unknown[]]>;
@@ -110,7 +113,8 @@ class FakeSelectBuilder implements PromiseLike<FakeResult> {
     this.call = call;
   }
 
-  select(_columns: string, options?: { count?: 'exact' | 'planned' | 'estimated' }): FakeSelectBuilder {
+  select(columns: string, options?: { count?: 'exact' | 'planned' | 'estimated' }): FakeSelectBuilder {
+    this.call.columns = columns;
     if (options?.count) this.call.count = options.count;
     return this;
   }
@@ -284,7 +288,10 @@ describe('supabasePacienteRepository.list (3.2)', () => {
     const filas = [filaPaciente({ id: 'p-1' }), filaPaciente({ id: 'p-2', dni: '40111333' })];
     configurar('pacientes', 'paciente', 'select', () => ok(filas));
 
-    const resultado = await supabasePacienteRepository.list();
+    // select-liviano-selectores: este test verifica el ensamblado COMPLETO y la ausencia de N+1,
+    // comportamiento que ahora vive en `listCompleto()`. `list()` devuelve `PacienteResumen` con
+    // solo los campos que los selectores usan.
+    const resultado = await supabasePacienteRepository.listCompleto();
 
     expect(resultado).toEqual([ensamblarPaciente(filas[0], null), ensamblarPaciente(filas[1], null)]);
   });
@@ -297,8 +304,13 @@ describe('supabasePacienteRepository.list (3.2)', () => {
     ];
     configurar('pacientes', 'paciente', 'select', () => ok(filas));
     configurar('obra_social', 'coberturas_paciente', 'select', () => ok([]));
+    // select-liviano-selectores: este test verifica el ensamblado COMPLETO y la ausencia de N+1,
+    // comportamiento que ahora vive en `listCompleto()`. `list()` devuelve `PacienteResumen` con
+    // solo los campos que los selectores usan.
 
-    await supabasePacienteRepository.list();
+    // select-liviano-selectores: el anti-N+1 se verifica sobre `listCompleto()`, que es el camino
+    // que sigue resolviendo coberturas. `list()` ya ni siquiera hace esa segunda consulta.
+    await supabasePacienteRepository.listCompleto();
 
     const consultasPaciente = calls.filter((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
     const consultasCobertura = calls.filter(
@@ -315,7 +327,12 @@ describe('supabasePacienteRepository.list (3.2)', () => {
       ok([{ paciente_id: 'p-1', obra_social_id: 'os-1', num_afiliado: 'AF-777' }]),
     );
 
-    const [resultado] = await supabasePacienteRepository.list();
+    // select-liviano-selectores: esta aserción se mudó de `list()` a `listCompleto()`. El
+    // comportamiento no desapareció —resolver `numeroAfiliado` contra `coberturas_paciente` sigue
+    // existiendo— pero dejó de ser lo que hace `list()`, que ahora trae solo lo que los selectores
+    // usan. Facturación, el único consumidor que necesita la ficha entera del padrón, usa
+    // `listCompleto()`.
+    const [resultado] = await supabasePacienteRepository.listCompleto();
 
     expect(resultado?.numeroAfiliado.valor).toBe('AF-777');
   });
@@ -345,7 +362,12 @@ describe('supabasePacienteRepository.list (3.2)', () => {
     configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente({ id: 'p-1', obra_social_id: 'os-1' })]));
     configurar('obra_social', 'coberturas_paciente', 'select', () => fail({ code: '42501', message: 'no access' }));
 
-    const [resultado] = await supabasePacienteRepository.list();
+    // select-liviano-selectores: esta aserción se mudó de `list()` a `listCompleto()`. El
+    // comportamiento no desapareció —resolver `numeroAfiliado` contra `coberturas_paciente` sigue
+    // existiendo— pero dejó de ser lo que hace `list()`, que ahora trae solo lo que los selectores
+    // usan. Facturación, el único consumidor que necesita la ficha entera del padrón, usa
+    // `listCompleto()`.
+    const [resultado] = await supabasePacienteRepository.listCompleto();
 
     expect(resultado?.numeroAfiliado.valor).toBe('');
   });
@@ -354,7 +376,12 @@ describe('supabasePacienteRepository.list (3.2)', () => {
     configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente({ id: 'p-1', obra_social_id: 'os-1' })]));
     configurar('obra_social', 'coberturas_paciente', 'select', () => ok(null));
 
-    const [resultado] = await supabasePacienteRepository.list();
+    // select-liviano-selectores: esta aserción se mudó de `list()` a `listCompleto()`. El
+    // comportamiento no desapareció —resolver `numeroAfiliado` contra `coberturas_paciente` sigue
+    // existiendo— pero dejó de ser lo que hace `list()`, que ahora trae solo lo que los selectores
+    // usan. Facturación, el único consumidor que necesita la ficha entera del padrón, usa
+    // `listCompleto()`.
+    const [resultado] = await supabasePacienteRepository.listCompleto();
 
     expect(resultado?.numeroAfiliado.valor).toBe('');
   });
@@ -364,7 +391,12 @@ describe('supabasePacienteRepository.list (3.2)', () => {
     // Mezcla de un valor no-objeto y un objeto sin las claves mínimas — ninguno debe romper el loop.
     configurar('obra_social', 'coberturas_paciente', 'select', () => ok([42, { num_afiliado: 'AF-1' }]));
 
-    const [resultado] = await supabasePacienteRepository.list();
+    // select-liviano-selectores: esta aserción se mudó de `list()` a `listCompleto()`. El
+    // comportamiento no desapareció —resolver `numeroAfiliado` contra `coberturas_paciente` sigue
+    // existiendo— pero dejó de ser lo que hace `list()`, que ahora trae solo lo que los selectores
+    // usan. Facturación, el único consumidor que necesita la ficha entera del padrón, usa
+    // `listCompleto()`.
+    const [resultado] = await supabasePacienteRepository.listCompleto();
 
     expect(resultado?.numeroAfiliado.valor).toBe('');
   });
@@ -1879,3 +1911,47 @@ describe('supabasePacienteRepository.list — sigue sin paginar tras agregar lis
   });
 });
 
+// -------------------------------------------------------------------------------------------
+// select-liviano-selectores: `list()` es el padrón COMPLETO que puebla combos y selectores. Traía
+// `SELECT_PACIENTE_COMPLETO` —10 columnas más siete relaciones anidadas— para que
+// `FacturacionPage:89` usara `{ id, nombre }`. Bajaba la historia clínica entera de cada paciente
+// para llenar un desplegable.
+//
+// Los campos que sus consumidores realmente usan (relevado 2026-08-29): id, nombre, apellido
+// (todos), `prestaciones` (PresupuestosPage), `direcciones` y `accesorioMovilidad`
+// (AsignacionPanel/NuevoRecorridoForm) y `cud` (las alertas del dashboard, que comparten la misma
+// clave de caché). Nadie usa `clinicos` ni `personas_a_cargo` por esta vía.
+// -------------------------------------------------------------------------------------------
+
+describe('supabasePacienteRepository — list() no trae lo que nadie usa (select-liviano)', () => {
+  it('no pide los datos clínicos ni las personas a cargo', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([]));
+
+    await supabasePacienteRepository.list();
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.columns).not.toMatch(/clinicos\s*\(/);
+    expect(consulta?.columns).not.toMatch(/personas_a_cargo\s*\(/);
+  });
+
+  it('sí pide lo que los selectores necesitan de verdad', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([]));
+
+    await supabasePacienteRepository.list();
+
+    const columnas = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select')?.columns ?? '';
+    for (const requerido of ['id', 'nombre_a', 'apellido_a', 'cud', 'direcciones', 'prestaciones', 'accesorios_pacientes']) {
+      expect(columnas).toContain(requerido);
+    }
+  });
+
+  it('getById NO se adelgaza: la ficha del paciente sigue necesitando todo', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([]));
+
+    await supabasePacienteRepository.getById('p-1');
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.columns).toMatch(/clinicos\s*\(/);
+    expect(consulta?.columns).toMatch(/personas_a_cargo\s*\(/);
+  });
+});

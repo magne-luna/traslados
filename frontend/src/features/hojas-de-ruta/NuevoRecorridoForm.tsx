@@ -10,7 +10,7 @@ import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/Rec
 import type { Conductor } from '../../shared/types/conductor';
 import type { NuevaParadaRecorrido, Recorrido, Tramo } from '../../shared/types/hojaDeRuta';
 import type { RecorridoHabitual } from '../../shared/types/recorridoHabitual';
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 import { CarIcon, PlusIcon, UserIcon } from './icons';
@@ -31,7 +31,7 @@ export interface NuevoRecorridoPayload {
 interface NuevoRecorridoFormProps {
   vehiculos: Vehiculo[];
   conductores: Conductor[];
-  pacientes: Paciente[];
+  pacientes: PacienteResumen[];
   /** Recorridos de HOY (feedback de usuario, RN-HR-01) — habilita sugerir sumarse a uno
    *  compatible en vez de crear uno nuevo desde cero. Sin recorridos que ofrecer todavía. */
   recorridos?: Recorrido[];

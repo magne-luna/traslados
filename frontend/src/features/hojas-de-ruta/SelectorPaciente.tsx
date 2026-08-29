@@ -1,9 +1,9 @@
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import { Field, Select } from '../../design-system/form';
 
 interface SelectorPacienteProps {
   formId: string;
-  pacientes: Paciente[];
+  pacientes: PacienteResumen[];
   value: string;
   onChange: (pacienteId: string) => void;
   /** NuevoRecorridoForm permite crear el recorrido sin elegir a nadie todavía; AsignacionPanel no. */

@@ -4,12 +4,12 @@
 // localStorage — testeable con valores fijos.
 
 import type { AccesorioMovilidad } from '../../types/vehiculo';
-import type { Paciente } from '../../types/paciente';
+import type { PacienteResumen } from '../../types/paciente';
 import type { Vehiculo } from '../../types/vehiculo';
 import { validarCompatibilidadAccesorio } from './validarCompatibilidadAccesorio';
 
 /** Unión sin duplicados de los accesorios de movilidad que requiere el grupo de pacientes. */
-export function accesoriosRequeridos(pacientes: Paciente[]): AccesorioMovilidad[] {
+export function accesoriosRequeridos(pacientes: PacienteResumen[]): AccesorioMovilidad[] {
   const vistos = new Set<AccesorioMovilidad>();
   const resultado: AccesorioMovilidad[] = [];
   for (const paciente of pacientes) {
@@ -28,7 +28,7 @@ export function accesoriosRequeridos(pacientes: Paciente[]): AccesorioMovilidad[
  * accesorios que requiere. Con `pacientes` vacío no hay nada que filtrar todavía: devuelve
  * `vehiculos` tal cual (el usuario todavía no eligió a nadie).
  */
-export function vehiculosCompatibles(vehiculos: Vehiculo[], pacientes: Paciente[]): Vehiculo[] {
+export function vehiculosCompatibles(vehiculos: Vehiculo[], pacientes: PacienteResumen[]): Vehiculo[] {
   if (pacientes.length === 0) return vehiculos;
 
   const requeridos = accesoriosRequeridos(pacientes);

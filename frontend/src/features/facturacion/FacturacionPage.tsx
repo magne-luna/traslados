@@ -6,7 +6,7 @@ import type { PresupuestoRepository } from '../../shared/lib/presupuestos/Presup
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { Factura } from '../../shared/types/factura';
-import { usePacientes } from '../pacientes/usePacientes';
+import { usePacientesCompletos } from '../pacientes/usePacientesCompletos';
 import { useObrasSociales } from '../obras-sociales/useObrasSociales';
 import { useCobroRepository } from './CobroRepositoryContext';
 import { FacturaDetail } from './FacturaDetail';
@@ -44,7 +44,7 @@ export function FacturacionPage({
   const facturaRepository = useFacturaRepository();
   const cobroRepository = useCobroRepository();
   const { facturas, loading, error, crear, actualizar } = useFacturas(facturaRepository);
-  const { pacientes } = usePacientes(pacienteRepository);
+  const { pacientes } = usePacientesCompletos(pacienteRepository);
   const { obrasSociales } = useObrasSociales(obraSocialRepository);
   const [view, setView] = useState<View>({ kind: 'list' });
 

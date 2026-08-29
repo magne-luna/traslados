@@ -106,6 +106,10 @@ function renderFacturacionPage(props: ReturnType<typeof buildProps>, conPermiso:
 function buildProps() {
   const pacienteRepository: PacienteRepository = {
     list: vi.fn().mockResolvedValue([martina]),
+    // select-liviano-selectores: Facturación es el único consumidor que usa `listCompleto()` —
+    // necesita `obraSocialId` y le pasa el paciente entero al flujo de emisión. Las otras
+    // pantallas se quedaron con `list()`, que ahora devuelve `PacienteResumen`.
+    listCompleto: vi.fn().mockResolvedValue([martina]),
     listPage: vi.fn(),
     getById: vi.fn(),
     create: vi.fn(),

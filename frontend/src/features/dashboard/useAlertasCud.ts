@@ -1,12 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import { aMensaje } from '../../shared/lib/query/aMensaje';
 import { claves } from '../../shared/lib/query/claves';
 import { FRESCURA } from '../../shared/lib/query/frescura';
 
 export interface UseAlertasCudResult {
-  pacientes: Paciente[];
+  /** select-liviano-selectores: para calcular alertas de CUD alcanza con `cud` + nombre/apellido,
+   * que es exactamente lo que trae `PacienteResumen`. Comparte clave de caché con `usePacientes`,
+   * así que comparten forma — por eso `cud` sigue viajando en el select liviano. */
+  pacientes: PacienteResumen[];
   cargando: boolean;
   error: string | null;
 }

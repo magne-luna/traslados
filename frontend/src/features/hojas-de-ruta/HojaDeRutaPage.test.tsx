@@ -88,7 +88,14 @@ function buildFakeConductorRepo(): ConductorRepository {
 }
 
 function buildFakePacienteRepo(): PacienteRepository {
-  return { list: vi.fn().mockResolvedValue([]), listPage: vi.fn(), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
+  return {
+    list: vi.fn().mockResolvedValue([]),
+    listCompleto: vi.fn().mockResolvedValue([]),
+    listPage: vi.fn(),
+    getById: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
 }
 
 function renderPage(hojaRepo: HojaDeRutaRepository, desdeRepositoryReal = false) {

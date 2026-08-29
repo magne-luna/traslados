@@ -5,7 +5,7 @@ import { Field, FieldError, Select, Input } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import { iconSubirArchivo } from '../../design-system/icons';
 import type { ArchivoAdjunto, DatosTraslado, PresupuestoLinea } from '../../shared/types/presupuesto';
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { DiaSemana, RecorridoHabitual } from '../../shared/types/recorridoHabitual';
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
@@ -81,7 +81,7 @@ const DEFAULT_VALUES: PresupuestoFormValues = {
 interface PresupuestoFormProps {
   initial?: PresupuestoFormValues;
   /** Se puebla desde PacienteRepository.list() en el composition root — nunca hardcodeada (design.md Decisión 8). */
-  pacientes: Paciente[];
+  pacientes: PacienteResumen[];
   /** Se puebla desde ObraSocialRepository.list() en el composition root — nunca hardcodeada (design.md Decisión 8). */
   obrasSociales: ObraSocial[];
   /**
@@ -116,7 +116,7 @@ const DIAS_SEMANA_OPCIONES: { value: DiaSemana; label: string }[] = [
 // (obra social derivada del paciente, ver comentario del componente) ya no es un <select>.
 const labelClasses = 'font-body text-[12px] font-semibold text-muted';
 
-function nombrePaciente(paciente: Paciente): string {
+function nombrePaciente(paciente: PacienteResumen): string {
   return `${paciente.apellido}, ${paciente.nombre}`;
 }
 

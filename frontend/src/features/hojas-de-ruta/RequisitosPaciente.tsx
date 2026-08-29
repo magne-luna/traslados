@@ -1,10 +1,10 @@
 import { Chip } from '../../design-system/components';
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 
 interface RequisitosPacienteProps {
-  paciente: Paciente;
+  paciente: PacienteResumen;
   /** Vehículo contra el que se colorea la compatibilidad — undefined = todavía sin elegir. */
   vehiculo: Vehiculo | undefined;
 }
