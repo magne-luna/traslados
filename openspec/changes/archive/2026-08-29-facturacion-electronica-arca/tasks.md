@@ -1,5 +1,25 @@
 # Tasks — facturacion-electronica-arca
 
+> **✅ APLICADO Y ARCHIVADO — 2026-08-29.** La usuaria aprobó el apply ("empezá a aplicar"),
+> respondió las decisiones de fondo (IVA 21 % por dentro, `obra_social.cuit` = CUIT de la OS,
+> `condicion_iva` enum) y ejecutó las partes de infra (3 migraciones aplicadas a producción con
+> `supabase db push`; Edge Function `facturar` desplegada con `supabase functions deploy` — `status:
+> ACTIVE`). Mergeado a `main` (9 commits, `0a33d34..fe03ab8`) y specs sincronizadas.
+>
+> **Pendiente (fuera del alcance de código, sin bloquear el archive):**
+> - **§8 — verificación E2E en homologación**: necesita la URL del miniserver `arca-miniserver`
+>   desplegado + los documentos de ARCA de homologación (cert/key/CUIT/punto de venta). Enzo no los
+>   tiene todavía. Sin los secrets `ARCA_*`, la EF responde `503 EMISION_NO_CONFIGURADA` y "Emitir"
+>   muestra "no está configurada" — nada se rompe. Cargar con `supabase secrets set ARCA_*` y probar
+>   una emisión A contra homologación.
+> - Sub-pregunta abierta menor: IVA por-dentro vs por-fuera → confirmar con el contador (cambio de
+>   secret `ARCA_IVA_MODO`, sin deploy).
+> - Varias tareas de `deno test` de detalle (2.1–2.8 completas solo para `arca.ts` /
+>   `codigoBarrasAfip.ts` / `emisionSnapshots.ts` — 30 tests; falta el `deno test` de la EF `index.ts`
+>   con fakes, 2B.4) — el `deno check` sí pasa sobre todo.
+>
+> ---
+>
 > **⛔ GOVERNANCE CRÍTICO — ESTE CHANGE NO ESTÁ APROBADO PARA APPLY.**
 > Facturación es el dominio equivalente a *Billing*: **análisis solamente; cero código de aplicación
 > sin aprobación humana explícita**. La sección **0** es un portón: ninguna tarea de la §1 en
