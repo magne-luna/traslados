@@ -320,7 +320,7 @@ describe('VehiculoDetail — modo edición', () => {
     expect(screen.queryByText('—')).not.toBeInTheDocument();
   });
 
-  it('muestra el cartel de discrepancia de modelo de datos en la sección de Mantenimiento, acotado a lo pendiente', () => {
+  it('muestra el cartel de discrepancia de modelo de datos en la sección de Mantenimiento, acotado a lo que no se resolvió', () => {
     renderDetail(
       <VehiculoDetail
         vehiculo={etios}
@@ -332,7 +332,8 @@ describe('VehiculoDetail — modo edición', () => {
       />,
     );
 
-    expect(screen.getByText(/VTV\/RTO se sigue rastreando en.*habilitaciones/i)).toBeInTheDocument();
+    expect(screen.getByText(/habilitaciones.*se derivan del historial/i)).toBeInTheDocument();
+    expect(screen.getByText(/kilometraje y el último service.*no derivados/i)).toBeInTheDocument();
   });
 
   it('muestra el error del repository si actualizar falla', async () => {

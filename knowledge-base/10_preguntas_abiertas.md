@@ -147,23 +147,32 @@ puramente técnica (índices) que sí quedó resuelta:
 faltantes de las tablas hijas de Pacientes (`cud.paciente_id`, etc., ver bullet de arriba) **sigue
 sin resolverse** — no forma parte de este change.
 
-## Preguntas técnicas abiertas — `integracion-conductores-vehiculos` (2026-08-01)
+## Preguntas técnicas abiertas — `integracion-conductores-vehiculos` (2026-08-01, cerradas 2026-08-10/11)
 
 `openspec/changes/integracion-conductores-vehiculos/` (mock→Supabase de Vehículos+Conductores) se
 escribió en paralelo con `C-08-vehiculos-mantenimiento` de Enzo, sin que ninguno de los dos supiera
 del otro; ya mergeado a `main` (commit `f840a96`). Reconciliado el 2026-08-01 — detalle completo en
-`design.md` §Reconciliación con C-08-vehiculos-mantenimiento y en `CHANGES.md` §C-08. Queda un solo
-punto genuinamente abierto:
+`design.md` §Reconciliación con C-08-vehiculos-mantenimiento y en `CHANGES.md` §C-08.
 
-- **¿De dónde sale `Vehiculo.mantenimientos` (historial preventivo/correctivo)?** La Edge Function real
-  `supabase/functions/vehiculos/index.ts` no expone ese array — su comentario de cabecera da por
-  existente `supabase/functions/mantenimiento/index.ts`, que no existe en el repo. Dos caminos
-  posibles (extender `vehiculos/index.ts::toApi()`, o construir el endpoint separado), ninguno
-  implementado. **Decisor**: Enzo/backend.
+- **✅ CERRADA (2026-08-10) — ¿De dónde sale `Vehiculo.mantenimientos` (historial
+  preventivo/correctivo)?** Se tomó el camino de extender `vehiculos/index.ts::toApi()`: migración
+  `20260810120000_vehiculo_mantenimiento_subtipo_detalle.sql` sumó `subtipo`/`detalle`, la Edge
+  Function expone `mantenimiento` con `replaceMantenimientos()` wireado en POST/PATCH.
+  `SupabaseVehiculoRepository.ts` persiste y lee contra el servidor real desde entonces.
+- **✅ CERRADA (2026-08-10) — checkpoint 0.1, ¿catálogo de restricciones de perfil del conductor?**
+  Sin objeto: D6 se resolvió por la opción B, no hay catálogo — texto libre en `observaciones`,
+  igual que el docx. Ver `05_reglas_de_negocio.md` RN-HR-04.
+- **✅ CERRADA (2026-08-10) — checkpoint 0.1, ¿la colisión de asignación semanal se bloquea siempre
+  o el override es un caso real?** Se bloquea siempre, con un constraint de base
+  (`uq_conductor_semana`), sin lógica de aplicación. `permitirMultiple` se elimina del frontend.
+- **✅ CERRADA (2026-08-10) — checkpoint 0.1, ¿la VTV/RTO se rastrea vía `mantenimiento` (docx) o con
+  entidad propia?** Vía `mantenimiento` (D3, opción B) — reafirmado el mismo día tras un intento
+  breve de usar la tabla propia `habilitaciones_vehiculo` que Enzo había construido (sin pantalla
+  para escribirla, se descartó). `ensamblarVehiculo` deriva `habilitaciones` de `mantenimientos`.
 
-**Nota de estado, no una pregunta**: las migraciones de asignación semanal/estado de Conductores
-(`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`, `tasks.md` §1B.1/1B.2) todavía no las
-escribió nadie — bloquea el repository real de Conductores (§7), sin relación con el gap de arriba.
+**Nota de estado, ya resuelta**: las migraciones de asignación semanal/estado de Conductores
+(`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`) se escribieron y aplicaron —
+repository real de Conductores (§7) completo desde el 2026-08-11.
 
 ## Preguntas nuevas — `prestadores-crud` (2026-08-01)
 

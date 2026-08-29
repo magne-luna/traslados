@@ -192,6 +192,12 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
               </div>
             )}
 
+            <AvisoModeloDatos>
+              El catálogo de accesorios vive en el schema `pacientes` (`pacientes.accesorios`), pero
+              se lee y valida acá sin depender de tu permiso del módulo Pacientes — mismo chequeo
+              único del módulo Vehículos que gastos y mantenimiento.
+            </AvisoModeloDatos>
+
             {vehiculo.notas && <p className="m-0 font-body text-[13px] text-muted">{vehiculo.notas}</p>}
 
             <div className="flex justify-end">
@@ -231,12 +237,11 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
 
           <Section label="Mantenimiento" title="Service y habilitaciones">
             <AvisoModeloDatos>
-              El vencimiento de VTV/RTO se sigue rastreando en las habilitaciones del vehículo, no en
-              el historial de abajo — y el kilometraje/último service siguen siendo campos propios de
-              Vehículo, no derivados del historial. El docx modela ambos vencimientos (VTV/RTO y el
-              kilometraje actual) dentro de la entidad Mantenimiento; esta pantalla los mantiene
-              separados a propósito (ver `vehiculo-mantenimiento-registro/design.md` Decisión 5),
-              pendiente de resolver la duplicación junto al esquema del backend `C-08`.
+              Las habilitaciones VTV/RTO de arriba se derivan del historial de abajo (una
+              intervención preventiva con subtipo VTV o RTO define el próximo vencimiento) — no son
+              un dato aparte. El kilometraje y el último service sí siguen siendo campos propios de
+              Vehículo, no derivados del historial: esa es la parte de la divergencia con el docx
+              que no se resolvió.
             </AvisoModeloDatos>
             <VehiculoMantenimiento vehiculo={vehiculo} />
           </Section>
@@ -247,8 +252,9 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
 
           <Section label="Gastos" title="Registro de gastos">
             <AvisoModeloDatos>
-              En el docx, el acceso a Gastos de Vehículo se controla por el módulo de permisos
-              "facturacion", no "conductores" — importa para diseñar las RLS policies.
+              En el docx, Gastos de Vehículo vive bajo el módulo "facturacion". Acá se gestiona
+              íntegro dentro de "vehiculos": la Edge Function hace un único chequeo de permiso del
+              módulo Vehículos — no hace falta `facturacion: read` para ver ni cargar gastos.
             </AvisoModeloDatos>
             <GastosVehiculo gastos={vehiculo.gastos} onAgregar={handleAgregarGasto} />
           </Section>

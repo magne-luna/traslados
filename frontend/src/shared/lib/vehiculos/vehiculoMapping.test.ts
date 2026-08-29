@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseVehiculoRow,
   parseEstadoVehiculo,
+  parseEstadoVehiculoApi,
   toEstadoVehiculoRow,
   parseMantenimientoRow,
   toMantenimientoRows,
@@ -134,6 +135,26 @@ describe('parseEstadoVehiculo (D13)', () => {
     expect(parseEstadoVehiculo(null)).toBe('habilitado');
     expect(parseEstadoVehiculo(undefined)).toBe('habilitado');
     expect(parseEstadoVehiculo(42)).toBe('habilitado');
+  });
+});
+
+describe('parseEstadoVehiculoApi (bug real 2026-08-16: doble conversión con la respuesta de la Edge Function)', () => {
+  it("'fuera-de-servicio' (ya en formato de dominio, tal como lo manda estadoToApi()) se conserva tal cual", () => {
+    expect(parseEstadoVehiculoApi('fuera-de-servicio')).toBe('fuera-de-servicio');
+  });
+
+  it("'habilitado' se conserva tal cual", () => {
+    expect(parseEstadoVehiculoApi('habilitado')).toBe('habilitado');
+  });
+
+  it("el valor crudo de la base ('fuera de servicio', con espacio) NO matchea acá — degrada a 'habilitado', no es el input esperado de esta función", () => {
+    expect(parseEstadoVehiculoApi('fuera de servicio')).toBe('habilitado');
+  });
+
+  it('valor desconocido -> degrada a `habilitado`, nunca lanza', () => {
+    expect(parseEstadoVehiculoApi('valor-inventado')).toBe('habilitado');
+    expect(parseEstadoVehiculoApi(null)).toBe('habilitado');
+    expect(parseEstadoVehiculoApi(undefined)).toBe('habilitado');
   });
 });
 
