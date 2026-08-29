@@ -13,9 +13,18 @@ describe('router: la ruta / monta el dashboard (tasks.md 8.3)', () => {
   it('renderiza el dashboard dentro del shell autenticado, no el placeholder de "Próximamente"', async () => {
     renderConSesion(<RouterProvider router={router} />);
 
+    // Dos fases async ENCADENADAS, cada una con su propia espera. Meterlas en un solo `waitFor` de
+    // 1 s dejaba el test al borde del presupuesto y lo volvía flaky bajo la suite completa (falla
+    // al azar, pasa aislado — el peor tipo de fallo):
+    //   1. `code-splitting-rutas`: baja el chunk de la ruta (hasta acá se ve `CargandoPantalla`).
+    //   2. `migracion-react-query`: el dashboard consulta sus datos (sus tarjetas muestran sus
+    //      propios "Cargando …" mientras tanto).
+    // Esperar el encabezado primero es además lo que el test realmente afirma: que `/` monta el
+    // dashboard. La ausencia de "cargando" se verifica después, ya sin competir por el mismo reloj.
+    expect(await screen.findByRole('heading', { level: 1, name: /dashboard/i })).toBeInTheDocument();
+
     await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
 
-    expect(screen.getByRole('heading', { level: 1, name: /dashboard/i })).toBeInTheDocument();
     expect(screen.getByText(/recorridos de hoy/i)).toBeInTheDocument();
     expect(screen.queryByText(/próximamente/i)).not.toBeInTheDocument();
   });
