@@ -1,4 +1,3 @@
-import { AvisoModeloDatos } from '../../design-system/components';
 import { DocumentChecklist } from '../../shared/components/DocumentChecklist';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { useDocumentChecklist } from '../../shared/lib/documentos/useDocumentChecklist';
@@ -7,9 +6,9 @@ import { usePuedeEscribir } from '../../shared/auth/usePuedeEscribir';
 
 interface FacturaDocumentosProps {
   facturaId: string;
-  /** `CHECKLIST_DOCUMENTOS_FACTURA` (fix directo RF-410, 2026-08-15): lista FIJA propia de
-   * Facturación, independiente del checklist configurable de la obra social del paciente — el
-   * orden del array es significativo. */
+  /** Checklist propio de Facturación, armado desde el catálogo real `facturacion.tipos_documento`
+   * (ver `FacturaDetail.tsx`) — independiente del checklist configurable de la obra social del
+   * paciente. Los `id` son los UUID del catálogo; el orden del array es significativo. */
   items: ChecklistItem[];
   repository: DocumentoRepository;
 }
@@ -17,11 +16,15 @@ interface FacturaDocumentosProps {
 // Checklist documental por factura (tasks.md 10.1 a 10.4): reutiliza DocumentChecklist +
 // useDocumentChecklist + DocumentoRepository de C-03/FE-1 con entidad='factura' (ya presente en
 // EntidadDocumental), mismo patrón que PacienteDocumentosChecklist/ConductorDocumentos. Los
-// ítems salen de `CHECKLIST_DOCUMENTOS_FACTURA` (fix directo 2026-08-15) — antes salían del
-// checklist de la obra social del paciente (RN-FA-08), dependencia incorrecta ya corregida: la
-// documentación de respaldo de una factura no depende de la obra social. El comprobante ARCA es
-// un ítem más, sin cliente HTTP ni campo de modelo propio (design.md Decisión 9) — solo se
-// informa el estado de completitud, no bloquea la emisión.
+// ítems salen del catálogo real `facturacion.tipos_documento` (`FacturaDetail.tsx`, Checkpoint A
+// → A1) — antes salían del checklist de la obra social del paciente (RN-FA-08), dependencia
+// incorrecta ya corregida: la documentación de respaldo de una factura no depende de la obra
+// social. El comprobante ARCA es un ítem más, sin cliente HTTP ni campo de modelo propio
+// (design.md Decisión 9) — solo se informa el estado de completitud, no bloquea la emisión.
+//
+// Persistencia real contra Storage + `facturacion.documento_factura` desde el swap de
+// `FacturacionRoute.tsx` a `supabaseDocumentoRepository` (Checkpoint A del change
+// `documentos-vehiculos-conductores-facturacion`).
 // gateo-facturacion (design.md D4, tasks.md 6.3): solo la carga/baja se gatea, vía la prop
 // `readOnly` que `DocumentChecklist` ya expone — se reutiliza tal cual, sin tocar el componente
 // compartido. La consulta de `items`/`documentos` no pasa por acá, así que sigue disponible con
@@ -43,12 +46,6 @@ export function FacturaDocumentos({ facturaId, items, repository }: FacturaDocum
 
   return (
     <div className="flex flex-col gap-sm">
-      <AvisoModeloDatos>
-        La tabla <code>documento_factura</code> ya existe en la base real (con FK a la factura,
-        RLS y auditoría), pero los adjuntos de la factura todavía no se persisten junto con ella:
-        la carga sigue siendo simulada. Se resuelve en el futuro change transversal de
-        documentos/storage (mismo que Pacientes, Conductores y Vehículos), no en este.
-      </AvisoModeloDatos>
       <DocumentChecklist
         items={items}
         documentos={documentos}

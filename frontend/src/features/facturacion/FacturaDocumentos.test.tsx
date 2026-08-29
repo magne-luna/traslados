@@ -37,23 +37,15 @@ describe('FacturaDocumentos', () => {
     expect(textos).toEqual(nombres);
   });
 
-  it('muestra el aviso actualizado: la tabla documento_factura ya existe, pero la subida sigue simulada porque Factura sigue en mock', () => {
+  // Checkpoint A del change `documentos-vehiculos-conductores-facturacion` → A1: la subida de
+  // documentos de factura pasó a persistirse de verdad (Storage + `facturacion.documento_factura`),
+  // así que el `AvisoModeloDatos` de "carga simulada" se retiró — la condición de cierre que el
+  // propio requisito `documento-avisos-modelo-datos` declara.
+  it('ya no muestra el aviso de carga simulada (la subida se persiste de verdad)', () => {
     render(<FacturaDocumentos facturaId="factura-1" items={items} repository={buildFakeRepository()} />);
-    expect(screen.getByText(/modelo de datos/i)).toBeInTheDocument();
-    expect(screen.getByText(/documento_factura/i)).toBeInTheDocument();
-    expect(screen.getByText(/sigue.*simulada/i)).toBeInTheDocument();
-    expect(screen.queryByText(/C-07.*debe crear/i)).not.toBeInTheDocument();
-  });
-
-  // integracion-facturacion, design.md D8, tasks.md 6.3: después del swap (5.2), Factura ya NO usa
-  // datos mock — el aviso de que "Factura todavía usa datos mock" quedó desactualizado. El aviso
-  // tiene que remitir explícitamente al futuro change transversal de documentos/storage.
-  it('remite explícitamente al futuro change de documentos/storage, no a que Factura use mocks', () => {
-    render(<FacturaDocumentos facturaId="factura-1" items={items} repository={buildFakeRepository()} />);
-    expect(screen.queryByText(/factura todav.a usa datos mock/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/swap parcial/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/documentos\/storage/i)).toBeInTheDocument();
-    expect(screen.getByText(/los adjuntos de la factura todavía no se persisten/i)).toBeInTheDocument();
+    expect(screen.queryByText(/modelo de datos/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sigue.*simulada/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/todavía no se persisten/i)).not.toBeInTheDocument();
   });
 
   it('no bloquea nada visualmente aunque falten documentos requeridos (solo informa el estado)', async () => {

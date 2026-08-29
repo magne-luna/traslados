@@ -1,4 +1,4 @@
-import { mockDocumentoRepository } from '../../shared/lib/documentos/mockDocumentoRepository';
+import { supabaseDocumentoRepository } from '../../shared/lib/documentos/SupabaseDocumentoRepository';
 import { buildFeriadosFixture } from '../../shared/lib/mocks/feriadosFixture';
 import { supabaseCobroRepository } from '../../shared/lib/facturacion/SupabaseCobroRepository';
 import { supabaseEmisionRepository } from '../../shared/lib/facturacion/SupabaseEmisionRepository';
@@ -39,6 +39,13 @@ const FERIADOS = buildFeriadosFixture();
 // paciente Brisa, que tiene autorización real en estado `autorizada` y la pantalla decía que no
 // tenía ninguna pendiente. `mockPresupuestoRepository`/`mockAutorizacionRepository` siguen
 // existiendo y exportándose como dobles de test, pero ya no se inyectan acá.
+//
+// Documento pasa a ser real (Checkpoint A del change `documentos-vehiculos-conductores-facturacion`
+// → opción A1): el checklist del detalle de factura ya se arma desde `facturacion.tipos_documento`
+// (UUIDs reales del catálogo, ver `FacturaDetail.tsx`), no desde slugs — el riesgo `22P02` que
+// bloqueaba el swap quedó sin objeto. `SupabaseDocumentoRepository` ya cubre la entidad `factura`
+// (`CONFIG_ENTIDAD.factura`: `documento_factura` + bucket `documentos-facturas`, ambos con RLS).
+// `mockDocumentoRepository` sigue como doble de test.
 export function FacturacionRoute() {
   return (
     <FacturaRepositoryProvider repository={supabaseFacturaRepository}>
@@ -50,7 +57,7 @@ export function FacturacionRoute() {
           presupuestoRepository={supabasePresupuestoRepository}
           autorizacionRepository={supabaseAutorizacionRepository}
           emisionRepository={supabaseEmisionRepository}
-          documentoRepository={mockDocumentoRepository}
+          documentoRepository={supabaseDocumentoRepository}
           feriados={FERIADOS}
         />
         </TiposDocumentoRepositoryProvider>
