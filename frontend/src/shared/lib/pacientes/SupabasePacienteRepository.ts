@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient';
 import type { AccesorioMovilidad } from '../../types/vehiculo';
-import type { ActualizacionPaciente, Direccion, NuevoPaciente, Paciente } from '../../types/paciente';
+import type { ActualizacionPaciente, Direccion, NuevoPaciente, Paciente, PacienteResumen } from '../../types/paciente';
 import type { Prestacion } from '../../types/prestacion';
 import type { Coordenada } from '../../types/hojaDeRuta';
 import type { Pagina, RangoPagina } from '../../types/paginacion';
@@ -8,6 +8,7 @@ import type { FiltrosPaciente, PacienteRepository } from './PacienteRepository';
 import {
   direccionesACambiar,
   ensamblarPaciente,
+  ensamblarPacienteResumen,
   parsePacienteRow,
   toCrearPacientePayload,
   toDireccionRows,
@@ -38,6 +39,25 @@ const SELECT_PACIENTE_COMPLETO = `
   cud ( numero_cud, emision, vencimiento ),
   clinicos ( diagnostico, condicion ),
   personas_a_cargo ( id, nombre, apellido, dni, parentesco, telefono, telefono_alternativo ),
+  direcciones ( id, calle, numero, tipo_lugar, localidad, descripcion ),
+  accesorios_pacientes ( accesorios ( tipo ) ),
+  prestaciones ( id, paciente_id, nombre, descripcion, activa )
+`;
+
+// select-liviano-selectores (2026-08-29): lo que pide `list()`, el padrón que puebla combos,
+// selectores y las alertas del dashboard. Es un SUBCONJUNTO deliberado de SELECT_PACIENTE_COMPLETO:
+// se cayeron `clinicos` y `personas_a_cargo` —que ningún consumidor de `list()` lee— y las columnas
+// sueltas que solo usa la ficha (`fecha_nacimiento`, `dni`, `cuil_titular`, `domicilio`,
+// `obra_social_id`, `amparo_judicial`).
+//
+// Antes, llenar el desplegable de "Paciente" en Facturación bajaba la historia clínica completa de
+// cada persona del padrón. `FacturacionPage:89` consume de todo eso exactamente `{ id, nombre }`.
+//
+// ⚠️ `getById` sigue usando SELECT_PACIENTE_COMPLETO: la ficha necesita todo. Adelgazarla sería
+// romper la pantalla, no optimizarla.
+const SELECT_PACIENTE_RESUMEN = `
+  id, nombre_a, apellido_a, obra_social_id,
+  cud ( numero_cud, emision, vencimiento ),
   direcciones ( id, calle, numero, tipo_lugar, localidad, descripcion ),
   accesorios_pacientes ( accesorios ( tipo ) ),
   prestaciones ( id, paciente_id, nombre, descripcion, activa )
@@ -135,7 +155,22 @@ async function ensamblarFilasConCobertura(rows: unknown[], limitarCoberturaAIds?
   });
 }
 
-async function listarPacientes(): Promise<Paciente[]> {
+// select-liviano-selectores: además del SELECT más chico, esto se ahorra una consulta ENTERA.
+// La versión anterior pasaba por `ensamblarFilasConCobertura`, que dispara un segundo viaje a
+// `obra_social.coberturas_paciente` solo para resolver `numeroAfiliado` — un campo que ningún
+// consumidor de `list()` usa (lo usan la ficha y Facturación, que lo obtienen por `getById`).
+async function listarPacientes(): Promise<PacienteResumen[]> {
+  const { data, error } = await supabase.schema('pacientes').from('paciente').select(SELECT_PACIENTE_RESUMEN);
+  if (error) throw mapearErrorPaciente(error, { operacion: 'listar' });
+
+  const rows: unknown = data;
+  if (!Array.isArray(rows)) return [];
+
+  return rows.map((row) => ensamblarPacienteResumen(row));
+}
+
+// El camino caro de antes, ahora acotado a su único consumidor real (ver PacienteRepository.ts).
+async function listarPacientesCompletos(): Promise<Paciente[]> {
   const { data, error } = await supabase.schema('pacientes').from('paciente').select(SELECT_PACIENTE_COMPLETO);
   if (error) throw mapearErrorPaciente(error, { operacion: 'listar' });
 
@@ -589,6 +624,7 @@ async function actualizarPaciente(id: string, data: ActualizacionPaciente): Prom
 
 export const supabasePacienteRepository: PacienteRepository = {
   list: listarPacientes,
+  listCompleto: listarPacientesCompletos,
   listPage: listarPacientesPagina,
   getById: getPacienteById,
   create: crearPaciente,

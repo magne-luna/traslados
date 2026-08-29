@@ -8,7 +8,7 @@
 import { capacidadDisponible } from './capacidadDisponible';
 import { aMinutosDesdeMedianoche, VENTANA_BLOQUE_HORARIO_MINUTOS_DEFAULT } from './sugerirOrdenPorCercania';
 import { validarCompatibilidadAccesorio } from './validarCompatibilidadAccesorio';
-import type { Paciente } from '../../types/paciente';
+import type { PacienteResumen } from '../../types/paciente';
 import type { Recorrido, Tramo } from '../../types/hojaDeRuta';
 import type { Vehiculo } from '../../types/vehiculo';
 
@@ -35,7 +35,7 @@ function menorDiferenciaMinutos(recorrido: Recorrido, minutos: number): number |
 export function sugerirRecorridoExistente(
   recorridos: readonly Recorrido[],
   vehiculos: readonly Vehiculo[],
-  paciente: Paciente,
+  paciente: PacienteResumen,
   tramo: Tramo,
   horaEstimada: string,
   ventanaMinutos: number = VENTANA_BLOQUE_HORARIO_MINUTOS_DEFAULT,

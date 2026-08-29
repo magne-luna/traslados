@@ -120,6 +120,33 @@ export interface Paciente {
   prestaciones?: Prestacion[];
 }
 
+/**
+ * Lo que devuelve `PacienteRepository.list()` — el padrón completo que puebla combos, selectores y
+ * las alertas del dashboard (select-liviano-selectores, 2026-08-29).
+ *
+ * **No es un `Paciente` recortado por comodidad: es exactamente lo que sus consumidores usan**,
+ * relevado uno por uno: `id`/`nombre`/`apellido` en todos; `prestaciones` en PresupuestosPage;
+ * `direcciones` y `accesorioMovilidad` en AsignacionPanel y NuevoRecorridoForm; `cud` en las
+ * alertas del dashboard, que comparten la misma clave de caché que los selectores; y
+ * `obraSocialId` en PresupuestoForm, para resolver la obra social del paciente elegido (es una
+ * columna escalar, no un embed — cuesta nada).
+ *
+ * Antes `list()` devolvía `Paciente` entero, o sea la historia clínica de cada persona —datos
+ * clínicos, personas a cargo, número de afiliado— para llenar un desplegable que muestra
+ * "Apellido, Nombre".
+ *
+ * **Por qué un tipo propio y no un `Paciente` con los campos vacíos:** devolver
+ * `personasACargo: []` o `diagnostico: ''` compilaría y pasaría los tests, pero MENTIRÍA — un
+ * consumidor no tendría forma de distinguir "no tiene" de "no se pidió". Con un tipo propio, pedir
+ * un campo ausente es un error de compilación, no un dato incorrecto en pantalla.
+ *
+ * La ficha completa se sigue leyendo con `getById()`, que NO se adelgazó.
+ */
+export type PacienteResumen = Pick<
+  Paciente,
+  'id' | 'nombre' | 'apellido' | 'obraSocialId' | 'cud' | 'direcciones' | 'accesorioMovilidad' | 'prestaciones'
+>;
+
 /** Payload de alta: todo lo de Paciente salvo el id, que asigna el repository. */
 export type NuevoPaciente = Omit<Paciente, 'id'>;
 

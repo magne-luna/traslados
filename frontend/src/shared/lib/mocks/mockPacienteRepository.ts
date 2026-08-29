@@ -82,6 +82,12 @@ function valoresBuscables(paciente: Paciente): Array<string | null | undefined> 
 }
 
 export const mockPacienteRepository: PacienteRepository = {
+  // select-liviano-selectores: el mock guarda pacientes completos, y `Paciente` es asignable a
+  // `PacienteResumen` (es un Pick), así que la misma lectura sirve para las dos firmas. El ahorro
+  // real está en el repository de Supabase, que es donde se recorta el tráfico.
+  async listCompleto(): Promise<Paciente[]> {
+    return ordenarPacientes(readStore());
+  },
   async list() {
     return withLatency([...readStore()]);
   },

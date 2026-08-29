@@ -2,7 +2,7 @@ import { AvisoModeloDatos, Button, Chip, InlineIcon } from '../../design-system/
 import { Card } from '../../design-system/layout';
 import { iconCalendario, iconDocumento, iconMoneda } from '../../design-system/icons';
 import type { ObraSocial } from '../../shared/types/obraSocial';
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { Presupuesto } from '../../shared/types/presupuesto';
 
 /** `vigenciaDesde – vigenciaHasta` (tasks.md 8.7, design.md D1), o "Sin vigencia cargada" —
@@ -41,26 +41,26 @@ function textoOpcional(valor: string | number | undefined): string {
 
 interface PresupuestoResumenProps {
   presupuesto: Presupuesto;
-  paciente: Paciente | undefined;
+  paciente: PacienteResumen | undefined;
   obraSocial: ObraSocial | undefined;
   onEdit: () => void;
 }
 
-function nombrePaciente(paciente: Paciente | undefined): string {
+function nombrePaciente(paciente: PacienteResumen | undefined): string {
   return paciente ? `${paciente.apellido}, ${paciente.nombre}` : 'Paciente desconocido';
 }
 
 /** `presupuesto.prestacionId` -> nombre, buscado en el catálogo del paciente (tasks.md 8.8,
  * design.md D1/D5/D9). Un presupuesto viejo puede apuntar a una prestación ya `activa: false`
  * (borrado lógico, D1) — sigue mostrándose igual, nunca "desconocida". */
-function nombrePrestacion(paciente: Paciente | undefined, prestacionId: string): string {
+function nombrePrestacion(paciente: PacienteResumen | undefined, prestacionId: string): string {
   return paciente?.prestaciones?.find((prestacion) => prestacion.id === prestacionId)?.nombre ?? 'Prestación desconocida';
 }
 
 /** Nombre de una prestación de las `lineas` del desglose (REAPERTURA #13, 2026-08-16): mismo
  * criterio que `nombrePrestacion` — una línea puede apuntar a una prestación ya borrada del
  * catálogo (borrado lógico) o huérfana por drift; se muestra el fallback, nunca se rompe. */
-function nombreLineaPresupuesto(paciente: Paciente | undefined, prestacionId: string): string {
+function nombreLineaPresupuesto(paciente: PacienteResumen | undefined, prestacionId: string): string {
   return nombrePrestacion(paciente, prestacionId);
 }
 
@@ -68,7 +68,7 @@ function nombreLineaPresupuesto(paciente: Paciente | undefined, prestacionId: st
  * por-prestación) no era visible de un vistazo — había que inferirla de la presencia o ausencia
  * del stat "Prestación". Reusa el mismo criterio de resolución que ese stat (`prestacionId` contra
  * `paciente.prestaciones`), expuesto acá como chip para que se vea sin tener que interpretar nada. */
-function etiquetaModalidad(presupuesto: Presupuesto, paciente: Paciente | undefined): string {
+function etiquetaModalidad(presupuesto: Presupuesto, paciente: PacienteResumen | undefined): string {
   if (!presupuesto.prestacionId) return 'Presupuesto general';
   return `Presupuesto por prestación: ${nombrePrestacion(paciente, presupuesto.prestacionId)}`;
 }

@@ -7,7 +7,7 @@ import { capacidadDisponible } from '../../shared/lib/hojas-de-ruta/capacidadDis
 import { direccionesInvertidas } from '../../shared/lib/hojas-de-ruta/direccionesInvertidas';
 import { validarCompatibilidadAccesorio } from '../../shared/lib/hojas-de-ruta/validarCompatibilidadAccesorio';
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { ParadaRecorrido, Recorrido, Tramo } from '../../shared/types/hojaDeRuta';
 import type { RecorridoHabitual } from '../../shared/types/recorridoHabitual';
 import type { Vehiculo } from '../../shared/types/vehiculo';
@@ -24,7 +24,7 @@ interface AsignacionPanelProps {
   /** Vehículo del recorrido, resuelto por el caller a partir de `recorrido.vehiculoId`. */
   vehiculo: Vehiculo | undefined;
   /** Candidatos a asignar — la pantalla decide si filtra a los que ya están en el recorrido. */
-  pacientes: Paciente[];
+  pacientes: PacienteResumen[];
   onAgregar: (parada: ParadaRecorrido) => void;
   /**
    * Modo controlado opcional (feedback de usuario: "mismo comportamiento que crear recorrido") —

@@ -25,6 +25,7 @@ const martina: Paciente = {
 function buildFakeRepository(overrides: Partial<PacienteRepository> = {}): PacienteRepository {
   return {
     list: vi.fn().mockResolvedValue([martina]),
+    listCompleto: vi.fn().mockResolvedValue([]),
     listPage: vi.fn(),
     getById: vi.fn().mockResolvedValue(martina),
     create: vi.fn().mockResolvedValue(martina),

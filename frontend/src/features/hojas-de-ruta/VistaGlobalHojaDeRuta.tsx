@@ -5,7 +5,7 @@ import { iconFlechaAbajo } from '../../design-system/icons';
 import { capacidadDisponible } from '../../shared/lib/hojas-de-ruta/capacidadDisponible';
 import { validarCompatibilidadAccesorio } from '../../shared/lib/hojas-de-ruta/validarCompatibilidadAccesorio';
 import type { Conductor } from '../../shared/types/conductor';
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 
@@ -13,7 +13,7 @@ interface VistaGlobalHojaDeRutaProps {
   recorridos: Recorrido[];
   vehiculos: Vehiculo[];
   conductores: Conductor[];
-  pacientes: Paciente[];
+  pacientes: PacienteResumen[];
   onReasignar: (paradaId: string, origenRecorridoId: string, destinoRecorridoId: string) => void;
 }
 

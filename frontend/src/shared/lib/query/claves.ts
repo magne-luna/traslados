@@ -27,6 +27,11 @@ export const claves = {
   pacientes: {
     todos: () => ['pacientes'] as const,
     lista: () => ['pacientes', 'lista'] as const,
+    /** Padrón con TODOS los campos — solo Facturación (ver PacienteRepository.listCompleto).
+     * Clave PROPIA a propósito: comparte prefijo con el dominio (así una mutación la invalida
+     * igual) pero NO con `lista`, porque las dos formas son distintas y mezclarlas en la misma
+     * entrada de caché haría que un consumidor reciba la forma del otro. */
+    listaCompleta: () => ['pacientes', 'listaCompleta'] as const,
     pagina: (query: QueryPagina<FiltrosPaciente>) => ['pacientes', 'pagina', query] as const,
   },
   vehiculos: {

@@ -1334,8 +1334,8 @@ Para arrancar: `/opsx:propose C-01-foundation-setup`
 |---|---|---|---|---|
 | `migracion-react-query` | Re-fetch al navegar entre pantallas | Padrones pedidos 1 vez por visita a cada pantalla; vehículos **2 veces simultáneas** en Conductores | 4-6 días | ✅ **Hecho** (2026-08-29) |
 | `code-splitting-rutas` | LCP de carga fría (3,24 s) | Bundle inicial **419 → 141 KB gzip (−66 %)**; de 2 a 48 chunks | ~1 día | ✅ **Hecho** (2026-08-29) |
-| `select-liviano-selectores` | Payload de los combos | `list()` trae `SELECT_*_COMPLETO` con 7 relaciones anidadas; `FacturacionPage:89` usa **2 campos** | 1-2 días | Pendiente |
-| `preconnect-indices-supabase` | Latencia de red y de consulta | Sin `preconnect` a Supabase en `index.html` | ~½ día | Pendiente |
+| `select-liviano-selectores` | Payload de los combos | `list()` de pacientes pasa de 7 relaciones anidadas + 2ª consulta a un select acotado | 1-2 días | ✅ **Hecho parcial** (2026-08-29, solo pacientes) |
+| `preconnect-indices-supabase` | Latencia de red y de consulta | `preconnect` ✅ hecho; los índices NO se hicieron (ver abajo) | ~½ día | ⚠️ **Parcial** (2026-08-29) |
 
 ### `migracion-react-query` — navegación
 
@@ -1383,24 +1383,56 @@ todas las rutas. Tests: **3276/3276 en 284 archivos**, contra una línea base de
 
 **Leer antes**: `frontend/src/app/router.tsx`.
 
-### `select-liviano-selectores` — payload
+### `select-liviano-selectores` — payload ✅ HECHO PARCIAL (2026-08-29, solo pacientes)
 
-Governance: **MEDIO**. `list()` (el universo completo que puebla los combos) trae
-`SELECT_PACIENTE_COMPLETO`: 10 columnas más CUD, clínicos, personas a cargo, direcciones, accesorios y
-prestaciones. `FacturacionPage.tsx:89` consume de todo eso exactamente `{ id, nombre }`.
+Governance: **MEDIO**. Hecho directo, sin change de OpenSpec.
 
-Arreglo: método `listResumen()` en el repository con `select` de solo las columnas del combo, sin
-embeds. Reducción de payload estimada en 90-95 %.
+**Qué se hizo:** `PacienteRepository.list()` devuelve `PacienteResumen` en vez de `Paciente`. El
+select pasó de `SELECT_PACIENTE_COMPLETO` (10 columnas + 7 relaciones anidadas) a solo lo que sus
+consumidores usan: `id, nombre_a, apellido_a, obra_social_id` + los embeds `cud`, `direcciones`,
+`accesorios_pacientes` y `prestaciones`. **Y se ahorra una consulta entera**: el camino viejo hacía
+un segundo viaje a `obra_social.coberturas_paciente` solo para resolver `numeroAfiliado`, que ningún
+selector usa.
 
-⚠️ **Toca las interfaces de repository** — por eso va aparte de `migracion-react-query`, que promete
-explícitamente no tocarlas. Si el padrón crece mucho, el paso siguiente es autocompletado server-side
-(`ilike` + `limit`), que ya cambia los componentes de selector.
+Se cayeron `clinicos` (diagnóstico, condición) y `personas_a_cargo` — la historia clínica que se
+bajaba de cada persona del padrón para llenar un desplegable.
 
-### `preconnect-indices-supabase` — latencia
+**Por qué un tipo propio y no un `Paciente` con campos vacíos:** devolver `personasACargo: []` o
+`diagnostico: ''` compilaría y pasaría los tests, pero mentiría — un consumidor no podría distinguir
+"no tiene" de "no se pidió". Con `PacienteResumen` (un `Pick`), pedir un campo ausente es un error
+de compilación. Y como es un `Pick`, un `Paciente` completo sigue siendo asignable, así que ningún
+mock ni fixture se rompió.
 
-Governance: **BAJO**. `<link rel="preconnect">` a Supabase en `index.html` (ahorra el handshake TLS
-del primer request) e índices en las columnas de búsqueda que ya filtra el server-side
-(`apellido`, `nombre`, `dni`, `cuil`).
+⚠️ **Facturación quedó afuera, a propósito.** Necesita el paciente entero (`obraSocialId` y el flujo
+de emisión `useEmisionFactura`), así que usa `listCompleto()` — la consulta cara de antes, ahora
+acotada a su único consumidor real. **Es un paso intermedio honesto, no el destino: lo correcto es
+que Facturación pida por `getById` el ÚNICO paciente de la factura que está viendo.** Mientras eso no
+se haga, esa pantalla paga lo mismo que antes; las otras tres ya no.
+
+⚠️ **Falta el mismo tratamiento para vehículos, conductores y obras sociales.** Solo se hizo
+pacientes, que era el peor caso por lejos.
+
+**Leer antes**: `frontend/src/shared/types/paciente.ts` (`PacienteResumen` y por qué existe).
+
+### `preconnect-indices-supabase` — latencia ⚠️ PARCIAL (2026-08-29)
+
+Governance: **BAJO**.
+
+**✅ `preconnect` hecho.** `<link rel="preconnect" href="%SUPABASE_URL%" crossorigin />` en
+`index.html`. La URL sale de la env var en build (Vite reemplaza `%VAR%` para las que matchean
+`envPrefix`), así que no queda hardcodeada. `crossorigin` es obligatorio: las llamadas a Supabase
+van con header `apikey`, o sea que son CORS — sin el atributo el navegador abre una conexión que
+después no puede reusar.
+
+**❌ Los índices NO se hicieron, y la recomendación cambió.** La búsqueda usa
+`ilike "%token%"` con comodín inicial (`construirFiltroBusqueda.ts`): **un índice btree no sirve
+para eso**, Postgres no lo puede usar. Haría falta `pg_trgm` + GIN sobre 11 columnas (conductores:
+apellido/nombre/dni/cuil; obra_social: razon_social/cuit; paciente: nombre_a/nombre_b/apellido_a/
+apellido_b/dni). No hay ningún `pg_trgm` en las 71 migraciones.
+
+**Recomendación: diferir.** Con unos miles de filas Postgres hace seq scan y es rápido igual; 11
+índices GIN cuestan escritura y espacio en cada alta. Además es migración SQL — territorio de Enzo.
+Vale la pena cuando una consulta se sienta lenta de verdad, no antes.
 
 ---
 

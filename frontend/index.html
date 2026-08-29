@@ -7,6 +7,20 @@
     <title>Traslados — Panel de Gestión</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      preconnect-indices-supabase: adelanta DNS + TCP + TLS contra Supabase mientras el navegador
+      todavía está parseando y ejecutando el bundle. Sin esto, ese handshake recién arranca cuando
+      el primer hook pide datos — o sea, en serie después del JS, no en paralelo.
+
+      La URL sale de la env var en tiempo de build (Vite reemplaza %VAR% en index.html para las que
+      matcheen `envPrefix`, que en vite.config.ts incluye `SUPABASE_`). Así no queda hardcodeada y
+      cada entorno apunta a su propio proyecto.
+
+      `crossorigin` es obligatorio acá: las llamadas a Supabase van con header `apikey`, o sea que
+      son CORS. Sin el atributo, el navegador abriría una conexión que después no puede reusar para
+      esas requests y el preconnect no serviría de nada.
+    -->
+    <link rel="preconnect" href="%SUPABASE_URL%" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap"
       rel="stylesheet"
