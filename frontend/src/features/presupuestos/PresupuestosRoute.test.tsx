@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 
 // `PresupuestosRoute` inyecta supabasePresupuestoRepository/supabaseAutorizacionRepository/
 // supabasePacienteRepository/supabaseObraSocialRepository (reales, tasks.md 4.1) — este test
@@ -29,7 +30,7 @@ describe('PresupuestosRoute', () => {
   });
 
   it('monta la feature con los repositories reales (mockeados) y muestra el encabezado', async () => {
-    render(<PresupuestosRoute />);
+    renderConQuery(<PresupuestosRoute />);
 
     await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
     expect(screen.getByRole('heading', { name: 'Presupuestos' })).toBeInTheDocument();

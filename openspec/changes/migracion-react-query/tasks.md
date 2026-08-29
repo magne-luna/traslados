@@ -108,29 +108,56 @@
 > El más estático, pedido por 4 pantallas, con el hook más simple. Valida el diseño completo antes de
 > replicar.
 
-- [ ] 2.1 **Safety net:** correr `useObrasSociales.test.ts` y `ObraSocialesPage.test.tsx`; anotar el
+- [x] 2.1 **Safety net:** correr `useObrasSociales.test.ts` y `ObraSocialesPage.test.tsx`; anotar el
       conteo en verde. Cualquier fallo previo se reporta, no se arregla acá.
-- [ ] 2.2 **RED** — en `useObrasSociales.test.ts`: dos montajes sucesivos del hook (desmontando en el
+- [x] 2.2 **RED** — en `useObrasSociales.test.ts`: dos montajes sucesivos del hook (desmontando en el
       medio, como hace react-router al navegar) llaman a `repository.list()` **una sola vez**.
-- [ ] 2.3 **GREEN** — reescribir el cuerpo de `useObrasSociales.ts` con `useQuery`, clave
+- [x] 2.3 **GREEN** — reescribir el cuerpo de `useObrasSociales.ts` con `useQuery`, clave
       `claves.obrasSociales.lista()` y `staleTime: FRESCURA.referencia`. **`UseObrasSocialesResult` NO
       cambia** — misma forma, mismos nombres de campo (§D6).
-- [ ] 2.4 **TRIANGULACIÓN de las tres traducciones (§D6):** (a) `error` llega como `string`, con el
+- [x] 2.4 **TRIANGULACIÓN de las tres traducciones (§D6):** (a) `error` llega como `string`, con el
       mismo texto que antes; (b) sin datos, el hook expone `[]` y nunca `undefined`; (c) `loading`
       mapea a `isPending` — con dato cacheado vencido, `loading` es `false` mientras revalida.
-- [ ] 2.5 **RED** — `crear` y `actualizar` invalidan `claves.obrasSociales.todos()`.
-- [ ] 2.6 **GREEN** — cablear ambas mutaciones con `useMutation` + `onSuccess` (§D5), conservando el
+- [x] 2.5 **RED** — `crear` y `actualizar` invalidan `claves.obrasSociales.todos()`.
+- [x] 2.6 **GREEN** — cablear ambas mutaciones con `useMutation` + `onSuccess` (§D5), conservando el
       comportamiento actual de propagación de error al formulario.
-- [ ] 2.7 **TRIANGULACIÓN — invalidación cruzada (el requisito que justifica el change):** test que
+- [x] 2.7 **TRIANGULACIÓN — invalidación cruzada (el requisito que justifica el change):** test que
       monta un consumidor A (rol pantalla de Obras Sociales), crea una obra social, desmonta, monta un
       consumidor B (rol selector de otra pantalla) y verifica que B **ve la obra social nueva** sin
       esperar al vencimiento.
-- [ ] 2.8 **TRIANGULACIÓN — sin parpadeo:** con dato vencido en memoria, el primer render expone
+- [x] 2.8 **TRIANGULACIÓN — sin parpadeo:** con dato vencido en memoria, el primer render expone
       `loading: false` y los datos cacheados, y actualiza cuando llega la revalidación.
-- [ ] 2.9 Verificar que `ObraSocialesPage.test.tsx`, `PacientesPage.test.tsx`,
+- [x] 2.9 Verificar que `ObraSocialesPage.test.tsx`, `PacientesPage.test.tsx`,
       `FacturacionPage.test.tsx` y `PresupuestosPage.test.tsx` pasan **sin más edición que el
       provider**. Si alguno requiere otro cambio, documentar por qué y corregir 2.3.
-- [ ] 2.10 `npx tsc -b --noEmit` + `npm test` completo en verde.
+- [x] 2.10 `npx tsc -b --noEmit` + `npm test` completo en verde. **3295/3295 en 287 archivos**
+      (+4 respecto de la Fase 1, todos agregados acá). Cero regresiones.
+
+> ### Hallazgos de la Fase 2 (leer antes de replicar a los otros dominios)
+>
+> **1. El alcance real en tests fue 5 archivos, no 44.** La cota superior de 0.6 sobreestimaba por
+> 9x: el `grep` matcheaba menciones del componente, no montajes efectivos, y la mayoría recibe los
+> datos por props sin tocar el hook. Los que fallaron con `No QueryClient set` fueron
+> `FacturacionPage`, `FacturacionRoute`, `PresupuestosPage`, `PresupuestosRoute` y `PacientesPage`
+> —las cuatro pantallas que consumen el padrón de obras sociales, más una ruta—, con 8 llamadas a
+> `render` pelado en total. **Para los dominios siguientes, esperar un número igual de chico.**
+>
+> **2. ⚠️ El estado de error de `useMutation` commitea UN TICK DESPUÉS de que `mutateAsync`
+> rechaza.** Medido, no supuesto: justo tras el `await`, `mutacion.error` todavía es `null`; un tick
+> después tiene el error. La implementación anterior lo seteaba sincrónicamente en el `catch` antes
+> de relanzar, así que una pantalla que renderiza el error inmediatamente después de `await crear()`
+> lo veía en el mismo render. **Leerlo de `mutacion.error` cambia ese timing y deja la pantalla en
+> blanco por un render** — lo detectó un test existente, sin editarlo.
+> **Patrón obligatorio para todos los dominios**: el error de mutación va a un `useState` seteado en
+> `onError` (que corre ANTES de que la promesa rechace) y limpiado en `onMutate`. No es "el hook
+> guardando estado de servidor": es estado de presentación de un error de escritura.
+>
+> **3. Las opciones por query ganan sobre los defaults del `QueryClient`.** El `staleTime:
+> FRESCURA.referencia` que declara el hook NO lo pisa el `staleTime: 0` del cliente de test. Por eso
+> los tests de dedup funcionan sin configurar nada especial en el cliente.
+>
+> **4. `renderConQuery(ui)` es el reemplazo directo de `render(ui)`** en tests de componente. Mismo
+> uso, mismo retorno, cliente nuevo por llamada.
 - [ ] 2.11 **CHECKPOINT de revisión humana.** Mostrar el diff de la fase, el conteo de requests
       antes/después para obras sociales, y confirmar que se replica al resto. Commit:
       `refactor: useObrasSociales sobre React Query`.

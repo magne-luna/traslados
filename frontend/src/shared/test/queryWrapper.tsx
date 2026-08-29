@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, type RenderHookResult } from '@testing-library/react';
+import { render, renderHook, type RenderHookResult, type RenderResult } from '@testing-library/react';
 
 // Infraestructura de tests para React Query (design.md §D7). Previene las tres trampas conocidas,
 // una sola vez, en vez de test por test:
@@ -52,4 +52,11 @@ export function envoltorioDeQuery(client: QueryClient = crearQueryClientDeTest()
 /** Render de un elemento suelto dentro de un `QueryClientProvider` nuevo. */
 export function elementoConQuery(ui: ReactElement, client: QueryClient = crearQueryClientDeTest()): ReactElement {
   return <ProveedorDeQuery client={client}>{ui}</ProveedorDeQuery>;
+}
+
+/** `render` de RTL dentro de un `QueryClientProvider` con cliente propio. Es el reemplazo directo
+ * de `render(...)` en los tests de componente que montan pantallas con hooks migrados: mismo uso,
+ * mismo retorno, más el provider que React Query exige. Un cliente nuevo por llamada (§D7). */
+export function renderConQuery(ui: ReactElement, client: QueryClient = crearQueryClientDeTest()): RenderResult {
+  return render(<ProveedorDeQuery client={client}>{ui}</ProveedorDeQuery>);
 }

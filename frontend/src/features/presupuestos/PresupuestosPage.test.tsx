@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
@@ -98,7 +99,7 @@ function buildFakeRecorridoHabitualRepository(): Pick<RecorridoHabitualRepositor
 }
 
 function renderPage(presupuestoRepository: PresupuestoRepository, autorizacionRepository: AutorizacionRepository) {
-  return render(
+  return renderConQuery(
     <PresupuestoRepositoryProvider repository={presupuestoRepository}>
       <AutorizacionRepositoryProvider repository={autorizacionRepository}>
         <PresupuestosPage pacienteRepository={buildFakePacienteRepository()} obraSocialRepository={buildFakeObraSocialRepository()} recorridoHabitualRepository={buildFakeRecorridoHabitualRepository()} />
@@ -112,7 +113,7 @@ function renderPageConPermiso(
   presupuestoRepository: PresupuestoRepository,
   autorizacionRepository: AutorizacionRepository,
 ) {
-  return render(
+  return renderConQuery(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <PresupuestoRepositoryProvider repository={presupuestoRepository}>
         <AutorizacionRepositoryProvider repository={autorizacionRepository}>
@@ -131,7 +132,7 @@ describe('PresupuestosPage — no-regresión: el combo de pacientes usa list() c
   it('llama a pacienteRepository.list() y nunca a listPage()', async () => {
     const pacienteRepository = buildFakePacienteRepository();
 
-    render(
+    renderConQuery(
       <PresupuestoRepositoryProvider repository={buildFakePresupuestoRepository()}>
         <AutorizacionRepositoryProvider repository={buildFakeAutorizacionRepository()}>
           <PresupuestosPage pacienteRepository={pacienteRepository} obraSocialRepository={buildFakeObraSocialRepository()} recorridoHabitualRepository={buildFakeRecorridoHabitualRepository()} />
@@ -152,7 +153,7 @@ describe('PresupuestosPage — no-regresión: el selector de obra social usa lis
   it('llama a obraSocialRepository.list() y nunca a listPage()', async () => {
     const obraSocialRepository = buildFakeObraSocialRepository();
 
-    render(
+    renderConQuery(
       <PresupuestoRepositoryProvider repository={buildFakePresupuestoRepository()}>
         <AutorizacionRepositoryProvider repository={buildFakeAutorizacionRepository()}>
           <PresupuestosPage pacienteRepository={buildFakePacienteRepository()} obraSocialRepository={obraSocialRepository} recorridoHabitualRepository={buildFakeRecorridoHabitualRepository()} />
