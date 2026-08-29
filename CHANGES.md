@@ -1303,6 +1303,64 @@ Para arrancar: `/opsx:propose C-01-foundation-setup`
 
 ---
 
+## Changes transversales de performance (fuera del roadmap C-NN)
+
+> Diagnóstico del 2026-08-29, medido sobre el código y el bundle reales. Son cuatro problemas
+> **distintos** con cuatro arreglos distintos: ninguno reemplaza a otro, y aplicar uno solo no
+> resuelve los demás. No dependen entre sí; se pueden hacer en cualquier orden.
+
+| Change | Qué arregla | Evidencia medida | Costo estimado | Estado |
+|---|---|---|---|---|
+| `migracion-react-query` | Re-fetch al navegar entre pantallas | Padrones pedidos 1 vez por visita a cada pantalla; vehículos **2 veces simultáneas** en Conductores | 4-6 días | **Propuesto** |
+| `code-splitting-rutas` | LCP de carga fría (3,24 s) | `dist/assets/index-*.js` = **1,4 MB**; solo `CuentasRoute` usa `lazy` | ~1 día | Pendiente |
+| `select-liviano-selectores` | Payload de los combos | `list()` trae `SELECT_*_COMPLETO` con 7 relaciones anidadas; `FacturacionPage:89` usa **2 campos** | 1-2 días | Pendiente |
+| `preconnect-indices-supabase` | Latencia de red y de consulta | Sin `preconnect` a Supabase en `index.html` | ~½ día | Pendiente |
+
+### `migracion-react-query` — navegación
+
+Governance: **MEDIA-ALTA**. Reemplaza el estado de fetch de los ~21 hooks por TanStack Query v5, con
+frescura escalonada por clase de dato (referencia 5 min / transaccional 0 / paginado 0 / sensible 0).
+Repositories, interfaces y componentes **no se tocan**.
+
+Reusa el change `cache-listas-referencia` (2026-08-12), que quedó bloqueado en su checkpoint D1; la
+usuaria lo resolvió a favor de la librería el 2026-08-29 y amplió el alcance a toda la app.
+
+**Leer antes**: `openspec/changes/migracion-react-query/design.md` (§D1 registra la decisión invertida
+y por qué; §D3 la frescura escalonada; §D7 el costo real, que está en los tests).
+
+⚠️ **No mejora el LCP de carga fría.** Al contrario: suma ~13 KB gzip al critical path.
+
+### `code-splitting-rutas` — carga fría
+
+Governance: **BAJO**. El patrón ya existe en el repo: `router.tsx` usa `lazy` para `CuentasRoute`
+(por un motivo de tests, no de performance). Replicarlo en cada ruta saca `pdfjs-dist` (1,2 MB),
+`jszip` y Google Maps del critical path.
+
+**Es el mejor retorno por hora de los cuatro.** Si hay que elegir uno solo, es este.
+
+**Leer antes**: `frontend/src/app/router.tsx` (el patrón `lazy` ya escrito).
+
+### `select-liviano-selectores` — payload
+
+Governance: **MEDIO**. `list()` (el universo completo que puebla los combos) trae
+`SELECT_PACIENTE_COMPLETO`: 10 columnas más CUD, clínicos, personas a cargo, direcciones, accesorios y
+prestaciones. `FacturacionPage.tsx:89` consume de todo eso exactamente `{ id, nombre }`.
+
+Arreglo: método `listResumen()` en el repository con `select` de solo las columnas del combo, sin
+embeds. Reducción de payload estimada en 90-95 %.
+
+⚠️ **Toca las interfaces de repository** — por eso va aparte de `migracion-react-query`, que promete
+explícitamente no tocarlas. Si el padrón crece mucho, el paso siguiente es autocompletado server-side
+(`ilike` + `limit`), que ya cambia los componentes de selector.
+
+### `preconnect-indices-supabase` — latencia
+
+Governance: **BAJO**. `<link rel="preconnect">` a Supabase en `index.html` (ahorra el handshake TLS
+del primer request) e índices en las columnas de búsqueda que ya filtra el server-side
+(`apellido`, `nombre`, `dni`, `cuil`).
+
+---
+
 ## ⚠️ Checklist de seguridad — antes de lanzar a producción
 
 Pendiente de que Enzo lo haga a mano en el dashboard de Supabase (no automatizable desde acá).
