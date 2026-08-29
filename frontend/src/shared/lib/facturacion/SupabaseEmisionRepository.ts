@@ -30,4 +30,15 @@ export const supabaseEmisionRepository: EmisionRepository = {
     if (!factura.id) throw new Error('No se pudo emitir la factura.');
     return factura;
   },
+
+  async verComprobante(clave: string) {
+    // `Factura.comprobantePdfUrl` guarda la CLAVE del objeto
+    // (`{facturaId}/{cbteTipo}-{ptoVta}-{cbteNro}.pdf`), no una URL — la EF `facturar` la persiste
+    // así a propósito. Vigencia 5 min: el link se genera al hacer click, no se comparte ni persiste.
+    const { data, error } = await supabase.storage.from('facturas-emitidas').createSignedUrl(clave, 300);
+    if (error || !data?.signedUrl) {
+      throw new Error('No se pudo abrir el comprobante. Verificá que tengas permiso de facturación.');
+    }
+    return data.signedUrl;
+  },
 };

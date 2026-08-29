@@ -54,7 +54,7 @@ function filaFacturaEmitida(overrides: Record<string, unknown> = {}): Record<str
     cbte_nro: 45,
     pto_vta: 3,
     arca_ambiente: 'homologacion',
-    comprobante_pdf_url: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+    comprobante_pdf_url: 'factura-1/FACTURA_A-3-45.pdf',
     asistencia_prestacion: [
       { id: 'a-1', fecha: '2026-03-05', prestacion: 'Traslado', dependencia: 'Domicilio', retorno: 'Centro', factura_sabados: false },
     ],
@@ -96,7 +96,7 @@ describe('supabaseEmisionRepository.emitir()', () => {
       cbteNro: 45,
       ptoVta: 3,
       arcaAmbiente: 'homologacion',
-      comprobantePdfUrl: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+      comprobantePdfUrl: 'factura-1/FACTURA_A-3-45.pdf',
     });
     expect(factura.asistencias).toHaveLength(1);
   });

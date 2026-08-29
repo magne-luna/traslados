@@ -1,17 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import type { Autorizacion, Presupuesto } from '../../shared/types/presupuesto';
+import type { Autorizacion } from '../../shared/types/presupuesto';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
-import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
+import type { EmisionRepository } from '../../shared/lib/facturacion/EmisionRepository';
 import type { Factura } from '../../shared/types/factura';
-import type { ObraSocial } from '../../shared/types/obraSocial';
-import type { Paciente } from '../../shared/types/paciente';
 import { useEmisionFactura } from './useEmisionFactura';
 
-// `resolverCupoAutorizado` deja de adivinar (change `facturacion-seleccion-autorizacion`,
-// design.md D6, tasks.md 3.6): recibe la autorización ELEGIDA y deriva el `CupoAutorizado` de ESA
-// vía `AutorizacionRepository.getById` + `derivarCupoAutorizado` (reusada sin cambios). Repository
-// fake tipado, sin red, cero `any`.
+// `facturacion-electronica-arca` §5 (el swap): `emitirFactura` deja de congelar snapshots y llamar
+// `actualizar(id, { estado: 'facturado', … })` — invoca `emisionRepository.emitir(facturaId)` (la
+// Edge Function `facturar`, que obtiene un CAE real y congela los snapshots del lado del servidor,
+// D8). La validación de cupo sigue en el cliente (D10): `resolverCupoAutorizado` no cambió.
 
 function autorizacion(overrides: Partial<Autorizacion> = {}): Autorizacion {
   return {
@@ -34,27 +32,6 @@ function fakeAutorizacionRepository(autorizaciones: Map<string, Autorizacion>): 
     uploadArchivo: () => Promise.reject(new Error('no usado en este test')),
     removeArchivo: () => Promise.reject(new Error('no usado en este test')),
     getUrlArchivo: () => Promise.reject(new Error('no usado en este test')),
-  };
-}
-
-function presupuesto(overrides: Partial<Presupuesto> = {}): Presupuesto {
-  return {
-    id: 'presupuesto-1',
-    pacienteId: 'paciente-martina',
-    obraSocialId: 'osecac',
-    monto: 45000,
-    fechaEmision: '2026-03-01',
-    ...overrides,
-  };
-}
-
-function fakePresupuestoRepository(presupuestos: Map<string, Presupuesto>): PresupuestoRepository {
-  return {
-    list: () => Promise.resolve([...presupuestos.values()]),
-    getById: (id: string) => Promise.resolve(presupuestos.get(id) ?? null),
-    create: () => Promise.reject(new Error('no usado en este test')),
-    createLote: () => Promise.reject(new Error('no usado en este test')),
-    update: () => Promise.reject(new Error('no usado en este test')),
   };
 }
 
@@ -81,322 +58,111 @@ function factura(overrides: Partial<Factura> = {}): Factura {
   };
 }
 
-function paciente(overrides: Partial<Paciente> = {}): Paciente {
-  return {
-    id: 'paciente-martina',
-    apellido: 'Gómez',
-    nombre: 'Martina',
-    fechaNacimiento: '2015-03-12',
-    dni: '45123456',
-    cuilTitular: '27-30111222-4',
-    diagnostico: 'Parálisis cerebral',
-    accesorioMovilidad: [],
-    obraSocialId: 'osecac',
-    numeroAfiliado: { valor: '45123456' },
-    cud: null,
-    direcciones: [],
-    personasACargo: [],
-    amparoJudicial: false,
-    ...overrides,
-  };
+function fakeEmisionRepository(impl?: Partial<EmisionRepository>): { repo: EmisionRepository; emitir: ReturnType<typeof vi.fn> } {
+  const emitir = vi.fn(impl?.emitir ?? ((id: string) => Promise.resolve(factura({ id, estado: 'facturado', cae: '75000000000001' }))));
+  return { repo: { emitir, verComprobante: impl?.verComprobante ?? vi.fn() }, emitir };
 }
 
-function obraSocial(overrides: Partial<ObraSocial> = {}): ObraSocial {
-  return {
-    id: 'osecac',
-    nombre: 'OSECAC',
-    cuit: '30-54155200-6',
-    modalidadFacturacion: 'por-prestacion',
-    admitePagosParciales: true,
-    formatoAfiliado: 'numero-documento',
-    checklist: [],
-    plantillaFactura: { campos: [], identificadorOrigen: 'paciente.numeroAfiliado' },
-    ...overrides,
-  };
+interface SetupOverrides {
+  facturaActual?: Factura | null;
+  autorizaciones?: Map<string, Autorizacion>;
+  emision?: { repo: EmisionRepository; emitir: ReturnType<typeof vi.fn> };
+  onEmitida?: ReturnType<typeof vi.fn<() => void>>;
+  onError?: ReturnType<typeof vi.fn<(mensaje: string) => void>>;
 }
 
-function setup(autorizaciones: Map<string, Autorizacion>, presupuestos: Map<string, Presupuesto> = new Map()) {
-  return renderHook(() =>
+function setup(over: SetupOverrides = {}) {
+  const emision = over.emision ?? fakeEmisionRepository();
+  const onEmitida = over.onEmitida ?? vi.fn<() => void>();
+  const onError = over.onError ?? vi.fn<(mensaje: string) => void>();
+  const hook = renderHook(() =>
     useEmisionFactura({
-      factura: factura(),
-      paciente: undefined,
-      obraSocial: undefined,
+      factura: over.facturaActual === undefined ? factura() : over.facturaActual,
       facturasExistentes: [],
-      autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
-      presupuestoRepository: fakePresupuestoRepository(presupuestos),
-      actualizar: vi.fn(),
-      onError: vi.fn(),
+      autorizacionRepository: fakeAutorizacionRepository(over.autorizaciones ?? new Map()),
+      emisionRepository: emision.repo,
+      onEmitida,
+      onError,
     }),
   );
+  return { ...hook, emitir: emision.emitir, onEmitida, onError };
 }
 
-describe('useEmisionFactura — resolverCupoAutorizado (D6, tasks.md 3.6)', () => {
-  it('sin autorizacionId (factura anterior al change, autorizacion_id NULL): resuelve undefined', async () => {
-    const { result } = setup(new Map());
-
-    const cupo = await result.current.resolverCupoAutorizado('paciente-martina', undefined);
-    expect(cupo).toBeUndefined();
+describe('useEmisionFactura — resolverCupoAutorizado (D6, no cambió con el swap)', () => {
+  it('sin autorizacionId: resuelve undefined', async () => {
+    const { result } = setup();
+    expect(await result.current.resolverCupoAutorizado('paciente-martina', undefined)).toBeUndefined();
   });
 
-  it('con autorizacionId: deriva el CupoAutorizado de ESA autorización, no de otra', async () => {
+  it('con autorizacionId: deriva el CupoAutorizado de ESA autorización', async () => {
     const autorizaciones = new Map<string, Autorizacion>([
-      ['autorizacion-elegida', autorizacion({ id: 'autorizacion-elegida', cupoMensualDias: 10, cupoMensualKm: 200 })],
-      ['autorizacion-otra', autorizacion({ id: 'autorizacion-otra', cupoMensualDias: 999, cupoMensualKm: 999 })],
+      ['elegida', autorizacion({ id: 'elegida', cupoMensualDias: 10, cupoMensualKm: 200 })],
+      ['otra', autorizacion({ id: 'otra', cupoMensualDias: 999, cupoMensualKm: 999 })],
     ]);
-    const { result } = setup(autorizaciones);
-
-    const cupo = await result.current.resolverCupoAutorizado('paciente-martina', 'autorizacion-elegida');
-
-    expect(cupo).toEqual({ pacienteId: 'paciente-martina', cupoMensualDias: 10, cupoMensualKm: 200, vigenciaDesde: undefined });
+    const { result } = setup({ autorizaciones });
+    expect(await result.current.resolverCupoAutorizado('paciente-martina', 'elegida')).toEqual({
+      pacienteId: 'paciente-martina',
+      cupoMensualDias: 10,
+      cupoMensualKm: 200,
+      vigenciaDesde: undefined,
+    });
   });
 
-  it('autorizacionId que ya no existe (getById -> null): resuelve undefined sin lanzar', async () => {
-    const { result } = setup(new Map());
-
-    const cupo = await result.current.resolverCupoAutorizado('paciente-martina', 'autorizacion-inexistente');
-    expect(cupo).toBeUndefined();
+  it('autorizacionId inexistente: resuelve undefined sin lanzar', async () => {
+    const { result } = setup();
+    expect(await result.current.resolverCupoAutorizado('paciente-martina', 'no-existe')).toBeUndefined();
   });
+});
 
-  it('sin pacienteId: resuelve undefined sin llamar al repository', async () => {
-    const autorizaciones = new Map<string, Autorizacion>([['autorizacion-1', autorizacion()]]);
-    const { result } = setup(autorizaciones);
-
-    const cupo = await result.current.resolverCupoAutorizado('', 'autorizacion-1');
-    expect(cupo).toBeUndefined();
-  });
-
-  it('handleEmitirClick resuelve el cupo contra factura.autorizacionId, no adivina', async () => {
-    const autorizaciones = new Map<string, Autorizacion>([
-      ['autorizacion-elegida', autorizacion({ id: 'autorizacion-elegida', cupoMensualDias: 1, cupoMensualKm: 1 })],
-    ]);
-    const getById = vi.fn((id: string) => Promise.resolve(autorizaciones.get(id) ?? null));
-    const repo: AutorizacionRepository = {
-      list: () => Promise.resolve([...autorizaciones.values()]),
-      getById,
-      listByPresupuestoId: () => Promise.reject(new Error('no usado en este test')),
-      create: () => Promise.reject(new Error('no usado en este test')),
-      update: () => Promise.reject(new Error('no usado en este test')),
-      uploadArchivo: () => Promise.reject(new Error('no usado en este test')),
-      removeArchivo: () => Promise.reject(new Error('no usado en este test')),
-      getUrlArchivo: () => Promise.reject(new Error('no usado en este test')),
-    };
-
-    const { result } = renderHook(() =>
-      useEmisionFactura({
-        factura: factura({ autorizacionId: 'autorizacion-elegida', dias: 5, cantidadKm: 5 }),
-        paciente: undefined,
-        obraSocial: undefined,
-        facturasExistentes: [],
-        autorizacionRepository: repo,
-        presupuestoRepository: fakePresupuestoRepository(new Map()),
-        actualizar: vi.fn(),
-        onError: vi.fn(),
-      }),
-    );
+describe('useEmisionFactura — emitirFactura invoca la Edge Function `facturar` (§5)', () => {
+  it('emisión dentro de cupo: llama a emisionRepository.emitir(facturaId) y luego onEmitida', async () => {
+    const { result, emitir, onEmitida, onError } = setup();
 
     await result.current.handleEmitirClick();
 
-    expect(getById).toHaveBeenCalledWith('autorizacion-elegida');
-    // 5 días facturados > 1 autorizado -> excede, se pide confirmación explícita en vez de emitir.
+    expect(emitir).toHaveBeenCalledWith('factura-1');
+    expect(onEmitida).toHaveBeenCalledOnce();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('NO congela snapshots en el cliente: emitir recibe solo el id, nada más', async () => {
+    const { result, emitir } = setup();
+    await result.current.handleEmitirClick();
+    expect(emitir.mock.calls[0]).toEqual(['factura-1']);
+  });
+
+  it('rechazo de ARCA (emitir rechaza): onError con el mensaje, no llama onEmitida', async () => {
+    const emision = fakeEmisionRepository({
+      emitir: () => Promise.reject(new Error('ARCA rechazó el comprobante: CUIT del receptor inválido')),
+    });
+    const { result, onEmitida, onError } = setup({ emision });
+
+    await result.current.handleEmitirClick();
+
+    expect(onError).toHaveBeenCalledWith('ARCA rechazó el comprobante: CUIT del receptor inválido');
+    expect(onEmitida).not.toHaveBeenCalled();
+  });
+
+  it('exceso de cupo: NO emite, pide confirmación explícita; recién al confirmar invoca emitir', async () => {
+    const autorizaciones = new Map<string, Autorizacion>([
+      ['elegida', autorizacion({ id: 'elegida', cupoMensualDias: 1, cupoMensualKm: 1 })],
+    ]);
+    const { result, emitir } = setup({
+      autorizaciones,
+      facturaActual: factura({ autorizacionId: 'elegida', dias: 5, cantidadKm: 5 }),
+    });
+
+    await result.current.handleEmitirClick();
     await waitFor(() => expect(result.current.cupoParaConfirmar?.excedeDias).toBe(true));
+    expect(emitir).not.toHaveBeenCalled();
+
+    await result.current.handleConfirmarEmision();
+    expect(emitir).toHaveBeenCalledWith('factura-1');
   });
 
-  // `autorizacion-mensual` (design.md D7/D8, tasks.md 6b.5): confirma que esta función NO CAMBIÓ
-  // con el modelo 1:N mensual — ya recibía un `autorizacionId` explícito desde `D6` de
-  // `facturacion-seleccion-autorizacion` (no itera ni adivina), así que con dos filas mensuales del
-  // MISMO presupuesto (una por mes, cada una con su propio cupo) sigue derivando el cupo de la
-  // fila puntual elegida, nunca el de la otra fila del mismo presupuesto/paciente.
-  it('con dos autorizaciones mensuales del mismo presupuesto (una por mes): deriva el cupo del mes ELEGIDO, no el del otro mes', async () => {
-    const autorizaciones = new Map<string, Autorizacion>([
-      [
-        'autorizacion-marzo',
-        autorizacion({
-          id: 'autorizacion-marzo',
-          presupuestoId: 'presupuesto-1',
-          periodoMes: '2026-03-01',
-          cupoMensualDias: 10,
-          cupoMensualKm: 200,
-        }),
-      ],
-      [
-        'autorizacion-abril',
-        autorizacion({
-          id: 'autorizacion-abril',
-          presupuestoId: 'presupuesto-1',
-          periodoMes: '2026-04-01',
-          cupoMensualDias: 999,
-          cupoMensualKm: 999,
-        }),
-      ],
-    ]);
-    const { result } = setup(autorizaciones);
-
-    const cupoMarzo = await result.current.resolverCupoAutorizado('paciente-martina', 'autorizacion-marzo');
-    expect(cupoMarzo).toEqual({ pacienteId: 'paciente-martina', cupoMensualDias: 10, cupoMensualKm: 200, vigenciaDesde: undefined });
-
-    const cupoAbril = await result.current.resolverCupoAutorizado('paciente-martina', 'autorizacion-abril');
-    expect(cupoAbril).toEqual({ pacienteId: 'paciente-martina', cupoMensualDias: 999, cupoMensualKm: 999, vigenciaDesde: undefined });
-  });
-});
-
-// `sacar-prestadores` reexpone `ObraSocial.plazoCobroDias` (RF-306): `emitirFactura` deja de
-// pasar `plazoObraSocial: undefined` a mano — usa el dato real de la obra social del paciente.
-// `calcularFechaEstimadaCobro` (no se toca, ya tenía la precedencia completa) sigue resolviendo
-// amparo > plazoObraSocial > default.
-describe('useEmisionFactura — emitirFactura usa el plazo real de la obra social (RF-306)', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-08-10T00:00:00.000Z'));
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it('con plazoCobroDias configurado en la obra social: fechaEstimadaCobro se calcula con ESE plazo', async () => {
-    const actualizar = vi.fn().mockResolvedValue(factura());
-    const { result } = renderHook(() =>
-      useEmisionFactura({
-        factura: factura({ dias: 1, cantidadKm: 1 }),
-        paciente: paciente({ amparoJudicial: false }),
-        obraSocial: obraSocial({ plazoCobroDias: 60 }),
-        facturasExistentes: [],
-        autorizacionRepository: fakeAutorizacionRepository(new Map()),
-        presupuestoRepository: fakePresupuestoRepository(new Map()),
-        actualizar,
-        onError: vi.fn(),
-      }),
-    );
-
+  it('sin factura: no hace nada', async () => {
+    const { result, emitir } = setup({ facturaActual: null });
     await result.current.handleEmitirClick();
-
-    expect(actualizar).toHaveBeenCalledWith('factura-1', expect.objectContaining({ fechaEstimadaCobro: '2026-10-09' }));
-  });
-
-  it('sin plazoCobroDias configurado: cae al default general (90 días)', async () => {
-    const actualizar = vi.fn().mockResolvedValue(factura());
-    const { result } = renderHook(() =>
-      useEmisionFactura({
-        factura: factura({ dias: 1, cantidadKm: 1 }),
-        paciente: paciente({ amparoJudicial: false }),
-        obraSocial: obraSocial({ plazoCobroDias: undefined }),
-        facturasExistentes: [],
-        autorizacionRepository: fakeAutorizacionRepository(new Map()),
-        presupuestoRepository: fakePresupuestoRepository(new Map()),
-        actualizar,
-        onError: vi.fn(),
-      }),
-    );
-
-    await result.current.handleEmitirClick();
-
-    expect(actualizar).toHaveBeenCalledWith('factura-1', expect.objectContaining({ fechaEstimadaCobro: '2026-11-08' }));
-  });
-
-  it('amparo judicial sigue ganando aunque la obra social tenga plazoCobroDias configurado', async () => {
-    const actualizar = vi.fn().mockResolvedValue(factura());
-    const { result } = renderHook(() =>
-      useEmisionFactura({
-        factura: factura({ dias: 1, cantidadKm: 1 }),
-        paciente: paciente({ amparoJudicial: true }),
-        obraSocial: obraSocial({ plazoCobroDias: 60 }),
-        facturasExistentes: [],
-        autorizacionRepository: fakeAutorizacionRepository(new Map()),
-        presupuestoRepository: fakePresupuestoRepository(new Map()),
-        actualizar,
-        onError: vi.fn(),
-      }),
-    );
-
-    await result.current.handleEmitirClick();
-
-    const llamada = actualizar.mock.calls[0]?.[1] as { fechaEstimadaCobro: string } | undefined;
-    expect(llamada?.fechaEstimadaCobro).not.toBe('2026-10-09');
-  });
-});
-
-// WU2 de `facturacion-cambios-ui` (decisión usuaria 2026-08-16, opción a): la descripción que la
-// emisión congela en la factura incluye el bloque "Prestaciones:" con los nombres de las LÍNEAS
-// del presupuesto de la autorización elegida (`presupuesto.lineas` — REAPERTURA #13 — resueltas
-// client-side contra el catálogo del paciente, mismo criterio que `prestacionRealAutorizacion`).
-describe('useEmisionFactura — emitirFactura congela la descripción con el bloque Prestaciones (WU2)', () => {
-  function pacienteConCatalogo(): Paciente {
-    return paciente({
-      prestaciones: [
-        { id: 'prest-kine', pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true },
-        { id: 'prest-fono', pacienteId: 'paciente-martina', nombre: 'Fonoaudiología', activa: true },
-      ],
-    });
-  }
-
-  function obraSocialGeneral(): ObraSocial {
-    return obraSocial({
-      modalidadFacturacion: 'general',
-      plantillaFactura: {
-        identificadorOrigen: 'paciente.numeroAfiliado',
-        campos: [{ id: 'c-periodo', etiqueta: 'Período', origen: 'traslado.mesYAnio', orden: 0 }],
-      },
-    });
-  }
-
-  it('con autorización cuyo presupuesto tiene líneas: la descripción congelada termina con el bloque', async () => {
-    const actualizar = vi.fn().mockResolvedValue(factura());
-    const { result } = renderHook(() =>
-      useEmisionFactura({
-        factura: factura({ autorizacionId: 'autorizacion-general', dias: 1, cantidadKm: 1 }),
-        paciente: pacienteConCatalogo(),
-        obraSocial: obraSocialGeneral(),
-        facturasExistentes: [],
-        autorizacionRepository: fakeAutorizacionRepository(
-          new Map([['autorizacion-general', autorizacion({ id: 'autorizacion-general', presupuestoId: 'presupuesto-general' })]]),
-        ),
-        presupuestoRepository: fakePresupuestoRepository(
-          new Map([
-            [
-              'presupuesto-general',
-              presupuesto({
-                id: 'presupuesto-general',
-                lineas: [
-                  { id: 'linea-1', prestacionId: 'prest-kine', monto: 9000, orden: 1 },
-                  { id: 'linea-2', prestacionId: 'prest-fono', monto: 4500, orden: 2 },
-                ],
-              }),
-            ],
-          ]),
-        ),
-        actualizar,
-        onError: vi.fn(),
-      }),
-    );
-
-    await result.current.handleEmitirClick();
-
-    const llamada = actualizar.mock.calls[0]?.[1] as { descripcion: string } | undefined;
-    expect(llamada?.descripcion).toContain('Prestaciones: Kinesiología, Fonoaudiología');
-  });
-
-  it('autorización con presupuesto legacy sin líneas: la descripción NO tiene bloque (legajo previo a la REAPERTURA #13)', async () => {
-    const actualizar = vi.fn().mockResolvedValue(factura());
-    const { result } = renderHook(() =>
-      useEmisionFactura({
-        factura: factura({ autorizacionId: 'autorizacion-legacy', dias: 1, cantidadKm: 1 }),
-        paciente: pacienteConCatalogo(),
-        obraSocial: obraSocialGeneral(),
-        facturasExistentes: [],
-        autorizacionRepository: fakeAutorizacionRepository(
-          new Map([['autorizacion-legacy', autorizacion({ id: 'autorizacion-legacy', presupuestoId: 'presupuesto-legacy' })]]),
-        ),
-        presupuestoRepository: fakePresupuestoRepository(
-          new Map([['presupuesto-legacy', presupuesto({ id: 'presupuesto-legacy' })]]) as Map<string, Presupuesto>,
-        ),
-        actualizar,
-        onError: vi.fn(),
-      }),
-    );
-
-    await result.current.handleEmitirClick();
-
-    const llamada = actualizar.mock.calls[0]?.[1] as { descripcion: string } | undefined;
-    expect(llamada?.descripcion).not.toContain('Prestaciones:');
+    expect(emitir).not.toHaveBeenCalled();
   });
 });

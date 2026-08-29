@@ -1,6 +1,7 @@
 import { mockDocumentoRepository } from '../../shared/lib/documentos/mockDocumentoRepository';
 import { buildFeriadosFixture } from '../../shared/lib/mocks/feriadosFixture';
 import { supabaseCobroRepository } from '../../shared/lib/facturacion/SupabaseCobroRepository';
+import { supabaseEmisionRepository } from '../../shared/lib/facturacion/SupabaseEmisionRepository';
 import { supabaseFacturaRepository } from '../../shared/lib/facturacion/SupabaseFacturaRepository';
 import { supabaseObraSocialRepository } from '../../shared/lib/obrasSociales/SupabaseObraSocialRepository';
 import { supabasePacienteRepository } from '../../shared/lib/pacientes/SupabasePacienteRepository';
@@ -48,6 +49,7 @@ export function FacturacionRoute() {
           obraSocialRepository={supabaseObraSocialRepository}
           presupuestoRepository={supabasePresupuestoRepository}
           autorizacionRepository={supabaseAutorizacionRepository}
+          emisionRepository={supabaseEmisionRepository}
           documentoRepository={mockDocumentoRepository}
           feriados={FERIADOS}
         />

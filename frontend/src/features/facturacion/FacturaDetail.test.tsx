@@ -133,6 +133,8 @@ function renderDetail(overrides: Partial<React.ComponentProps<typeof FacturaDeta
   const crear = vi.fn().mockResolvedValue(facturaAFacturar());
   const actualizar = vi.fn().mockResolvedValue(facturaAFacturar({ estado: 'facturado' }));
   const onCreated = vi.fn();
+  const emitir = vi.fn().mockResolvedValue(facturaAFacturar({ estado: 'facturado', cae: '75000000000001' }));
+  const onEmitida = vi.fn();
   const onBack = vi.fn();
 
   render(
@@ -148,22 +150,26 @@ function renderDetail(overrides: Partial<React.ComponentProps<typeof FacturaDeta
           feriados={[]}
           presupuestoRepository={buildPresupuestoRepository()}
           autorizacionRepository={buildAutorizacionRepository()}
+          emisionRepository={{ emitir, verComprobante: vi.fn() }}
           cobroRepository={buildCobroRepository()}
           documentoRepository={buildDocumentoRepository()}
           onCreated={onCreated}
+          onEmitida={onEmitida}
           onBack={onBack}
           {...overrides}
         />
       </TiposDocumentoRepositoryProvider>
     </AuthProvider>,
   );
-  return { crear, actualizar, onCreated, onBack };
+  return { crear, actualizar, emitir, onEmitida, onCreated, onBack };
 }
 
 function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React.ComponentProps<typeof FacturaDetail>> = {}) {
   const crear = vi.fn().mockResolvedValue(facturaAFacturar());
   const actualizar = vi.fn().mockResolvedValue(facturaAFacturar({ estado: 'facturado' }));
   const onCreated = vi.fn();
+  const emitir = vi.fn().mockResolvedValue(facturaAFacturar({ estado: 'facturado', cae: '75000000000001' }));
+  const onEmitida = vi.fn();
   const onBack = vi.fn();
 
   render(
@@ -180,9 +186,11 @@ function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React
             feriados={[]}
             presupuestoRepository={buildPresupuestoRepository()}
             autorizacionRepository={buildAutorizacionRepository()}
+            emisionRepository={{ emitir, verComprobante: vi.fn() }}
             cobroRepository={buildCobroRepository()}
             documentoRepository={buildDocumentoRepository()}
             onCreated={onCreated}
+            onEmitida={onEmitida}
             onBack={onBack}
             {...overrides}
           />
@@ -190,7 +198,7 @@ function renderDetailConPermiso(puedeEscribir: boolean, overrides: Partial<React
       </PuedeEscribirContext.Provider>
     </AuthProvider>,
   );
-  return { crear, actualizar, onCreated, onBack };
+  return { crear, actualizar, emitir, onEmitida, onCreated, onBack };
 }
 
 describe('FacturaDetail', () => {
@@ -216,18 +224,24 @@ describe('FacturaDetail', () => {
     expect(texto).toMatch(/obra social/i);
   });
 
-  it('emite la factura (a-facturar → facturado): congela descripción, identificador y calcula fecha estimada de cobro', async () => {
-    const { actualizar } = renderDetail();
+  it('emitir invoca la Edge Function `facturar` (§5), no `actualizar` con snapshots locales', async () => {
+    const { emitir, actualizar, onEmitida } = renderDetail();
 
     await userEvent.click(screen.getByRole('button', { name: /^emitir/i }));
 
-    await waitFor(() => expect(actualizar).toHaveBeenCalled());
-    const [id, payload] = actualizar.mock.calls[0] as [string, Partial<Factura>];
-    expect(id).toBe('factura-1');
-    expect(payload.estado).toBe('facturado');
-    expect(payload.fechaFactura).toBeTruthy();
-    expect(payload.fechaEstimadaCobro).toBeTruthy();
-    expect(payload.identificadorFactura).toEqual({ origen: 'paciente.numeroAfiliado', valor: '45123456' });
+    await waitFor(() => expect(emitir).toHaveBeenCalledWith('factura-1'));
+    // los snapshots (fechaFactura, identificador, descripción) los congela la EF, no el cliente
+    expect(actualizar).not.toHaveBeenCalled();
+    await waitFor(() => expect(onEmitida).toHaveBeenCalled());
+  });
+
+  it('un rechazo de ARCA se muestra como error y deja la factura editable', async () => {
+    const emitir = vi.fn().mockRejectedValue(new Error('ARCA rechazó el comprobante: fecha fuera de rango'));
+    renderDetail({ emisionRepository: { emitir, verComprobante: vi.fn() } });
+
+    await userEvent.click(screen.getByRole('button', { name: /^emitir/i }));
+
+    await waitFor(() => expect(screen.getByText(/ARCA rechazó el comprobante/i)).toBeInTheDocument());
   });
 
   // `resolverCupoAutorizado` deriva el cupo de la autorización ELEGIDA (change
@@ -246,7 +260,7 @@ describe('FacturaDetail', () => {
       }),
     };
 
-    const { actualizar } = renderDetail({
+    const { emitir } = renderDetail({
       factura: facturaAFacturar({ autorizacionId: 'auth-1' }),
       facturasExistentes: [facturaAFacturar({ autorizacionId: 'auth-1' })],
       autorizacionRepository,
@@ -255,10 +269,10 @@ describe('FacturaDetail', () => {
     await userEvent.click(screen.getByRole('button', { name: /^emitir/i }));
 
     await waitFor(() => expect(screen.getByText(/ten[ée]s autorizados/i)).toBeInTheDocument());
-    expect(actualizar).not.toHaveBeenCalled();
+    expect(emitir).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole('button', { name: /confirmar emisión/i }));
-    await waitFor(() => expect(actualizar).toHaveBeenCalled());
+    await waitFor(() => expect(emitir).toHaveBeenCalled());
   });
 
   it('señaliza una factura facturada vencida sin cobro', () => {

@@ -141,8 +141,9 @@ function buildProps() {
     resolverPrevisualizacion: vi.fn().mockResolvedValue(null),
     transferirAgrupacion: vi.fn(),
   };
+  const emisionRepository = { emitir: vi.fn(), verComprobante: vi.fn() };
 
-  return { pacienteRepository, obraSocialRepository, presupuestoRepository, autorizacionRepository, documentoRepository };
+  return { pacienteRepository, obraSocialRepository, presupuestoRepository, autorizacionRepository, emisionRepository, documentoRepository };
 }
 
 describe('FacturacionPage', () => {

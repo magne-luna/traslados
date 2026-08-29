@@ -42,8 +42,12 @@ export function makeMockEmisionRepository(facturaRepository: FacturaRepository):
         cbteNro,
         ptoVta,
         arcaAmbiente: 'homologacion',
-        comprobantePdfUrl: `facturas-emitidas/${facturaId}/FACTURA_${factura.tipoComprobante}-${ptoVta}-${cbteNro}.pdf`,
+        comprobantePdfUrl: `${facturaId}/FACTURA_${factura.tipoComprobante}-${ptoVta}-${cbteNro}.pdf`,
       });
+    },
+
+    async verComprobante(clave: string) {
+      return `blob:mock-comprobante/${clave}`;
     },
   };
 }

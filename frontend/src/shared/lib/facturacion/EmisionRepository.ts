@@ -19,4 +19,11 @@ export interface EmisionRepository {
    * factura ya tiene CAE (idempotencia). En esos casos la factura NO cambia de estado.
    */
   emitir(facturaId: string): Promise<Factura>;
+
+  /**
+   * Resuelve una URL firmada de vigencia acotada para el PDF del comprobante emitido, a partir de
+   * la clave guardada en `Factura.comprobantePdfUrl`. El bucket `facturas-emitidas` es privado y
+   * su policy de lectura está gateada por `modulos.tiene_permiso('facturacion', 'read')`.
+   */
+  verComprobante(clave: string): Promise<string>;
 }

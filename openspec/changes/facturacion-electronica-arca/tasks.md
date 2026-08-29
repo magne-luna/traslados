@@ -241,25 +241,22 @@
 - [ ] 4B.7 **Aplicar la migración** — **Enzo** (§2B.9 la agrupa). `db advisors` sin hallazgos nuevos.
 - [ ] 4B.8 `npx tsc -b --noEmit` + `oxlint` limpios. Suite de `features/obras-sociales/` verde.
 
-## 5. El swap (⚠️ el corte real — bloqueada por 2B.10 y 2B.11)
+## 5. El swap ✅ (2026-08-29, EF `facturar` desplegada — `status: ACTIVE`)
 
-> Un solo commit. A partir de acá "Emitir" llama a ARCA.
-
-- [ ] 5.1 **RED** — `useEmisionFactura.test.ts`: el test de "emitir" pasa a esperar una invocación
-      de `emisionRepository.emitir(facturaId)` en vez de `actualizar(id, { estado: 'facturado' })`.
-- [ ] 5.2 **GREEN** — `useEmisionFactura.ts`: `emitirFactura()` llama `emisionRepository.emitir(…)`.
-      Se **quitan** de este hook los pasos de congelado (identificador / fechaFactura /
-      fechaEstimadaCobro / descripción) — ahora los hace la EF (D8). `handleEmitirClick` sigue
-      corriendo `validarCupoFacturacion` **antes** (sin cambios) y `handleConfirmarEmision` llama a
-      `emitir` tras la confirmación de cupo.
-- [ ] 5.3 `FacturacionRoute.tsx` inyecta `SupabaseEmisionRepository` (nuevo provider/context o prop
-      a `FacturaDetail`, el mínimo cableado). `FacturaDetail.tsx` pasa el repo a `useEmisionFactura`.
-- [ ] 5.4 `git diff --stat` — verificar que el swap toca solo `useEmisionFactura.ts`,
-      `FacturacionRoute.tsx`, `FacturaDetail.tsx` (+ tests). Las 9 funciones puras de reglas de
-      negocio no aparecen en el diff.
-- [ ] 5.5 Safety net completo — comparar contra el baseline de 0.10. Ninguna falla nueva dentro de
-      `features/facturacion/` ni `shared/lib/facturacion/`.
-- [ ] 5.6 `mockEmisionRepository` sigue exportado y usable como doble de test.
+- [x] 5.1/5.2 `useEmisionFactura.ts` + `.test.ts`: `emitirFactura()` invoca
+      `emisionRepository.emitir(facturaId)` y luego `onEmitida()` (recarga el listado). Se quitaron
+      del hook los 4 snapshots (identificador / fechaFactura / fechaEstimadaCobro / descripción) —
+      los hace la EF (D8, `_shared/emisionSnapshots.ts`). Se quitaron las props `paciente`,
+      `obraSocial`, `presupuestoRepository`, `actualizar`. `handleEmitirClick` /
+      `handleConfirmarEmision` (validación de cupo client-side, D10) sin cambios.
+- [x] 5.3 `FacturacionRoute.tsx` inyecta `supabaseEmisionRepository` como prop de `FacturacionPage`
+      (mismo patrón que `presupuestoRepository`/`autorizacionRepository`, sin context nuevo).
+      `FacturacionPage` pasa `emisionRepository` + `onEmitida={recargar}` a `FacturaDetail`, que lo
+      pasa a `useEmisionFactura`.
+- [x] 5.4 El swap toca `useEmisionFactura.ts` + `FacturaDetail.tsx` + `FacturacionPage.tsx` +
+      `FacturacionRoute.tsx` (+ tests). Ninguna función pura de reglas de negocio en el diff.
+- [x] 5.5 494 tests de `features/facturacion` + `shared/lib/facturacion` verdes, `tsc -b` limpio.
+- [x] 5.6 `mockEmisionRepository` exportado (factory + instancia), con `verComprobante` fake.
 
 ## 6. Componentes — mostrar el comprobante emitido
 
@@ -268,16 +265,20 @@
       "PRUEBA — sin valor fiscal" en homologación, botón "Ver comprobante (PDF)" con prop
       `onVerComprobante` opcional). El botón "Emitir" ya se oculta con `estado !== 'a-facturar'`
       (cae implica facturado). **Falta**: cablear `onVerComprobante` a la signed URL (6.5, con §5).
-- [ ] 6.2 **con §5** — cuando la última emisión fue rechazada (error `422` en `submitError`),
-      mostrar el motivo con `Alert`. Depende del swap de `useEmisionFactura`.
-- [x] 6.3 (mismo commit) — `FacturaImprimible.tsx`: encabezado con nº de comprobante + CAE + vto +
-      leyenda de homologación.
-- [ ] 6.4 **con §5** — `FacturaDocumentos.tsx` / `checklistDocumentosFactura.ts`: "Comprobante ARCA"
-      deja de ser `requerido` cuando la factura tiene `cae`.
-- [ ] 6.5 **con §5** — signed URL del PDF (helper). Bloqueado por el deploy de la EF.
-- [x] 6.6 (parcial, commit `feat(obras-sociales): condicion_iva…`) — **quitado** el `AvisoModeloDatos`
-      de ambigüedad de CUIT (`ObraSocialDetail.tsx`, #12 resuelta). **Falta**: `AvisoModeloDatos` de
-      Factura C no soportada + `monto` total vs neto en `FacturaFormEconomicos.tsx` (con §5).
+- [x] 6.2 (§5) — un rechazo de ARCA (o cualquier error de emisión) llega a `onError` →
+      `setSubmitError` → `<Alert>` en `FacturaDetail`, y la factura queda en `a-facturar` editable.
+      Test dedicado en `FacturaDetail.test.tsx`.
+- [x] 6.3 — `FacturaImprimible.tsx`: encabezado con nº de comprobante + CAE + vto + leyenda de homologación.
+- [x] 6.4 (§5) — `FacturaDetail`: el ítem "Comprobante ARCA" del checklist pasa a `requerido: false`
+      cuando `factura.cae` existe (el PDF de la EF es el respaldo).
+- [x] 6.5 (§5) — `EmisionRepository.verComprobante(clave)` → `SupabaseEmisionRepository` resuelve la
+      signed URL (`storage.from('facturas-emitidas').createSignedUrl`, 5 min); `FacturaDetail` la abre
+      en pestaña nueva. Mock devuelve una URL fija.
+- [x] 6.6 — `AvisoModeloDatos` de Factura C no soportada electrónicamente en `FacturaAccionesEmision`
+      (+ el botón "Emitir" queda `disabled` para tipo C). **Quitado** el `AvisoModeloDatos` de
+      ambigüedad de CUIT (#12 resuelta). `monto` total vs neto: documentado en KB §Discrepancias N8;
+      no se agregó cartel en `FacturaFormEconomicos` (la regla "IVA 21 % por dentro" es determinista,
+      no una ambigüedad de modelo).
 - [ ] 6.7 `rg 'style=\{\{'` sobre los archivos tocados → sin resultados. `npx tsc -b --noEmit` +
       `oxlint` limpios. Suite focalizada de `features/facturacion/` verde.
 

@@ -62,7 +62,7 @@ describe('makeMockEmisionRepository.emitir()', () => {
     expect(typeof cambios.cbteNro).toBe('number');
     expect(cambios.ptoVta).toBe(1);
     expect(cambios.arcaAmbiente).toBe('homologacion');
-    expect(cambios.comprobantePdfUrl).toContain('facturas-emitidas/factura-1/FACTURA_A-1-');
+    expect(cambios.comprobantePdfUrl).toMatch(/^factura-1\/FACTURA_A-1-\d+\.pdf$/);
     expect(factura.estado).toBe('facturado');
   });
 

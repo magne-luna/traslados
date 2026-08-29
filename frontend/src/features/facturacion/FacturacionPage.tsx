@@ -4,6 +4,7 @@ import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepo
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
+import type { EmisionRepository } from '../../shared/lib/facturacion/EmisionRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import type { Factura } from '../../shared/types/factura';
 import { usePacientes } from '../pacientes/usePacientes';
@@ -24,6 +25,8 @@ interface FacturacionPageProps {
   /** Solo lectura: resuelve el CupoAutorizado real del paciente (tasks.md 8.2). */
   presupuestoRepository: PresupuestoRepository;
   autorizacionRepository: AutorizacionRepository;
+  /** Emisión electrónica del comprobante contra ARCA (Edge Function `facturar`). */
+  emisionRepository: EmisionRepository;
   documentoRepository: DocumentoRepository;
   /** Catálogo de feriados inyectado — ver feriadosFixture.ts. */
   feriados: string[];
@@ -38,12 +41,13 @@ export function FacturacionPage({
   obraSocialRepository,
   presupuestoRepository,
   autorizacionRepository,
+  emisionRepository,
   documentoRepository,
   feriados,
 }: FacturacionPageProps) {
   const facturaRepository = useFacturaRepository();
   const cobroRepository = useCobroRepository();
-  const { facturas, loading, error, crear, actualizar } = useFacturas(facturaRepository);
+  const { facturas, loading, error, crear, actualizar, recargar } = useFacturas(facturaRepository);
   const { pacientes } = usePacientes(pacienteRepository);
   const { obrasSociales } = useObrasSociales(obraSocialRepository);
   const [view, setView] = useState<View>({ kind: 'list' });
@@ -69,8 +73,10 @@ export function FacturacionPage({
           feriados={feriados}
           presupuestoRepository={presupuestoRepository}
           autorizacionRepository={autorizacionRepository}
+          emisionRepository={emisionRepository}
           cobroRepository={cobroRepository}
           documentoRepository={documentoRepository}
+          onEmitida={recargar}
           onCreated={(creada) => setView({ kind: 'detail', facturaId: creada.id })}
           onBack={() => setView({ kind: 'list' })}
         />

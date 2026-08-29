@@ -8,6 +8,7 @@ import type { Paciente } from '../../shared/types/paciente';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
+import type { EmisionRepository } from '../../shared/lib/facturacion/EmisionRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { estadoDerivadoFactura } from '../../shared/lib/facturacion/estadoDerivadoFactura';
 import { useTiposDocumento } from './TiposDocumentoRepositoryContext';
@@ -31,8 +32,11 @@ interface FacturaDetailProps {
   feriados: string[];
   presupuestoRepository: PresupuestoRepository;
   autorizacionRepository: AutorizacionRepository;
+  emisionRepository: EmisionRepository;
   cobroRepository: CobroRepository;
   documentoRepository: DocumentoRepository;
+  /** Recarga el listado de facturas tras una emisión (la EF ya persistió el CAE y los snapshots). */
+  onEmitida: () => void | Promise<void>;
   onCreated: (factura: Factura) => void;
   onBack: () => void;
 }
@@ -65,8 +69,10 @@ export function FacturaDetail({
   feriados,
   presupuestoRepository,
   autorizacionRepository,
+  emisionRepository,
   cobroRepository,
   documentoRepository,
+  onEmitida,
   onCreated,
   onBack,
 }: FacturaDetailProps) {
@@ -80,10 +86,14 @@ export function FacturaDetail({
   // gestión inline del detalle puede ampliar/ajustar. Mismo mapeo que el seed estático: nombre =
   // `tipo`, obligatoriedad = `requerido`.
   const { tiposDocumento } = useTiposDocumento();
+  // facturacion-electronica-arca (§6.4): con la emisión electrónica, el PDF del comprobante lo
+  // genera y archiva la Edge Function `facturar`. Una vez que la factura tiene `cae`, el ítem
+  // manual "Comprobante ARCA" deja de ser obligatorio (el PDF generado es el respaldo).
+  const comprobanteYaEmitido = Boolean(factura?.cae);
   const itemsChecklistDocumentos = tiposDocumento.map((tipo) => ({
     id: tipo.id,
     nombre: tipo.tipo,
-    requerido: tipo.requerido,
+    requerido: comprobanteYaEmitido && /comprobante\s+arca/i.test(tipo.tipo) ? false : tipo.requerido,
   }));
 
   const { cobros, loading: cobrosLoading, error: cobrosError, registrar, eliminar } = useCobros(cobroRepository, factura?.id ?? '');
@@ -93,14 +103,23 @@ export function FacturaDetail({
 
   const { resolverCupoAutorizado, cupoParaConfirmar, handleEmitirClick, handleConfirmarEmision } = useEmisionFactura({
     factura,
-    paciente,
-    obraSocial,
     facturasExistentes,
     autorizacionRepository,
-    presupuestoRepository,
-    actualizar,
+    emisionRepository,
+    onEmitida,
     onError: setSubmitError,
   });
+
+  async function verComprobante() {
+    if (!factura?.comprobantePdfUrl) return;
+    setSubmitError(null);
+    try {
+      const url = await emisionRepository.verComprobante(factura.comprobantePdfUrl);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setSubmitError(toErrorMessage(err));
+    }
+  }
 
   async function conIndicadorDeCarga(accion: () => Promise<void>) {
     setSubmitting(true);
@@ -179,6 +198,7 @@ export function FacturaDetail({
             onEmitir={() => void conIndicadorDeCarga(handleEmitirClick)}
             cupoParaConfirmar={cupoParaConfirmar}
             onConfirmarEmision={() => void conIndicadorDeCarga(handleConfirmarEmision)}
+            onVerComprobante={factura.comprobantePdfUrl ? () => void verComprobante() : undefined}
           />
 
           <div className="flex justify-end">

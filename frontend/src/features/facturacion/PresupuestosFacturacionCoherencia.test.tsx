@@ -185,6 +185,7 @@ function renderAmbasRutas(permisos: MapaPermisos, entrada: '/presupuestos' | '/f
                     obraSocialRepository={buildFakeObraSocialRepo()}
                     presupuestoRepository={buildFakePresupuestoRepo()}
                     autorizacionRepository={buildFakeAutorizacionRepo()}
+                    emisionRepository={{ emitir: vi.fn(), verComprobante: vi.fn() }}
                     documentoRepository={buildFakeDocumentoRepo()}
                     feriados={[]}
                   />

@@ -428,7 +428,7 @@ describe('parseFacturaRow (facturacion-electronica-arca) — campos del comproba
     cbte_nro: 45,
     pto_vta: 3,
     arca_ambiente: 'production',
-    comprobante_pdf_url: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+    comprobante_pdf_url: 'factura-1/FACTURA_A-3-45.pdf',
     arca_respuesta: { aprobada: true, cae: '75123456789012' },
   };
 
@@ -441,7 +441,7 @@ describe('parseFacturaRow (facturacion-electronica-arca) — campos del comproba
       cbteNro: 45,
       ptoVta: 3,
       arcaAmbiente: 'production',
-      comprobantePdfUrl: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+      comprobantePdfUrl: 'factura-1/FACTURA_A-3-45.pdf',
     });
   });
 
@@ -499,7 +499,7 @@ describe('toActualizarFacturaPayload (facturacion-electronica-arca) — campos d
       cbteNro: 45,
       ptoVta: 3,
       arcaAmbiente: 'production',
-      comprobantePdfUrl: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+      comprobantePdfUrl: 'factura-1/FACTURA_A-3-45.pdf',
     });
 
     expect(payload).toEqual({
@@ -508,7 +508,7 @@ describe('toActualizarFacturaPayload (facturacion-electronica-arca) — campos d
       cbte_nro: 45,
       pto_vta: 3,
       arca_ambiente: 'production',
-      comprobante_pdf_url: 'facturas-emitidas/factura-1/FACTURA_A-3-45.pdf',
+      comprobante_pdf_url: 'factura-1/FACTURA_A-3-45.pdf',
     });
   });
 
