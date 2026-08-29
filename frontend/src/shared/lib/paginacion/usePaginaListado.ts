@@ -1,14 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { Pagina, RangoPagina } from '../../types/paginacion';
+import { aMensaje } from '../query/aMensaje';
+import { FRESCURA } from '../query/frescura';
 
-// Estado compartido de los 8 listados con búsqueda + paginación server-side (design.md §D6):
-// página, tamaño (fijo, ver checkpoint 0.3), término crudo y término debounceado, total, loading,
-// error. Responsabilidad no obvia: resetea la página a 1 cada vez que cambia el término aplicado
-// (§D6) — sin eso, buscar algo con 3 resultados estando en la página 5 muestra una pantalla vacía
-// que parece un bug.
+// Estado compartido de los listados con búsqueda + paginación server-side (design.md §D6):
+// página, tamaño, término crudo y término debounceado, total, loading, error. Responsabilidad no
+// obvia: resetea la página a 1 cada vez que cambia el término aplicado (§D6) — sin eso, buscar algo
+// con 3 resultados estando en la página 5 muestra una pantalla vacía que parece un bug.
 //
-// Fase 0: sin consumidores todavía (tabla de fases de design.md) — el cableado real a
-// PacientesList/ConductoresList/ObrasSocialesList llega en las fases 2 y 3.
+// migracion-react-query, Fase 3 (tasks.md 3.6): el estado de SERVIDOR (items, total, loading, error)
+// pasó a `useQuery`; el estado de UI (página, término, debounce, reset) se queda acá, porque eso no
+// es estado de servidor y React Query no tiene nada que ver con él.
+//
+// Tres cosas que la migración simplificó, no complicó:
+//
+//   1. **Desapareció el descarte manual de respuestas fuera de orden.** Antes hacía falta un
+//      `solicitudVigenteRef` para que la respuesta de la página 1 no pisara a la de la página 2 si
+//      llegaba tarde. Con una clave por página, son consultas DISTINTAS: la vieja escribe en su
+//      propia entrada de caché y nunca toca la vigente. React Query lo resuelve por diseño.
+//   2. **Desaparecieron los refs de `listPage`/`construirFiltros`.** Existían para que el efecto no
+//      se redisparara cuando el caller pasaba closures inline. Ya no hace falta: React Query
+//      reacciona a la `queryKey` (comparada por CONTENIDO), no a la identidad del `queryFn`.
+//   3. **Desapareció el token de recarga.** `recargar()` es `refetch()`.
+//
+// ⚠️ `placeholderData: keepPreviousData` es lo que evita que la tabla quede vacía al cambiar de
+// página (spec, "Cambiar de página no vacía la tabla"). Sin esto, cada avance de página parpadea.
+//
+// ⚠️ `frescura: FRESCURA.paginado` (cero). Un resultado paginado depende de la página y del filtro
+// vigentes: cachearlo mostraría una página que ya no es la que el filtro produce.
 
 const DEBOUNCE_MS_DEFAULT = 300;
 
@@ -19,6 +39,13 @@ export interface UsePaginaListadoParams<T, Filtros extends { busqueda: string }>
   tamanio: number;
   /** Arma el objeto `Filtros` completo del repository a partir del término aplicado. */
   construirFiltros: (busquedaAplicada: string) => Filtros;
+  /** Clave de caché de la consulta, del dominio del caller (p. ej. `claves.pacientes.pagina`).
+   *
+   * migracion-react-query: es el ÚNICO campo nuevo de este contrato. Es obligatorio a propósito —
+   * un default genérico haría que dos dominios distintos colisionaran en la misma entrada de caché,
+   * un bug silencioso y muy caro de diagnosticar. Solo lo construyen los tres hooks `*Paginado`;
+   * ninguna pantalla lo ve. */
+  clave: (query: RangoPagina & { filtros: Filtros }) => readonly unknown[];
   /** Ventana de debounce en ms, inyectable para testear con timers falsos (default 300). */
   debounceMs?: number;
 }
@@ -34,23 +61,15 @@ export interface UsePaginaListadoResult<T> {
   error: string | null;
   setBusqueda: (valor: string) => void;
   irAPagina: (pagina: number) => void;
-  /** Repite la consulta vigente (misma página, mismo término) sin resetear nada — a diferencia de
-   * cambiar el término (que sí resetea la página, ver más abajo). Pensado para refrescar el
-   * listado después de crear/editar un registro desde la pantalla que usa este hook (Fase 2,
-   * tasks.md 13.7): saltar a la página 1 o dejar la página vigente con datos viejos son ambos
-   * comportamientos peores que repetir la misma consulta. */
+  /** Repite la consulta vigente (misma página, mismo término) sin resetear nada. Pensado para
+   * refrescar el listado después de crear/editar un registro desde la pantalla que usa este hook:
+   * saltar a la página 1 o dejar la página vigente con datos viejos son ambos comportamientos
+   * peores que repetir la misma consulta. */
   recargar: () => void;
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Ocurrió un error inesperado.';
-}
-
 // Extraído del cuerpo de usePaginaListado (4.9 REFACTOR): "cuál es el valor debounceado" es una
-// preocupación aparte de "qué hacer cuando cambia" (resetear página) o "cómo pedir la página"
-// (fetch + descarte de respuestas fuera de orden). Privado a este módulo — no tiene consumidores
-// propios fuera de este hook, así que no amerita archivo ni test dedicado.
+// preocupación aparte de "qué hacer cuando cambia" (resetear página). Privado a este módulo.
 function useDebouncedValue<V>(valor: V, delayMs: number): V {
   const [valorDebounceado, setValorDebounceado] = useState(valor);
 
@@ -68,15 +87,12 @@ export function usePaginaListado<T, Filtros extends { busqueda: string }>({
   listPage,
   tamanio,
   construirFiltros,
+  clave,
   debounceMs = DEBOUNCE_MS_DEFAULT,
 }: UsePaginaListadoParams<T, Filtros>): UsePaginaListadoResult<T> {
   const [pagina, setPagina] = useState(1);
   const [busqueda, setBusqueda] = useState('');
   const busquedaAplicada = useDebouncedValue(busqueda, debounceMs);
-  const [items, setItems] = useState<T[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   // Reset de página al cambiar el término aplicado (§D6): sin esto, buscar algo con 3 resultados
   // estando en la página 5 muestra una pantalla vacía que parece un bug.
@@ -88,53 +104,33 @@ export function usePaginaListado<T, Filtros extends { busqueda: string }>({
     }
   }, [busquedaAplicada]);
 
-  // `listPage`/`construirFiltros` viajan por ref, actualizada en cada render pero SIN ser
-  // dependencia del efecto de abajo: la mayoría de los callers los pasa como closures inline
-  // (nuevo valor en cada render del componente que llama al hook, como hacen los propios tests) y
-  // si el efecto de fetch dependiera de esas identidades, cada render dispararía un nuevo pedido
-  // — el efecto solo debe reaccionar a cambios de página/tamaño/término, nunca a que el caller
-  // haya re-renderizado.
-  const listPageRef = useRef(listPage);
-  useEffect(() => {
-    listPageRef.current = listPage;
-  });
-  const construirFiltrosRef = useRef(construirFiltros);
-  useEffect(() => {
-    construirFiltrosRef.current = construirFiltros;
-  });
+  const consulta = { pagina, tamanio, filtros: construirFiltros(busquedaAplicada) };
 
-  // Contador de recarga (13.7): `recargar()` lo incrementa sin tocar pagina/tamanio/término, para
-  // que el efecto de abajo vuelva a disparar la MISMA consulta — a diferencia de `irAPagina`/
-  // `setBusqueda`, que cambian el estado que la consulta ya usa como dependencia.
-  const [tokenRecarga, setTokenRecarga] = useState(0);
-
-  const solicitudVigenteRef = useRef(0);
-  useEffect(() => {
-    const idSolicitud = ++solicitudVigenteRef.current;
-    setLoading(true);
-    setError(null);
-    listPageRef
-      .current({ pagina, tamanio, filtros: construirFiltrosRef.current(busquedaAplicada) })
-      .then((resultado) => {
-        if (idSolicitud !== solicitudVigenteRef.current) return;
-        setItems(resultado.items);
-        setTotal(resultado.total);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (idSolicitud !== solicitudVigenteRef.current) return;
-        setError(toErrorMessage(err));
-        setLoading(false);
-      });
-  }, [pagina, tamanio, busquedaAplicada, tokenRecarga]);
+  const { data, isPending, error, refetch } = useQuery({
+    queryKey: clave(consulta),
+    queryFn: () => listPage(consulta),
+    staleTime: FRESCURA.paginado,
+    placeholderData: keepPreviousData,
+  });
 
   const irAPagina = useCallback((nuevaPagina: number) => {
     setPagina(nuevaPagina);
   }, []);
 
   const recargar = useCallback(() => {
-    setTokenRecarga((token) => token + 1);
-  }, []);
+    void refetch();
+  }, [refetch]);
 
-  return { items, total, pagina, tamanio, busqueda, loading, error, setBusqueda, irAPagina, recargar };
+  return {
+    items: data?.items ?? [],
+    total: data?.total ?? 0,
+    pagina,
+    tamanio,
+    busqueda,
+    loading: isPending,
+    error: aMensaje(error),
+    setBusqueda,
+    irAPagina,
+    recargar,
+  };
 }

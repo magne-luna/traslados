@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { Conductor, NuevoConductor } from '../../shared/types/conductor';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
@@ -47,7 +48,7 @@ describe('useConductoresPaginado', () => {
   it('al montar invoca listPage con tamanio 20 y expone items/total', async () => {
     const repository = buildFakeRepository();
 
-    const { result } = renderHook(() => useConductoresPaginado(repository));
+    const { result } = renderHookConQuery(() => useConductoresPaginado(repository));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -58,7 +59,7 @@ describe('useConductoresPaginado', () => {
 
   it('crear() llama a repository.create y recarga la página vigente', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useConductoresPaginado(repository));
+    const { result } = renderHookConQuery(() => useConductoresPaginado(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
     vi.mocked(repository.listPage).mockClear();
 
@@ -72,7 +73,7 @@ describe('useConductoresPaginado', () => {
 
   it('actualizar() llama a repository.update y recarga la página vigente', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useConductoresPaginado(repository));
+    const { result } = renderHookConQuery(() => useConductoresPaginado(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
     vi.mocked(repository.listPage).mockClear();
 
@@ -88,7 +89,7 @@ describe('useConductoresPaginado', () => {
     const repository = buildFakeRepository({
       listPage: vi.fn().mockResolvedValue({ items: [], total: 50, pagina: 1, tamanio: 20 }),
     });
-    const { result } = renderHook(() => useConductoresPaginado(repository));
+    const { result } = renderHookConQuery(() => useConductoresPaginado(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => {
@@ -105,7 +106,7 @@ describe('useConductoresPaginado', () => {
 
   it('crear() propaga el error sin recargar si repository.create rechaza', async () => {
     const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('No se pudo guardar.')) });
-    const { result } = renderHook(() => useConductoresPaginado(repository));
+    const { result } = renderHookConQuery(() => useConductoresPaginado(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
     vi.mocked(repository.listPage).mockClear();
 

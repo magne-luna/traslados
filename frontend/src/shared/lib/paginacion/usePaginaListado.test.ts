@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../test/queryWrapper';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { usePaginaListado } from './usePaginaListado';
 import type { Pagina } from '../../types/paginacion';
@@ -23,9 +24,10 @@ describe('usePaginaListado', () => {
   it('al montar, invoca listPage con { pagina: 1, tamanio } y expone items y total', async () => {
     const listPage = vi.fn().mockResolvedValue(paginaFalsa([{ id: '1' }, { id: '2' }], 2, 1, 20));
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       usePaginaListado<ItemFalso, FiltrosFalsos>({
         listPage,
+        clave: (query) => ['falso', 'pagina', query],
         tamanio: 20,
         construirFiltros: (busqueda) => ({ busqueda }),
       }),
@@ -42,9 +44,10 @@ describe('usePaginaListado', () => {
   it('irAPagina(3) re-invoca listPage con pagina: 3 (navegación, 4.3)', async () => {
     const listPage = vi.fn().mockResolvedValue(paginaFalsa([], 50, 1, 20));
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       usePaginaListado<ItemFalso, FiltrosFalsos>({
         listPage,
+        clave: (query) => ['falso', 'pagina', query],
         tamanio: 20,
         construirFiltros: (busqueda) => ({ busqueda }),
       }),
@@ -66,9 +69,10 @@ describe('usePaginaListado', () => {
     vi.useFakeTimers();
     const listPage = vi.fn().mockResolvedValue(paginaFalsa([], 3, 1, 20));
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       usePaginaListado<ItemFalso, FiltrosFalsos>({
         listPage,
+        clave: (query) => ['falso', 'pagina', query],
         tamanio: 20,
         construirFiltros: (busqueda) => ({ busqueda }),
       }),
@@ -103,9 +107,10 @@ describe('usePaginaListado', () => {
     vi.useFakeTimers();
     const listPage = vi.fn().mockResolvedValue(paginaFalsa([], 0, 1, 20));
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       usePaginaListado<ItemFalso, FiltrosFalsos>({
         listPage,
+        clave: (query) => ['falso', 'pagina', query],
         tamanio: 20,
         construirFiltros: (busqueda) => ({ busqueda }),
         debounceMs: 300,
@@ -144,9 +149,10 @@ describe('usePaginaListado', () => {
     vi.useFakeTimers();
     const listPage = vi.fn().mockResolvedValue(paginaFalsa([], 0, 1, 20));
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       usePaginaListado<ItemFalso, FiltrosFalsos>({
         listPage,
+        clave: (query) => ['falso', 'pagina', query],
         tamanio: 20,
         construirFiltros: (busqueda) => ({ busqueda }),
       }),
@@ -168,9 +174,10 @@ describe('usePaginaListado', () => {
   it('error: listPage rechaza → mensaje en castellano y loading en false (4.7)', async () => {
     const listPage = vi.fn().mockRejectedValue(new Error('Error de red al listar.'));
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       usePaginaListado<ItemFalso, FiltrosFalsos>({
         listPage,
+        clave: (query) => ['falso', 'pagina', query],
         tamanio: 20,
         construirFiltros: (busqueda) => ({ busqueda }),
       }),
@@ -183,9 +190,10 @@ describe('usePaginaListado', () => {
   it('error sin instancia de Error (rechazo con un valor no-Error) → mensaje genérico en castellano', async () => {
     const listPage = vi.fn().mockRejectedValue('boom');
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       usePaginaListado<ItemFalso, FiltrosFalsos>({
         listPage,
+        clave: (query) => ['falso', 'pagina', query],
         tamanio: 20,
         construirFiltros: (busqueda) => ({ busqueda }),
       }),
@@ -214,9 +222,10 @@ describe('usePaginaListado', () => {
           }),
       );
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       usePaginaListado<ItemFalso, FiltrosFalsos>({
         listPage,
+        clave: (query) => ['falso', 'pagina', query],
         tamanio: 20,
         construirFiltros: (busqueda) => ({ busqueda }),
       }),
@@ -238,7 +247,14 @@ describe('usePaginaListado', () => {
       resolverPrimera?.(paginaFalsa([{ id: 'pagina-1-vieja' }], 40, 1, 20));
     });
 
-    expect(result.current.items).toEqual([{ id: 'pagina-2' }]);
+    // migracion-react-query: la aserción pasó de síncrona a `waitFor`. La INTENCIÓN del test no
+    // cambia —la respuesta vieja de la página 1 no debe pisar a la de la página 2— y sigue
+    // verificándose. Lo que cambió es cuándo commitea: la implementación anterior hacía
+    // `setState` dentro del `.then()`, visible apenas terminaba el `act`; React Query commitea un
+    // microtask después. No es observable para quien usa la app: acá no corre código de la
+    // pantalla entre la resolución y el commit (a diferencia del error de mutación de la Fase 2,
+    // donde sí había un render en el medio y por eso se preservó el timing exacto).
+    await waitFor(() => expect(result.current.items).toEqual([{ id: 'pagina-2' }]));
     expect(result.current.pagina).toBe(2);
   });
 
@@ -249,9 +265,10 @@ describe('usePaginaListado', () => {
   it('recargar() vuelve a invocar listPage con la MISMA página y término (13.7)', async () => {
     const listPage = vi.fn().mockResolvedValue(paginaFalsa([{ id: '1' }], 1, 1, 20));
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       usePaginaListado<ItemFalso, FiltrosFalsos>({
         listPage,
+        clave: (query) => ['falso', 'pagina', query],
         tamanio: 20,
         construirFiltros: (busqueda) => ({ busqueda }),
       }),
@@ -273,9 +290,10 @@ describe('usePaginaListado', () => {
   it('recargar() no resetea la página a 1 (a diferencia de cambiar el término, 4.4)', async () => {
     const listPage = vi.fn().mockResolvedValue(paginaFalsa([], 50, 1, 20));
 
-    const { result } = renderHook(() =>
+    const { result } = renderHookConQuery(() =>
       usePaginaListado<ItemFalso, FiltrosFalsos>({
         listPage,
+        clave: (query) => ['falso', 'pagina', query],
         tamanio: 20,
         construirFiltros: (busqueda) => ({ busqueda }),
       }),

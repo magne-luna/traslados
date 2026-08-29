@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import { HojaDeRutaRoute } from './HojaDeRutaRoute';
 
 // Smoke test de integración tras el swap completo (tasks.md 4.2/4.3, design.md Checkpoint 0
@@ -46,7 +47,7 @@ describe('HojaDeRutaRoute', () => {
   });
 
   it('monta la feature con el swap completo inyectado: Hoja de Ruta, Paciente, Vehículo y Conductor reales (doble de Supabase)', async () => {
-    render(<HojaDeRutaRoute />);
+    renderConQuery(<HojaDeRutaRoute />);
 
     await waitFor(() => expect(estadoSupabase.selects).toBeGreaterThan(0));
     await waitFor(() => expect(screen.queryAllByText(/cargando hoja de ruta/i)).toHaveLength(0));

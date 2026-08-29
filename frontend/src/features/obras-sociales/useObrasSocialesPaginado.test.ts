@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { NuevaObraSocial, ObraSocial } from '../../shared/types/obraSocial';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
@@ -46,7 +47,7 @@ describe('useObrasSocialesPaginado', () => {
   it('al montar invoca listPage con tamanio 20 y expone items/total', async () => {
     const repository = buildFakeRepository();
 
-    const { result } = renderHook(() => useObrasSocialesPaginado(repository));
+    const { result } = renderHookConQuery(() => useObrasSocialesPaginado(repository));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -57,7 +58,7 @@ describe('useObrasSocialesPaginado', () => {
 
   it('crear() llama a repository.create y recarga la página vigente', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useObrasSocialesPaginado(repository));
+    const { result } = renderHookConQuery(() => useObrasSocialesPaginado(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
     vi.mocked(repository.listPage).mockClear();
 
@@ -71,7 +72,7 @@ describe('useObrasSocialesPaginado', () => {
 
   it('actualizar() llama a repository.update y recarga la página vigente', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useObrasSocialesPaginado(repository));
+    const { result } = renderHookConQuery(() => useObrasSocialesPaginado(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
     vi.mocked(repository.listPage).mockClear();
 
@@ -87,7 +88,7 @@ describe('useObrasSocialesPaginado', () => {
     const repository = buildFakeRepository({
       listPage: vi.fn().mockResolvedValue({ items: [], total: 50, pagina: 1, tamanio: 20 }),
     });
-    const { result } = renderHook(() => useObrasSocialesPaginado(repository));
+    const { result } = renderHookConQuery(() => useObrasSocialesPaginado(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => {
@@ -104,7 +105,7 @@ describe('useObrasSocialesPaginado', () => {
 
   it('crear() propaga el error sin recargar si repository.create rechaza', async () => {
     const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('No se pudo guardar.')) });
-    const { result } = renderHook(() => useObrasSocialesPaginado(repository));
+    const { result } = renderHookConQuery(() => useObrasSocialesPaginado(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
     vi.mocked(repository.listPage).mockClear();
 

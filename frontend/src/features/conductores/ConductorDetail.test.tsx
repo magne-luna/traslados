@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Conductor } from '../../shared/types/conductor';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
@@ -45,7 +46,7 @@ function renderDetail(props: Partial<Parameters<typeof ConductorDetail>[0]> = {}
   const crear = props.crear ?? vi.fn().mockResolvedValue(perez);
   const actualizar = props.actualizar ?? vi.fn().mockResolvedValue(perez);
 
-  return render(
+  return renderConQuery(
     <VehiculoRepositoryProvider repository={buildFakeVehiculoRepository()}>
       <ConductorDetail
         conductor={props.conductor ?? null}
@@ -63,7 +64,7 @@ function renderDetailConPermiso(puedeEscribir: boolean, props: Partial<Parameter
   const crear = props.crear ?? vi.fn().mockResolvedValue(perez);
   const actualizar = props.actualizar ?? vi.fn().mockResolvedValue(perez);
 
-  return render(
+  return renderConQuery(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <VehiculoRepositoryProvider repository={buildFakeVehiculoRepository()}>
         <ConductorDetail

@@ -164,35 +164,77 @@
 
 ## 3. Fase 3 — Resto de dominios de referencia + Riesgo #1
 
-- [ ] 3.1 **Safety net** de la fase: correr los tests de vehículos, conductores y pacientes; anotar la
+- [x] 3.1 **Safety net** de la fase: correr los tests de vehículos, conductores y pacientes; anotar la
       línea base.
-- [ ] 3.2 **RED/GREEN** — `useVehiculos.ts` con `claves.vehiculos.lista()` y
+- [x] 3.2 **RED/GREEN** — `useVehiculos.ts` con `claves.vehiculos.lista()` y
       `staleTime: FRESCURA.referencia`, sin cambiar `UseVehiculosResult`; `crear`/`actualizar`
       invalidan el dominio.
-- [ ] 3.3 **TRIANGULACIÓN — dedup entre hermanos (el caso concreto que originó el change):** test que
+- [x] 3.3 **TRIANGULACIÓN — dedup entre hermanos (el caso concreto que originó el change):** test que
       monta `ConductoresList` y `AsignacionSemanalTabla` juntos (como los monta `ConductoresPage`) y
       verifica que `vehiculoRepository.list()` se llama **una sola vez**, no dos. Cubrir que uno recibe
       el repository por Context y el otro por prop, y que aun así comparten caché.
-- [ ] 3.4 **RED/GREEN** — `useConductores.ts` con `claves.conductores.lista()`: dedup entre montajes +
+- [x] 3.4 **RED/GREEN** — `useConductores.ts` con `claves.conductores.lista()`: dedup entre montajes +
       invalidación en `crear`/`actualizar`, sin cambiar `UseConductoresResult`.
-- [ ] 3.5 **RED/GREEN** — `usePacientes.ts` con `claves.pacientes.lista()`: ídem, sin cambiar
+- [x] 3.5 **RED/GREEN** — `usePacientes.ts` con `claves.pacientes.lista()`: ídem, sin cambiar
       `UsePacientesResult`.
-- [ ] 3.6 **RED/GREEN** — `usePaginaListado.ts` sobre `useQuery` con
+- [x] 3.6 **RED/GREEN** — `usePaginaListado.ts` sobre `useQuery` con
       `placeholderData: keepPreviousData` y `staleTime: FRESCURA.paginado` (§D3), conservando su API y
       su comportamiento de no saltar a la página 1.
-- [ ] 3.7 **RED — R1, el riesgo alto del change:** test en `usePacientesPaginado.test.ts` que verifica
+- [x] 3.7 **RED — R1, el riesgo alto del change:** test en `usePacientesPaginado.test.ts` que verifica
       que `crear` y `actualizar` del camino **paginado** invalidan `claves.pacientes.todos()` (no solo
       su página). Debe fallar antes de 3.8.
-- [ ] 3.8 **GREEN** — cablear la invalidación del dominio en los tres hooks paginados
+- [x] 3.8 **GREEN** — cablear la invalidación del dominio en los tres hooks paginados
       (`usePacientesPaginado`, `useConductoresPaginado`, `useObrasSocialesPaginado`), **sin** tocar su
       comportamiento de paginación.
-- [ ] 3.9 **TRIANGULACIÓN E2E de R1:** test que crea un paciente desde el camino paginado y luego
+- [x] 3.9 **TRIANGULACIÓN E2E de R1:** test que crea un paciente desde el camino paginado y luego
       monta un consumidor de `usePacientes` (rol selector de Presupuestos/Facturación) verificando que
       **ve el paciente nuevo**.
-- [ ] 3.10 Verificar que `HojaDeRutaPage.test.tsx`, `ConductoresPage.test.tsx`,
+- [x] 3.10 Verificar que `HojaDeRutaPage.test.tsx`, `ConductoresPage.test.tsx`,
       `VehiculosPage.test.tsx`, `PresupuestosPage.test.tsx` y `FacturacionPage.test.tsx` pasan sin más
       edición que el provider.
-- [ ] 3.11 `npx tsc -b --noEmit` + `npm test` completo en verde. Commits separados por dominio.
+- [x] 3.11 `npx tsc -b --noEmit` + `npm test` completo en verde. **3302/3302 en 287 archivos.**
+
+> ### Hallazgos de la Fase 3
+>
+> **1. RIESGO #1 confirmado como real, no teórico.** Los tests 3.7 y 3.9 fallaron antes del
+> cableado: `crear` desde el camino paginado NO invalidaba el padrón completo, así que el selector
+> de otra pantalla seguía mostrando el listado viejo. Exactamente el fallo silencioso que el change
+> predijo. Cerrado en los tres hooks paginados.
+>
+> **2. La invalidación del dominio REEMPLAZA a `recargar()`, no se suma.** Invalidar el prefijo
+> `claves.X.todos()` alcanza tanto al padrón (`lista`) como a la página vigente, que al estar activa
+> se re-consulta sola con su misma clave — o sea, sigue recargando la MISMA página, nunca salta a la
+> 1 (comportamiento 13.7 preservado). Llamar además a `recargar()` produciría dos consultas
+> idénticas.
+>
+> **3. ⚠️ DESVIACIÓN: `UsePaginaListadoParams` gana un campo obligatorio, `clave`.** React Query
+> necesita una `queryKey` y este hook es genérico: no puede saber a qué dominio pertenece. Un
+> default genérico haría que dos dominios colisionaran en la misma entrada de caché — un bug
+> silencioso y caro. **`UsePaginaListadoResult` (lo que leen las pantallas) NO cambia**, y solo los
+> tres hooks `*Paginado` construyen el campo; ninguna pantalla lo ve. TypeScript señaló los 10 call
+> sites del test, que es la forma correcta de que este cambio no pase inadvertido.
+>
+> **4. `usePaginaListado` quedó MÁS simple, no más compleja.** Desaparecieron tres mecanismos que
+> existían solo para suplir lo que React Query hace de fábrica: el descarte manual de respuestas
+> fuera de orden (`solicitudVigenteRef`), los refs de `listPage`/`construirFiltros` para que el
+> efecto no se redisparara con closures inline, y el token de recarga. El estado de UI (página,
+> término, debounce, reset) se queda: eso no es estado de servidor.
+>
+> **5. ⚠️ Un test existente necesitó pasar de aserción síncrona a `waitFor`** (respuestas fuera de
+> orden, 4.8). La INTENCIÓN se conserva —la respuesta vieja no pisa a la vigente— y se sigue
+> verificando; lo que cambió es que React Query commitea un microtask después del `.then()` manual.
+> **No es observable para quien usa la app**: acá no corre código de pantalla entre la resolución y
+> el commit, a diferencia del error de mutación de la Fase 2 (donde sí había un render en el medio y
+> por eso se preservó el timing exacto con `onError`).
+>
+> **6. ⚠️ DESVIACIÓN: se extrajo `shared/lib/query/useListaDeDominio.ts` antes de lo previsto.** La
+> tarea 5.8 planeaba el refactor al final. Se hizo acá a propósito: los cuatro hooks de referencia
+> son idénticos en forma, y copiar tres veces el patrón de `onError` (el bug de timing de la Fase 2)
+> era una invitación a equivocarse en uno. Los cuatro hooks quedaron en ~30 líneas de mapeo de
+> nombres.
+>
+> **7. Archivos de test que necesitaron provider en esta fase: 14** (10 + 4 tras cablear los hooks
+> paginados). Sumados a los 5 de la Fase 2, van 19 — muy por debajo de la cota de 44.
 
 ## 4. Fase 4 — Dominios transaccionales (`staleTime: 0`)
 

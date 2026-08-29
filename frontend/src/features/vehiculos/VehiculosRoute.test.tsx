@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 
 // `VehiculosRoute` inyecta `supabaseVehiculoRepository` (real, integracion-conductores-vehiculos
 // §5.9 "CORTE REAL 1"). Mismo criterio que `PacientesRoute.test.tsx`: mockea
@@ -23,7 +24,7 @@ describe('VehiculosRoute', () => {
   });
 
   it('monta la feature con supabaseVehiculoRepository (mockeado) y termina de cargar', async () => {
-    render(<VehiculosRoute />);
+    renderConQuery(<VehiculosRoute />);
 
     await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
     expect(screen.getByRole('heading', { name: 'Vehículos' })).toBeInTheDocument();
