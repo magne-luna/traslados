@@ -10,13 +10,55 @@ import { renderConSesion } from '../shared/test/renderConSesion';
 // `CuentasRoute` inyecta `supabaseCuentaRepository` (real) — este test mockea
 // `shared/lib/supabaseClient` (mismo criterio que SupabaseAuthRepository.test.ts/
 // SupabaseCuentaRepository.test.ts) para no depender de red ni de `SUPABASE_URL`/
-// `SUPABASE_ANON_KEY` en el entorno de test; por eso `router.tsx` usa `lazy` para esta ruta (ver
-// su comentario) — así el resto de los tests que importan `router.tsx` sin mockear
-// `supabaseClient` (ej. `router.test.tsx`) no rompen.
+// `SUPABASE_ANON_KEY` en el entorno de test.
+//
+// El `router` construye su estado inicial en la URL por defecto de jsdom (`/`), que ahora resuelve
+// a `DashboardRoute` — seis `Supabase*Repository` reales de solo lectura, cuyos `list()` encadenan
+// `.select().order()` / `.eq().maybeSingle()`. Un `select()` que devuelve una `Promise` pelada
+// rompía esa cadena (`.order` undefined) y tumbaba el render entero. El doble pasa a ser un builder
+// encadenable mínimo (mismo criterio que `PacientesRoute.test.tsx`): cada eslabón devuelve `this` y
+// solo al awaitearlo resuelve `{ data: [], error: null, count: 0 }`.
+class ChainableFakeQuery implements PromiseLike<{ data: unknown[]; error: null; count: number }> {
+  select(): this {
+    return this;
+  }
+  order(): this {
+    return this;
+  }
+  eq(): this {
+    return this;
+  }
+  or(): this {
+    return this;
+  }
+  in(): this {
+    return this;
+  }
+  range(): this {
+    return this;
+  }
+  maybeSingle(): Promise<{ data: null; error: null }> {
+    return Promise.resolve({ data: null, error: null });
+  }
+  then<TResult1 = { data: unknown[]; error: null; count: number }, TResult2 = never>(
+    onfulfilled?:
+      | ((value: { data: unknown[]; error: null; count: number }) => TResult1 | PromiseLike<TResult1>)
+      | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): PromiseLike<TResult1 | TResult2> {
+    return Promise.resolve({ data: [], error: null, count: 0 }).then(onfulfilled, onrejected);
+  }
+}
+
 vi.mock('../shared/lib/supabaseClient', () => ({
   supabase: {
-    schema: () => ({ from: () => ({ select: () => Promise.resolve({ data: [], error: null }) }) }),
-    functions: { invoke: vi.fn() },
+    schema: () => ({
+      from: () => new ChainableFakeQuery(),
+      rpc: () => Promise.resolve({ data: null, error: null }),
+    }),
+    from: () => new ChainableFakeQuery(),
+    rpc: () => Promise.resolve({ data: null, error: null }),
+    functions: { invoke: vi.fn(() => Promise.resolve({ data: [], error: null })) },
   },
 }));
 
@@ -36,9 +78,12 @@ describe('router: /cuentas (tasks.md 7.9)', () => {
     navegarA('/cuentas');
     renderConSesion(<RouterProvider router={router} />);
 
-    await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
-
-    expect(screen.getByRole('heading', { name: 'Cuentas' })).toBeInTheDocument();
+    // `waitFor` sobre la aserción final, no sobre la ausencia de "cargando": la ruta índice `/`
+    // (DashboardRoute) resuelve primero y su carga por bloques puede dejar el DOM sin ningún
+    // "cargando" en un tick intermedio, antes de que el router termine de navegar a `/cuentas`.
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Cuentas' })).toBeInTheDocument(), {
+      timeout: 5000,
+    });
     expect(screen.queryByText(/próximamente/i)).not.toBeInTheDocument();
   });
 
@@ -49,9 +94,7 @@ describe('router: /cuentas (tasks.md 7.9)', () => {
       permisos: {},
     });
 
-    await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
-
-    expect(screen.getByText(/acceso denegado/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/acceso denegado/i)).toBeInTheDocument(), { timeout: 5000 });
     expect(screen.queryByRole('heading', { name: 'Cuentas' })).not.toBeInTheDocument();
   });
 });
