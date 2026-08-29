@@ -1,5 +1,16 @@
-import { describe, expect, it } from 'vitest';
-import { mapearErrorCatalogo } from './SupabaseCatalogoAccesoriosRepository';
+import { describe, expect, it, vi } from 'vitest';
+
+// `SupabaseCatalogoAccesoriosRepository` importa `../supabaseClient` a nivel de módulo, que lanza
+// si no hay `SUPABASE_URL`/`SUPABASE_ANON_KEY` (no se setean en el entorno de test). Este archivo
+// solo ejercita la función pura `mapearErrorCatalogo`, así que alcanza con un doble mínimo del
+// cliente para que el módulo cargue — mismo criterio que el resto de los `Supabase*Repository.test`.
+vi.mock('../supabaseClient', () => ({
+  supabase: {
+    schema: () => ({ from: () => ({ select: () => Promise.resolve({ data: [], error: null }) }) }),
+  },
+}));
+
+const { mapearErrorCatalogo } = await import('./SupabaseCatalogoAccesoriosRepository');
 
 // 2.4 — traducción de errores del catálogo (molde mapearErrorObraSocial). Casos fijos del
 // design.md D5: 23505 (UNIQUE tipo, nombra el duplicado), 42501 (permiso), 23503 (referencia
