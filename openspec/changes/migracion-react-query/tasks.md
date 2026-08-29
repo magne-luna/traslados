@@ -36,7 +36,11 @@
       - ⚠️ **El comando correcto es `npm test`, NO `npx vitest run`.** El script de `package.json`
         antepone `NODE_OPTIONS=--no-experimental-webstorage`; sin ese flag, `localStorage` queda
         `undefined` y fallan 170 tests en 20 archivos por una causa que no existe. El
-        `test_command` de `openspec/config.yaml` está incompleto en este punto.
+        `test_command` de `openspec/config.yaml` estaba incompleto en este punto. **Corregido el
+        2026-08-29 a pedido de la usuaria**: los cinco comandos de test del config pasan a usar los
+        scripts de `package.json` (`npm test`, `npm run test:watch`), y el de coverage —que además
+        no tenía `cd frontend`— lleva el flag explícito. Queda una nota en el YAML explicando el
+        porqué, para que nadie lo "simplifique" de vuelta.
 - [x] 0.6 **Alcance en tests medido (R5):** **44 archivos** de test montan componentes que consumen
       hooks a migrar y usan `render` pelado (lista completa abajo). Es una **cota superior**: el grep
       matchea menciones del componente, no montajes efectivos, y varios reciben los datos por props
