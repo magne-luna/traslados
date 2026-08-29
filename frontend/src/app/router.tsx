@@ -45,10 +45,9 @@ import DesignSystem from '../design-system/DesignSystem';
 // mockDocumentoRepository de FE-1 a FE-4 de solo lectura para los selectores, la resolución del
 // cupo autorizado y el checklist documental por factura, ver design.md de facturacion-ui
 // Decisión 15); dashboard-ui (fase FE-7, rama Panel principal y reportes — governance BAJO,
-// C-11) reemplaza `/` con DashboardRoute (inyecta mockFacturaRepository, mockCobroRepository,
-// mockPacienteRepository, mockVehiculoRepository, mockHojaDeRutaRepository y
-// mockConductorRepository de FE-1/FE-3/FE-5/FE-6, todos de solo lectura — el dashboard no crea,
-// edita ni borra nada, ver design.md de dashboard-ui Decisión 9 y Non-Goals). `/prestadores`
+// C-11) reemplaza `/` con DashboardRoute — desde el swap FE-8 inyecta los seis
+// `Supabase*Repository` reales de Factura, Cobro, Paciente, Vehiculo, HojaDeRuta y Conductor,
+// todos de solo lectura (el dashboard no crea, edita ni borra nada). `/prestadores`
 // (prestadores-crud, PrestadoresRoute) se removió por completo (change `sacar-prestadores`,
 // decisión de Andrea 2026-08-04 confirmada por Enzo 2026-08-06): ya no queda ninguna ruta ni
 // entrada de navegación para el módulo Prestador.
