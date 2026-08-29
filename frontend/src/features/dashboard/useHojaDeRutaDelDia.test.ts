@@ -1,4 +1,5 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { HojaDeRuta } from '../../shared/types/hojaDeRuta';
 import type { HojaDeRutaRepository } from '../../shared/lib/hojas-de-ruta/HojaDeRutaRepository';
@@ -23,7 +24,7 @@ function buildRepository(overrides: Partial<HojaDeRutaRepository> = {}): HojaDeR
 describe('useHojaDeRutaDelDia', () => {
   it('expone la hoja de ruta del día una vez que getByFecha resuelve', async () => {
     const repository = buildRepository();
-    const { result } = renderHook(() => useHojaDeRutaDelDia(repository, '2026-07-24'));
+    const { result } = renderHookConQuery(() => useHojaDeRutaDelDia(repository, '2026-07-24'));
 
     expect(result.current.cargando).toBe(true);
     await waitFor(() => expect(result.current.cargando).toBe(false));
@@ -35,7 +36,7 @@ describe('useHojaDeRutaDelDia', () => {
 
   it('expone hojaDeRuta: null como estado propio (no error) cuando no hay hoja cargada', async () => {
     const repository = buildRepository({ getByFecha: vi.fn().mockResolvedValue(null) });
-    const { result } = renderHook(() => useHojaDeRutaDelDia(repository, '2026-07-24'));
+    const { result } = renderHookConQuery(() => useHojaDeRutaDelDia(repository, '2026-07-24'));
     await waitFor(() => expect(result.current.cargando).toBe(false));
 
     expect(result.current.hojaDeRuta).toBeNull();
@@ -44,7 +45,7 @@ describe('useHojaDeRutaDelDia', () => {
 
   it('expone un error legible y acotado cuando falla la lectura', async () => {
     const repository = buildRepository({ getByFecha: vi.fn().mockRejectedValue(new Error('caído')) });
-    const { result } = renderHook(() => useHojaDeRutaDelDia(repository, '2026-07-24'));
+    const { result } = renderHookConQuery(() => useHojaDeRutaDelDia(repository, '2026-07-24'));
     await waitFor(() => expect(result.current.cargando).toBe(false));
 
     expect(result.current.error).toBe('caído');

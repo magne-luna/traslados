@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import type { VehiculoRepository } from '../../shared/lib/vehiculos/VehiculoRepository';
+import { aMensaje } from '../../shared/lib/query/aMensaje';
+import { claves } from '../../shared/lib/query/claves';
+import { FRESCURA } from '../../shared/lib/query/frescura';
 
 export interface UseAlertasMantenimientoResult {
   vehiculos: Vehiculo[];
@@ -8,43 +11,22 @@ export interface UseAlertasMantenimientoResult {
   error: string | null;
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Ocurrió un error inesperado.';
-}
-
-// tasks.md 5.4, design.md Decisión 7/9: lectura de solo lectura de VehiculoRepository.list()
-// para la tarjeta de mantenimiento, con su propio estado de carga/error independiente. A
-// propósito NO expone `crear` ni `actualizar` (ver useAlertasCud) — solo lectura estructural.
+// tasks.md 5.4, design.md Decisión 7/9: lectura para la tarjeta de mantenimiento.
+//
+// migracion-react-query, Fase 5. **`UseAlertasMantenimientoResult` NO cambió** (sigue exponiendo `cargando`, no
+// `loading`). Lo que cambia es de dónde sale el dato: usa **la misma clave** que
+// `useVehiculos` (`claves.vehiculos.lista()`), así que si la usuaria ya pasó por ese módulo el
+// dashboard NO vuelve a pedir el padrón — y viceversa. `/` es la ruta índice y se la visita
+// constantemente: ese round-trip repetido era uno de los tres desperdicios que motivaron el change.
+//
+// Sigue siendo de SOLO LECTURA: no expone `crear` ni `actualizar`, para que sea estructuralmente
+// imposible que el dashboard escriba (design.md Non-Goals del change de dashboard).
 export function useAlertasMantenimiento(repository: VehiculoRepository): UseAlertasMantenimientoResult {
-  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isPending, error } = useQuery({
+    queryKey: claves.vehiculos.lista(),
+    queryFn: () => repository.list(),
+    staleTime: FRESCURA.referencia,
+  });
 
-  useEffect(() => {
-    let cancelado = false;
-
-    async function cargar() {
-      setCargando(true);
-      setError(null);
-      try {
-        const data = await repository.list();
-        if (cancelado) return;
-        setVehiculos(data);
-      } catch (err) {
-        if (cancelado) return;
-        setError(toErrorMessage(err));
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    }
-
-    void cargar();
-
-    return () => {
-      cancelado = true;
-    };
-  }, [repository]);
-
-  return { vehiculos, cargando, error };
+  return { vehiculos: data ?? [], cargando: isPending, error: aMensaje(error) };
 }

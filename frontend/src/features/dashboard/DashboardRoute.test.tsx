@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import { MemoryRouter } from 'react-router';
 import { DashboardRoute } from './DashboardRoute';
 
@@ -10,7 +11,7 @@ import { DashboardRoute } from './DashboardRoute';
 
 describe('DashboardRoute', () => {
   it('renderiza el dashboard completo con los repositorios mock inyectados', async () => {
-    render(
+    renderConQuery(
       <MemoryRouter>
         <DashboardRoute />
       </MemoryRouter>,

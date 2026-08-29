@@ -1,4 +1,5 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { Cobro, Factura } from '../../shared/types/factura';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
@@ -57,7 +58,7 @@ describe('useDatosFinancieros', () => {
     const facturaRepository = buildFacturaRepository();
     const cobroRepository = buildCobroRepository();
 
-    const { result } = renderHook(() => useDatosFinancieros(facturaRepository, cobroRepository));
+    const { result } = renderHookConQuery(() => useDatosFinancieros(facturaRepository, cobroRepository));
 
     expect(result.current.cargando).toBe(true);
     await waitFor(() => expect(result.current.cargando).toBe(false));
@@ -71,7 +72,7 @@ describe('useDatosFinancieros', () => {
     const facturaRepository = buildFacturaRepository();
     const cobroRepository = buildCobroRepository();
 
-    const { result, rerender } = renderHook(() => useDatosFinancieros(facturaRepository, cobroRepository));
+    const { result, rerender } = renderHookConQuery(() => useDatosFinancieros(facturaRepository, cobroRepository));
     await waitFor(() => expect(result.current.cargando).toBe(false));
 
     rerender();
@@ -85,7 +86,7 @@ describe('useDatosFinancieros', () => {
     const facturaRepository = buildFacturaRepository({ list: vi.fn().mockRejectedValue(new Error('caído')) });
     const cobroRepository = buildCobroRepository();
 
-    const { result } = renderHook(() => useDatosFinancieros(facturaRepository, cobroRepository));
+    const { result } = renderHookConQuery(() => useDatosFinancieros(facturaRepository, cobroRepository));
     await waitFor(() => expect(result.current.cargando).toBe(false));
 
     expect(result.current.error).toBe('caído');

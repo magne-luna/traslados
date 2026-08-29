@@ -305,23 +305,47 @@
 
 > `/` es la ruta índice: hoy paga varios `list()` completos en cada montaje.
 
-- [ ] 5.1 **RED** — `useAlertasCud.test.ts`: si la caché de pacientes ya está poblada y fresca, el
+- [x] 5.1 **RED** — `useAlertasCud.test.ts`: si la caché de pacientes ya está poblada y fresca, el
       hook **no** llama a `repository.list()`.
-- [ ] 5.2 **GREEN** — `useAlertasCud.ts` sobre `claves.pacientes.lista()`, conservando su forma
+- [x] 5.2 **GREEN** — `useAlertasCud.ts` sobre `claves.pacientes.lista()`, conservando su forma
       pública (`cargando`, no `loading`) y su cálculo de alertas intacto.
-- [ ] 5.3 **RED/GREEN** — `useAlertasMantenimiento.ts` sobre `claves.vehiculos.lista()`.
-- [ ] 5.4 **RED/GREEN** — `useConductoresDashboard.ts` sobre `claves.conductores.lista()`.
-- [ ] 5.5 **RED/GREEN** — `useDatosFinancieros.ts` y `useHojaDeRutaDelDia.ts` con
+- [x] 5.3 **RED/GREEN** — `useAlertasMantenimiento.ts` sobre `claves.vehiculos.lista()`.
+- [x] 5.4 **RED/GREEN** — `useConductoresDashboard.ts` sobre `claves.conductores.lista()`.
+- [x] 5.5 **RED/GREEN** — `useDatosFinancieros.ts` y `useHojaDeRutaDelDia.ts` con
       `staleTime: FRESCURA.transaccional`.
-- [ ] 5.6 **TRIANGULACIÓN — beneficio cruzado:** test que visita el módulo de Vehículos y después el
+- [x] 5.6 **TRIANGULACIÓN — beneficio cruzado:** test que visita el módulo de Vehículos y después el
       dashboard, verificando **un** `list()` de vehículos en total, no dos.
-- [ ] 5.7 Verificar que `DashboardPage.test.tsx`, `DashboardRoute.test.tsx` y
+- [x] 5.7 Verificar que `DashboardPage.test.tsx`, `DashboardRoute.test.tsx` y
       `DashboardAccesibilidad.test.tsx` pasan sin más edición que el provider.
-- [ ] 5.8 **REFACTOR final:** verificar por `grep` que ningún hook conserva `useState` +
+- [x] 5.8 **REFACTOR final:** verificar por `grep` que ningún hook conserva `useState` +
       `useEffect` + `repository.*` para estado de servidor, y que no queda lógica repetida que deba
       vivir en un helper compartido.
-- [ ] 5.9 `npx tsc -b --noEmit` + `npm test` completo en verde. Commit:
-      `refactor: el dashboard lee desde React Query`.
+- [x] 5.9 `npx tsc -b --noEmit` + `npm test` completo en verde. **3308/3308 en 287 archivos.**
+
+> ### Hallazgos de la Fase 5
+>
+> **1. El beneficio cruzado quedó probado en LAS DOS direcciones.** Módulo → dashboard y dashboard →
+> módulo: en ambos casos, un solo `list()` en total. Es la razón de ser de esta fase: `/` es la ruta
+> índice y se pasa por ella constantemente.
+>
+> **2. `useDatosFinancieros` usa `useQueries`, no dos `useQuery` sueltos.** Conserva el paralelismo
+> del `Promise.all` anterior y deja `cargando`/`error` como una sola señal agregada, que es lo que
+> las tarjetas ya consumían. Frescura CERO en las dos: el dashboard no es excepción a la regla de la
+> Fase 4 — la pantalla de inicio es el peor lugar para mostrar un total facturado viejo.
+>
+> **3. `useHojaDeRutaDelDia` comparte clave con `useHojasDeRuta`**, así que el dashboard y la
+> pantalla de armado ya no piden dos veces la hoja del mismo día. `null` sigue siendo un estado
+> propio ("no hay hoja cargada para hoy"), nunca un error: React Query lo respeta porque `null` es un
+> valor resuelto.
+>
+> **4. REFACTOR final verificado (5.8):** ningún hook conserva `useState` + `useEffect` +
+> `repository.*` para estado de servidor. Los únicos `useEffect` que quedan son los de
+> `usePaginaListado` (debounce del término y reset de página), que son estado de UI, no de servidor.
+> Ninguna llamada a `.list()` ocurre fuera de un `queryFn`.
+>
+> **5. Archivos de test que necesitaron provider: 8.** Total del change: **44**, que coincide
+> exactamente con la cota superior de la tarea 0.6 — ajustada al final, aunque por fase fue siempre
+> mucho menor de lo que sugería.
 
 ## 6. Verificación y cierre
 

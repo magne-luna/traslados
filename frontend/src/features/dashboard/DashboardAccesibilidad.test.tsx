@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import type { Conductor } from '../../shared/types/conductor';
@@ -141,7 +142,7 @@ function buildRepositorios() {
 
 async function renderPagina() {
   const repos = buildRepositorios();
-  render(
+  renderConQuery(
     <MemoryRouter>
       <DashboardPage {...repos} />
     </MemoryRouter>,
