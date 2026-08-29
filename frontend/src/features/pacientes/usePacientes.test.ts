@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { Paciente } from '../../shared/types/paciente';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
@@ -36,7 +37,7 @@ describe('usePacientes', () => {
   it('arranca en loading y expone la lista una vez que list() resuelve, como objeto (no array)', async () => {
     const repository = buildFakeRepository();
 
-    const { result } = renderHook(() => usePacientes(repository));
+    const { result } = renderHookConQuery(() => usePacientes(repository));
 
     expect(result.current.loading).toBe(true);
     expect(Array.isArray(result.current)).toBe(false);
@@ -50,7 +51,7 @@ describe('usePacientes', () => {
   it('expone un error legible cuando list() rechaza la promesa, sin dejar loading colgado (triangulación)', async () => {
     const repository = buildFakeRepository({ list: vi.fn().mockRejectedValue(new Error('caído')) });
 
-    const { result } = renderHook(() => usePacientes(repository));
+    const { result } = renderHookConQuery(() => usePacientes(repository));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -60,7 +61,7 @@ describe('usePacientes', () => {
 
   it('crear() llama a repository.create() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => usePacientes(repository));
+    const { result } = renderHookConQuery(() => usePacientes(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -87,7 +88,7 @@ describe('usePacientes', () => {
 
   it('actualizar() llama a repository.update() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => usePacientes(repository));
+    const { result } = renderHookConQuery(() => usePacientes(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -100,7 +101,7 @@ describe('usePacientes', () => {
 
   it('crear() propaga el error del repository sin dejar loading colgado', async () => {
     const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('DNI duplicado')) });
-    const { result } = renderHook(() => usePacientes(repository));
+    const { result } = renderHookConQuery(() => usePacientes(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import type { DocumentoAdjunto } from '../../shared/types/documento';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
@@ -17,7 +18,7 @@ function buildFakeRepository(overrides: Partial<DocumentoRepository> = {}): Docu
 }
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
-  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+  return renderConQuery(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
 
 // Documentos del conductor (tasks.md 7.2, 9.4): reutiliza DocumentChecklist + useDocumentChecklist
@@ -25,7 +26,7 @@ function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
 
 describe('ConductorDocumentos', () => {
   it('renderiza el checklist fijo de documentos del conductor (licencia, DNI, apto médico)', async () => {
-    render(<ConductorDocumentos conductorId="c1" repository={buildFakeRepository()} />);
+    renderConQuery(<ConductorDocumentos conductorId="c1" repository={buildFakeRepository()} />);
 
     expect(await screen.findByText('Licencia de conducir')).toBeInTheDocument();
     expect(screen.getByText('DNI')).toBeInTheDocument();
@@ -36,14 +37,14 @@ describe('ConductorDocumentos', () => {
     const doc: DocumentoAdjunto = { id: 'doc-licencia', itemId: 'conductor-doc-licencia', nombreArchivo: 'licencia.pdf', subidoEn: '2026-07-01' };
     const repository = buildFakeRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
 
-    render(<ConductorDocumentos conductorId="c1" repository={repository} />);
+    renderConQuery(<ConductorDocumentos conductorId="c1" repository={repository} />);
 
     expect(await screen.findByText(/licencia\.pdf/i)).toBeInTheDocument();
     expect(repository.listByEntity).toHaveBeenCalledWith('conductor', 'c1');
   });
 
   it('muestra el cartel de pendiente de confirmar sobre los documentos a precargar (tasks.md 9.4)', async () => {
-    render(<ConductorDocumentos conductorId="c1" repository={buildFakeRepository()} />);
+    renderConQuery(<ConductorDocumentos conductorId="c1" repository={buildFakeRepository()} />);
 
     expect(
       await screen.findByText(/pendiente de confirmar con el cliente: documentos a precargar/i),
@@ -54,7 +55,7 @@ describe('ConductorDocumentos', () => {
   // supabaseDocumentoRepository retira el aviso de subida simulada — el cartel de precarga
   // (pendiente #4 de C-09, sin relación) sigue, sin resolver.
   it('no muestra el aviso de subida simulada, pero conserva el cartel de precarga', async () => {
-    render(<ConductorDocumentos conductorId="c1" repository={buildFakeRepository()} />);
+    renderConQuery(<ConductorDocumentos conductorId="c1" repository={buildFakeRepository()} />);
 
     await screen.findByText(/pendiente de confirmar con el cliente: documentos a precargar/i);
     expect(screen.queryByText(/modelo de datos/i)).not.toBeInTheDocument();
@@ -110,7 +111,7 @@ describe('ConductorDocumentos — no regresión por agrupación (tasks.md 7.2)',
       listByEntity: vi.fn().mockResolvedValue([docSinAgrupar, docConAgrupacionLegacy]),
     });
 
-    render(<ConductorDocumentos conductorId="c1" repository={repository} />);
+    renderConQuery(<ConductorDocumentos conductorId="c1" repository={repository} />);
 
     expect(await screen.findByText(/licencia\.pdf/i)).toBeInTheDocument();
     expect(await screen.findByText(/dni\.pdf/i)).toBeInTheDocument();

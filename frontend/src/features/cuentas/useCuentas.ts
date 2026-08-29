@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Cuenta, CuentaRepository, NuevaCuentaInput } from '../../shared/lib/cuentas/CuentaRepository';
 import type { Permiso } from '../../shared/types/usuario';
+import { aMensaje } from '../../shared/lib/query/aMensaje';
+import { claves } from '../../shared/lib/query/claves';
+import { FRESCURA } from '../../shared/lib/query/frescura';
 
 export interface UseCuentasResult {
   cuentas: Cuenta[];
@@ -11,55 +15,63 @@ export interface UseCuentasResult {
   actualizarPermisos: (usuarioId: string, permisos: Permiso[]) => Promise<void>;
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Ocurrió un error inesperado.';
-}
-
-// Wiring de estado entre las pantallas de cuentas y un CuentaRepository (mismo patrón que
-// useObrasSociales — tasks.md 7.7): la carga inicial la dispara un efecto sobre un load
-// imperativo (`cargar`), reutilizado tras cada mutación exitosa. A diferencia de
-// useObrasSociales, si `crearCuenta`/`actualizarPermisos` rechazan NO se recarga el listado — el
-// estado remoto no cambió, y CuentasPage/CuentaDetail necesitan el error crudo para mostrarlo en
-// el formulario/matriz (D7: 401/403/404/400 con mensajes distintos), no solo un string genérico
-// de "error de carga".
+// migracion-react-query, Fase 4 (dominio SENSIBLE). **`UseCuentasResult` NO cambió.**
+//
+// ⚠️ A diferencia del resto de los dominios migrados, este hook NO lleva el `errorMutacion` en
+// estado. Es deliberado y viene de antes del change: si `crearCuenta`/`actualizarPermisos` rechazan
+// NO se recarga el listado —el estado remoto no cambió— y `CuentasPage`/`CuentaDetail` necesitan el
+// error CRUDO para mostrarlo en el formulario/matriz (D7 de auth: 401/403/404/400 con mensajes
+// distintos), no un string genérico de "error de carga". `mutateAsync` propaga el rechazo tal cual;
+// el campo `error` queda reservado para fallos de LECTURA, como antes.
+//
+// Que la invalidación viva en `onSuccess` (no en un `finally`) es justamente lo que garantiza que
+// una mutación fallida no dispare recarga.
+//
+// ⚠️ `FRESCURA.sensible` es CERO: son cuentas y permisos. Servir permisos viejos desde memoria es
+// un problema de seguridad, no de frescura.
 export function useCuentas(repository: CuentaRepository): UseCuentasResult {
-  const [cuentas, setCuentas] = useState<Cuenta[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await repository.listarCuentas();
-      setCuentas(data);
-    } catch (err) {
-      setError(toErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [repository]);
+  const { data, isPending, error, refetch } = useQuery({
+    queryKey: claves.cuentas.lista(),
+    queryFn: () => repository.listarCuentas(),
+    staleTime: FRESCURA.sensible,
+  });
 
-  useEffect(() => {
-    void cargar();
-  }, [cargar]);
-
-  const crearCuenta = useCallback(
-    async (input: NuevaCuentaInput) => {
-      await repository.crearCuenta(input);
-      await cargar();
-    },
-    [repository, cargar],
+  const invalidar = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: claves.cuentas.todos() }),
+    [queryClient],
   );
 
-  const actualizarPermisos = useCallback(
-    async (usuarioId: string, permisos: Permiso[]) => {
-      await repository.actualizarPermisos(usuarioId, permisos);
-      await cargar();
-    },
-    [repository, cargar],
-  );
+  const mutacionCrear = useMutation({
+    mutationFn: (input: NuevaCuentaInput) => repository.crearCuenta(input),
+    onSuccess: invalidar,
+  });
 
-  return { cuentas, loading, error, recargar: cargar, crearCuenta, actualizarPermisos };
+  const mutacionPermisos = useMutation({
+    mutationFn: ({ usuarioId, permisos }: { usuarioId: string; permisos: Permiso[] }) =>
+      repository.actualizarPermisos(usuarioId, permisos),
+    onSuccess: invalidar,
+  });
+
+  return {
+    cuentas: data ?? [],
+    loading: isPending,
+    error: aMensaje(error),
+    recargar: useCallback(async () => {
+      await refetch();
+    }, [refetch]),
+    crearCuenta: useCallback(
+      async (input: NuevaCuentaInput) => {
+        await mutacionCrear.mutateAsync(input);
+      },
+      [mutacionCrear],
+    ),
+    actualizarPermisos: useCallback(
+      async (usuarioId: string, permisos: Permiso[]) => {
+        await mutacionPermisos.mutateAsync({ usuarioId, permisos });
+      },
+      [mutacionPermisos],
+    ),
+  };
 }

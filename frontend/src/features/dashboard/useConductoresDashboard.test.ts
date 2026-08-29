@@ -1,4 +1,5 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { Conductor } from '../../shared/types/conductor';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
@@ -35,7 +36,7 @@ function buildRepository(overrides: Partial<ConductorRepository> = {}): Conducto
 describe('useConductoresDashboard', () => {
   it('expone los conductores una vez que list() resuelve', async () => {
     const repository = buildRepository();
-    const { result } = renderHook(() => useConductoresDashboard(repository));
+    const { result } = renderHookConQuery(() => useConductoresDashboard(repository));
 
     expect(result.current.cargando).toBe(true);
     await waitFor(() => expect(result.current.cargando).toBe(false));
@@ -46,7 +47,7 @@ describe('useConductoresDashboard', () => {
 
   it('no expone ningún método de escritura', async () => {
     const repository = buildRepository();
-    const { result } = renderHook(() => useConductoresDashboard(repository));
+    const { result } = renderHookConQuery(() => useConductoresDashboard(repository));
     await waitFor(() => expect(result.current.cargando).toBe(false));
 
     expect(result.current).not.toHaveProperty('crear');
@@ -58,7 +59,7 @@ describe('useConductoresDashboard', () => {
   // primera página en silencio (mismo modo de falla que 14.2 de la Fase 2, dato falso sin error).
   it('no-regresión: sigue usando list() completo, nunca listPage()', async () => {
     const repository = buildRepository();
-    const { result } = renderHook(() => useConductoresDashboard(repository));
+    const { result } = renderHookConQuery(() => useConductoresDashboard(repository));
     await waitFor(() => expect(result.current.cargando).toBe(false));
 
     expect(repository.list).toHaveBeenCalled();

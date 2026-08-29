@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { Presupuesto } from '../../shared/types/presupuesto';
 import type { PresupuestoRepository } from '../../shared/lib/presupuestos/PresupuestoRepository';
@@ -27,7 +28,7 @@ describe('usePresupuestos', () => {
   it('arranca en loading y expone la lista una vez que list() resuelve', async () => {
     const repository = buildFakeRepository();
 
-    const { result } = renderHook(() => usePresupuestos(repository));
+    const { result } = renderHookConQuery(() => usePresupuestos(repository));
 
     expect(result.current.loading).toBe(true);
 
@@ -40,7 +41,7 @@ describe('usePresupuestos', () => {
   it('expone un error legible cuando list() rechaza la promesa (triangulación)', async () => {
     const repository = buildFakeRepository({ list: vi.fn().mockRejectedValue(new Error('caído')) });
 
-    const { result } = renderHook(() => usePresupuestos(repository));
+    const { result } = renderHookConQuery(() => usePresupuestos(repository));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -50,7 +51,7 @@ describe('usePresupuestos', () => {
 
   it('crear() llama a repository.create() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => usePresupuestos(repository));
+    const { result } = renderHookConQuery(() => usePresupuestos(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -68,7 +69,7 @@ describe('usePresupuestos', () => {
 
   it('actualizar() llama a repository.update() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => usePresupuestos(repository));
+    const { result } = renderHookConQuery(() => usePresupuestos(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -83,7 +84,7 @@ describe('usePresupuestos', () => {
   // por-prestacion de PresupuestoForm vía PresupuestoDetail.
   it('crearLote() llama a repository.createLote() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => usePresupuestos(repository));
+    const { result } = renderHookConQuery(() => usePresupuestos(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -98,7 +99,7 @@ describe('usePresupuestos', () => {
 
   it('crearLote() propaga el error del repository sin dejar loading colgado', async () => {
     const repository = buildFakeRepository({ createLote: vi.fn().mockRejectedValue(new Error('lote inválido')) });
-    const { result } = renderHook(() => usePresupuestos(repository));
+    const { result } = renderHookConQuery(() => usePresupuestos(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -111,7 +112,7 @@ describe('usePresupuestos', () => {
 
   it('crear() propaga el error del repository sin dejar loading colgado', async () => {
     const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('paciente inválido')) });
-    const { result } = renderHook(() => usePresupuestos(repository));
+    const { result } = renderHookConQuery(() => usePresupuestos(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {

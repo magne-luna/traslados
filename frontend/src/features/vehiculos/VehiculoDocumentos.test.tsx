@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import type { DocumentoAdjunto } from '../../shared/types/documento';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { VehiculoDocumentos } from './VehiculoDocumentos';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
-  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+  return renderConQuery(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
 
 function buildFakeRepository(overrides: Partial<DocumentoRepository> = {}): DocumentoRepository {
@@ -22,7 +23,7 @@ function buildFakeRepository(overrides: Partial<DocumentoRepository> = {}): Docu
 
 describe('VehiculoDocumentos', () => {
   it('renderiza el checklist fijo de documentos del vehículo (cédula, VTV, RTO, seguro, fotos)', async () => {
-    render(<VehiculoDocumentos vehiculoId="v1" repository={buildFakeRepository()} />);
+    renderConQuery(<VehiculoDocumentos vehiculoId="v1" repository={buildFakeRepository()} />);
 
     expect(await screen.findByText('Cédula')).toBeInTheDocument();
     expect(screen.getByText('VTV')).toBeInTheDocument();
@@ -34,7 +35,7 @@ describe('VehiculoDocumentos', () => {
   // documentos-vehiculos-conductores-facturacion (2026-08-16): el swap a
   // supabaseDocumentoRepository retira el aviso de subida simulada — ya no aplica.
   it('no muestra ningún aviso de subida simulada', async () => {
-    render(<VehiculoDocumentos vehiculoId="v1" repository={buildFakeRepository()} />);
+    renderConQuery(<VehiculoDocumentos vehiculoId="v1" repository={buildFakeRepository()} />);
 
     await screen.findByText('Cédula');
     expect(screen.queryByText(/modelo de datos/i)).not.toBeInTheDocument();
@@ -45,7 +46,7 @@ describe('VehiculoDocumentos', () => {
     const doc: DocumentoAdjunto = { id: 'doc-cedula', itemId: 'vehiculo-doc-cedula', nombreArchivo: 'cedula.pdf', subidoEn: '2026-07-01' };
     const repository = buildFakeRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
 
-    render(<VehiculoDocumentos vehiculoId="v1" repository={repository} />);
+    renderConQuery(<VehiculoDocumentos vehiculoId="v1" repository={repository} />);
 
     expect(await screen.findByText(/cedula\.pdf/i)).toBeInTheDocument();
     expect(repository.listByEntity).toHaveBeenCalledWith('vehiculo', 'v1');
@@ -99,7 +100,7 @@ describe('VehiculoDocumentos — no regresión por agrupación (tasks.md 7.2)', 
       listByEntity: vi.fn().mockResolvedValue([docSinAgrupar, docConAgrupacionLegacy]),
     });
 
-    render(<VehiculoDocumentos vehiculoId="v1" repository={repository} />);
+    renderConQuery(<VehiculoDocumentos vehiculoId="v1" repository={repository} />);
 
     expect(await screen.findByText(/cedula\.pdf/i)).toBeInTheDocument();
     expect(await screen.findByText(/vtv\.pdf/i)).toBeInTheDocument();

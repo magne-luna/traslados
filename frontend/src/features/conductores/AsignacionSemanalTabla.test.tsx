@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { AsignacionSemanal } from '../../shared/types/conductor';
 import type { Vehiculo } from '../../shared/types/vehiculo';
@@ -41,7 +42,7 @@ function renderTabla(props: {
   onAgregar?: (a: { vehiculoId: string; semana: string }) => void;
   vehiculoRepository?: VehiculoRepository;
 }) {
-  return render(
+  return renderConQuery(
     <VehiculoRepositoryProvider repository={props.vehiculoRepository ?? buildFakeVehiculoRepository()}>
       <AsignacionSemanalTabla
         asignaciones={props.asignaciones ?? []}
@@ -61,7 +62,7 @@ function renderTablaConPermiso(
     vehiculoRepository?: VehiculoRepository;
   },
 ) {
-  return render(
+  return renderConQuery(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <VehiculoRepositoryProvider repository={props.vehiculoRepository ?? buildFakeVehiculoRepository()}>
         <AsignacionSemanalTabla

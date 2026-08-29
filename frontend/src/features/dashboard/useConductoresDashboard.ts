@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Conductor } from '../../shared/types/conductor';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
+import { aMensaje } from '../../shared/lib/query/aMensaje';
+import { claves } from '../../shared/lib/query/claves';
+import { FRESCURA } from '../../shared/lib/query/frescura';
 
 export interface UseConductoresDashboardResult {
   conductores: Conductor[];
@@ -8,48 +11,22 @@ export interface UseConductoresDashboardResult {
   error: string | null;
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Ocurrió un error inesperado.';
-}
-
-// Gap detectado durante el apply (ver informe): RecorridosDelDiaPanel necesita resolver el
-// nombre del conductor por id (spec dashboard-recorridos-del-dia, Requirement "Detalle por
-// recorrido con vehículo y conductor"), lo que requiere leer ConductorRepository.list() —
-// design.md Decisión 9 lista "cinco repositorios" pero la propia spec de recorridos exige
-// resolver conductor por id, que solo es posible con este repositorio. Se agrega como sexto
-// repositorio de solo lectura, mismo patrón exacto que HojaDeRutaRoute (que ya inyecta
-// ConductorRepository de solo lectura junto a Paciente/Vehiculo). A propósito NO expone
-// `crear`/`actualizar` (ver useAlertasCud/useAlertasMantenimiento).
+// tasks.md 5.4: lectura para el panel de recorridos del día.
+//
+// migracion-react-query, Fase 5. **`UseConductoresDashboardResult` NO cambió** (sigue exponiendo `cargando`, no
+// `loading`). Lo que cambia es de dónde sale el dato: usa **la misma clave** que
+// `useConductores` (`claves.conductores.lista()`), así que si la usuaria ya pasó por ese módulo el
+// dashboard NO vuelve a pedir el padrón — y viceversa. `/` es la ruta índice y se la visita
+// constantemente: ese round-trip repetido era uno de los tres desperdicios que motivaron el change.
+//
+// Sigue siendo de SOLO LECTURA: no expone `crear` ni `actualizar`, para que sea estructuralmente
+// imposible que el dashboard escriba (design.md Non-Goals del change de dashboard).
 export function useConductoresDashboard(repository: ConductorRepository): UseConductoresDashboardResult {
-  const [conductores, setConductores] = useState<Conductor[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isPending, error } = useQuery({
+    queryKey: claves.conductores.lista(),
+    queryFn: () => repository.list(),
+    staleTime: FRESCURA.referencia,
+  });
 
-  useEffect(() => {
-    let cancelado = false;
-
-    async function cargar() {
-      setCargando(true);
-      setError(null);
-      try {
-        const data = await repository.list();
-        if (cancelado) return;
-        setConductores(data);
-      } catch (err) {
-        if (cancelado) return;
-        setError(toErrorMessage(err));
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    }
-
-    void cargar();
-
-    return () => {
-      cancelado = true;
-    };
-  }, [repository]);
-
-  return { conductores, cargando, error };
+  return { conductores: data ?? [], cargando: isPending, error: aMensaje(error) };
 }

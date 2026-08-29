@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 
 // `ObraSocialesRoute` inyecta `supabaseObraSocialRepository` (real, tasks.md 5.1) — este test
 // mockea `shared/lib/supabaseClient` (mismo criterio que `PacientesRoute.test.tsx`/
@@ -23,7 +24,7 @@ describe('ObraSocialesRoute', () => {
   });
 
   it('monta la feature con supabaseObraSocialRepository (mockeado) y muestra el heading', async () => {
-    render(<ObraSocialesRoute />);
+    renderConQuery(<ObraSocialesRoute />);
 
     await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
     expect(screen.getByRole('heading', { name: 'Obras Sociales' })).toBeInTheDocument();

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
@@ -95,7 +96,7 @@ function renderFacturacionPage(props: ReturnType<typeof buildProps>, conPermiso:
       </CobroRepositoryProvider>
     </FacturaRepositoryProvider>
   );
-  return render(
+  return renderConQuery(
     <AuthProvider repository={mockAuthRepository}>
       {conPermiso === null ? page : <PuedeEscribirContext.Provider value={conPermiso}>{page}</PuedeEscribirContext.Provider>}
     </AuthProvider>,

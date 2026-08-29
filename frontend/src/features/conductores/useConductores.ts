@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { ActualizacionConductor, Conductor, NuevoConductor } from '../../shared/types/conductor';
+import type { ActualizacionConductor, NuevoConductor, Conductor } from '../../shared/types/conductor';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
+import { claves } from '../../shared/lib/query/claves';
+import { FRESCURA } from '../../shared/lib/query/frescura';
+import { useListaDeDominio } from '../../shared/lib/query/useListaDeDominio';
 
 export interface UseConductoresResult {
   conductores: Conductor[];
@@ -11,64 +13,20 @@ export interface UseConductoresResult {
   actualizar: (id: string, data: ActualizacionConductor) => Promise<Conductor>;
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Ocurrió un error inesperado.';
-}
-
-// Wiring de estado entre las pantallas de Conductores y un ConductorRepository (mock hoy,
-// Supabase el día de mañana — ver ConductorRepository.ts). Mismo patrón que useVehiculos
-// (tasks.md 4.1): la carga inicial la dispara un efecto sobre un load imperativo (`cargar`), y
-// ese mismo load imperativo se reutiliza tras cada mutación.
+// Wiring de estado entre las pantallas de Conductores y un ConductorRepository.
+//
+// migracion-react-query, Fase 3: el cuerpo delega en `useListaDeDominio` (el patrón compartido de
+// los cuatro dominios de referencia). **`UseConductoresResult` NO cambió** — solo se renombra `datos` a
+// `conductores`, que es el nombre que las pantallas ya usan.
 export function useConductores(repository: ConductorRepository): UseConductoresResult {
-  const [conductores, setConductores] = useState<Conductor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { datos, ...resto } = useListaDeDominio<Conductor, NuevoConductor, ActualizacionConductor>({
+    claveDominio: claves.conductores.todos(),
+    claveLista: claves.conductores.lista(),
+    cargar: () => repository.list(),
+    crear: (data) => repository.create(data),
+    actualizar: (id, data) => repository.update(id, data),
+    frescuraMs: FRESCURA.referencia,
+  });
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await repository.list();
-      setConductores(data);
-    } catch (err) {
-      setError(toErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [repository]);
-
-  useEffect(() => {
-    void cargar();
-  }, [cargar]);
-
-  const crear = useCallback(
-    async (data: NuevoConductor) => {
-      try {
-        const creado = await repository.create(data);
-        await cargar();
-        return creado;
-      } catch (err) {
-        setError(toErrorMessage(err));
-        throw err;
-      }
-    },
-    [repository, cargar],
-  );
-
-  const actualizar = useCallback(
-    async (id: string, data: ActualizacionConductor) => {
-      try {
-        const actualizado = await repository.update(id, data);
-        await cargar();
-        return actualizado;
-      } catch (err) {
-        setError(toErrorMessage(err));
-        throw err;
-      }
-    },
-    [repository, cargar],
-  );
-
-  return { conductores, loading, error, recargar: cargar, crear, actualizar };
+  return { conductores: datos, ...resto };
 }

@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { Conductor } from '../../shared/types/conductor';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
@@ -30,7 +31,7 @@ describe('useConductores', () => {
   it('arranca en loading y expone la lista una vez que list() resuelve', async () => {
     const repository = buildFakeRepository();
 
-    const { result } = renderHook(() => useConductores(repository));
+    const { result } = renderHookConQuery(() => useConductores(repository));
 
     expect(result.current.loading).toBe(true);
 
@@ -43,7 +44,7 @@ describe('useConductores', () => {
   it('expone un error legible cuando list() rechaza la promesa (triangulación)', async () => {
     const repository = buildFakeRepository({ list: vi.fn().mockRejectedValue(new Error('caído')) });
 
-    const { result } = renderHook(() => useConductores(repository));
+    const { result } = renderHookConQuery(() => useConductores(repository));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -53,7 +54,7 @@ describe('useConductores', () => {
 
   it('crear() llama a repository.create() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useConductores(repository));
+    const { result } = renderHookConQuery(() => useConductores(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -74,7 +75,7 @@ describe('useConductores', () => {
 
   it('actualizar() llama a repository.update() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useConductores(repository));
+    const { result } = renderHookConQuery(() => useConductores(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -87,7 +88,7 @@ describe('useConductores', () => {
 
   it('crear() propaga el error del repository sin dejar loading colgado', async () => {
     const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('documento duplicado')) });
-    const { result } = renderHook(() => useConductores(repository));
+    const { result } = renderHookConQuery(() => useConductores(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Cuenta, CuentaRepository } from '../../shared/lib/cuentas/CuentaRepository';
 import { CuentaRepositoryProvider } from './CuentaRepositoryContext';
@@ -37,7 +38,7 @@ describe('Accesibilidad de la pantalla de cuentas (tasks.md 7.10)', () => {
     const user = userEvent.setup();
     const repository = buildFakeRepository();
 
-    render(
+    renderConQuery(
       <CuentaRepositoryProvider repository={repository}>
         <CuentasPage />
       </CuentaRepositoryProvider>,

@@ -41,9 +41,9 @@ rules:
       - Reuse design system components from frontend/src/design-system/components.tsx
       - Verify types with tsc -b --noEmit inside frontend/ before committing
     tdd: true
-    test_command: "cd frontend && npx vitest run"
+    test_command: "cd frontend && npm test"
   verify:
-    test_command: "cd frontend && npx vitest run"
+    test_command: "cd frontend && npm test"
     build_command: "cd frontend && npx tsc -b --noEmit"
     coverage_threshold: 80
   archive:
@@ -51,11 +51,16 @@ rules:
     - Verify openspec list --json shows change no longer active
     - Sync delta specs into main specs/ directory
 
+# ⚠️ Los comandos de test usan los scripts de `frontend/package.json`, NUNCA `npx vitest` a secas.
+# Esos scripts anteponen `NODE_OPTIONS=--no-experimental-webstorage`; sin ese flag, `localStorage`
+# queda `undefined` bajo jsdom y fallan 170 tests en 20 archivos por una causa que no existe
+# (verificado el 2026-08-29 durante el change `migracion-react-query`). Es un falso negativo
+# especialmente peligroso porque parece una regresión masiva del código.
 testing:
   strict_tdd: true
   runner:
-    command: "cd frontend && npx vitest run"
-    watch: "cd frontend && npx vitest"
+    command: "cd frontend && npm test"
+    watch: "cd frontend && npm run test:watch"
     framework: vitest
   layers:
     unit: { available: true, tool: "vitest + @testing-library/react + @testing-library/user-event" }
@@ -63,7 +68,7 @@ testing:
     e2e: { available: false, tool: "—" }
   coverage:
     available: true
-    command: "npx vitest run --coverage"
+    command: "cd frontend && NODE_OPTIONS=--no-experimental-webstorage npx vitest run --coverage"
   quality:
     linter: { available: true, command: "cd frontend && npx oxlint" }
     type_checker: { available: true, command: "cd frontend && npx tsc -b --noEmit" }

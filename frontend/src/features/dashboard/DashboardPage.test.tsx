@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import { MemoryRouter } from 'react-router';
 import type { Conductor } from '../../shared/types/conductor';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
@@ -133,7 +134,7 @@ function buildRepositorios() {
 describe('DashboardPage', () => {
   it('renderiza el cartel de discrepancias, el panel del día, las tarjetas y los dos reportes', async () => {
     const repos = buildRepositorios();
-    render(
+    renderConQuery(
       <MemoryRouter>
         <DashboardPage {...repos} />
       </MemoryRouter>,
@@ -150,7 +151,7 @@ describe('DashboardPage', () => {
 
   it('garantía de solo lectura: no invoca ningún método de escritura de ningún repositorio', async () => {
     const repos = buildRepositorios();
-    render(
+    renderConQuery(
       <MemoryRouter>
         <DashboardPage {...repos} />
       </MemoryRouter>,
@@ -179,7 +180,7 @@ describe('DashboardPage', () => {
   // el scroll horizontal a sí misma).
   it('las tablas de reporte se desplazan en su propio contenedor, no en la página', async () => {
     const repos = buildRepositorios();
-    const { container } = render(
+    const { container } = renderConQuery(
       <MemoryRouter>
         <DashboardPage {...repos} />
       </MemoryRouter>,
