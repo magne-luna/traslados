@@ -16,7 +16,12 @@ export function crearQueryClient(): QueryClient {
     defaultOptions: {
       queries: {
         staleTime: 0,
-        gcTime: 5 * 60 * 1000,
+        // 10 min, deliberadamente MUY por encima del `staleTime` de referencia (1 min). Son perillas
+        // distintas: `staleTime` decide cuántos requests se hacen; `gcTime` decide si la usuaria ve
+        // un spinner. Mientras el dato siga acá, una pantalla vencida se pinta igual al instante y
+        // revalida en background. Bajar esto a la par del staleTime traería de vuelta los spinners
+        // que el change vino a eliminar.
+        gcTime: 10 * 60 * 1000,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         retry: 1,

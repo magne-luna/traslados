@@ -109,7 +109,7 @@ Defaults explícitos, ninguno implícito:
 }
 ```
 
-**Por qué `staleTime: 0` como default y no 5 minutos:** el default seguro es el que no miente. Un
+**Por qué `staleTime: 0` como default y no el plazo de referencia:** el default seguro es el que no miente. Un
 dominio que se olvide de declarar su frescura se comporta como hoy (consulta siempre) en vez de
 servir datos viejos en silencio. **La cacheabilidad se opta explícitamente, nunca por omisión.** Es
 la misma lógica por la que el change original excluía los datos transaccionales.
@@ -135,7 +135,7 @@ export const FRESCURA = {
 
 | Clase | Dominios | `staleTime` | Comportamiento observable |
 |---|---|---|---|
-| Referencia | pacientes, vehículos, conductores, obras sociales (`list()`) | 5 min | Navegar y volver dentro del plazo: **0 requests** |
+| Referencia | pacientes, vehículos, conductores, obras sociales (`list()`) | 1 min | Navegar y volver dentro del plazo: **0 requests** |
 | Transaccional | facturas, cobros, presupuestos, autorizaciones, hojas de ruta | 0 | Consulta en cada montaje, **igual que hoy** |
 | Paginado | todo `listPage()` | 0 | Consulta en cada cambio de página o filtro |
 | Sensible | cuentas, permisos | 0 | Consulta en cada montaje |
@@ -143,6 +143,19 @@ export const FRESCURA = {
 **`staleTime: 0` no significa "sin React Query".** Esos dominios siguen ganando:
 deduplicación de peticiones concurrentes en el mismo tick, invalidación automática por mutación, y
 un único camino de manejo de error. Lo que no ganan —a propósito— es servir dato viejo desde memoria.
+
+**El par `staleTime` / `gcTime` son perillas distintas, y esa distinción es la decisión de D3.**
+`staleTime` (1 min en referencia) decide **cuántos requests se hacen**. `gcTime` (10 min, global)
+decide **si la usuaria ve un spinner**: mientras el dato siga en memoria, una consulta vencida se
+resuelve igual al instante con el dato cacheado y revalida en background.
+
+Consecuencia práctica, y el motivo por el que bajar el plazo salió barato: **acortar `staleTime` no
+devuelve la espera, solo agrega requests.** Por eso se eligió 1 minuto (decisión de la usuaria,
+2026-08-29) en vez de los 5 propuestos originalmente: reduce la ventana de R4 —ver un alta ajena
+desactualizada— a una quinta parte, sin costo perceptible para quien usa la app. `gcTime` se subió a
+10 minutos en el mismo movimiento, deliberadamente muy por encima del `staleTime`, para que la
+ventana sin spinners siga siendo amplia. Bajarlo a la par traería de vuelta exactamente los spinners
+que este change vino a eliminar.
 
 **Revalidación en segundo plano sin parpadeo:** con `staleTime` vencido y dato en caché, React Query
 devuelve el dato inmediatamente con `isPending: false` e `isFetching: true`, y refetchea en
@@ -294,7 +307,7 @@ cambió y hay que corregir el hook, no el test.
   datos viejos en pantallas sensibles (Facturación, Presupuestos). → **Mitigación:** (a) claves
   centralizadas y tipadas (D4), que hacen que invalidar el prefijo del dominio alcance todo lo de
   abajo; (b) requisito de spec con escenario explícito para el camino paginado; (c) test dedicado
-  sobre `usePacientesPaginado.crear/actualizar`; (d) el `staleTime` acota cualquier fuga a 5 minutos
+  sobre `usePacientesPaginado.crear/actualizar`; (d) el `staleTime` acota cualquier fuga a 1 minuto
   en los dominios de referencia, y a **cero** en el resto.
 
 - **R2 — Cachear un dato transaccional por error (ALTO).** Poner `staleTime` de referencia sobre
@@ -308,7 +321,7 @@ cambió y hay que corregir el hook, no el test.
   la instancia.
 
 - **R4 — Regresión de frescura frente a otra usuaria (MEDIO, aceptada).** En los cuatro dominios de
-  referencia, un alta hecha por **otra** persona puede tardar hasta 5 minutos en verse. →
+  referencia, un alta hecha por **otra** persona puede tardar hasta 1 minuto en verse. →
   **Mitigación:** plazo corto y configurable en un solo lugar; `recargar()` como escape manual; toda
   mutación **propia** se ve al instante por invalidación. Los datos transaccionales no tienen esta
   regresión porque su `staleTime` es 0. Es un intercambio consciente y está en el spec.
@@ -347,8 +360,9 @@ cualquier fase es `git revert` de su commit.
 
 Ninguna bloquea el apply. Todas son ajustes de constante o trabajo posterior:
 
-1. **¿5 minutos es el plazo correcto para los dominios de referencia?** Es una constante en un solo
-   lugar; se ajusta con evidencia de uso real.
+1. **¿1 minuto es el plazo correcto para los dominios de referencia?** Decidido por la usuaria el
+   2026-08-29 (bajado desde los 5 minutos propuestos). Es una constante en un solo lugar; se ajusta
+   con evidencia de uso real.
 2. **¿Conviene React Query Devtools en desarrollo?** Ayuda mucho a depurar invalidaciones. Se puede
    agregar tras la Fase 2, importado dinámicamente y solo en `import.meta.env.DEV`, sin tocar el
    bundle de producción.

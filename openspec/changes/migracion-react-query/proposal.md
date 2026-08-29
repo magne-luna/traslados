@@ -71,12 +71,12 @@ Los ~21 hooks que hoy hacen `useState` + `useEffect` + `repository.*` pasan a `u
 
 ### 3. Frescura escalonada por clase de dato — el punto que evita el bug caro
 
-"Toda la app usa React Query" **NO** significa "todo se cachea 5 minutos". `staleTime` se define por
+"Toda la app usa React Query" **NO** significa "todo se cachea por igual". `staleTime` se define por
 dominio:
 
 | Clase de dato | Dominios | `staleTime` | Por qué |
 |---|---|---|---|
-| Referencia | pacientes, vehículos, conductores, obras sociales (vía `list()`) | **5 min** | Casi estáticos dentro de una sesión |
+| Referencia | pacientes, vehículos, conductores, obras sociales (vía `list()`) | **1 min** | Casi estáticos dentro de una sesión |
 | Transaccional | facturas, cobros, presupuestos, autorizaciones, hojas de ruta | **0** | Es dinero y agenda: la frescura es requisito funcional |
 | Paginado / filtrado | todo `listPage()` | **0** | El resultado depende de página y filtro vigentes |
 | Sensible | cuentas, permisos | **0** | Seguridad |

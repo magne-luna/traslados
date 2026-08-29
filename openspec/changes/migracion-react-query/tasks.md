@@ -17,10 +17,12 @@
       de aplicación completa. Registrado en `design.md` §D1 con los tres motivos.
 - [x] 0.2 **CHECKPOINT D8 — DESBLOQUEADO.** `paginacion-listados` está archivado
       (`archive/2026-08-12-paginacion-listados`). No hay bloqueo de orden.
-- [ ] 0.3 ⏸️ **CHECKPOINT R4 — PENDIENTE DE LA USUARIA.** Confirmar que acepta que, **solo en los
-      cuatro dominios de referencia**, un alta hecha por otra persona tarde hasta 5 minutos en verse.
-      Confirmar el valor del plazo (`design.md` §D3). Los dominios transaccionales no tienen esta
-      regresión. **Bloquea la Fase 2, no la Fase 1.**
+- [x] 0.3 **CHECKPOINT R4 — RESUELTO (2026-08-29).** La usuaria eligió **1 minuto**, bajando desde
+      los 5 propuestos. Acepta que, **solo en los cuatro dominios de referencia**, un alta hecha por
+      otra persona tarde hasta 1 minuto en verse; los dominios transaccionales no tienen esta
+      regresión. En el mismo movimiento se subió `gcTime` a 10 min (`design.md` §D3): acortar
+      `staleTime` agrega requests pero NO devuelve la espera, porque mientras el dato siga en memoria
+      la pantalla se pinta al instante y revalida en background. **Ya no bloquea la Fase 2.**
 - [ ] 0.4 ⏸️ **Línea base de red — PENDIENTE DE LA USUARIA** (requiere DevTools, no automatizable).
       Recorrido fijo: Dashboard → Pacientes → Presupuestos → Facturación → Conductores → Dashboard,
       con Network filtrando `rest/v1`, anotando cuántas veces se piden `pacientes`, `vehiculos`,
@@ -68,7 +70,7 @@
 - [x] 1.1 `npm i @tanstack/react-query` en `frontend/`. Verificar que la versión instalada es v5 y que
       declara compatibilidad con React 19.
 - [x] 1.2 Crear `frontend/src/shared/lib/query/frescura.ts`: constante `FRESCURA` con las cuatro
-      clases (`referencia` 5 min, `transaccional` 0, `paginado` 0, `sensible` 0), tipada con
+      clases (`referencia` 1 min, `transaccional` 0, `paginado` 0, `sensible` 0), tipada con
       `as const` (`design.md` §D3).
 - [x] 1.3 **RED** — `claves.test.ts`: la clave de lista de un dominio comparte prefijo con la de
       página, de modo que invalidar el prefijo del dominio alcance a ambas. Debe fallar: el módulo no
