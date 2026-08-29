@@ -164,7 +164,7 @@ describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
           modalidadFacturacion: 'por-prestacion',
           admitePagosParciales: false,
           plazoCobroDias: 45,
-          tipoComprobante: 'C',
+          tipoComprobante: 'B',
         }}
         onSubmit={vi.fn()}
         onCancel={vi.fn()}
@@ -172,7 +172,7 @@ describe('ObraSocialForm — los 4 campos del docx (2.6)', () => {
     );
 
     expect(screen.getByLabelText(/plazo de cobro/i)).toHaveValue(45);
-    expect(screen.getByLabelText(/tipo de comprobante/i)).toHaveValue('C');
+    expect(screen.getByLabelText(/tipo de comprobante/i)).toHaveValue('B');
   });
 
   it('precarga los 4 campos en modo edición cuando la obra social ya los tiene completos', () => {

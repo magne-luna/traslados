@@ -231,7 +231,11 @@ export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false
             />
           </Field>
 
-          <Field label="Tipo de comprobante por defecto" htmlFor={`${formId}-tipo-comprobante`}>
+          <Field
+            label="Tipo de comprobante por defecto"
+            htmlFor={`${formId}-tipo-comprobante`}
+            hint="Solo A o B: la emisión electrónica ARCA no soporta comprobante C."
+          >
             <Select
               id={`${formId}-tipo-comprobante`}
               density="comfortable"
@@ -246,7 +250,6 @@ export function ObraSocialForm({ initial, onSubmit, onCancel, submitting = false
               <option value="">Sin definir</option>
               <option value="A">A</option>
               <option value="B">B</option>
-              <option value="C">C</option>
             </Select>
           </Field>
         </div>
