@@ -1,6 +1,11 @@
 import type { ReactElement, ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, renderHook, type RenderHookResult, type RenderResult } from '@testing-library/react';
+import {
+  render,
+  renderHook,
+  type RenderHookResult,
+  type RenderResult,
+} from '@testing-library/react';
 
 // Infraestructura de tests para React Query (design.md §D7). Previene las tres trampas conocidas,
 // una sola vez, en vez de test por test:
@@ -22,14 +27,17 @@ export function crearQueryClientDeTest(): QueryClient {
   });
 }
 
-/** Envuelve `children` en un `QueryClientProvider` con un cliente nuevo. Útil como `wrapper` de
- * `render`/`renderHook` cuando el test necesita quedarse con la referencia al cliente. */
-export function ProveedorDeQuery({ client, children }: { client: QueryClient; children: ReactNode }) {
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+// Privado: el único componente del módulo. No se exporta a propósito — así el archivo exporta solo
+// funciones de test y no dispara `react(only-export-components)`.
+function envolver(client: QueryClient) {
+  return function Envoltorio({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  };
 }
 
 /** `renderHook` con un `QueryClient` propio. Devuelve además el cliente, para los tests que
- * necesitan invalidar o inspeccionar la caché a mano. */
+ * necesitan invalidar o inspeccionar la caché a mano, o compartirlo entre dos montajes para simular
+ * una misma sesión de la app. */
 export function renderHookConQuery<Resultado, Props>(
   callback: (props: Props) => Resultado,
   opciones: { initialProps?: Props; client?: QueryClient } = {},
@@ -37,21 +45,9 @@ export function renderHookConQuery<Resultado, Props>(
   const client = opciones.client ?? crearQueryClientDeTest();
   const resultado = renderHook(callback, {
     initialProps: opciones.initialProps,
-    wrapper: ({ children }) => <ProveedorDeQuery client={client}>{children}</ProveedorDeQuery>,
+    wrapper: envolver(client),
   });
   return { ...resultado, client };
-}
-
-/** Envoltorio para pasar como `wrapper` a `render` de RTL en tests de componente. */
-export function envoltorioDeQuery(client: QueryClient = crearQueryClientDeTest()) {
-  return function Envoltorio({ children }: { children: ReactNode }) {
-    return <ProveedorDeQuery client={client}>{children}</ProveedorDeQuery>;
-  };
-}
-
-/** Render de un elemento suelto dentro de un `QueryClientProvider` nuevo. */
-export function elementoConQuery(ui: ReactElement, client: QueryClient = crearQueryClientDeTest()): ReactElement {
-  return <ProveedorDeQuery client={client}>{ui}</ProveedorDeQuery>;
 }
 
 /** `render` de RTL dentro de un `QueryClientProvider` con cliente propio. Es el reemplazo directo
@@ -62,5 +58,5 @@ export function elementoConQuery(ui: ReactElement, client: QueryClient = crearQu
  * el `rerender` que devuelve RTL vuelve a montar el elemento nuevo SIN el provider y el test
  * revienta con "No QueryClient set" — un fallo que solo aparece en los tests que usan `rerender`. */
 export function renderConQuery(ui: ReactElement, client: QueryClient = crearQueryClientDeTest()): RenderResult {
-  return render(ui, { wrapper: ({ children }) => <ProveedorDeQuery client={client}>{children}</ProveedorDeQuery> });
+  return render(ui, { wrapper: envolver(client) });
 }

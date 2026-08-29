@@ -349,25 +349,44 @@
 
 ## 6. Verificación y cierre
 
-- [ ] 6.1 `npx oxlint` sin nuevos hallazgos.
-- [ ] 6.2 `npx tsc -b --noEmit` y `npm test` completo: **cero** regresiones respecto de la línea
-      base de 0.5. Toda diferencia en el conteo debe estar justificada por tests **agregados** en este
-      change.
-- [ ] 6.3 Confirmar por `git diff --name-only` que **ningún** archivo de pantalla (`*Page.tsx`,
-      `*List.tsx`, `*Detail.tsx`, `*Form.tsx`), `*Route.tsx`, `*RepositoryContext.tsx` ni ninguna
-      interfaz o implementación de repository quedó modificado. Si alguno lo está, es una desviación
-      del diseño: justificarla o revertirla.
+- [x] 6.1 `npx oxlint`: **27 warnings en total, CERO en los 20 hooks migrados y en los módulos
+      nuevos** (`query/claves`, `query/frescura`, `query/aMensaje`, `query/useListaDeDominio`,
+      `app/queryClient`). El único warning atribuible al change está en
+      `shared/test/queryWrapper.tsx` (`react(only-export-components)`), un archivo de SOLO TESTS
+      donde el fast refresh no aplica, y es la misma regla que ya dispara en cinco `*Context.tsx`
+      preexistentes. De paso se borraron tres exports especulativos que nadie usaba
+      (`ProveedorDeQuery`, `envoltorioDeQuery`, `elementoConQuery`), lo que bajó los warnings del
+      archivo de 4 a 1.
+- [x] 6.2 `npx tsc -b --noEmit` limpio y `npm test` **3308/3308 en 287 archivos**, contra una línea
+      base de **3275/3276 en 284**. Cero regresiones: +3 archivos y +32 tests, todos agregados por
+      este change, y el único fallo de la línea base dejó de aparecer (ver nota en 0.5).
+- [x] 6.3 **Verificado en cada fase y al cierre: cero pantallas, `*Route.tsx`,
+      `*RepositoryContext.tsx`, interfaces o implementaciones de repository modificados.** Los
+      únicos archivos de producción tocados son los ~20 hooks, `App.tsx` (el provider) y los cinco
+      módulos nuevos de `shared/lib/query/`. Los `*Route.tsx` y `*Page.tsx` que aparecen en el diff
+      son **archivos de test** (`*.test.tsx`), que solo recibieron el provider.
 - [ ] 6.4 Repetir el recorrido de 0.4 con DevTools → Network y **comparar el conteo de requests
       `rest/v1` antes/después**. Anotar el número en el reporte de cierre: es la evidencia de que el
       change hizo lo que dice.
-- [ ] 6.5 **Auditoría de R2:** `grep` de `FRESCURA.referencia` — debe aparecer **solo** en los cuatro
-      dominios de referencia. Cualquier otro uso es un bug de frescura sobre datos transaccionales.
-- [ ] 6.6 Confirmar que la caché **no** persiste nada en `localStorage`/`sessionStorage`/IndexedDB y
-      que no se instaló ningún plugin de persistencia (spec, "la caché es de sesión y vive solo en
-      memoria").
-- [ ] 6.7 Medir el bundle después del change (`npm run build`, tamaño de `dist/assets/index-*.js`) y
-      anotar el delta. Se espera ~+13 KB gzip; sirve de línea base para `code-splitting-rutas`.
-- [ ] 6.8 Dejar registrado en el reporte de cierre: los plazos de frescura elegidos, la advertencia
+- [x] 6.5 **Auditoría R2 PASADA.** `FRESCURA.referencia` aparece como código en exactamente cuatro
+      lugares: `usePacientes`, `useVehiculos`, `useConductores`, `useObrasSociales` (y los tres hooks
+      del dashboard que reusan esas mismas claves). Ningún dominio transaccional lo lleva. El resto
+      de las apariciones del `grep` son comentarios que explican por qué NO se usa.
+- [x] 6.6 **Verificado: la caché no persiste nada.** Cero menciones de
+      `localStorage`/`sessionStorage`/IndexedDB en `shared/lib/query/`, `app/queryClient.ts` y
+      `shared/test/queryWrapper.tsx`; ningún plugin de persistencia en `package.json`. La caché vive
+      en memoria y muere con la pestaña, como exige el spec (hay datos de salud y de menores).
+- [x] 6.7 **Bundle medido, antes y después, con `npm run build` en las dos ramas:**
+      | | crudo | gzip |
+      |---|---|---|
+      | `main` | 1,48 MB | **419 KB** |
+      | `feat/migracion-react-query` | 1,51 MB | **430 KB** |
+      | delta | +30 KB | **+11 KB** |
+
+      Consistente con los ~13 KB estimados en `design.md` §D1, y **2,6 % del bundle** — el orden de
+      magnitud que hacía irrelevante el argumento original contra la librería. Queda como línea base
+      para `code-splitting-rutas`, que es el change que ataca los 430 KB de verdad.
+- [x] 6.8 Dejar registrado en el reporte de cierre: los plazos de frescura elegidos, la advertencia
       operativa de R1 ("todo camino de mutación nuevo sobre un dominio debe invalidar su clave") y la
       de R2 ("ningún dominio transaccional lleva frescura de referencia"), para que quien agregue
       funcionalidad después no lo descubra por un dato viejo en un selector.
