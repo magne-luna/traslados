@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import type { ChecklistItem, DocumentoAdjunto, EntidadDocumental } from '../../shared/types/documento';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { FacturaDocumentos } from './FacturaDocumentos';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
-  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+  return renderConQuery(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
 
 const items: ChecklistItem[] = [
@@ -28,7 +29,7 @@ function buildFakeRepository(documentos: DocumentoAdjunto[] = []): DocumentoRepo
 describe('FacturaDocumentos', () => {
   it('lista los ítems del checklist en el orden recibido, con entidad="factura"', async () => {
     const repository = buildFakeRepository();
-    render(<FacturaDocumentos facturaId="factura-1" items={items} repository={repository} />);
+    renderConQuery(<FacturaDocumentos facturaId="factura-1" items={items} repository={repository} />);
 
     await waitFor(() => expect(repository.listByEntity).toHaveBeenCalledWith('factura', 'factura-1'));
 
@@ -42,14 +43,14 @@ describe('FacturaDocumentos', () => {
   // así que el `AvisoModeloDatos` de "carga simulada" se retiró — la condición de cierre que el
   // propio requisito `documento-avisos-modelo-datos` declara.
   it('ya no muestra el aviso de carga simulada (la subida se persiste de verdad)', () => {
-    render(<FacturaDocumentos facturaId="factura-1" items={items} repository={buildFakeRepository()} />);
+    renderConQuery(<FacturaDocumentos facturaId="factura-1" items={items} repository={buildFakeRepository()} />);
     expect(screen.queryByText(/modelo de datos/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/sigue.*simulada/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/todavía no se persisten/i)).not.toBeInTheDocument();
   });
 
   it('no bloquea nada visualmente aunque falten documentos requeridos (solo informa el estado)', async () => {
-    render(<FacturaDocumentos facturaId="factura-1" items={items} repository={buildFakeRepository()} />);
+    renderConQuery(<FacturaDocumentos facturaId="factura-1" items={items} repository={buildFakeRepository()} />);
     await waitFor(() => expect(screen.getAllByText(/falta/i).length).toBeGreaterThan(0));
   });
 });
@@ -105,7 +106,7 @@ describe('FacturaDocumentos — no regresión por agrupación (tasks.md 7.2)', (
     };
     const repository = buildFakeRepository([docSinAgrupar, docConAgrupacionLegacy]);
 
-    render(<FacturaDocumentos facturaId="factura-1" items={items} repository={repository} />);
+    renderConQuery(<FacturaDocumentos facturaId="factura-1" items={items} repository={repository} />);
 
     expect(await screen.findByText(/arca\.pdf/i)).toBeInTheDocument();
     expect(await screen.findByText(/asistencia\.pdf/i)).toBeInTheDocument();

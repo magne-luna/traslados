@@ -137,6 +137,13 @@ export function ConductorDetail({ conductor, crear, actualizar, documentoReposit
 
             {conductor.observaciones && <p className="m-0 font-body text-[13px] text-muted">{conductor.observaciones}</p>}
 
+            <AvisoModeloDatos>
+              Este conductor no tiene un campo estructurado de restricciones: lo que haga falta tener
+              en cuenta de su perfil se anota en Observaciones, como texto libre, igual que el modelo
+              de datos real. Por eso no se puede filtrar automáticamente al armar una hoja de ruta:
+              hay que leerlas.
+            </AvisoModeloDatos>
+
             <div className="flex justify-end">
               <Button variant="secondary" requiereEscritura onClick={() => setEditing(true)}>
                 Editar datos
@@ -174,9 +181,10 @@ export function ConductorDetail({ conductor, crear, actualizar, documentoReposit
 
           <Section label="Flota" title="Asignación semanal">
             <AvisoModeloDatos>
-              Acá la semana se guarda como una etiqueta ISO (ej. "2026-W30"). En el docx la
-              "Asignación de Conductores a Vehículos" tiene Fecha de inicio y Fecha de fin de semana
-              como dos campos de fecha, no una etiqueta de semana.
+              La semana se guarda acá como una etiqueta ISO (ej. "2026-W30") y se convierte a las dos
+              fechas de inicio/fin que pide el docx al leer y escribir — ya no es una divergencia
+              pendiente. Lo que sí importa: esta grilla depende del permiso del módulo Vehículos, no
+              del de Conductores — sin `vehiculos: read` se ve vacía.
             </AvisoModeloDatos>
             <AsignacionSemanalTabla asignaciones={conductor.asignaciones} onAgregar={handleAgregarAsignacion} />
           </Section>

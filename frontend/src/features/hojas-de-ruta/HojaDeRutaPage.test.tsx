@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
 import type { HojaDeRutaRepository } from '../../shared/lib/hojas-de-ruta/HojaDeRutaRepository';
@@ -87,11 +88,18 @@ function buildFakeConductorRepo(): ConductorRepository {
 }
 
 function buildFakePacienteRepo(): PacienteRepository {
-  return { list: vi.fn().mockResolvedValue([]), listPage: vi.fn(), getById: vi.fn(), create: vi.fn(), update: vi.fn() };
+  return {
+    list: vi.fn().mockResolvedValue([]),
+    listCompleto: vi.fn().mockResolvedValue([]),
+    listPage: vi.fn(),
+    getById: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+  };
 }
 
 function renderPage(hojaRepo: HojaDeRutaRepository, desdeRepositoryReal = false) {
-  return render(
+  return renderConQuery(
     <HojaDeRutaRepositoryProvider repository={hojaRepo}>
       <HojaDeRutaPage
         pacienteRepository={buildFakePacienteRepo()}
@@ -104,7 +112,7 @@ function renderPage(hojaRepo: HojaDeRutaRepository, desdeRepositoryReal = false)
 }
 
 function renderPageConPermiso(puedeEscribir: boolean, hojaRepo: HojaDeRutaRepository, desdeRepositoryReal = false) {
-  return render(
+  return renderConQuery(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <HojaDeRutaRepositoryProvider repository={hojaRepo}>
         <HojaDeRutaPage

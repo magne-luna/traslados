@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
@@ -95,7 +96,7 @@ function renderFacturacionPage(props: ReturnType<typeof buildProps>, conPermiso:
       </CobroRepositoryProvider>
     </FacturaRepositoryProvider>
   );
-  return render(
+  return renderConQuery(
     <AuthProvider repository={mockAuthRepository}>
       {conPermiso === null ? page : <PuedeEscribirContext.Provider value={conPermiso}>{page}</PuedeEscribirContext.Provider>}
     </AuthProvider>,
@@ -105,6 +106,10 @@ function renderFacturacionPage(props: ReturnType<typeof buildProps>, conPermiso:
 function buildProps() {
   const pacienteRepository: PacienteRepository = {
     list: vi.fn().mockResolvedValue([martina]),
+    // select-liviano-selectores: Facturación es el único consumidor que usa `listCompleto()` —
+    // necesita `obraSocialId` y le pasa el paciente entero al flujo de emisión. Las otras
+    // pantallas se quedaron con `list()`, que ahora devuelve `PacienteResumen`.
+    listCompleto: vi.fn().mockResolvedValue([martina]),
     listPage: vi.fn(),
     getById: vi.fn(),
     create: vi.fn(),

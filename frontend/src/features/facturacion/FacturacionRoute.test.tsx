@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 
 // `FacturacionRoute` inyecta `supabaseFacturaRepository`/`supabaseCobroRepository`
 // (`integracion-facturacion`, 2026-08-12), `supabasePacienteRepository`/
@@ -22,7 +23,7 @@ const { FacturacionRoute } = await import('./FacturacionRoute');
 describe('FacturacionRoute', () => {
   it('monta la feature completa con los mocks reales y muestra el listado tras cargar', async () => {
     localStorage.clear();
-    render(<FacturacionRoute />);
+    renderConQuery(<FacturacionRoute />);
 
     expect(await screen.findByRole('heading', { name: /facturaci[óo]n/i })).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: /nueva factura/i })).toBeInTheDocument();

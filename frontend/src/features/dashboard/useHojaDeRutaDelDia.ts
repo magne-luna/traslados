@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { HojaDeRuta } from '../../shared/types/hojaDeRuta';
 import type { HojaDeRutaRepository } from '../../shared/lib/hojas-de-ruta/HojaDeRutaRepository';
+import { aMensaje } from '../../shared/lib/query/aMensaje';
+import { claves } from '../../shared/lib/query/claves';
+import { FRESCURA } from '../../shared/lib/query/frescura';
 
 export interface UseHojaDeRutaDelDiaResult {
   hojaDeRuta: HojaDeRuta | null;
@@ -8,43 +11,21 @@ export interface UseHojaDeRutaDelDiaResult {
   error: string | null;
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Ocurrió un error inesperado.';
-}
-
 // tasks.md 5.3, spec dashboard-recorridos-del-dia (Requirement "Estados del panel del día"):
 // `getByFecha` resolviendo `null` es un estado propio ("no hay hoja de ruta cargada para hoy"),
-// nunca se lo trata como error.
+// nunca se lo trata como error. React Query respeta eso: `null` es un valor resuelto, no un fallo.
+//
+// migracion-react-query, Fase 5. **`UseHojaDeRutaDelDiaResult` NO cambió.** Comparte clave con
+// `useHojasDeRuta` (`claves.hojasDeRuta.deFecha`), así que el dashboard y la pantalla de armado ya
+// no piden dos veces la hoja del mismo día. Frescura CERO: es la agenda operativa.
+//
+// Solo lectura: no expone `crear` ni `actualizar` (design.md Non-Goals del change de dashboard).
 export function useHojaDeRutaDelDia(repository: HojaDeRutaRepository, fecha: string): UseHojaDeRutaDelDiaResult {
-  const [hojaDeRuta, setHojaDeRuta] = useState<HojaDeRuta | null>(null);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isPending, error } = useQuery({
+    queryKey: claves.hojasDeRuta.deFecha(fecha),
+    queryFn: () => repository.getByFecha(fecha),
+    staleTime: FRESCURA.transaccional,
+  });
 
-  useEffect(() => {
-    let cancelado = false;
-
-    async function cargar() {
-      setCargando(true);
-      setError(null);
-      try {
-        const data = await repository.getByFecha(fecha);
-        if (cancelado) return;
-        setHojaDeRuta(data);
-      } catch (err) {
-        if (cancelado) return;
-        setError(toErrorMessage(err));
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    }
-
-    void cargar();
-
-    return () => {
-      cancelado = true;
-    };
-  }, [repository, fecha]);
-
-  return { hojaDeRuta, cargando, error };
+  return { hojaDeRuta: data ?? null, cargando: isPending, error: aMensaje(error) };
 }

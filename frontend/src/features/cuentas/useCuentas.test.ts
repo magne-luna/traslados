@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookConQuery } from '../../shared/test/queryWrapper';
 import { describe, expect, it, vi } from 'vitest';
 import type { Cuenta, CuentaRepository } from '../../shared/lib/cuentas/CuentaRepository';
 import { useCuentas } from './useCuentas';
@@ -24,7 +25,7 @@ function buildFakeRepository(overrides: Partial<CuentaRepository> = {}): CuentaR
 describe('useCuentas', () => {
   it('arranca en loading y expone el listado una vez que listarCuentas() resuelve', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useCuentas(repository));
+    const { result } = renderHookConQuery(() => useCuentas(repository));
 
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -35,7 +36,7 @@ describe('useCuentas', () => {
 
   it('expone un error legible cuando listarCuentas() rechaza (triangulación)', async () => {
     const repository = buildFakeRepository({ listarCuentas: vi.fn().mockRejectedValue(new Error('caído')) });
-    const { result } = renderHook(() => useCuentas(repository));
+    const { result } = renderHookConQuery(() => useCuentas(repository));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -45,7 +46,7 @@ describe('useCuentas', () => {
 
   it('crearCuenta() llama a repository.crearCuenta() y recarga el listado', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useCuentas(repository));
+    const { result } = renderHookConQuery(() => useCuentas(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -58,7 +59,7 @@ describe('useCuentas', () => {
 
   it('actualizarPermisos() llama a repository.actualizarPermisos() y recarga el listado', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useCuentas(repository));
+    const { result } = renderHookConQuery(() => useCuentas(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -71,7 +72,7 @@ describe('useCuentas', () => {
 
   it('crearCuenta() propaga el error del repository sin recargar el listado ni dejar loading colgado', async () => {
     const repository = buildFakeRepository({ crearCuenta: vi.fn().mockRejectedValue(new Error('email duplicado')) });
-    const { result } = renderHook(() => useCuentas(repository));
+    const { result } = renderHookConQuery(() => useCuentas(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -86,7 +87,7 @@ describe('useCuentas', () => {
 
   it('actualizarPermisos() propaga el error sin recargar el listado (para que la UI lo muestre en la matriz)', async () => {
     const repository = buildFakeRepository({ actualizarPermisos: vi.fn().mockRejectedValue(new Error('La cuenta ya no existe.')) });
-    const { result } = renderHook(() => useCuentas(repository));
+    const { result } = renderHookConQuery(() => useCuentas(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {

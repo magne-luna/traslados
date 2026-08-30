@@ -1,5 +1,5 @@
 import type { Conductor } from '../../shared/types/conductor';
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { HojaDeRuta } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { TRAMO_LABELS } from '../pacientes/direccionOptions';
@@ -8,7 +8,7 @@ interface HojaDeRutaImprimibleProps {
   hoja: HojaDeRuta;
   vehiculos: Vehiculo[];
   conductores: Conductor[];
-  pacientes: Paciente[];
+  pacientes: PacienteResumen[];
 }
 
 // Vista imprimible (tasks.md 8.1, RF-706): print-friendly (utilidades `print:` de Tailwind v4,

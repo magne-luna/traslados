@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
@@ -109,7 +110,7 @@ describe('PacienteDetail', () => {
   });
 
   it('en edición arranca colapsado en el resumen, detrás de "Editar datos"', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -132,7 +133,7 @@ describe('PacienteDetail', () => {
       cud: { numero: 'CUD-1', fechaEmision: '2020-01-01', fechaVencimiento: '2020-06-01' },
     };
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={vencido}
         crear={vi.fn()}
@@ -156,7 +157,7 @@ describe('PacienteDetail', () => {
       cud: { numero: 'CUD-1', fechaEmision: '2020-01-01', fechaVencimiento: proximo },
     };
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={porVencer}
         crear={vi.fn()}
@@ -178,7 +179,7 @@ describe('PacienteDetail', () => {
       cud: { numero: 'CUD-1', fechaEmision: '2020-01-01', fechaVencimiento: '2030-01-01' },
     };
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={lejano}
         crear={vi.fn()}
@@ -199,7 +200,7 @@ describe('PacienteDetail', () => {
     const user = userEvent.setup();
     const actualizar = vi.fn().mockResolvedValue(basePaciente);
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -225,7 +226,7 @@ describe('PacienteDetail', () => {
     const user = userEvent.setup();
     const actualizar = vi.fn().mockResolvedValue(basePaciente);
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -257,7 +258,7 @@ describe('PacienteDetail', () => {
       condicion: 'Estable',
     };
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={conDatosExtendidos}
         crear={vi.fn()}
@@ -275,7 +276,7 @@ describe('PacienteDetail', () => {
   });
 
   it('el resumen no rompe cuando falta segundo nombre/apellido/condición (triangulación, son opcionales)', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -297,7 +298,7 @@ describe('PacienteDetail', () => {
       accesorioMovilidad: ['silla-plegable', 'andador'],
     };
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={conVariosAccesorios}
         crear={vi.fn()}
@@ -315,7 +316,7 @@ describe('PacienteDetail', () => {
   });
 
   it('el resumen no rompe cuando el paciente no tiene ningún accesorio cargado (triangulación, array vacío)', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -333,7 +334,7 @@ describe('PacienteDetail', () => {
   });
 
   it('el cartel de modelo de datos de Paciente ya no menciona segundo nombre/apellido ni Condición (resueltos)', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -352,7 +353,7 @@ describe('PacienteDetail', () => {
   });
 
   it('el cartel de modelo de datos de Paciente ya no menciona accesorio de movilidad único (resuelto)', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -369,7 +370,7 @@ describe('PacienteDetail', () => {
   });
 
   it('el cartel de modelo de datos de Paciente sigue avisando lo que queda sin resolver: numeroAfiliado sin historial de coberturas (triangulación)', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -386,7 +387,7 @@ describe('PacienteDetail', () => {
   });
 
   it('ya no hay cartel de modelo de datos en Personas a Cargo: la única discrepancia (teléfono) está resuelta', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -407,7 +408,7 @@ describe('PacienteDetail', () => {
   // identificador de afiliado (#1) salió de este cartel en tasks.md 8.3 — ya persiste (ver el test
   // "ya NO muestra..." más abajo).
   it('muestra un cartel agrupado con las discrepancias de amparo judicial, nullables y diagnóstico JSONB', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -433,7 +434,7 @@ describe('PacienteDetail', () => {
   // tasks.md 8.3: la discrepancia #1 (formato del identificador de afiliado) quedó resuelta —
   // ya no debe seguir señalizada como pendiente en ningún cartel de esta pantalla.
   it('ya NO muestra el formato del identificador de afiliado como discrepancia sin resolver (8.3, D9 addendum)', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -452,7 +453,7 @@ describe('PacienteDetail', () => {
   // tasks.md 5.2 (integracion-pacientes), design.md D3/D9 #2: cartel separado sobre el gateo por
   // el módulo Obras Sociales del número de afiliado.
   it('muestra un cartel separado avisando que el número de afiliado depende del permiso de Obras Sociales', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -476,7 +477,7 @@ describe('PacienteDetail', () => {
     const user = userEvent.setup();
     const actualizar = vi.fn().mockResolvedValue(basePaciente);
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -524,7 +525,7 @@ describe('PacienteDetail', () => {
     const obraSocialRepository = buildFakeObraSocialRepository();
     obraSocialRepository.getById = vi.fn().mockResolvedValue(osecac);
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={pacienteConActividad}
         crear={vi.fn()}
@@ -569,7 +570,7 @@ describe('PacienteDetail', () => {
       ],
     };
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={pacienteConActividad}
         crear={vi.fn()}
@@ -602,7 +603,7 @@ describe('PacienteDetail', () => {
       ],
     };
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={pacienteConActividad}
         crear={vi.fn()}
@@ -627,7 +628,7 @@ describe('PacienteDetail', () => {
   // todavía no tiene respaldo en el modelo real de la BD — mismo mecanismo (AvisoModeloDatos) que ya
   // usan las secciones de Direcciones/CUD/Personas a cargo.
   it('muestra un AvisoModeloDatos en la sección de documentación sobre la asociación documento↔actividad (tasks.md 8.5)', async () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -673,7 +674,7 @@ describe('PacienteDetail', () => {
     const obraSocialRepository = buildFakeObraSocialRepository();
     obraSocialRepository.getById = vi.fn().mockResolvedValue(osecac);
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={pacienteConActividad}
         crear={vi.fn()}
@@ -705,7 +706,7 @@ describe('PacienteDetail', () => {
 // (a). El aviso debe hablar de ESO, no de exportar/transferir.
 describe('PacienteDetail — aviso del checkpoint pendiente del video (tasks.md §7)', () => {
   it('muestra un AvisoPendienteCliente en la sección de documentación sobre la navegación pendiente (3.a)', async () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -746,7 +747,7 @@ describe('PacienteDetail — reenvía requisitosActividadRepository a PacienteDo
   it('con requisitosActividadRepository provisto, PacienteDocumentos lo usa para resolver la configuración por tipo de actividad', async () => {
     const requisitosActividadRepository = buildFakeRequisitosActividadRepository();
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -764,7 +765,7 @@ describe('PacienteDetail — reenvía requisitosActividadRepository a PacienteDo
   });
 
   it('sin requisitosActividadRepository (prop opcional): no se rompe, PacienteDocumentos se comporta igual que antes', async () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -785,7 +786,7 @@ describe('PacienteDetail — sección Destinos habituales (RF-110)', () => {
   it('con recorridoHabitualRepository provisto, se muestra la sección y lista() se llama con el paciente activo', async () => {
     const recorridoHabitualRepository = buildFakeRecorridoHabitualRepository();
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -804,7 +805,7 @@ describe('PacienteDetail — sección Destinos habituales (RF-110)', () => {
   });
 
   it('sin recorridoHabitualRepository (prop opcional): la sección no se muestra, el resto de la ficha no se rompe', async () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -847,7 +848,7 @@ describe('PacienteDetail — sección Destinos habituales (RF-110)', () => {
 // sección (tasks.md 8.4: "nunca dos carteles que repitan el mismo texto").
 describe('PacienteDetail — aviso sobre el supuesto de ítems por tipo de actividad sin confirmar (tasks.md 8.4)', () => {
   it('muestra un aviso en la sección de documentación señalando que la configuración por tipo de actividad es un supuesto del equipo, sin confirmar con la clienta', async () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -882,7 +883,7 @@ describe('PacienteDetail — sección Catálogo de prestaciones (tasks.md 4.4)',
     const user = userEvent.setup();
     const actualizar = vi.fn().mockResolvedValue(basePaciente);
 
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}
@@ -914,7 +915,7 @@ describe('PacienteDetail — sección Catálogo de prestaciones (tasks.md 4.4)',
       prestaciones: [{ id: 'prest-1', pacienteId: 'paciente-martina', nombre: 'Kinesiología', activa: true } satisfies Prestacion],
     };
 
-    render(
+    renderConQuery(
       <PuedeEscribirContext.Provider value={false}>
         <PacienteDetail
           paciente={conPrestacion}
@@ -935,7 +936,7 @@ describe('PacienteDetail — sección Catálogo de prestaciones (tasks.md 4.4)',
   });
 
   it('sin paciente.prestaciones (undefined, backend sin extender todavía), la sección se muestra vacía sin romper', () => {
-    render(
+    renderConQuery(
       <PacienteDetail
         paciente={basePaciente}
         crear={vi.fn()}

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Conductor } from '../../shared/types/conductor';
 import type { Paciente } from '../../shared/types/paciente';
@@ -9,7 +10,7 @@ import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { NuevoRecorridoForm } from './NuevoRecorridoForm';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
-  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+  return renderConQuery(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
 
 // RN-VE-02 (tasks.md 5.2, 7.3): solo vehículos habilitados y conductores operando aparecen como
@@ -91,7 +92,7 @@ describe('NuevoRecorridoForm', () => {
     const habilitado = buildVehiculo({ id: 'v-hab', patente: 'HAB111' });
     const fueraDeServicio = buildVehiculo({ id: 'v-fds', patente: 'FDS111', estado: 'fuera-de-servicio' });
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[habilitado, fueraDeServicio]}
         conductores={[buildConductor()]}
@@ -108,7 +109,7 @@ describe('NuevoRecorridoForm', () => {
     const operando = buildConductor({ id: 'c-op', apellido: 'González' });
     const fueraDeServicio = buildConductor({ id: 'c-fds', apellido: 'Díaz', estado: 'fuera-de-servicio' });
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo()]}
         conductores={[operando, fueraDeServicio]}
@@ -125,7 +126,7 @@ describe('NuevoRecorridoForm', () => {
     const user = userEvent.setup();
     const onCrear = vi.fn();
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo()]}
         conductores={[buildConductor()]}
@@ -143,7 +144,7 @@ describe('NuevoRecorridoForm', () => {
     const user = userEvent.setup();
     const onCrear = vi.fn();
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo()]}
         conductores={[buildConductor()]}
@@ -159,7 +160,7 @@ describe('NuevoRecorridoForm', () => {
   });
 
   it('no muestra el botón de crear si no hay vehículos o conductores disponibles (borde)', () => {
-    render(<NuevoRecorridoForm vehiculos={[]} conductores={[buildConductor()]} pacientes={[]} onCrear={vi.fn()} />);
+    renderConQuery(<NuevoRecorridoForm vehiculos={[]} conductores={[buildConductor()]} pacientes={[]} onCrear={vi.fn()} />);
 
     expect(screen.getByText(/no hay vehículos habilitados/i)).toBeInTheDocument();
   });
@@ -168,7 +169,7 @@ describe('NuevoRecorridoForm', () => {
     const user = userEvent.setup();
     const conAccesorio = buildPaciente({ id: 'p-acc', apellido: 'Ledesma', accesorioMovilidad: ['andador'] });
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo({ accesoriosCompatibles: ['andador'] })]}
         conductores={[buildConductor()]}
@@ -188,7 +189,7 @@ describe('NuevoRecorridoForm', () => {
     const conAccesorio = buildVehiculo({ id: 'v-con', patente: 'CON111', accesoriosCompatibles: ['silla-rigida'] });
     const pacienteConAccesorio = buildPaciente({ id: 'p-acc', accesorioMovilidad: ['silla-rigida'] });
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[sinAccesorio, conAccesorio]}
         conductores={[buildConductor()]}
@@ -212,7 +213,7 @@ describe('NuevoRecorridoForm', () => {
     const sinAccesorio = buildVehiculo({ id: 'v-sin', patente: 'SIN111', accesoriosCompatibles: [] });
     const pacienteConAccesorio = buildPaciente({ id: 'p-acc', accesorioMovilidad: ['silla-rigida'] });
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[sinAccesorio]}
         conductores={[buildConductor()]}
@@ -235,7 +236,7 @@ describe('NuevoRecorridoForm', () => {
     const chico = buildVehiculo({ id: 'v-chico', accesoriosCompatibles: [] });
     const pacienteConAccesorio = buildPaciente({ id: 'p-acc', accesorioMovilidad: ['silla-rigida'] });
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm vehiculos={[chico]} conductores={[buildConductor()]} pacientes={[pacienteConAccesorio]} onCrear={vi.fn()} />,
     );
 
@@ -249,7 +250,7 @@ describe('NuevoRecorridoForm', () => {
     const user = userEvent.setup();
     const onCrear = vi.fn();
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo()]}
         conductores={[buildConductor()]}
@@ -270,7 +271,7 @@ describe('NuevoRecorridoForm', () => {
     const user = userEvent.setup();
     const onCrear = vi.fn();
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo()]}
         conductores={[buildConductor()]}
@@ -296,7 +297,7 @@ describe('NuevoRecorridoForm', () => {
       ],
     });
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo()]}
         conductores={[buildConductor()]}
@@ -350,7 +351,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
 
   it('sin recorridos hoy, no muestra ninguna sugerencia', async () => {
     const user = userEvent.setup();
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo()]}
         conductores={[buildConductor()]}
@@ -371,7 +372,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
     const user = userEvent.setup();
     const { recorridoExistente, vehiculoExistente } = setupConCandidato();
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo(), vehiculoExistente]}
         conductores={[buildConductor()]}
@@ -391,7 +392,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
     const user = userEvent.setup();
     const { recorridoExistente, vehiculoExistente } = setupConCandidato();
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo(), vehiculoExistente]}
         conductores={[buildConductor()]}
@@ -418,7 +419,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
     const onCrear = vi.fn();
     const onAgregarAExistente = vi.fn();
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo(), vehiculoExistente]}
         conductores={[buildConductor()]}
@@ -455,7 +456,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
       ],
     });
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo(), vehiculoExistente]}
         conductores={[buildConductor()]}
@@ -484,7 +485,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
     const onCrear = vi.fn();
     const onAgregarAExistente = vi.fn();
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo(), vehiculoExistente]}
         conductores={[buildConductor()]}
@@ -507,7 +508,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
     const user = userEvent.setup();
     const { recorridoExistente, vehiculoExistente } = setupConCandidato();
 
-    render(
+    renderConQuery(
       <NuevoRecorridoForm
         vehiculos={[buildVehiculo(), vehiculoExistente]}
         conductores={[buildConductor()]}

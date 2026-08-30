@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import { MemoryRouter } from 'react-router';
 
 // `DashboardRoute` inyecta los seis `Supabase*Repository` reales (Factura, Cobro, Paciente,
@@ -14,6 +15,9 @@ import { MemoryRouter } from 'react-router';
 // siguiera inyectando algún mock, alguno de los contadores quedaría corto y el test caería (RED)
 // — afirma el cableado a Supabase, no el contenido de un fixture (eso queda en
 // `DashboardPage.test.tsx`, que sigue inyectando dobles a nivel de repository).
+//
+// Las pantallas se montan con `renderConQuery` porque los hooks del dashboard ya consultan vía
+// React Query (`migracion-react-query`) y exigen un `QueryClientProvider`.
 const estadoSupabase = vi.hoisted(() => ({ selects: 0, invokes: 0 }));
 
 class ChainableFakeQuery implements PromiseLike<{ data: unknown[]; error: null; count: number }> {
@@ -62,7 +66,7 @@ describe('DashboardRoute', () => {
   });
 
   it('monta el dashboard con los seis Supabase*Repository (mockeados) y termina de cargar', async () => {
-    render(
+    renderConQuery(
       <MemoryRouter>
         <DashboardRoute />
       </MemoryRouter>,
@@ -73,7 +77,7 @@ describe('DashboardRoute', () => {
   });
 
   it('cablea las lecturas contra Supabase (PostgREST + Edge Function de vehículos), no contra mocks', async () => {
-    render(
+    renderConQuery(
       <MemoryRouter>
         <DashboardRoute />
       </MemoryRouter>,

@@ -37,7 +37,7 @@ Stack: React + TypeScript (frontend) · Supabase (auth + PostgreSQL + storage) �
 | — | Auth / Cuentas | ✅ real | Ya integrado, no forma parte de este plan |
 | 1 | Pacientes (C-05) | ✅ `integracion-pacientes` archivado (2026-08-07), 64/66 — solo falta un pase visual en navegador, ver `archive/2026-08-06-integracion-pacientes/PENDIENTE.md` | Ver bullet ✅ en §C-05 más abajo |
 | 2 | Obra Social (C-04) | ✅ `integracion-obra-social` archivado (2026-08-07), 69/70 — solo falta un pase visual en navegador, ver `archive/2026-08-06-integracion-obra-social/PENDIENTE.md` | Ver bullet ✅ en §C-04 más abajo. Hallazgo del apply: el schema real ya tenía casi todo lo que `design.md` planeaba (nombres/tipos distintos). D12 (RN-ID-02) se revirtió y luego se restauró el mismo día — la "confirmación" que la revertía nunca pasó, ver §C-04 |
-| 3 | Conductores + Vehículos (C-08/C-09) | 🔶 **reconciliado (2026-08-01), bloqueado en 1 gap** | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). `openspec/changes/integracion-conductores-vehiculos/` (mock→Supabase de Vehículos+Conductores) se escribió en paralelo con `C-08-vehiculos-mantenimiento` de Enzo (ya mergeado a `main`, commit `f840a96`), sin que ninguno de los dos supiera del otro. **Vehículos**: reconciliado contra el backend real de Enzo (gasto, habilitaciones y kilometraje adoptan su implementación) — ver bullet ⚠️ en §C-08 más abajo, **bloqueado en un gap real** (falta fuente de datos para `mantenimientos`, necesita decisión de Enzo). **Conductores**: sin conflicto con lo que Enzo mergeó (confirmado, ninguna de sus 15 migraciones toca `conductores.conductores`/`conductores_vehiculos`); tanda de mapeo puro (`conductorMapping.ts`, `semanaIso.ts`) completa; el repository real (§7) queda bloqueado porque las migraciones de asignación semanal/estado (`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`) todavía no las escribió nadie |
+| 3 | Conductores + Vehículos (C-08/C-09) | ✅ **swap real completo (Vehículos 2026-08-10, Conductores 2026-08-11)** — falta cerrar `integracion-conductores-vehiculos` §9/§10 (documentación y verificación final, en curso) | `vehiculo-mantenimiento-registro` (ajuste de categorías, no swap de backend) ya se archivó (commit `501a525`). `openspec/changes/integracion-conductores-vehiculos/` se escribió en paralelo con `C-08-vehiculos-mantenimiento` de Enzo (mergeado, commit `f840a96`) y se reconcilió contra su backend real (gasto, habilitaciones, kilometraje, patrón de acceso vía Edge Function — ver §C-08 más abajo). **Vehículos** (`SupabaseVehiculoRepository.ts`, commit `9ae79d6`): `VehiculosRoute`/`HojaDeRutaRoute` swapeados; gap de mantenimientos cerrado (2026-08-10); habilitaciones VTV/RTO se derivan del historial (`derivarHabilitaciones`, revertido a D3 opción B el 2026-08-10); bug real de doble conversión de `estado` (ocultaba vehículos fuera de servicio) encontrado y corregido el 2026-08-16. Gap real que sigue abierto: `Vehiculo.notas` no viaja por la Edge Function. **Conductores** (`SupabaseConductorRepository.ts`, commit `ce2dd02`): `ConductoresRoute` swapeado, sin conflicto con lo que Enzo mergeó; asignación semanal (D7) y colisión (constraint `uq_conductor_semana`) resueltas. §8 (carteles de discrepancia) completo (2026-08-16) |
 | 4 | Facturación (C-07) | ✅ **swap real completo (`integracion-facturacion`, 2026-08-12)** — las 5 decisiones de governance de §0 aprobadas, migraciones aplicadas, `FacturacionRoute.tsx` lee/escribe contra `SupabaseFacturaRepository`/`SupabaseCobroRepository` reales; falta solo la verificación manual en navegador con las 3 cuentas (`tasks.md` §8). 🔶 Además, `facturacion-seleccion-autorizacion` (2026-08-13) en progreso: reemplaza el prestador de texto libre del paso 2 por selección de autorización pendiente (`facturas.autorizacion_id`, N:1); governance y tipos/mapeo completos, migraciones escritas sin aplicar, swap del wizard bloqueado hasta que se apliquen | Ver bullet ✅ en §C-07 más abajo. Discrepancias N1-N6 y salvedad D9 (cupo sobre fuente mixta, autorizaciones de fixture) documentadas, no bloquean el swap. N7 (nueva, `facturacion-seleccion-autorizacion`) documentada, no bloquea |
 | 5 | Presupuestos (C-06) | ✅ **completo y archivado (2026-08-06)** (`integracion-presupuestos`, ahora en `openspec/changes/archive/2026-08-06-integracion-presupuestos/`) — las 8 secciones de `tasks.md` completas, `PresupuestosRoute.tsx` lee/escribe contra las Edge Functions reales | Verificación con 3 cuentas reales corrida por `curl` directo (no por navegador, decisión de la usuaria) y RN-GL-02 parcialmente cumplida (`usuario_id` null en auditoría, gap aceptado) — dos desviaciones deliberadas y documentadas, ver bullet ✅ en §C-06 más abajo |
 | 6 | Hojas de Ruta (C-10) | 🔶 en progreso (apply `integracion-hojas-de-ruta`, 2026-08-04 — WU5a, documentación, completada) | Ver bullet ⚠️ en §C-10 más abajo |
@@ -529,14 +529,19 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `20260730110000_schema_vehiculo_gaps.sql`), no en `facturacion.gastos_vehiculos` (que queda
   muerta/sin usar, no se dropea). Ver `openspec/changes/integracion-conductores-vehiculos/design.md`
   §Reconciliación con C-08-vehiculos-mantenimiento (D9/D11) para el detalle completo.
-- **✅ RESUELTO (2026-08-01) — Habilitaciones VTV/RTO**: el design de `integracion-conductores-vehiculos`
-  había decidido (D3, opción B) NO crear tabla propia — derivar habilitaciones del historial de
-  mantenimiento client-side. Enzo creó exactamente la tabla que esa decisión descartaba:
-  `conductores.habilitaciones_vehiculo(id, vehiculo_id, tipo, fecha_emision, fecha_vencimiento)`
-  (`20260730110000_schema_vehiculo_gaps.sql`, RLS corregida en
-  `20260730150000_fix_habilitaciones_vehiculo_modulo.sql`). Se adopta la tabla real de Enzo como
-  fuente de verdad — `derivarHabilitaciones()` queda superada para el repository real (sigue viva
-  como función solo del lado mock, sin motivo para tocarla).
+- **✅ RESUELTO (2026-08-10, versión final — revierte la nota "adoptar la tabla de Enzo" de abajo) —
+  Habilitaciones VTV/RTO**: el design de `integracion-conductores-vehiculos` había decidido (D3,
+  opción B) NO crear tabla propia — derivar habilitaciones del historial de mantenimiento
+  client-side. El 2026-08-01 Enzo había creado la tabla que esa decisión descartaba
+  (`conductores.habilitaciones_vehiculo`, `20260730110000_schema_vehiculo_gaps.sql`) y por un
+  momento se adoptó como fuente de verdad — pero nunca se construyó ninguna pantalla para escribir
+  en ella, y la usuaria prefirió explícitamente no tener un formulario aparte que duplique la misma
+  fecha de vencimiento que ya se carga en un mantenimiento preventivo VTV/RTO. **Se volvió a la
+  opción B**: `ensamblarVehiculo` deriva `habilitaciones` de `mantenimientos` vía
+  `derivarHabilitaciones()` (misma función que ya usaba el mock) e ignora la clave `habilitaciones`
+  que la Edge Function sigue mandando; la tabla de Enzo queda en la base, con RLS y todo, sin
+  ningún consumidor real. Es el comportamiento vigente, con tests dedicados en
+  `vehiculoMapping.test.ts`. Detalle completo en `design.md` §D3 (nota "REVERTIDO 2026-08-10").
 - **✅ RESUELTO (2026-08-01) — Kilometraje**: el plan quería `kilometraje NOT NULL DEFAULT 0` más dos
   columnas persistidas nuevas (`kilometraje_ultimo_service`/`fecha_ultimo_service`). Realidad: Enzo
   ya agregó `kilometraje` (nullable, sin default — distinto de lo planeado) y
@@ -557,12 +562,18 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `openspec/changes/integracion-conductores-vehiculos/design.md` §Reconciliación, bloque "Gap
   abierto". **Bloquea** §5/§4B de `integracion-conductores-vehiculos/tasks.md` hasta que Enzo elija
   un camino.
-- **⚠️ GAP ABIERTO — `estado` con doble conversión (detectado en batch 4B, 2026-08-01)**: la Edge
-  Function ya devuelve `estado` convertido a la forma de dominio (`'fuera-de-servicio'`, con guión),
-  pero `parseEstadoVehiculo` (§4) todavía espera el valor crudo de la base (con espacio) y ante un
-  valor desconocido degrada silenciosamente a `'habilitado'`. Un vehículo real fuera de servicio
-  podría mostrarse como habilitado si §5 pasa la respuesta de la Edge Function sin ajustar esto
-  antes. Bloquea §5 igual que el gap de mantenimientos. Detalle en `design.md` §Reconciliación.
+- **✅ RESUELTO (2026-08-16) — `estado` con doble conversión, bug real en producción, no solo un
+  gap**: detectado en batch 4B (2026-08-01) y documentado como gap abierto, pero §5 (completada
+  2026-08-10) no lo corrigió — quedó vivo en el código shippeado sin que ningún test lo ejercitara
+  (los fixtures de test solo usaban `estado: 'habilitado'`). La Edge Function ya devuelve `estado`
+  convertido a la forma de dominio (`'fuera-de-servicio'`, con guión), pero `parseEstadoVehiculo`
+  (§4), usada por el read path real, esperaba el valor crudo de la base (con espacio) y ante ese
+  desajuste degradaba en silencio a `'habilitado'`. **Impacto real**: un vehículo fuera de servicio
+  en la base se mostraba habilitado en toda la app, incluida la exclusión/aviso de Hojas de Ruta
+  (RN-VE-02). Encontrado el 2026-08-16 auditando el código para la documentación de cierre de este
+  change, no por un reporte de bug. Fix: `parseEstadoVehiculoApi` (nueva función, espera el valor
+  ya convertido) reemplaza a `parseEstadoVehiculo` en `parseVehiculoRow`; test dedicado con el
+  shape real de la Edge Function. Detalle completo en `design.md` §Gap cerrado.
 - **⚠️ GAP ABIERTO — `notas` no viaja (detectado en batch 4B, 2026-08-01)**: `toApi()` de
   `vehiculos/index.ts` nunca incluye la clave `notas` en la respuesta, aunque el campo existe en el
   dominio y en la base (`Vehiculo.notas`, §2). En producción este campo siempre volvería
@@ -590,11 +601,12 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   `openspec/changes/archive/2026-08-06-C-08-vehiculos-mantenimiento/`. ✅ **Deploy confirmado
   (2026-08-06)**: migración `20260730110000_schema_vehiculo_gaps.sql` aplicada contra el proyecto
   Supabase real (`pkryfoljypuzfifofdwp`, `supabase migration list --linked` con local == remote) y
-  ambas funciones (`vehiculos`, `vehiculo-documentos`) `ACTIVE` (`supabase functions list`). Queda
-  pendiente: una Edge Function para registrar mantenimiento preventivo/correctivo cuando el
-  frontend tenga esa pantalla (hoy no existe, `gasto`/`kilometrajeUltimoService` son los únicos
-  casos con consumidor real); el campo `Notas` (3er punto de la discrepancia) queda igual de
-  pendiente que antes, del lado frontend.
+  ambas funciones (`vehiculos`, `vehiculo-documentos`) `ACTIVE` (`supabase functions list`).
+  **✅ Actualización (2026-08-10)**: el registro de mantenimiento preventivo/correctivo, que acá
+  quedaba pendiente, se cerró — `vehiculos/index.ts::toApi()` expone `mantenimiento` con las
+  columnas nuevas `subtipo`/`detalle`, wireado en POST/PATCH (ver bullet dedicado más abajo). Sigue
+  pendiente, sin cambios: el campo `Notas` (3er punto de la discrepancia) del lado frontend —
+  `Vehiculo.notas` existe en el dominio y la base, pero `toApi()` nunca lo incluye en la respuesta.
 
 ---
 
@@ -760,17 +772,41 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
   - `knowledge-base/05_reglas_de_negocio.md` §RN-GL-03
   - `knowledge-base/04_modelo_de_datos.md` §Conductor
   - `knowledge-base/03_actores_y_roles.md` (conductor no opera el sistema)
-- **⚠️ Discrepancia/pendiente de UI** (`conductores-ui`, señalizada con carteles `Chip kind="warning"` en `ConductorForm.tsx` y `AsignacionSemanalTabla.tsx`, y una nota en `ConductorDocumentos.tsx`; detalle en `openspec/changes/conductores-ui/design.md` Open Questions, o su ubicación en `openspec/changes/archive/` una vez archivado): quien implemente este change en el backend debe confirmar con el cliente antes de cerrar el modelo real —
-  1. Catálogo cerrado de restricciones de perfil: la KB solo documenta explícitamente "no traslada pacientes que requieren carga física" (`no-carga-fisica`); falta confirmar si hay otras restricciones tipables (horarias, tipo de vehículo, zona) o alcanza con esa + observación libre.
-  2. Si la excepción "salvo que se permita explícitamente" (un conductor en dos vehículos la misma semana) es un caso real, o la colisión debe bloquearse siempre. El frontend la implementó con un override explícito (`permitirMultiple`) apagado por defecto.
-  3. Campos personales mínimos obligatorios del alta: el frontend tomó apellido + nombre + documento como obligatorios y el resto (teléfono, fecha de nacimiento, domicilio, CUIL) opcional.
-  4. Documentos a precargar en el checklist del conductor: el frontend sembró licencia de conducir (requerida), DNI y apto médico como ejemplo.
-  5. (Interna, sin cartel en UI) Coordinar los nombres exactos de campos de `Conductor`/`AsignacionSemanal` y si la semana se guarda como etiqueta ISO `YYYY-Www` (elegido por el frontend) o como fecha de inicio de semana, antes de cerrar la interfaz del repository real.
+- **Pendientes de UI** (`conductores-ui`; 3 de los 5 cerrados por `integracion-conductores-vehiculos`,
+  checkpoint 0.1 del 2026-07-31 — detalle completo en su `design.md` §Open Questions):
+  1. ~~Catálogo cerrado de restricciones de perfil: la KB solo documenta explícitamente "no traslada
+     pacientes que requieren carga física" (`no-carga-fisica`); falta confirmar si hay otras
+     restricciones tipables.~~ — **✅ CERRADA, sin objeto**: D6 se resolvió por la opción B — no hay
+     catálogo, las restricciones de perfil se escriben en `observaciones` como texto libre, igual
+     que el docx. `C-10` pierde el filtro computable por restricción (RN-GL-03, ver
+     `05_reglas_de_negocio.md`).
+  2. ~~Si la excepción "salvo que se permita explícitamente" (un conductor en dos vehículos la misma
+     semana) es un caso real, o la colisión debe bloquearse siempre.~~ — **✅ CERRADA**: se bloquea
+     siempre, sin excepción, con un constraint de base (`uq_conductor_semana UNIQUE (conductor_id,
+     fecha_init)`) — no lógica de aplicación. `permitirMultiple` se elimina del frontend.
+  3. **Sigue abierta** — Campos personales mínimos obligatorios del alta: el frontend tomó apellido +
+     nombre + documento como obligatorios; `domicilio`/`cuil` son requeridos en el tipo pero
+     nullable en la base (se degradan a `''`). **Decisor: cliente.**
+  4. **Sigue abierta** — Documentos a precargar en el checklist del conductor: el frontend sembró
+     licencia de conducir (requerida), DNI y apto médico como ejemplo. Bloqueada por el swap de
+     documentos (change propio), conviene cerrarla antes.
+  5. ~~(Interna) Coordinar los nombres exactos de campos de `Conductor`/`AsignacionSemanal` y si la
+     semana se guarda como etiqueta ISO o como fecha de inicio de semana.~~ — **✅ CERRADA (D7)**: el
+     docx manda en estructura — se persisten `fecha_init`/`fecha_fin_semana` (dos fechas) tal cual
+     la base; el tipo del frontend no cambia, `AsignacionSemanal.semana` sigue siendo la etiqueta
+     ISO, convertida por `semanaIso.ts` (función pura, bidireccional, con tests de los casos borde).
 - **⚠️ Discrepancia con `docs/core/Traslados-Modelo-Datos.docx`** (señalizada con carteles `AvisoModeloDatos` en `ConductorDetail.tsx`, detalle en `04_modelo_de_datos.md`):
   - ~~Faltan campos que sí están en el docx: Domicilio, CUIL (acá solo hay Documento/DNI) y **Estado** (operando / fuera de servicio)~~ — resuelto 2026-07-24: se sumaron `Conductor.domicilio`, `Conductor.cuil` y `Conductor.estado` al frontend.
   - ~~**Pendiente**: "Restricciones" acá es un catálogo cerrado (`RestriccionConductor[]`); en el docx es texto libre dentro de un único campo "Notas" junto con las observaciones — reconciliar con el punto 1 de arriba (catálogo cerrado pendiente de confirmar con el cliente) **y coordinar con Enzo (backend) antes de cerrar C-09**.~~ — **RESUELTO por decisión de diseño D6-B** (`integracion-conductores-vehiculos/design.md`, opción B elegida): `Conductor.restricciones` desaparece por completo del dominio, todo pasa a un único campo `notas`/`observaciones` de texto libre, alineado 1:1 al docx. Costo asumido: `C-10` pierde el filtro computable por restricción (RN-GL-03 pasa a ser lectura humana, no validación automática).
-  - El docx modela la asignación semanal con **Fecha de inicio** y **Fecha de fin de semana** como dos campos de fecha independientes, no como la etiqueta ISO única del punto 5 de arriba.
-  - **Bloqueante para §7 (repository real de Conductores), no relacionado con Vehículos**: las migraciones de asignación semanal/estado planeadas en `integracion-conductores-vehiculos/tasks.md` §1B.1/1B.2 (`20260801120000_conductores_vehiculos_campos.sql` y `_rpc.sql`) **no existen todavía en ningún lado** — ni en esta rama, ni en lo que Enzo mergeó. Alguien tiene que escribirlas y aplicarlas antes de poder avanzar el repository real de Conductores.
+  - ~~El docx modela la asignación semanal con **Fecha de inicio** y **Fecha de fin de semana** como
+    dos campos de fecha independientes, no como la etiqueta ISO única del punto 5 de arriba.~~ —
+    **RESUELTO (D7)**: se persisten las dos fechas tal cual el docx pide; la etiqueta ISO del
+    frontend se deriva/convierte, no se guarda. Ver punto 5 de arriba.
+  - ~~**Bloqueante para §7**: las migraciones de asignación semanal/estado no existen todavía en
+    ningún lado.~~ — **RESUELTO (2026-08-11)**: escritas y aplicadas
+    (`20260801120000_conductores_vehiculos_campos.sql`/`_rpc.sql`), §7 (repository real de
+    Conductores) completo desde entonces (`SupabaseConductorRepository.ts`,
+    `ConductoresRoute.tsx` swapeado).
 - **Refinamiento posterior (`paginacion-listados`, 2026-08-12)**: `ConductoresList` pasa a listado
   paginado server-side, mismo patrón que Pacientes (detalle completo en la nota equivalente de
   `C-05` más arriba). `listPage()` aditivo sobre `ConductorRepository`, `list()` intacto. Sin
@@ -1327,6 +1363,139 @@ C-01 → C-02 → C-04 → C-05 → C-06 → C-07*
 **Primer change recomendado**: `C-01` (foundation-setup).
 
 Para arrancar: `/opsx:propose C-01-foundation-setup`
+
+---
+
+## Changes transversales de performance (fuera del roadmap C-NN)
+
+> ## ✅ Resultado medido en producción (2026-08-29)
+>
+> Sobre `https://traslados-demo.vercel.app/`, con `migracion-react-query` y `code-splitting-rutas`
+> ya desplegados (Chrome DevTools → Performance → Local metrics):
+>
+> | Métrica | Antes | Después | Umbral "bueno" |
+> |---|---|---|---|
+> | **LCP** | 3,24 s | **1,94 s** (−40 %) | < 2,5 s ✅ |
+> | **CLS** | — | **0,06** | < 0,1 ✅ |
+> | **INP** | — | **32 ms** | < 200 ms ✅ |
+>
+> Las tres Core Web Vitals en verde. El INP de 32 ms no era un objetivo declarado: es consecuencia
+> de que el hilo principal dejó de parsear 1,4 MB de JavaScript en el arranque.
+>
+> **Consecuencia para lo que queda:** `preconnect-indices-supabase` BAJA de prioridad — con el LCP
+> ya en verde, media jornada para arañar el handshake TLS no se justifica sola.
+> `select-liviano-selectores` sigue en pie, pero por otro motivo: no por el LCP, sino por el ancho de
+> banda y porque el problema crece con el padrón.
+>
+> ---
+>
+> Diagnóstico del 2026-08-29, medido sobre el código y el bundle reales. Son cuatro problemas
+> **distintos** con cuatro arreglos distintos: ninguno reemplaza a otro, y aplicar uno solo no
+> resuelve los demás. No dependen entre sí; se pueden hacer en cualquier orden.
+
+| Change | Qué arregla | Evidencia medida | Costo estimado | Estado |
+|---|---|---|---|---|
+| `migracion-react-query` | Re-fetch al navegar entre pantallas | Padrones pedidos 1 vez por visita a cada pantalla; vehículos **2 veces simultáneas** en Conductores | 4-6 días | ✅ **Hecho** (2026-08-29) |
+| `code-splitting-rutas` | LCP de carga fría (3,24 s) | Bundle inicial **419 → 141 KB gzip (−66 %)**; de 2 a 48 chunks | ~1 día | ✅ **Hecho** (2026-08-29) |
+| `select-liviano-selectores` | Payload de los combos | `list()` de pacientes pasa de 7 relaciones anidadas + 2ª consulta a un select acotado | 1-2 días | ✅ **Hecho parcial** (2026-08-29, solo pacientes) |
+| `preconnect-indices-supabase` | Latencia de red y de consulta | `preconnect` ✅ hecho; los índices NO se hicieron (ver abajo) | ~½ día | ⚠️ **Parcial** (2026-08-29) |
+
+### `migracion-react-query` — navegación
+
+Governance: **MEDIA-ALTA**. Reemplaza el estado de fetch de los ~21 hooks por TanStack Query v5, con
+frescura escalonada por clase de dato (referencia 5 min / transaccional 0 / paginado 0 / sensible 0).
+Repositories, interfaces y componentes **no se tocan**.
+
+Reusa el change `cache-listas-referencia` (2026-08-12), que quedó bloqueado en su checkpoint D1; la
+usuaria lo resolvió a favor de la librería el 2026-08-29 y amplió el alcance a toda la app.
+
+**Leer antes**: `openspec/changes/migracion-react-query/design.md` (§D1 registra la decisión invertida
+y por qué; §D3 la frescura escalonada; §D7 el costo real, que está en los tests).
+
+⚠️ **No mejora el LCP de carga fría.** Al contrario: suma ~13 KB gzip al critical path.
+
+### `code-splitting-rutas` — carga fría ✅ HECHO (2026-08-29)
+
+Governance: **BAJO**. Implementado **directo, sin change de OpenSpec** (decisión de la usuaria): es un
+archivo y medio, mecánico, y el patrón ya existía en el repo.
+
+**Resultado medido** (`npm run build` antes y después, misma máquina):
+
+| | crudo | gzip | chunks |
+|---|---|---|---|
+| antes | 1513 KB | **419 KB** | 2 |
+| después | 488 KB | **141 KB** | 48 |
+
+`pdfjs-dist` (≈420 KB, vía `VistaPreviaArchivo`), Google Maps y `jszip` salieron del critical path:
+ahora bajan solo cuando la pantalla que los usa se abre.
+
+**Qué se cambió:** `router.tsx` pasa de importar las nueve pantallas estáticamente a `lazy: async
+() => ({ Component })` — el patrón que `/cuentas` ya usaba desde `auth-frontend-real`, generalizado.
+`/design-system` también salió del bundle inicial. `PlaceholderPage` se deja estática a propósito:
+partirla sería un round-trip por cero beneficio.
+
+⚠️ **El hallazgo que no era obvio: `HydrateFallback` es obligatorio.** Con la ruta inicial `lazy`,
+react-router renderiza un `<div />` vacío durante la hidratación si no se lo provee — o sea, el
+code-splitting mal hecho cambia "tarda 3 s mostrando algo" por "tarda 3 s mostrando NADA". Se agregó
+`shared/components/CargandoPantalla.tsx` con el mismo `Cargando…` que ya usan los listados. En las
+navegaciones posteriores no aparece: react-router conserva la pantalla anterior mientras resuelve.
+
+**Efecto colateral:** el fallo preexistente de `router.cuentas.test.tsx` **dejó de fallar**. Era el
+mismo problema —`/cuentas` era `lazy` sin `HydrateFallback`— que este change vino a resolver para
+todas las rutas. Tests: **3276/3276 en 284 archivos**, contra una línea base de 3275/3276.
+
+**Leer antes**: `frontend/src/app/router.tsx`.
+
+### `select-liviano-selectores` — payload ✅ HECHO PARCIAL (2026-08-29, solo pacientes)
+
+Governance: **MEDIO**. Hecho directo, sin change de OpenSpec.
+
+**Qué se hizo:** `PacienteRepository.list()` devuelve `PacienteResumen` en vez de `Paciente`. El
+select pasó de `SELECT_PACIENTE_COMPLETO` (10 columnas + 7 relaciones anidadas) a solo lo que sus
+consumidores usan: `id, nombre_a, apellido_a, obra_social_id` + los embeds `cud`, `direcciones`,
+`accesorios_pacientes` y `prestaciones`. **Y se ahorra una consulta entera**: el camino viejo hacía
+un segundo viaje a `obra_social.coberturas_paciente` solo para resolver `numeroAfiliado`, que ningún
+selector usa.
+
+Se cayeron `clinicos` (diagnóstico, condición) y `personas_a_cargo` — la historia clínica que se
+bajaba de cada persona del padrón para llenar un desplegable.
+
+**Por qué un tipo propio y no un `Paciente` con campos vacíos:** devolver `personasACargo: []` o
+`diagnostico: ''` compilaría y pasaría los tests, pero mentiría — un consumidor no podría distinguir
+"no tiene" de "no se pidió". Con `PacienteResumen` (un `Pick`), pedir un campo ausente es un error
+de compilación. Y como es un `Pick`, un `Paciente` completo sigue siendo asignable, así que ningún
+mock ni fixture se rompió.
+
+⚠️ **Facturación quedó afuera, a propósito.** Necesita el paciente entero (`obraSocialId` y el flujo
+de emisión `useEmisionFactura`), así que usa `listCompleto()` — la consulta cara de antes, ahora
+acotada a su único consumidor real. **Es un paso intermedio honesto, no el destino: lo correcto es
+que Facturación pida por `getById` el ÚNICO paciente de la factura que está viendo.** Mientras eso no
+se haga, esa pantalla paga lo mismo que antes; las otras tres ya no.
+
+⚠️ **Falta el mismo tratamiento para vehículos, conductores y obras sociales.** Solo se hizo
+pacientes, que era el peor caso por lejos.
+
+**Leer antes**: `frontend/src/shared/types/paciente.ts` (`PacienteResumen` y por qué existe).
+
+### `preconnect-indices-supabase` — latencia ⚠️ PARCIAL (2026-08-29)
+
+Governance: **BAJO**.
+
+**✅ `preconnect` hecho.** `<link rel="preconnect" href="%SUPABASE_URL%" crossorigin />` en
+`index.html`. La URL sale de la env var en build (Vite reemplaza `%VAR%` para las que matchean
+`envPrefix`), así que no queda hardcodeada. `crossorigin` es obligatorio: las llamadas a Supabase
+van con header `apikey`, o sea que son CORS — sin el atributo el navegador abre una conexión que
+después no puede reusar.
+
+**❌ Los índices NO se hicieron, y la recomendación cambió.** La búsqueda usa
+`ilike "%token%"` con comodín inicial (`construirFiltroBusqueda.ts`): **un índice btree no sirve
+para eso**, Postgres no lo puede usar. Haría falta `pg_trgm` + GIN sobre 11 columnas (conductores:
+apellido/nombre/dni/cuil; obra_social: razon_social/cuit; paciente: nombre_a/nombre_b/apellido_a/
+apellido_b/dni). No hay ningún `pg_trgm` en las 71 migraciones.
+
+**Recomendación: diferir.** Con unos miles de filas Postgres hace seq scan y es rápido igual; 11
+índices GIN cuestan escritura y espacio en cada alta. Además es migración SQL — territorio de Enzo.
+Vale la pena cuando una consulta se sienta lenta de verdad, no antes.
 
 ---
 

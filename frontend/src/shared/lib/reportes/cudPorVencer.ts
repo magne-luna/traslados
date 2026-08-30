@@ -1,4 +1,4 @@
-import type { Paciente } from '../../types/paciente';
+import type { PacienteResumen } from '../../types/paciente';
 import type { PacienteCudPorVencer } from '../../types/reportes';
 import { estadoCud } from '../pacientes/estadoCud';
 
@@ -7,7 +7,7 @@ import { estadoCud } from '../pacientes/estadoCud';
 // `cud: null` se omite sin generar error.
 
 export interface CudPorVencerInput {
-  pacientes: Paciente[];
+  pacientes: PacienteResumen[];
   /** Fecha de referencia, inyectada — mismo tipo (`Date`) que espera `estadoCud`. */
   hoy: Date;
   umbralDias: number;

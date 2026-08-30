@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
@@ -33,7 +34,7 @@ function pacienteIdUnico(): string {
 }
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
-  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+  return renderConQuery(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
 
 const osecac: ObraSocial = {
@@ -74,7 +75,7 @@ function buildDocumentoRepository(overrides: Partial<DocumentoRepository> = {}):
 
 describe('PacienteDocumentos', () => {
   it('sin obra social asignada, muestra un estado vacío explícito (no un checklist genérico)', () => {
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId={null}
@@ -92,7 +93,7 @@ describe('PacienteDocumentos', () => {
       getById: vi.fn(() => new Promise<ObraSocial | null>(() => {})),
     });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -109,7 +110,7 @@ describe('PacienteDocumentos', () => {
     const sinChecklist: ObraSocial = { ...osecac, checklist: [] };
     const obraSocialRepository = buildObraSocialRepository({ getById: vi.fn().mockResolvedValue(sinChecklist) });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -123,7 +124,7 @@ describe('PacienteDocumentos', () => {
   });
 
   it('con checklist configurado, muestra los ítems de la obra social del paciente en su orden', async () => {
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -141,7 +142,7 @@ describe('PacienteDocumentos', () => {
     const doc: DocumentoAdjunto = { id: 'doc-1', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01' };
     const documentoRepository = buildDocumentoRepository({ listByEntity: vi.fn().mockResolvedValue([doc]) });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -177,7 +178,7 @@ describe('PacienteDocumentos', () => {
       listByEntity: vi.fn().mockResolvedValue([actual, renovacion]),
     });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -322,7 +323,7 @@ function buildRepositorioConAgrupacion(seed: DocumentoAdjunto[] = []): Documento
 
 describe('PacienteDocumentos — checklist por actividad', () => {
   it('sin actividades registradas: muestra un estado vacío explícito que invita a cargar una dirección, nunca N=0 bloques sin explicación (tasks.md 3.4)', async () => {
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -342,7 +343,7 @@ describe('PacienteDocumentos — checklist por actividad', () => {
   it('un domicilio solo (sin actividades no-domicilio) también cae en el estado vacío de actividades (triangulación de 3.4)', async () => {
     const domicilio: Direccion = { id: 'dir-casa', tipo: 'domicilio', calle: 'Mi Casa 123', localidad: 'CABA' };
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -366,7 +367,7 @@ describe('PacienteDocumentos — checklist por actividad', () => {
       descripcion: 'Kinesióloga',
     };
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -410,7 +411,7 @@ describe('PacienteDocumentos — checklist por actividad', () => {
     };
     const documentoRepository = buildRepositorioConAgrupacion([docEnKinesiologa]);
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -448,7 +449,7 @@ describe('PacienteDocumentos — checklist por actividad', () => {
 // General + las N actividades vía la función pura `agregarProgreso` (progresoDocumental.ts).
 describe('PacienteDocumentos — progreso agregado en el encabezado (tasks.md 5.1)', () => {
   it('sin actividades: el total agregado es solo el del bloque "General" (0 de 2, sin documentos)', async () => {
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -485,7 +486,7 @@ describe('PacienteDocumentos — progreso agregado en el encabezado (tasks.md 5.
     };
     const documentoRepository = buildRepositorioConAgrupacion([docRhc, docConsentimiento]);
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -516,7 +517,7 @@ describe('PacienteDocumentos — progreso agregado en el encabezado (tasks.md 5.
     ];
     const documentoRepository = buildRepositorioConAgrupacion(docsCompletos);
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -556,7 +557,7 @@ describe('PacienteDocumentos — bloques de actividad colapsables (tasks.md 5.2)
     };
     const documentoRepository = buildRepositorioConAgrupacion([docRhc, docConsentimiento]);
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -596,7 +597,7 @@ describe('PacienteDocumentos — bloques de actividad colapsables (tasks.md 5.2)
     const docRhc: DocumentoAdjunto = { id: 'doc-rhc', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01', agrupacionId: 'dir-kine' };
     const documentoRepository = buildRepositorioConAgrupacion([docRhc]);
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -630,7 +631,7 @@ describe('PacienteDocumentos — bloques de actividad colapsables (tasks.md 5.2)
     const docRhc: DocumentoAdjunto = { id: 'doc-rhc', itemId: 'item-1', nombreArchivo: 'rhc.pdf', subidoEn: '2026-07-01', agrupacionId: 'dir-kine' };
     const documentoRepository = buildRepositorioConAgrupacion([docRhc]);
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -695,7 +696,7 @@ describe('PacienteDocumentos — exportar un .zip con los archivos reales de una
   }
 
   it('un bloque de actividad ofrece "Exportar"; el bloque "General" no lo ofrece', async () => {
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         pacienteNombre="Pérez, Juan"
@@ -744,7 +745,7 @@ describe('PacienteDocumentos — exportar un .zip con los archivos reales de una
     const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         pacienteNombre="Pérez, Juan"
@@ -793,7 +794,7 @@ describe('PacienteDocumentos — exportar un .zip con los archivos reales de una
     const revokeObjectURLSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         pacienteNombre="Pérez, Juan"
@@ -840,7 +841,7 @@ describe('PacienteDocumentos — exportar un .zip con los archivos reales de una
       new TypeError('NetworkError when attempting to fetch resource.'),
     );
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         pacienteNombre="Pérez, Juan"
@@ -878,7 +879,7 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
     const pacienteId = pacienteIdUnico();
     const doc = await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc.pdf', { type: 'application/pdf' }), undefined, 'dir-kine');
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId={pacienteId}
         pacienteNombre="Pérez, Juan"
@@ -918,7 +919,7 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
     const pacienteId = pacienteIdUnico();
     await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc.pdf', { type: 'application/pdf' }), undefined, 'dir-kine');
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId={pacienteId}
         pacienteNombre="Pérez, Juan"
@@ -952,7 +953,7 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
     const pacienteId = pacienteIdUnico();
     await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc.pdf', { type: 'application/pdf' }), undefined, 'dir-kine');
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId={pacienteId}
         pacienteNombre="Pérez, Juan"
@@ -982,7 +983,7 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
     const pacienteId = pacienteIdUnico();
     await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc.pdf', { type: 'application/pdf' }), undefined, 'dir-kine');
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId={pacienteId}
         pacienteNombre="Pérez, Juan"
@@ -1013,7 +1014,7 @@ describe('PacienteDocumentos — transferir un documento entre actividades (task
     const pacienteId = pacienteIdUnico();
     await mockDocumentoRepository.upload('paciente', pacienteId, 'item-1', new File(['x'], 'rhc-general.pdf', { type: 'application/pdf' }));
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId={pacienteId}
         pacienteNombre="Pérez, Juan"
@@ -1084,7 +1085,7 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6, rev
       } satisfies RequisitosPorTipo),
     });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -1110,7 +1111,7 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6, rev
       } satisfies RequisitosPorTipo),
     });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -1143,7 +1144,7 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6, rev
       } satisfies RequisitosPorTipo),
     });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -1175,7 +1176,7 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6, rev
       } satisfies RequisitosPorTipo),
     });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -1205,7 +1206,7 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6, rev
       } satisfies RequisitosPorTipo),
     });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -1228,7 +1229,7 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6, rev
       listAll: vi.fn(() => new Promise<RequisitosPorTipo>(() => {})), // nunca resuelve en este test
     });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -1251,7 +1252,7 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6, rev
       listAll: vi.fn().mockRejectedValue(new Error('No se pudo cargar la configuración por tipo de actividad.')),
     });
 
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"
@@ -1272,7 +1273,7 @@ describe('PacienteDocumentos — ítems por tipo de actividad (tasks.md §6, rev
   });
 
   it('sin configurar `requisitosActividadRepository` (prop opcional): el bloque de actividad no muestra ítems — ya no hereda los de la obra social —, pero la pantalla no rompe', async () => {
-    render(
+    renderConQuery(
       <PacienteDocumentos
         pacienteId="paciente-1"
         obraSocialId="osecac"

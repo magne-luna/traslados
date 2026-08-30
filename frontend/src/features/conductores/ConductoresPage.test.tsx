@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import type { Conductor } from '../../shared/types/conductor';
@@ -51,7 +52,7 @@ function buildFakeVehiculoRepository(): VehiculoRepository {
 }
 
 function renderPage(repository: ConductorRepository) {
-  return render(
+  return renderConQuery(
     <ConductorRepositoryProvider repository={repository}>
       <VehiculoRepositoryProvider repository={buildFakeVehiculoRepository()}>
         <ConductoresPage documentoRepository={buildFakeDocumentoRepository()} />
@@ -97,7 +98,7 @@ describe('ConductoresPage', () => {
 // se monta en las dos vistas (listado y detalle), sin permiso de escritura, replicando el patrón
 // de ObraSocialesPage/PacientesPage.
 function renderPageConPermiso(puedeEscribir: boolean, repository: ConductorRepository) {
-  return render(
+  return renderConQuery(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <ConductorRepositoryProvider repository={repository}>
         <VehiculoRepositoryProvider repository={buildFakeVehiculoRepository()}>
@@ -249,5 +250,36 @@ describe('/conductores y /vehiculos resuelven módulos propios e independientes 
     await screen.findByRole('button', { name: /nuevo vehículo/i });
     expect(screen.getByText(/solo lectura/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /nuevo vehículo/i })).toBeDisabled();
+  });
+});
+
+// -------------------------------------------------------------------------------------------------
+// migracion-react-query, tasks.md 3.3 — el caso concreto que originó el change.
+//
+// `ConductoresList` y `AsignacionSemanalTabla` son hermanos dentro de `ConductoresPage` y cada uno
+// llamaba a `useVehiculos` por su cuenta: dos SELECT idénticos y concurrentes contra la misma tabla.
+// Comparten caché aunque reciban el repository por caminos distintos (uno por Context, el otro por
+// prop), porque la clave es del DOMINIO, no de la instancia del repository (design.md §D5).
+// -------------------------------------------------------------------------------------------------
+describe('ConductoresPage — deduplicación de la flota entre componentes hermanos (tasks.md 3.3)', () => {
+  it('monta listado y detalle pidiendo la flota UNA sola vez, no dos', async () => {
+    const user = userEvent.setup();
+    const vehiculoRepository = buildFakeVehiculoRepository();
+
+    renderConQuery(
+      <ConductorRepositoryProvider repository={buildFakeRepository()}>
+        <VehiculoRepositoryProvider repository={vehiculoRepository}>
+          <ConductoresPage documentoRepository={buildFakeDocumentoRepository()} />
+        </VehiculoRepositoryProvider>
+      </ConductorRepositoryProvider>,
+    );
+
+    // El listado ya montó y pidió la flota.
+    await screen.findByText('Pérez');
+    // Abrir el detalle monta AsignacionSemanalTabla, el segundo consumidor de la flota.
+    await user.click(screen.getByText('Pérez'));
+    await screen.findByRole('button', { name: /editar datos/i });
+
+    expect(vehiculoRepository.list).toHaveBeenCalledTimes(1);
   });
 });

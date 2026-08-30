@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { ObraSocialRepository } from '../../shared/lib/obrasSociales/ObraSocialRepository';
@@ -29,7 +30,7 @@ function buildFakeRepository(): ObraSocialRepository {
 }
 
 function renderPage(repository: ObraSocialRepository) {
-  return render(
+  return renderConQuery(
     <ObraSocialRepositoryProvider repository={repository}>
       <ObraSocialesPage />
     </ObraSocialRepositoryProvider>,
@@ -37,7 +38,7 @@ function renderPage(repository: ObraSocialRepository) {
 }
 
 function renderPageConPermiso(puedeEscribir: boolean, repository: ObraSocialRepository) {
-  return render(
+  return renderConQuery(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <ObraSocialRepositoryProvider repository={repository}>
         <ObraSocialesPage />

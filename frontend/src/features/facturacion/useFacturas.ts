@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { ActualizacionFactura, Factura, NuevaFactura } from '../../shared/types/factura';
+import type { ActualizacionFactura, NuevaFactura, Factura } from '../../shared/types/factura';
 import type { FacturaRepository } from '../../shared/lib/facturacion/FacturaRepository';
+import { claves } from '../../shared/lib/query/claves';
+import { FRESCURA } from '../../shared/lib/query/frescura';
+import { useListaDeDominio } from '../../shared/lib/query/useListaDeDominio';
 
 export interface UseFacturasResult {
   facturas: Factura[];
@@ -11,63 +13,24 @@ export interface UseFacturasResult {
   actualizar: (id: string, data: ActualizacionFactura) => Promise<Factura>;
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Ocurrió un error inesperado.';
-}
-
-// Wiring de estado entre las pantallas de Facturación y un FacturaRepository (mock hoy, Supabase
-// el día de mañana — ver FacturaRepository.ts). Mismo patrón que usePresupuestos/useAutorizaciones
-// (tasks.md 5.1): carga inicial vía efecto sobre un load imperativo, reutilizado tras cada mutación.
+// Wiring de estado entre las pantallas de Facturación y un FacturaRepository.
+//
+// migracion-react-query, Fase 4 (dominio TRANSACCIONAL). **`UseFacturasResult` NO cambió.**
+//
+// ⚠️ `FRESCURA.transaccional` es CERO, y no es un olvido: una factura es dinero y su estado cambia dentro de la sesión. Ponerle
+// `FRESCURA.referencia` sería el riesgo R2 del change — mostrarle a la usuaria plata
+// desactualizada. Con frescura cero se conservan igual la deduplicación de peticiones concurrentes
+// y la invalidación automática por mutación; lo único que no se hace es servir un dato viejo desde
+// memoria.
 export function useFacturas(repository: FacturaRepository): UseFacturasResult {
-  const [facturas, setFacturas] = useState<Factura[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { datos, ...resto } = useListaDeDominio<Factura, NuevaFactura, ActualizacionFactura>({
+    claveDominio: claves.facturas.todos(),
+    claveLista: claves.facturas.lista(),
+    cargar: () => repository.list(),
+    crear: (data) => repository.create(data),
+    actualizar: (id, data) => repository.update(id, data),
+    frescuraMs: FRESCURA.transaccional,
+  });
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await repository.list();
-      setFacturas(data);
-    } catch (err) {
-      setError(toErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [repository]);
-
-  useEffect(() => {
-    void cargar();
-  }, [cargar]);
-
-  const crear = useCallback(
-    async (data: NuevaFactura) => {
-      try {
-        const creada = await repository.create(data);
-        await cargar();
-        return creada;
-      } catch (err) {
-        setError(toErrorMessage(err));
-        throw err;
-      }
-    },
-    [repository, cargar],
-  );
-
-  const actualizar = useCallback(
-    async (id: string, data: ActualizacionFactura) => {
-      try {
-        const actualizada = await repository.update(id, data);
-        await cargar();
-        return actualizada;
-      } catch (err) {
-        setError(toErrorMessage(err));
-        throw err;
-      }
-    },
-    [repository, cargar],
-  );
-
-  return { facturas, loading, error, recargar: cargar, crear, actualizar };
+  return { facturas: datos, ...resto };
 }

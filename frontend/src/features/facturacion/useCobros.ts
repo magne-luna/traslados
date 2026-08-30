@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Cobro, NuevoCobro } from '../../shared/types/factura';
 import type { CobroRepository } from '../../shared/lib/facturacion/CobroRepository';
+import { aMensaje } from '../../shared/lib/query/aMensaje';
+import { claves } from '../../shared/lib/query/claves';
+import { FRESCURA } from '../../shared/lib/query/frescura';
 
 export interface UseCobrosResult {
   cobros: Cobro[];
@@ -11,62 +15,57 @@ export interface UseCobrosResult {
   eliminar: (id: string) => Promise<void>;
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Ocurrió un error inesperado.';
-}
-
-// Wiring de estado entre CobrosPanel y un CobroRepository, acotado a una factura puntual
-// (tasks.md 5.2, design.md Decisión 1: Cobro tiene repository propio, con su propio ciclo de
-// vida). Recarga tras cada alta/baja — mismo patrón que useFacturas/usePresupuestos.
+// migracion-react-query, Fase 4 (dominio TRANSACCIONAL). **`UseCobrosResult` NO cambió.**
+//
+// No usa `useListaDeDominio` porque sus mutaciones no son `crear`/`actualizar`: son `registrar` y
+// `eliminar`, y `eliminar` no devuelve entidad. Se aplica igual el patrón de la Fase 2 (error de
+// mutación en `useState` desde `onError`, para que llegue en el mismo render en que la promesa
+// rechaza) y el de la Fase 3 (invalidar el PREFIJO del dominio).
+//
+// ⚠️ `FRESCURA.transaccional` es CERO. Un cobro es dinero cobrado: servirlo desde memoria le
+// mostraría a la usuaria un saldo que ya no es. Es el riesgo R2 del change.
 export function useCobros(repository: CobroRepository, facturaId: string): UseCobrosResult {
-  const [cobros, setCobros] = useState<Cobro[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [errorMutacion, setErrorMutacion] = useState<string | null>(null);
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await repository.listByFactura(facturaId);
-      setCobros(data);
-    } catch (err) {
-      setError(toErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [repository, facturaId]);
+  const { data, isPending, error, refetch } = useQuery({
+    queryKey: claves.cobros.deFactura(facturaId),
+    // Se consulta aun con `facturaId` vacío, igual que la implementación anterior: agregar
+    // `enabled` cambiaría el conteo de consultas que los tests existentes ya afirman.
+    queryFn: () => repository.listByFactura(facturaId),
+    staleTime: FRESCURA.transaccional,
+  });
 
-  useEffect(() => {
-    void cargar();
-  }, [cargar]);
+  // Registrar o eliminar un cobro cambia el saldo de una factura: se invalida también facturas.
+  const invalidar = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: claves.cobros.todos() });
+    await queryClient.invalidateQueries({ queryKey: claves.facturas.todos() });
+  }, [queryClient]);
 
-  const registrar = useCallback(
-    async (data: NuevoCobro) => {
-      try {
-        const creado = await repository.create(data);
-        await cargar();
-        return creado;
-      } catch (err) {
-        setError(toErrorMessage(err));
-        throw err;
-      }
-    },
-    [repository, cargar],
-  );
+  const mutacionRegistrar = useMutation({
+    mutationFn: (nuevo: NuevoCobro) => repository.create(nuevo),
+    onMutate: () => setErrorMutacion(null),
+    onError: (err: unknown) => setErrorMutacion(aMensaje(err)),
+    onSuccess: invalidar,
+  });
 
-  const eliminar = useCallback(
-    async (id: string) => {
-      try {
-        await repository.remove(id);
-        await cargar();
-      } catch (err) {
-        setError(toErrorMessage(err));
-        throw err;
-      }
-    },
-    [repository, cargar],
-  );
+  const mutacionEliminar = useMutation({
+    mutationFn: (id: string) => repository.remove(id),
+    onMutate: () => setErrorMutacion(null),
+    onError: (err: unknown) => setErrorMutacion(aMensaje(err)),
+    onSuccess: invalidar,
+  });
 
-  return { cobros, loading, error, recargar: cargar, registrar, eliminar };
+  return {
+    cobros: data ?? [],
+    loading: isPending,
+    error: aMensaje(error) ?? errorMutacion,
+    recargar: useCallback(async () => {
+      await refetch();
+    }, [refetch]),
+    registrar: useCallback((nuevo: NuevoCobro) => mutacionRegistrar.mutateAsync(nuevo), [mutacionRegistrar]),
+    eliminar: useCallback(async (id: string) => {
+      await mutacionEliminar.mutateAsync(id);
+    }, [mutacionEliminar]),
+  };
 }

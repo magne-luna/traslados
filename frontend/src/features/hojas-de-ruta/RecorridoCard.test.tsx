@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Conductor } from '../../shared/types/conductor';
 import type { Paciente } from '../../shared/types/paciente';
@@ -9,7 +10,7 @@ import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { RecorridoCard } from './RecorridoCard';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
-  return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
+  return renderConQuery(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
 }
 
 // RecorridoCard compone ParadasList/AsignacionPanel/RecorridoMapa (ya testeados por separado) y
@@ -119,7 +120,7 @@ describe('RecorridoCard', () => {
   });
 
   it('muestra la patente del vehículo y el apellido del conductor en el encabezado', () => {
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido()}
         vehiculo={vehiculo}
@@ -136,7 +137,7 @@ describe('RecorridoCard', () => {
   });
 
   it('muestra un chip "Manual" cuando el recorrido es manual (RN-HR-03)', () => {
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido({ manual: true })}
         vehiculo={vehiculo}
@@ -152,7 +153,7 @@ describe('RecorridoCard', () => {
   });
 
   it('arranca en modo solo-lectura: sin botones de reorden/quitar/agregar pasajero, notas como texto, vehículo/conductor como texto', () => {
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido()}
         vehiculo={vehiculo}
@@ -176,7 +177,7 @@ describe('RecorridoCard', () => {
 
   it('"Editar" habilita reorden, quitar, agregar pasajero, notas editables y cambio de vehículo/conductor', async () => {
     const user = userEvent.setup();
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido()}
         vehiculo={vehiculo}
@@ -200,7 +201,7 @@ describe('RecorridoCard', () => {
 
   it('"Listo" vuelve al modo solo-lectura', async () => {
     const user = userEvent.setup();
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido()}
         vehiculo={vehiculo}
@@ -222,7 +223,7 @@ describe('RecorridoCard', () => {
   it('permite cambiar el vehículo del recorrido a otro disponible (feedback de usuario)', async () => {
     const user = userEvent.setup();
     const onUpdateRecorrido = vi.fn();
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido()}
         vehiculo={vehiculo}
@@ -243,7 +244,7 @@ describe('RecorridoCard', () => {
   it('permite cambiar el conductor del recorrido a otro operando (feedback de usuario)', async () => {
     const user = userEvent.setup();
     const onUpdateRecorrido = vi.fn();
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido()}
         vehiculo={vehiculo}
@@ -267,7 +268,7 @@ describe('RecorridoCard', () => {
     const vehiculoCompatible: Vehiculo = { ...vehiculoAlternativo, id: 'vehiculo-compatible', patente: 'CO222MP', accesoriosCompatibles: ['silla-rigida'] };
     const pacienteConAccesorio: Paciente = { ...pacienteA, accesorioMovilidad: ['silla-rigida'] };
 
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido({ paradas: [buildRecorrido().paradas[0]!] })}
         vehiculo={vehiculo}
@@ -291,7 +292,7 @@ describe('RecorridoCard', () => {
     const vehiculoConAccesorio: Vehiculo = { ...vehiculoAlternativo, accesoriosCompatibles: ['silla-rigida'] };
     const pacienteCConAccesorio: Paciente = { ...pacienteC, accesorioMovilidad: ['silla-rigida'] };
 
-    render(
+    renderConQuery(
       <RecorridoCard
         // Recorrido sin paradas todavía: Gómez queda primera en la lista de disponibles (sin
         // accesorios, no acota nada) — Ledesma (con accesorio) se elige explícitamente después.
@@ -324,7 +325,7 @@ describe('RecorridoCard', () => {
   it('un paciente con solo la ida cargada en el recorrido sigue apareciendo en "Agregar pasajero" (RN-HR-02)', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderConQuery(
       <RecorridoCard
         // buildRecorrido() por defecto: pacienteA (Gómez) y pacienteB (Pereyra) con tramo "ida"
         // únicamente — ninguno tiene la vuelta cargada todavía.
@@ -350,7 +351,7 @@ describe('RecorridoCard', () => {
     const vehiculoSinAccesorio: Vehiculo = { ...vehiculo, accesoriosCompatibles: [] };
     const pacienteCConAccesorio: Paciente = { ...pacienteC, accesorioMovilidad: ['silla-rigida'] };
 
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido()}
         vehiculo={vehiculoSinAccesorio}
@@ -370,7 +371,7 @@ describe('RecorridoCard', () => {
 
   it('excluye vehículos y conductores fuera de servicio del selector de cambio (RN-VE-02)', async () => {
     const user = userEvent.setup();
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido()}
         vehiculo={vehiculo}
@@ -391,7 +392,7 @@ describe('RecorridoCard', () => {
     const user = userEvent.setup();
     const onUpdateRecorrido = vi.fn();
 
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido()}
         vehiculo={vehiculo}
@@ -418,7 +419,7 @@ describe('RecorridoCard', () => {
     const user = userEvent.setup();
     const onUpdateRecorrido = vi.fn();
 
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido()}
         vehiculo={vehiculo}
@@ -440,7 +441,7 @@ describe('RecorridoCard', () => {
   });
 
   it('sin notas cargadas, el modo solo-lectura muestra un texto por defecto (borde)', () => {
-    render(
+    renderConQuery(
       <RecorridoCard
         recorrido={buildRecorrido({ notas: undefined })}
         vehiculo={vehiculo}

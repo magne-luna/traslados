@@ -1,7 +1,8 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import type { VehiculoRepository } from '../../shared/lib/vehiculos/VehiculoRepository';
+import { crearQueryClientDeTest, renderHookConQuery } from '../../shared/test/queryWrapper';
 import { useVehiculos } from './useVehiculos';
 
 const etios: Vehiculo = {
@@ -34,7 +35,7 @@ describe('useVehiculos', () => {
   it('arranca en loading y expone la lista una vez que list() resuelve', async () => {
     const repository = buildFakeRepository();
 
-    const { result } = renderHook(() => useVehiculos(repository));
+    const { result } = renderHookConQuery(() => useVehiculos(repository));
 
     expect(result.current.loading).toBe(true);
 
@@ -47,7 +48,7 @@ describe('useVehiculos', () => {
   it('expone un error legible cuando list() rechaza la promesa (triangulación)', async () => {
     const repository = buildFakeRepository({ list: vi.fn().mockRejectedValue(new Error('caído')) });
 
-    const { result } = renderHook(() => useVehiculos(repository));
+    const { result } = renderHookConQuery(() => useVehiculos(repository));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
@@ -57,7 +58,7 @@ describe('useVehiculos', () => {
 
   it('crear() llama a repository.create() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useVehiculos(repository));
+    const { result } = renderHookConQuery(() => useVehiculos(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -83,7 +84,7 @@ describe('useVehiculos', () => {
 
   it('actualizar() llama a repository.update() y recarga la lista', async () => {
     const repository = buildFakeRepository();
-    const { result } = renderHook(() => useVehiculos(repository));
+    const { result } = renderHookConQuery(() => useVehiculos(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -96,7 +97,7 @@ describe('useVehiculos', () => {
 
   it('crear() propaga el error del repository sin dejar loading colgado', async () => {
     const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('patente duplicada')) });
-    const { result } = renderHook(() => useVehiculos(repository));
+    const { result } = renderHookConQuery(() => useVehiculos(repository));
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => {
@@ -120,5 +121,54 @@ describe('useVehiculos', () => {
 
     expect(result.current.error).toBe('patente duplicada');
     expect(result.current.loading).toBe(false);
+  });
+
+  // --- migracion-react-query, Fase 3 (tasks.md 3.2) ---------------------------------------------
+
+  it('dos montajes sucesivos dentro del plazo llaman a list() UNA sola vez', async () => {
+    const repository = buildFakeRepository();
+    const client = crearQueryClientDeTest();
+
+    const primero = renderHookConQuery(() => useVehiculos(repository), { client });
+    await waitFor(() => expect(primero.result.current.loading).toBe(false));
+    primero.unmount();
+
+    const segundo = renderHookConQuery(() => useVehiculos(repository), { client });
+    await waitFor(() => expect(segundo.result.current.vehiculos).toEqual([etios]));
+
+    expect(repository.list).toHaveBeenCalledTimes(1);
+  });
+
+  it('crear invalida el dominio: otro consumidor ve el alta sin esperar al plazo', async () => {
+    const nuevo: Vehiculo = { ...etios, id: 'vehiculo-kangoo', patente: 'AD456FG' };
+    const list = vi.fn().mockResolvedValue([etios]);
+    const repository = buildFakeRepository({ list, create: vi.fn().mockResolvedValue(nuevo) });
+    const client = crearQueryClientDeTest();
+
+    const pantalla = renderHookConQuery(() => useVehiculos(repository), { client });
+    await waitFor(() => expect(pantalla.result.current.loading).toBe(false));
+
+    list.mockResolvedValue([etios, nuevo]);
+    await act(async () => {
+      await pantalla.result.current.crear({ ...etios } as never);
+    });
+    pantalla.unmount();
+
+    const selector = renderHookConQuery(() => useVehiculos(repository), { client });
+    await waitFor(() => expect(selector.result.current.vehiculos).toEqual([etios, nuevo]));
+  });
+
+  it('el error de una mutación aparece en el MISMO render en que la promesa rechaza', async () => {
+    const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('patente duplicada')) });
+    const { result } = renderHookConQuery(() => useVehiculos(repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await expect(result.current.crear({ ...etios } as never)).rejects.toThrow('patente duplicada');
+    });
+
+    // Sin waitFor: si el error llegara un tick tarde (leyéndolo de `mutacion.error`), la pantalla
+    // quedaría en blanco por un render. Ver el hallazgo de la Fase 2.
+    expect(result.current.error).toBe('patente duplicada');
   });
 });

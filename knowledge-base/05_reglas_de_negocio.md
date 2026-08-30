@@ -90,6 +90,14 @@ Cada regla tiene un código único `RN-{DOMINIO}-{NN}` para trazabilidad. Extra�
 - **RN-HR-01**: El sistema no arma la ruta automáticamente; su función es ayudar a ordenar los pasajeros de cada recorrido (sugerencia editable por geolocalización), dejando siempre la decisión y edición manual a cargo del operador. La sugerencia agrupa primero por bloque horario (paradas cuyo horario estimado cae dentro de una ventana configurable — default 60 min, confirmado contra la hoja de ruta real en papel) y dentro de cada bloque ordena por cercanía; nunca propone una parada tardía antes que una temprana de un bloque distinto.
 - **RN-HR-02**: La dirección de ida y la de vuelta se modelan como datos independientes por tramo (origen y destino); no se asume que la vuelta es el trayecto inverso a la ida.
 - **RN-HR-03**: Se admite el armado de recorridos manuales sin frecuencia fija ni turno asignado (ej. traslados puntuales a hospitales), sin que se generen automáticamente desde una agenda.
+- **RN-HR-04** (no tenía número asignado hasta acá — US-600 solo la mencionaba como checklist,
+  sin RN-XX propio): las restricciones de perfil del conductor (ej. no traslada pacientes que
+  requieren carga física por su edad) se anotan como texto libre en Observaciones, sin catálogo
+  estructurado (`integracion-conductores-vehiculos`, decisión D6-B, 2026-07-31 — el docx modela un
+  único campo "Notas" de texto libre, no una lista tipada). **No es una regla verificable
+  automáticamente**: el armado de hojas de ruta (`C-10`) no puede excluir conductores por este
+  criterio, solo mostrar la observación para que la persona decida. Es una decisión tomada, no una
+  limitación técnica pendiente de resolver.
 
 ## Dominio: Excepciones globales (RN-GL)
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Conductor } from '../../shared/types/conductor';
 import { VehiculoRepositoryProvider } from '../vehiculos/VehiculoRepositoryContext';
@@ -66,7 +67,7 @@ function defaultProps(overrides: Partial<React.ComponentProps<typeof Conductores
 }
 
 function renderList(overrides: Partial<React.ComponentProps<typeof ConductoresList>> = {}) {
-  return render(
+  return renderConQuery(
     <VehiculoRepositoryProvider repository={vehiculoRepositoryStub}>
       <ConductoresList {...defaultProps(overrides)} />
     </VehiculoRepositoryProvider>,
@@ -74,7 +75,7 @@ function renderList(overrides: Partial<React.ComponentProps<typeof ConductoresLi
 }
 
 function renderListConPermiso(puedeEscribir: boolean, overrides: Partial<React.ComponentProps<typeof ConductoresList>> = {}) {
-  return render(
+  return renderConQuery(
     <PuedeEscribirContext.Provider value={puedeEscribir}>
       <VehiculoRepositoryProvider repository={vehiculoRepositoryStub}>
         <ConductoresList {...defaultProps(overrides)} />

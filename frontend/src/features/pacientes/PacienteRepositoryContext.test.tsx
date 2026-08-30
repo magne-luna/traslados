@@ -6,6 +6,7 @@ import { PacienteRepositoryProvider, usePacienteRepository } from './PacienteRep
 function buildFakeRepository(): PacienteRepository {
   return {
     list: vi.fn().mockResolvedValue([]),
+    listCompleto: vi.fn().mockResolvedValue([]),
     listPage: vi.fn(),
     getById: vi.fn().mockResolvedValue(null),
     create: vi.fn(),

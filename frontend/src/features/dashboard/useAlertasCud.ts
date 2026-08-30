@@ -1,53 +1,35 @@
-import { useEffect, useState } from 'react';
-import type { Paciente } from '../../shared/types/paciente';
+import { useQuery } from '@tanstack/react-query';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
+import { aMensaje } from '../../shared/lib/query/aMensaje';
+import { claves } from '../../shared/lib/query/claves';
+import { FRESCURA } from '../../shared/lib/query/frescura';
 
 export interface UseAlertasCudResult {
-  pacientes: Paciente[];
+  /** select-liviano-selectores: para calcular alertas de CUD alcanza con `cud` + nombre/apellido,
+   * que es exactamente lo que trae `PacienteResumen`. Comparte clave de caché con `usePacientes`,
+   * así que comparten forma — por eso `cud` sigue viajando en el select liviano. */
+  pacientes: PacienteResumen[];
   cargando: boolean;
   error: string | null;
 }
 
-function toErrorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return 'Ocurrió un error inesperado.';
-}
-
-// tasks.md 5.4, design.md Decisión 7/9: lectura de solo lectura de PacienteRepository.list()
-// para la tarjeta de CUD, con su propio estado de carga/error independiente del resto de los
-// bloques del dashboard. A propósito NO expone `crear` ni `actualizar` — a diferencia de
-// usePacientes (que sí los expone para la feature de Pacientes) — para que sea estructuralmente
-// imposible que el dashboard escriba (design.md Non-Goals, spec dashboard-composicion "Solo
-// lectura en toda la pantalla").
+// tasks.md 5.4, design.md Decisión 7/9: lectura para la tarjeta de CUD.
+//
+// migracion-react-query, Fase 5. **`UseAlertasCudResult` NO cambió** (sigue exponiendo `cargando`, no
+// `loading`). Lo que cambia es de dónde sale el dato: usa **la misma clave** que
+// `usePacientes` (`claves.pacientes.lista()`), así que si la usuaria ya pasó por ese módulo el
+// dashboard NO vuelve a pedir el padrón — y viceversa. `/` es la ruta índice y se la visita
+// constantemente: ese round-trip repetido era uno de los tres desperdicios que motivaron el change.
+//
+// Sigue siendo de SOLO LECTURA: no expone `crear` ni `actualizar`, para que sea estructuralmente
+// imposible que el dashboard escriba (design.md Non-Goals del change de dashboard).
 export function useAlertasCud(repository: PacienteRepository): UseAlertasCudResult {
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isPending, error } = useQuery({
+    queryKey: claves.pacientes.lista(),
+    queryFn: () => repository.list(),
+    staleTime: FRESCURA.referencia,
+  });
 
-  useEffect(() => {
-    let cancelado = false;
-
-    async function cargar() {
-      setCargando(true);
-      setError(null);
-      try {
-        const data = await repository.list();
-        if (cancelado) return;
-        setPacientes(data);
-      } catch (err) {
-        if (cancelado) return;
-        setError(toErrorMessage(err));
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    }
-
-    void cargar();
-
-    return () => {
-      cancelado = true;
-    };
-  }, [repository]);
-
-  return { pacientes, cargando, error };
+  return { pacientes: data ?? [], cargando: isPending, error: aMensaje(error) };
 }

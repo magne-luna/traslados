@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { screen } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import type { ObraSocial } from '../../shared/types/obraSocial';
@@ -48,6 +49,7 @@ const martina: Paciente = {
 function buildFakePacienteRepository(): PacienteRepository {
   return {
     list: vi.fn().mockResolvedValue([martina]),
+    listCompleto: vi.fn().mockResolvedValue([]),
     listPage: vi.fn().mockResolvedValue({ items: [martina], total: 1, pagina: 1, tamanio: 20 }),
     getById: vi.fn().mockResolvedValue(martina),
     create: vi.fn(),
@@ -180,7 +182,7 @@ describe('PacientesPage — no-regresión: obra social sigue usando list() compl
   it('llama a obraSocialRepository.list(), nunca a listPage()', async () => {
     const obraSocialRepository = buildFakeObraSocialRepository();
 
-    render(
+    renderConQuery(
       <PacienteRepositoryProvider repository={buildFakePacienteRepository()}>
         <PacientesPage obraSocialRepository={obraSocialRepository} documentoRepository={buildFakeDocumentoRepository()} />
       </PacienteRepositoryProvider>,

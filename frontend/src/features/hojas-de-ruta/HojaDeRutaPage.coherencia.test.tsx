@@ -101,6 +101,7 @@ function buildFakeConductorRepo(): ConductorRepository {
 function buildFakePacienteRepo(): PacienteRepository {
   return {
     list: vi.fn().mockResolvedValue([martina]),
+    listCompleto: vi.fn().mockResolvedValue([]),
     // paginacion-listados, Fase 2: este fake también se usa para montar PacientesPage en la ruta
     // /pacientes de este archivo (renderAmbasRutas) — necesita un resultado real, no solo el
     // stub vacío que alcanza para el resto de los repositories de este archivo.

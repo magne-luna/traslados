@@ -83,6 +83,14 @@ describe('supabaseVehiculoRepository.list()', () => {
     expect(resultado[0]).toMatchObject({ id: 'v1', patente: 'AC123DE', capacidad: 4 });
   });
 
+  it('un vehículo fuera de servicio en la API llega como tal al dominio (bug real: la Edge Function ya manda "fuera-de-servicio" con guion, no el valor crudo de la base con espacio)', async () => {
+    functionsInvoke.mockResolvedValue({ data: [{ ...VEHICULO_API_COMPLETO, estado: 'fuera-de-servicio' }], error: null });
+
+    const resultado = await supabaseVehiculoRepository.list();
+
+    expect(resultado[0]?.estado).toBe('fuera-de-servicio');
+  });
+
   it('descarta filas malformadas (sin patente) sin romper el resto de la lista', async () => {
     functionsInvoke.mockResolvedValue({ data: [VEHICULO_API_COMPLETO, { id: 'roto' }], error: null });
 

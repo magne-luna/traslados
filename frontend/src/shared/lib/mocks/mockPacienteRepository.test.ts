@@ -23,7 +23,10 @@ describe('mockPacienteRepository', () => {
   // ObraSocial) — el fixture sigue sembrando tres `valor` con formas distintas (una por cada
   // formato conceptual), pero acá solo se puede verificar la diversidad de `valor`.
   it('siembra el fixture con pacientes con valores de identificador de afiliado distintos entre sí', async () => {
-    const pacientes = await flushLatency(mockPacienteRepository.list());
+    // select-liviano-selectores: `list()` ya no trae `numeroAfiliado` ni `amparoJudicial` —son
+    // campos de la ficha, y ningún selector los usa. El fixture se sigue verificando sobre
+    // `listCompleto()`, que es el camino que conserva la forma completa.
+    const pacientes = await flushLatency(mockPacienteRepository.listCompleto());
 
     expect(pacientes.length).toBeGreaterThanOrEqual(2);
     const valores = new Set(pacientes.map((p) => p.numeroAfiliado.valor));

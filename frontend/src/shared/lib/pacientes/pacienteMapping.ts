@@ -16,6 +16,7 @@ import type {
 } from '../../types/paciente';
 import type { AccesorioMovilidad } from '../../types/vehiculo';
 import type { Prestacion } from '../../types/prestacion';
+import type { PacienteResumen } from '../../types/paciente';
 // presupuesto-prestaciones: módulo standalone dedicado (design.md D1), se reusa tal cual, sin
 // reinventar el parseo acá — mismo criterio de "cero patrón nuevo que revisar" que documenta
 // `prestacionMapping.ts`.
@@ -463,5 +464,30 @@ export function toCrearPacientePayload(
     // Discrepancia #1 (D9): solo viaja `valor`; `numeroAfiliado.formato` no tiene columna propia
     // en pacientes/coberturas — es una propiedad de la obra social (RF-106).
     num_afiliado: nuevo.numeroAfiliado.valor,
+  };
+}
+
+// select-liviano-selectores: ensambla SOLO los campos de `PacienteResumen`, leyendo la fila
+// directamente en vez de pasar por `parsePacienteRow`. Es a propósito: `parsePacienteRow` espera
+// `fecha_nacimiento`, `dni`, `cuil_titular`, `obra_social_id` y `amparo_judicial`, y obligaría a
+// pedir columnas que ningún consumidor de `list()` usa — justo lo que este change vino a evitar.
+//
+// Misma robustez que `ensamblarPaciente`: filas malformadas de un embed se descartan en silencio,
+// y la ausencia del embed nunca deja un array en `undefined`.
+export function ensamblarPacienteResumen(row: unknown): PacienteResumen {
+  const record = isRecord(row) ? row : {};
+
+  const direccionesRaw = Array.isArray(record.direcciones) ? record.direcciones : [];
+  const prestacionesRaw = Array.isArray(record.prestaciones) ? record.prestaciones : [];
+
+  return {
+    id: readString(record, 'id'),
+    nombre: readString(record, 'nombre_a'),
+    apellido: readString(record, 'apellido_a'),
+    obraSocialId: readNullableString(record, 'obra_social_id'),
+    cud: parseCudRow(record.cud),
+    direcciones: direccionesRaw.map((d) => parseDireccionRow(d)).filter((d): d is Direccion => d !== null),
+    accesorioMovilidad: parseAccesorios(record.accesorios_pacientes),
+    prestaciones: prestacionesRaw.map((p) => parsePrestacionRow(p)).filter((p): p is Prestacion => p !== null),
   };
 }

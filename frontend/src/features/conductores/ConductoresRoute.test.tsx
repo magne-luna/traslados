@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import { renderConQuery } from '../../shared/test/queryWrapper';
 
 // `ConductoresRoute` inyecta `supabaseConductorRepository` (real, integracion-conductores-vehiculos
 // §7.8 "CORTE REAL 2") y `supabaseVehiculoRepository` (real desde §5.9 "CORTE REAL 1"). Mismo
@@ -29,7 +30,7 @@ const fuenteConductoresRoute = await import('./ConductoresRoute.tsx?raw').then((
 
 describe('ConductoresRoute', () => {
   it('monta la feature con supabaseConductorRepository y supabaseVehiculoRepository (mockeados) y termina de cargar', async () => {
-    render(<ConductoresRoute />);
+    renderConQuery(<ConductoresRoute />);
 
     await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0));
     expect(screen.getByRole('heading', { name: 'Conductores' })).toBeInTheDocument();

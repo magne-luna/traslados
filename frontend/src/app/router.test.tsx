@@ -70,10 +70,22 @@ describe('router: la ruta / monta el dashboard (tasks.md 8.3)', () => {
   it('renderiza el dashboard dentro del shell autenticado, no el placeholder de "Próximamente"', async () => {
     renderConSesion(<RouterProvider router={router} />);
 
-    await waitFor(
-      () => expect(screen.getByRole('heading', { level: 1, name: /dashboard/i })).toBeInTheDocument(),
-      { timeout: 5000 },
-    );
+    // Dos fases async ENCADENADAS, cada una con su propia espera Y su propio timeout explícito de
+    // 3 s. Partirlas no alcanzaba: ambas seguían con el default de 1 s de testing-library, así que
+    // el test seguía flaky bajo la suite completa (falla al azar, pasa aislado — el peor tipo de
+    // fallo). 3 s es la misma convención que ya usa `DashboardRoute.test.tsx` para esperar el fin
+    // de los "Cargando …" de este mismo dashboard. Las fases son:
+    //   1. `code-splitting-rutas`: baja el chunk de la ruta (hasta acá se ve `CargandoPantalla`).
+    //   2. `migracion-react-query`: el dashboard consulta sus datos (sus tarjetas muestran sus
+    //      propios "Cargando …" mientras tanto).
+    // Esperar el encabezado primero es además lo que el test realmente afirma: que `/` monta el
+    // dashboard. La ausencia de "cargando" se verifica después, ya sin competir por el mismo reloj.
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /dashboard/i }, { timeout: 3000 }),
+    ).toBeInTheDocument();
+
+    await waitFor(() => expect(screen.queryAllByText(/cargando/i)).toHaveLength(0), { timeout: 3000 });
+
     expect(screen.getByText(/recorridos de hoy/i)).toBeInTheDocument();
     expect(screen.queryByText(/próximamente/i)).not.toBeInTheDocument();
   });

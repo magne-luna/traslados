@@ -7,7 +7,7 @@ import { ordinalMes, etiquetaPeriodoMes } from '../../shared/lib/presupuestos/pe
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { ObraSocial } from '../../shared/types/obraSocial';
-import type { Paciente } from '../../shared/types/paciente';
+import type { PacienteResumen } from '../../shared/types/paciente';
 import type { ActualizacionPresupuesto, Autorizacion, NuevoPresupuesto, Presupuesto } from '../../shared/types/presupuesto';
 import { AutorizacionForm, type AutorizacionFormValues } from './AutorizacionForm';
 import { PresupuestoForm, type PresupuestoFormSubmission, type PresupuestoFormValues } from './PresupuestoForm';
@@ -23,7 +23,7 @@ interface PresupuestoDetailProps {
   crearLote: (datas: NuevoPresupuesto[]) => Promise<Presupuesto[]>;
   actualizar: (id: string, data: ActualizacionPresupuesto) => Promise<Presupuesto>;
   /** Se puebla desde PacienteRepository.list() en el composition root — solo lectura (design.md Decisión 8). */
-  pacientes: Paciente[];
+  pacientes: PacienteResumen[];
   /** Se puebla desde ObraSocialRepository.list() en el composition root — solo lectura (design.md Decisión 8). */
   obrasSociales: ObraSocial[];
   autorizacionRepository: AutorizacionRepository;
@@ -38,7 +38,7 @@ function toErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Ocurrió un error inesperado.';
 }
 
-function nombrePaciente(paciente: Paciente | undefined): string {
+function nombrePaciente(paciente: PacienteResumen | undefined): string {
   return paciente ? `${paciente.apellido}, ${paciente.nombre}` : 'Paciente desconocido';
 }
 
