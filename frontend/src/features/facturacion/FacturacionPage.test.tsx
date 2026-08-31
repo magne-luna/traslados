@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
@@ -222,5 +222,73 @@ describe('FacturacionPage — gateo de escritura', () => {
 
     await screen.findByText('Gómez, Martina', { selector: 'span' });
     expect(screen.queryByText(/solo lectura/i)).not.toBeInTheDocument();
+  });
+});
+
+
+// facturacion-listado-comprobantes: el apartado "Comprobantes emitidos" lista las facturas con
+// CAE y abre su PDF archivado vía EmisionRepository.verComprobante (la misma signed URL efímera
+// que el detalle). Solo lectura — no toca la emisión.
+describe('FacturacionPage — comprobantes emitidos', () => {
+  const facturaEmitida: Factura = {
+    ...factura,
+    id: 'factura-emitida',
+    estado: 'facturado',
+    cae: '75012345678901',
+    caeVencimiento: '2026-09-10',
+    cbteNro: 7,
+    ptoVta: 1,
+    arcaAmbiente: 'homologacion',
+    comprobantePdfUrl: 'factura-emitida/FACTURA_A-1-7.pdf',
+    fechaFactura: '2026-08-30',
+  };
+
+  function renderConEmision(verComprobanteImpl: (clave: string) => Promise<string>) {
+    const props = buildProps();
+    props.emisionRepository.verComprobante.mockImplementation(verComprobanteImpl);
+    const facturaRepository: FacturaRepository = {
+      list: vi.fn().mockResolvedValue([facturaEmitida]),
+      getById: vi.fn().mockResolvedValue(facturaEmitida),
+      listByPaciente: vi.fn().mockResolvedValue([facturaEmitida]),
+      create: vi.fn(),
+      update: vi.fn(),
+    };
+    renderConQuery(
+      <AuthProvider repository={mockAuthRepository}>
+        <FacturaRepositoryProvider repository={facturaRepository}>
+          <CobroRepositoryProvider repository={buildCobroRepository()}>
+            <TiposDocumentoRepositoryProvider repository={buildTiposDocumentoRepository()}>
+              <FacturacionPage {...props} feriados={[]} />
+            </TiposDocumentoRepositoryProvider>
+          </CobroRepositoryProvider>
+        </FacturaRepositoryProvider>
+      </AuthProvider>,
+    );
+    return props;
+  }
+
+  it('navega al apartado y abre el PDF de un comprobante vía verComprobante', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const props = renderConEmision(() => Promise.resolve('https://signed.example/pdf'));
+
+    await userEvent.click(await screen.findByRole('button', { name: /comprobantes emitidos/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /ver pdf/i }));
+
+    expect(props.emisionRepository.verComprobante).toHaveBeenCalledWith('factura-emitida/FACTURA_A-1-7.pdf');
+    await waitFor(() =>
+      expect(openSpy).toHaveBeenCalledWith('https://signed.example/pdf', '_blank', 'noopener,noreferrer'),
+    );
+    openSpy.mockRestore();
+  });
+
+  it('muestra el error si no se puede resolver la URL firmada', async () => {
+    renderConEmision(() =>
+      Promise.reject(new Error('No se pudo abrir el comprobante. Verificá que tengas permiso de facturación.')),
+    );
+
+    await userEvent.click(await screen.findByRole('button', { name: /comprobantes emitidos/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /ver pdf/i }));
+
+    expect(await screen.findByText(/no se pudo abrir el comprobante/i)).toBeInTheDocument();
   });
 });

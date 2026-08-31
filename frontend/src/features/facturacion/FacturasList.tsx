@@ -12,6 +12,8 @@ interface FacturasListProps {
   nombrePaciente: (pacienteId: string) => string;
   onSelect: (factura: Factura) => void;
   onCreateNew: () => void;
+  /** Abre el listado de comprobantes emitidos. Ausente = no se ofrece el botón. */
+  onVerComprobantes?: () => void;
   /** Opciones del filtro por paciente — se puebla desde PacienteRepository en el composition root. */
   pacientesDisponibles?: { id: string; nombre: string }[];
 }
@@ -47,7 +49,7 @@ const ESTADO_CHIP: Record<EstadoFactura, 'secondary' | 'warning' | 'success' | '
 // NO se tocan: no están en el alcance textual de tasks.md 16.3 (solo "filtros", "error", "botón
 // mini") y la sección es de gobernanza CRÍTICA — se documentan acá como candidatos limpios para
 // una task de seguimiento, no se migran de paso.
-export function FacturasList({ facturas, loading, error, nombrePaciente, onSelect, onCreateNew, pacientesDisponibles }: FacturasListProps) {
+export function FacturasList({ facturas, loading, error, nombrePaciente, onSelect, onCreateNew, onVerComprobantes, pacientesDisponibles }: FacturasListProps) {
   const [pacienteFiltro, setPacienteFiltro] = useState('');
   const [mesFiltro, setMesFiltro] = useState('');
   const [anioFiltro, setAnioFiltro] = useState('');
@@ -68,7 +70,12 @@ export function FacturasList({ facturas, loading, error, nombrePaciente, onSelec
     <div className="flex flex-col gap-lg py-xxl px-xl">
       <div className="flex flex-wrap items-center justify-between gap-md">
         <h1 className="m-0 font-heading text-[21px] font-bold text-ink">Facturación</h1>
-        <Button variant="primary" requiereEscritura onClick={onCreateNew}>+ Nueva factura</Button>
+        <div className="flex flex-wrap items-center gap-sm">
+          {onVerComprobantes && (
+            <Button variant="secondary" onClick={onVerComprobantes}>Comprobantes emitidos</Button>
+          )}
+          <Button variant="primary" requiereEscritura onClick={onCreateNew}>+ Nueva factura</Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-end gap-md">

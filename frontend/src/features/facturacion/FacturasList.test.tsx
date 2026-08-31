@@ -114,6 +114,31 @@ describe('FacturasList', () => {
     expect(screen.getByText('Pereyra, Facundo', { selector: 'span' })).toBeInTheDocument();
   });
 
+  it('con onVerComprobantes: la cabecera ofrece "Comprobantes emitidos" y lo invoca al clickear', async () => {
+    const onVerComprobantes = vi.fn();
+    render(
+      <FacturasList
+        facturas={[facturaMartina]}
+        loading={false}
+        error={null}
+        nombrePaciente={() => 'Gómez, Martina'}
+        onSelect={vi.fn()}
+        onCreateNew={vi.fn()}
+        onVerComprobantes={onVerComprobantes}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /comprobantes emitidos/i }));
+    expect(onVerComprobantes).toHaveBeenCalledTimes(1);
+  });
+
+  it('sin onVerComprobantes: el botón "Comprobantes emitidos" no aparece', () => {
+    render(
+      <FacturasList facturas={[facturaMartina]} loading={false} error={null} nombrePaciente={() => 'Gómez, Martina'} onSelect={vi.fn()} onCreateNew={vi.fn()} />,
+    );
+    expect(screen.queryByRole('button', { name: /comprobantes emitidos/i })).not.toBeInTheDocument();
+  });
+
   it('filtra por mes/año', async () => {
     render(
       <FacturasList
