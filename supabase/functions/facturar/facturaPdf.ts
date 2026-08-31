@@ -66,12 +66,30 @@ interface Cursor {
   y: number;
 }
 
+// Las fuentes estándar de pdf-lib usan encoding WinAnsi (CP1252): un carácter fuera de ese set
+// hace fallar `drawText` y aborta todo el PDF (visto en vivo: `WinAnsi cannot encode "→"`). Los
+// datos dinámicos (descripción, dependencia/retorno, prestación) son texto libre del operador y
+// pueden traer flechas, comillas tipográficas, etc. Se mapean los casos comunes a ASCII y
+// cualquier otro carácter no representable cae a '?'. Se conservan los extras de CP1252 que
+// pdf-lib sí soporta: € – — • ™ y todo Latin-1 (á, ñ, ü, …).
+export function winAnsi(s: string): string {
+  return s
+    .replace(/[→⟶➔➙]/g, '->')
+    .replace(/[←⟵]/g, '<-')
+    .replace(/[↔⟷]/g, '<->')
+    .replace(/[“”«»„]/g, '"')
+    .replace(/[‘’‚]/g, "'")
+    .replace(/…/g, '...')
+    .replace(/[   ]/g, ' ')
+    .replace(/[^\t\n\r\x20-\x7e¡-ÿ€–—•™]/gu, '?');
+}
+
 function texto(
   cur: Cursor,
   s: string,
   opts: { x?: number; size?: number; font: PDFFont; color?: ReturnType<typeof rgb> },
 ): void {
-  cur.page.drawText(s, {
+  cur.page.drawText(winAnsi(s), {
     x: opts.x ?? MARGEN,
     y: cur.y,
     size: opts.size ?? 9,
@@ -236,7 +254,7 @@ export async function construirFacturaPdf(datos: DatosFacturaPdf): Promise<Uint8
   // --- Anexo: asistencias del período ---------------------------------------------
   texto(cur, `Anexo — Asistencias del período (${datos.asistencias.length})`, { size: 10, font: bold });
   cur.y -= 14;
-  texto(cur, 'Fecha        Prestación                 Dependencia → Retorno', {
+  texto(cur, 'Fecha        Prestación                 Dependencia -> Retorno', {
     size: 8,
     font: bold,
     color: GRIS,
@@ -249,7 +267,7 @@ export async function construirFacturaPdf(datos: DatosFacturaPdf): Promise<Uint8
     }
     texto(
       cur,
-      `${a.fecha}   ${a.prestacion.slice(0, 24).padEnd(24)}   ${a.dependencia} → ${a.retorno}`,
+      `${a.fecha}   ${a.prestacion.slice(0, 24).padEnd(24)}   ${a.dependencia} -> ${a.retorno}`,
       { size: 8, font },
     );
     cur.y -= 11;

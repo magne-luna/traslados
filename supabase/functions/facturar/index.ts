@@ -232,6 +232,18 @@ Deno.serve(async (req) => {
 
   const resArca = parseRespuestaMiniserver(respuestaMini.status, await jsonSeguro(respuestaMini));
   if (!resArca.ok) {
+    // Traza de diagnóstico (nunca loguea cert/key ni el payload fiscal): sin esto, un rechazo de
+    // ARCA no deja ningún rastro en los logs de la función y hay que ir a mirar el miniserver.
+    // Cubre los tres códigos: ARCA_IDENTIDAD (502), ARCA_RECHAZO (422), ARCA_ERROR (502).
+    console.error('facturar: ARCA no aprobó el comprobante', {
+      facturaId,
+      tipoComprobante,
+      miniserverStatus: respuestaMini.status,
+      codigo: resArca.codigo,
+      detalle: resArca.detalle,
+      observaciones: resArca.observaciones,
+      cbteNro: resArca.cbteNro,
+    });
     return jsonResponse(resArca.status, {
       error: resArca.detalle,
       codigo: resArca.codigo,

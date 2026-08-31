@@ -14,6 +14,8 @@ import { coincidePeriodoFacturado, validarCoherenciaPeriodo } from '../../shared
 import { AlertaCoherenciaPeriodo } from './AlertaCoherenciaPeriodo';
 import { AlertaCupo } from './AlertaCupo';
 import { AlertaMontoAutorizado } from './AlertaMontoAutorizado';
+import { AlertaTipoComprobante } from './AlertaTipoComprobante';
+import { advertenciaTipoComprobante } from '../../shared/lib/facturacion/advertenciaTipoComprobante';
 import { DiasFacturablesSelector } from './DiasFacturablesSelector';
 import { FacturaFormDatosBasicos } from './FacturaFormDatosBasicos';
 import { FacturaFormEconomicos } from './FacturaFormEconomicos';
@@ -301,6 +303,15 @@ export function FacturaForm({
     });
   }, [facturasExistentes, values.pacienteId, values.mesFacturado, values.anioFacturado, values.dias, values.cantidadKm, facturaIdEnEdicion, cupo]);
 
+  // Aviso no bloqueante: Factura A a un receptor que no es Responsable Inscripto -> ARCA la
+  // rechaza (RG 5616). El tipo de comprobante ya no se edita en el form (WU2), sale del default o
+  // de `obra_social.tipo_comprobante`, así que la operadora no tiene otra señal de que esa
+  // combinación va a fallar hasta el 422.
+  const advertenciaComprobante = advertenciaTipoComprobante({
+    tipoComprobante: values.tipoComprobante,
+    condicionIvaObraSocial: obraSocial?.condicionIva,
+  });
+
   // Validación de monto autorizado ANUAL (fix directo, corrección del usuario a mitad de la tarea
   // original — `Autorizacion.montoAutorizado` es un tope del AÑO, no de una sola factura): solo
   // aplica cuando hay `autorizacionId` elegido — facturas legacy sin autorización asociada no
@@ -514,6 +525,7 @@ export function FacturaForm({
           datosFactura={{ dias: values.dias, total: values.monto }}
         />
         <AlertaCupo resultado={resultadoCupo} />
+        {advertenciaComprobante !== null && <AlertaTipoComprobante condicion={advertenciaComprobante.condicion} />}
         {resultadoMonto !== null && <AlertaMontoAutorizado resultado={resultadoMonto} />}
         {resultadoCoherenciaPeriodo !== null && (
           <AlertaCoherenciaPeriodo

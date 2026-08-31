@@ -396,3 +396,35 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
     expect(screen.queryAllByLabelText(/^prestación$/i, { selector: 'input' })).toHaveLength(0);
   });
 });
+
+// RN-FA-06: una factura ya emitida es un documento fiscal — el formulario de edición se bloquea.
+// El botón "Editar" solo existe mientras la factura está en 'a-facturar'.
+describe('FacturaDetail — factura emitida no editable (RN-FA-06)', () => {
+  it('estado "a-facturar": el botón "Editar" está', () => {
+    renderDetail({ factura: facturaAFacturar({ estado: 'a-facturar' }) });
+    expect(screen.getByRole('button', { name: /editar/i })).toBeInTheDocument();
+  });
+
+  it('estado "facturado" con CAE: no hay botón "Editar", y avisa que es un documento fiscal', () => {
+    renderDetail({ factura: facturaAFacturar({ estado: 'facturado', cae: '75000000000001', cbteNro: 7, ptoVta: 1 }) });
+    expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/documento fiscal y no se puede modificar/i)).toBeInTheDocument();
+  });
+
+  it('estado "facturado" sin CAE (legacy): tampoco deja editar', () => {
+    renderDetail({ factura: facturaAFacturar({ estado: 'facturado' }) });
+    expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument();
+  });
+
+  it('estado "cobrado": no deja editar', () => {
+    renderDetail({ factura: facturaAFacturar({ estado: 'cobrado', cae: '75000000000001' }) });
+    expect(screen.queryByRole('button', { name: /editar/i })).not.toBeInTheDocument();
+  });
+
+  it('una factura emitida sigue mostrando el resumen de solo lectura, sin campos de formulario', () => {
+    renderDetail({ factura: facturaAFacturar({ estado: 'facturado', cae: '75000000000001', monto: 4500 }) });
+    expect(screen.getAllByText(/\$4\.500/).length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText(/cantidad de días/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/valor del km/i)).not.toBeInTheDocument();
+  });
+});

@@ -924,3 +924,37 @@ describe('FacturaForm — gateo de escritura', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 });
+
+// facturacion-aviso-tipo-comprobante: Factura A a un receptor que no es Responsable Inscripto ->
+// ARCA la rechaza (RG 5616). Como el tipo de comprobante ya no se edita en el form (WU2), el
+// aviso es la única señal antes del 422. No bloquea (mismo criterio que AlertaCupo).
+describe('FacturaForm — aviso de tipo de comprobante vs condición IVA del receptor', () => {
+  it('Factura A + obra social exenta: muestra el aviso de que ARCA la va a rechazar', () => {
+    renderForm({
+      initial: valoresIniciales({ tipoComprobante: 'A' }),
+      obrasSociales: [{ ...osecac, condicionIva: 'IVA_SUJETO_EXENTO' }],
+    });
+
+    const aviso = screen.getByText(/ARCA solo acepta Factura A cuando el receptor es Responsable Inscripto/i);
+    expect(aviso).toBeInTheDocument();
+    expect(aviso).toHaveTextContent(/IVA Sujeto Exento/i);
+  });
+
+  it('Factura A + obra social Responsable Inscripto: no muestra ningún aviso (triangulación)', () => {
+    renderForm({
+      initial: valoresIniciales({ tipoComprobante: 'A' }),
+      obrasSociales: [{ ...osecac, condicionIva: 'IVA_RESPONSABLE_INSCRIPTO' }],
+    });
+
+    expect(screen.queryByText(/ARCA solo acepta Factura A/i)).not.toBeInTheDocument();
+  });
+
+  it('Factura B + obra social exenta: no muestra el aviso (el receptor no se valida en B)', () => {
+    renderForm({
+      initial: valoresIniciales({ tipoComprobante: 'B' }),
+      obrasSociales: [{ ...osecac, condicionIva: 'IVA_SUJETO_EXENTO' }],
+    });
+
+    expect(screen.queryByText(/ARCA solo acepta Factura A/i)).not.toBeInTheDocument();
+  });
+});

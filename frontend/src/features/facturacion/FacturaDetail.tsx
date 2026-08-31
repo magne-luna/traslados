@@ -96,6 +96,12 @@ export function FacturaDetail({
     requerido: comprobanteYaEmitido && /comprobante\s+arca/i.test(tipo.tipo) ? false : tipo.requerido,
   }));
 
+  // RN-FA-06: una factura ya emitida (todo lo que no sea 'a-facturar') es un documento fiscal y no
+  // se modifica — la descripción y los importes quedaron congelados al emitir. Corregir el estado
+  // o registrar cobros tienen sus propios controles más abajo; lo que se bloquea es el formulario
+  // de edición de los datos de la factura.
+  const puedeEditar = factura !== null && factura.estado === 'a-facturar';
+
   const { cobros, loading: cobrosLoading, error: cobrosError, registrar, eliminar } = useCobros(cobroRepository, factura?.id ?? '');
 
   const paciente = factura ? pacientes.find((p) => p.id === factura.pacienteId) : undefined;
@@ -152,6 +158,12 @@ export function FacturaDetail({
   }
 
   async function handleSubmitForm(values: FacturaFormValues) {
+    // RN-FA-06: nunca persistir cambios sobre una factura ya emitida, aunque el formulario se
+    // hubiera abierto por otra vía. El alta (`factura === null`) siempre pasa.
+    if (factura !== null && !puedeEditar) {
+      setEditing(false);
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -201,9 +213,15 @@ export function FacturaDetail({
             onVerComprobante={factura.comprobantePdfUrl ? () => void verComprobante() : undefined}
           />
 
-          <div className="flex justify-end">
-            <Button variant="secondary" requiereEscritura onClick={() => setEditing(true)}>Editar</Button>
-          </div>
+          {puedeEditar ? (
+            <div className="flex justify-end">
+              <Button variant="secondary" requiereEscritura onClick={() => setEditing(true)}>Editar</Button>
+            </div>
+          ) : (
+            <p className="m-0 text-right font-body text-[12px] text-muted">
+              Esta factura ya fue emitida: es un documento fiscal y no se puede modificar.
+            </p>
+          )}
         </section>
       ) : (
         <Section label="Factura" title={factura ? nombrePaciente(paciente) : 'Nueva factura'}>

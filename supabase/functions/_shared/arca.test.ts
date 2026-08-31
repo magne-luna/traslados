@@ -50,7 +50,8 @@ Deno.test('Factura A: payload completo con receptor obligatorio y IVA 21 por den
   assertEquals(r.payload.docTipo, 'CUIT');
   assertEquals(r.payload.docNro, 30111111112);
   assertEquals(r.payload.condicionIva, 'IVA_RESPONSABLE_INSCRIPTO');
-  assertEquals(r.payload.servicio, { desde: '2026-03-01', hasta: '2026-03-31', vtoPago: '2026-06-01' });
+  // WSFE exige `aaaammdd` (sin guiones) — un ISO con guiones lo rechaza con la observación 10049.
+  assertEquals(r.payload.servicio, { desde: '20260301', hasta: '20260331', vtoPago: '20260601' });
   assertEquals(r.payload.environment, 'homologacion');
 });
 
@@ -86,10 +87,20 @@ Deno.test('Factura B sin CUIT válido: sin receptor, no falla', () => {
   assertEquals(r.payload.docNro, undefined);
 });
 
-Deno.test('sin fechaEstimadaCobro, vtoPago cae a fechaTope', () => {
+Deno.test('sin fechaEstimadaCobro, vtoPago cae a fechaTope (en aaaammdd)', () => {
   const r = construirPayloadArca(factura({ fechaEstimadaCobro: undefined }), OS_A, CONFIG);
   assert(r.ok);
-  assertEquals(r.payload.servicio?.vtoPago, '2026-03-31');
+  assertEquals(r.payload.servicio?.vtoPago, '20260331');
+});
+
+Deno.test('fechas de servicio salen en aaaammdd, no ISO (WSFE 10049)', () => {
+  const r = construirPayloadArca(
+    factura({ fechaInicial: '2026-08-01', fechaTope: '2026-08-31', fechaEstimadaCobro: '2026-09-30' }),
+    OS_A,
+    CONFIG,
+  );
+  assert(r.ok);
+  assertEquals(r.payload.servicio, { desde: '20260801', hasta: '20260831', vtoPago: '20260930' });
 });
 
 // --- parseRespuestaMiniserver ---
@@ -121,13 +132,36 @@ Deno.test('401 -> ARCA_IDENTIDAD con status 502', () => {
   assertEquals(r.status, 502);
 });
 
-Deno.test('422 ARCA_RECHAZO -> propaga observaciones y cbteNro, status 422', () => {
+Deno.test('422 ARCA_RECHAZO -> propaga observaciones (string) y cbteNro, status 422', () => {
   const r = parseRespuestaMiniserver(422, { aprobada: false, error: 'ARCA_RECHAZO', cbteNro: 46, observaciones: 'CAE denegado' });
   assert(!r.ok);
   assertEquals(r.codigo, 'ARCA_RECHAZO');
   assertEquals(r.status, 422);
   assertEquals(r.observaciones, 'CAE denegado');
   assertEquals(r.cbteNro, 46);
+});
+
+Deno.test('422 ARCA_RECHAZO -> observaciones como arreglo {code,msg} se aplana a texto legible', () => {
+  const r = parseRespuestaMiniserver(422, {
+    aprobada: false,
+    error: 'ARCA_RECHAZO',
+    cbteNro: 25,
+    observaciones: [
+      { code: 10015, msg: 'DocNro 30525889352 no se encuentra registrado en los padrones de AFIP.' },
+      { code: 10049, msg: 'FchServDesde formato invalido.' },
+    ],
+  });
+  assert(!r.ok);
+  assertEquals(
+    r.observaciones,
+    '[10015] DocNro 30525889352 no se encuentra registrado en los padrones de AFIP. · [10049] FchServDesde formato invalido.',
+  );
+});
+
+Deno.test('422 ARCA_RECHAZO -> sin observaciones utilizables queda undefined', () => {
+  const r = parseRespuestaMiniserver(422, { aprobada: false, error: 'ARCA_RECHAZO', cbteNro: 1, observaciones: [] });
+  assert(!r.ok);
+  assertEquals(r.observaciones, undefined);
 });
 
 Deno.test('400 / status desconocido -> ARCA_ERROR 502', () => {

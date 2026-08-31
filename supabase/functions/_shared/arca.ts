@@ -80,6 +80,14 @@ function soloDigitos(texto: string): string {
   return texto.replace(/\D/g, '');
 }
 
+// WSFE exige las fechas de servicio (`FchServDesde`/`FchServHasta`/`FchVtoPago`) en formato
+// `aaaammdd` — un `YYYY-MM-DD` con guiones lo rechaza con la observación 10049. Las fechas del
+// dominio (`fecha_init`, `fecha_tope`, `fecha_estimada_cobro`) son columnas DATE, siempre ISO;
+// esto solo saca los guiones. Verificado contra el miniserver en homologación (2026-08-31).
+function aaaammdd(fechaIso: string): string {
+  return fechaIso.slice(0, 10).replace(/-/g, '');
+}
+
 /** neto del único ítem según la regla de IVA configurada (design.md D4). */
 export function calcularNeto(monto: number, ivaCodigo: IvaCodigoArca, modo: IvaModo): number {
   if (modo === 'por_fuera' || ivaCodigo === 'IVA_0') return redondear2(monto);
@@ -116,9 +124,9 @@ export function construirPayloadArca(
     cbteTipo,
     items,
     servicio: {
-      desde: factura.fechaInicial,
-      hasta: factura.fechaTope,
-      vtoPago: factura.fechaEstimadaCobro ?? factura.fechaTope,
+      desde: aaaammdd(factura.fechaInicial),
+      hasta: aaaammdd(factura.fechaTope),
+      vtoPago: aaaammdd(factura.fechaEstimadaCobro ?? factura.fechaTope),
     },
   };
 
@@ -184,6 +192,27 @@ function numero(value: unknown): number | undefined {
 }
 
 /**
+ * Normaliza `observaciones` / `detalles` del miniserver a un string legible. WSFE las manda como
+ * arreglo de `{ code, msg }` (verificado en homologación: `[{ code: 10015, msg: "..." }]`); el
+ * miniserver reenvía ese arreglo tal cual. También se acepta un string plano (contrato viejo del
+ * README) y `{ Code, Msg }` con mayúscula por las dudas. `undefined` si no hay nada útil.
+ */
+function formatObservaciones(value: unknown): string | undefined {
+  if (typeof value === 'string') return value !== '' ? value : undefined;
+  if (!Array.isArray(value)) return undefined;
+  const partes = value
+    .map((item) => {
+      if (typeof item === 'string') return item;
+      if (!isRecord(item)) return '';
+      const code = item.code ?? item.Code;
+      const msg = texto(item.msg) ?? texto(item.Msg) ?? '';
+      return code !== undefined && code !== null ? `[${String(code)}] ${msg}`.trim() : msg;
+    })
+    .filter((parte) => parte !== '');
+  return partes.length > 0 ? partes.join(' · ') : undefined;
+}
+
+/**
  * `httpStatus` + cuerpo (ya parseado como JSON, o `undefined` si no era JSON) del miniserver ->
  * `ResultadoMiniserver`. El `status` de la salida es el que la Edge Function `facturar` debe
  * devolver al frontend (no el del miniserver): identidad y errores de transporte se exponen como
@@ -227,7 +256,7 @@ export function parseRespuestaMiniserver(httpStatus: number, body: unknown): Res
       status: 422,
       codigo: 'ARCA_RECHAZO',
       detalle: 'ARCA rechazó el comprobante.',
-      observaciones: texto(cuerpo.observaciones) ?? texto(cuerpo.detalles),
+      observaciones: formatObservaciones(cuerpo.observaciones) ?? formatObservaciones(cuerpo.detalles),
       cbteNro: numero(cuerpo.cbteNro),
     };
   }
