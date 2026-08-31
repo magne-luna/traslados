@@ -65,4 +65,14 @@ describe('useCobros', () => {
     expect(repository.remove).toHaveBeenCalledWith('cobro-1');
     expect(repository.listByFactura).toHaveBeenCalledTimes(2);
   });
+
+  it('no consulta cobros cuando la factura todavía no tiene id (alta nueva) — evita el 400 de PostgREST', async () => {
+    const repository = buildFakeRepository();
+    const { result } = renderHookConQuery(() => useCobros(repository, ''));
+
+    // ni siquiera arranca la consulta: sin id no hay cobros que traer
+    expect(repository.listByFactura).not.toHaveBeenCalled();
+    expect(result.current.loading).toBe(false);
+    expect(result.current.cobros).toEqual([]);
+  });
 });

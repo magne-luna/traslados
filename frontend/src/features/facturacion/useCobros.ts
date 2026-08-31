@@ -28,11 +28,15 @@ export function useCobros(repository: CobroRepository, facturaId: string): UseCo
   const queryClient = useQueryClient();
   const [errorMutacion, setErrorMutacion] = useState<string | null>(null);
 
+  // `facturaId` vacío = alta de una factura nueva (todavía sin id): no hay cobros que traer y
+  // `listByFactura('')` pega contra PostgREST como `facturas_id=eq.` → 400. `enabled` corta esa
+  // consulta; `isPending` sigue siendo `true` con la query deshabilitada, así que abajo se
+  // normaliza a `loading: false` cuando no hay `facturaId`.
+  const habilitada = facturaId !== '';
   const { data, isPending, error, refetch } = useQuery({
     queryKey: claves.cobros.deFactura(facturaId),
-    // Se consulta aun con `facturaId` vacío, igual que la implementación anterior: agregar
-    // `enabled` cambiaría el conteo de consultas que los tests existentes ya afirman.
     queryFn: () => repository.listByFactura(facturaId),
+    enabled: habilitada,
     staleTime: FRESCURA.transaccional,
   });
 
@@ -58,7 +62,7 @@ export function useCobros(repository: CobroRepository, facturaId: string): UseCo
 
   return {
     cobros: data ?? [],
-    loading: isPending,
+    loading: habilitada && isPending,
     error: aMensaje(error) ?? errorMutacion,
     recargar: useCallback(async () => {
       await refetch();
