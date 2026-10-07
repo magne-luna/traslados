@@ -559,7 +559,7 @@ describe('FacturaForm — wizard de alta', () => {
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
     expect(screen.getByRole('button', { name: /siguiente/i })).toBeEnabled();
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
-    expect(screen.getByLabelText(/valor del km/i)).toHaveValue(300);
+    expect(screen.getByLabelText(/valor del km/i)).toHaveValue('300');
   });
 
   it('en modo edición (initial con pacienteId) arranca directo en el Paso 3, con todo visible y sin navegación de pasos', () => {

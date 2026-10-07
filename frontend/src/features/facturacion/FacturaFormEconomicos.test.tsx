@@ -30,10 +30,10 @@ describe('FacturaFormEconomicos', () => {
   it('muestra vacíos (no "0") los campos numéricos en cero', () => {
     render(<FacturaFormEconomicos formId="f" values={valores()} errors={{}} set={vi.fn()} />);
 
-    expect(screen.getByLabelText('Valor del km')).toHaveValue(null);
-    expect(screen.getByLabelText('Cantidad de km')).toHaveValue(null);
-    expect(screen.getByLabelText('Cantidad de días')).toHaveValue(null);
-    expect(screen.getByLabelText('Total')).toHaveValue(null);
+    expect(screen.getByLabelText('Valor del km')).toHaveValue('');
+    expect(screen.getByLabelText('Cantidad de km')).toHaveValue('');
+    expect(screen.getByLabelText('Cantidad de días')).toHaveValue('');
+    expect(screen.getByLabelText('Total')).toHaveValue('');
   });
 
   it('al vaciar un campo lo guarda como 0', () => {
@@ -43,6 +43,42 @@ describe('FacturaFormEconomicos', () => {
     fireEvent.change(screen.getByLabelText('Cantidad de km'), { target: { value: '' } });
 
     expect(set).toHaveBeenCalledWith('cantidadKm', 0);
+  });
+
+  it('acepta decimales con coma o punto para valor del km y cantidad de km', () => {
+    const set = vi.fn();
+    render(<FacturaFormEconomicos formId="f" values={valores()} errors={{}} set={set} />);
+
+    const valorKm = screen.getByLabelText('Valor del km');
+    fireEvent.change(valorKm, { target: { value: '150,' } });
+    expect(valorKm).toHaveValue('150,');
+    fireEvent.change(valorKm, { target: { value: '150,75' } });
+    expect(valorKm).toHaveValue('150,75');
+    expect(set).toHaveBeenLastCalledWith('valorKm', 150.75);
+
+    const cantidadKm = screen.getByLabelText('Cantidad de km');
+    fireEvent.change(cantidadKm, { target: { value: '12.5' } });
+    expect(cantidadKm).toHaveValue('12.5');
+    expect(set).toHaveBeenLastCalledWith('cantidadKm', 12.5);
+  });
+
+  it('ignora lo que no es un número (letras, más de 2 decimales, decimales en días)', () => {
+    const set = vi.fn();
+    render(<FacturaFormEconomicos formId="f" values={valores()} errors={{}} set={set} />);
+
+    fireEvent.change(screen.getByLabelText('Valor del km'), { target: { value: '12a' } });
+    fireEvent.change(screen.getByLabelText('Valor del km'), { target: { value: '1,234' } });
+    fireEvent.change(screen.getByLabelText('Cantidad de días'), { target: { value: '2,5' } });
+
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('refleja el total cuando cambia desde afuera (ej. tras "Calcular")', () => {
+    const { rerender } = render(<FacturaFormEconomicos formId="f" values={valores()} errors={{}} set={vi.fn()} />);
+
+    rerender(<FacturaFormEconomicos formId="f" values={valores({ monto: 1234.5 })} errors={{}} set={vi.fn()} />);
+
+    expect(screen.getByLabelText('Total')).toHaveValue('1234,5');
   });
 
   it('"Calcular" completa el total con días × km × valor del km', () => {

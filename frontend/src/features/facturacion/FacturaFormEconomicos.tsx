@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { FacturaFormErrors } from './validateFacturaForm';
 import type { FacturaFormValues } from './FacturaForm';
 import { calcularTotalFactura } from '../../shared/lib/facturacion/totalesFactura';
@@ -33,18 +34,51 @@ interface FacturaFormEconomicosProps {
 // comprobante — el `<Select>` vuelve a ser siempre editable, mismo comportamiento que ya tenía la
 // modalidad "general" (retirado a su vez en WU2, ver arriba).
 //
-// Fix directo (sin change SDD): los inputs numéricos mostraban el `0` inicial, así que al
-// tipear quedaba "05"/"0150" y al borrar el campo volvía a aparecer el 0. Ahora un 0 se
-// muestra vacío (con placeholder "0") — `numeroOVacio`/`aNumero`. Y el total ya no se propone
-// solo al enfocar el campo (sólo funcionaba si estaba en 0): el botón "Calcular" lo completa
-// con `calcularTotalFactura` (días × km × valor del km) y el campo sigue editable a mano.
-function numeroOVacio(valor: number): number | '' {
-  return valor === 0 ? '' : valor;
+// Fix directo (sin change SDD): los inputs eran `type="number"` controlados con un `number`, así
+// que mostraban el 0 inicial ("05", no se podían vaciar) y no aceptaban decimales — al tipear
+// "150," o "150." el navegador entrega "" y el form lo pisaba con 0. Ahora `CampoNumerico` es un
+// input de texto con teclado decimal que guarda lo tipeado como texto, acepta coma o punto
+// (es-AR) y sólo propaga el número parseado. El total se completa con el botón "Calcular"
+// (`calcularTotalFactura`: días × km × valor del km) y sigue editable a mano.
+const PATRON_DECIMAL = /^\d*([.,]\d{0,2})?$/;
+const PATRON_ENTERO = /^\d*$/;
+
+function textoANumero(texto: string): number {
+  const numero = Number(texto.replace(',', '.'));
+  return Number.isFinite(numero) ? numero : 0;
 }
 
-function aNumero(texto: string): number {
-  const numero = Number(texto);
-  return Number.isFinite(numero) ? numero : 0;
+function numeroATexto(valor: number): string {
+  return valor === 0 ? '' : String(valor).replace('.', ',');
+}
+
+function CampoNumerico({ id, value, onChange, decimal = true }: { id: string; value: number; onChange: (valor: number) => void; decimal?: boolean }) {
+  const [texto, setTexto] = useState(() => numeroATexto(value));
+  const [valorPrevio, setValorPrevio] = useState(value);
+
+  // Si el valor cambia desde afuera (ej. "Calcular", carga en edición), se refleja en el texto
+  // — salvo que ya coincida con lo tipeado ("150," sigue siendo 150 y no se pisa).
+  if (value !== valorPrevio) {
+    setValorPrevio(value);
+    if (textoANumero(texto) !== value) setTexto(numeroATexto(value));
+  }
+
+  return (
+    <Input
+      id={id}
+      type="text"
+      inputMode={decimal ? 'decimal' : 'numeric'}
+      placeholder="0"
+      value={texto}
+      onChange={(e) => {
+        const nuevo = e.target.value.trim();
+        if (!(decimal ? PATRON_DECIMAL : PATRON_ENTERO).test(nuevo)) return;
+        setTexto(nuevo);
+        const numero = textoANumero(nuevo);
+        onChange(numero);
+      }}
+    />
+  );
 }
 
 export function FacturaFormEconomicos({ formId, values, errors, set }: FacturaFormEconomicosProps) {
@@ -55,17 +89,17 @@ export function FacturaFormEconomicos({ formId, values, errors, set }: FacturaFo
       </div>
 
       <Field label="Valor del km" htmlFor={`${formId}-valorkm`} error={errors.valorKm}>
-        <Input id={`${formId}-valorkm`} type="number" min={0} step="any" placeholder="0" value={numeroOVacio(values.valorKm)} onChange={(e) => set('valorKm', aNumero(e.target.value))} />
+        <CampoNumerico id={`${formId}-valorkm`} value={values.valorKm} onChange={(valor) => set('valorKm', valor)} />
       </Field>
       <Field label="Cantidad de km" htmlFor={`${formId}-cantkm`}>
-        <Input id={`${formId}-cantkm`} type="number" min={0} step="any" placeholder="0" value={numeroOVacio(values.cantidadKm)} onChange={(e) => set('cantidadKm', aNumero(e.target.value))} />
+        <CampoNumerico id={`${formId}-cantkm`} value={values.cantidadKm} onChange={(valor) => set('cantidadKm', valor)} />
       </Field>
       <Field label="Cantidad de días" htmlFor={`${formId}-dias`} error={errors.dias}>
-        <Input id={`${formId}-dias`} type="number" min={0} placeholder="0" value={numeroOVacio(values.dias)} onChange={(e) => set('dias', aNumero(e.target.value))} />
+        <CampoNumerico id={`${formId}-dias`} decimal={false} value={values.dias} onChange={(valor) => set('dias', valor)} />
       </Field>
       <Field label="Total" htmlFor={`${formId}-monto`}>
         <div className="flex items-center gap-sm">
-          <Input id={`${formId}-monto`} type="number" min={0} step="any" placeholder="0" value={numeroOVacio(values.monto)} onChange={(e) => set('monto', aNumero(e.target.value))} />
+          <CampoNumerico id={`${formId}-monto`} value={values.monto} onChange={(valor) => set('monto', valor)} />
           <Button
             variant="secondary"
             requiereEscritura
