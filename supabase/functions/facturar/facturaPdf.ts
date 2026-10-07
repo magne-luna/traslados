@@ -6,7 +6,9 @@
 // archivado no se regenera.
 
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'npm:pdf-lib@1.17.1';
+import qrcode from 'npm:qrcode-generator@1.4.4';
 import { codigoBarrasAfip } from './codigoBarrasAfip.ts';
+import { urlQrAfip } from './qrAfip.ts';
 
 export interface AsistenciaPdf {
   fecha: string;
@@ -56,6 +58,13 @@ const A4: [number, number] = [595.28, 841.89];
 const MARGEN = 40;
 const NEGRO = rgb(0.1, 0.1, 0.1);
 const GRIS = rgb(0.45, 0.45, 0.45);
+
+/** `YYYY-MM-DD` (o `aaaammdd`, como devuelve ARCA el vencimiento del CAE) -> `dd/mm/aaaa`.
+ * Cualquier otro texto (ej. "—") se deja como está. */
+export function fechaAr(fecha: string): string {
+  const m = /^(\d{4})-?(\d{2})-?(\d{2})$/.exec(fecha.trim());
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : fecha;
+}
 
 function money(n: number): string {
   return `$ ${n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -107,6 +116,28 @@ function linea(cur: Cursor): void {
   });
 }
 
+/** Dibuja el QR (módulos negros como rectángulos de pdf-lib, sin imágenes) en un cuadrado de
+ * `lado` puntos con la esquina superior izquierda en (x, yArriba). Nivel de corrección M. */
+function dibujarQr(page: PDFPage, contenido: string, pos: { x: number; yArriba: number; lado: number }): void {
+  const qr = qrcode(0, 'M');
+  qr.addData(contenido);
+  qr.make();
+  const modulos = qr.getModuleCount();
+  const tam = pos.lado / modulos;
+  for (let fila = 0; fila < modulos; fila++) {
+    for (let col = 0; col < modulos; col++) {
+      if (!qr.isDark(fila, col)) continue;
+      page.drawRectangle({
+        x: pos.x + col * tam,
+        y: pos.yArriba - (fila + 1) * tam,
+        width: tam,
+        height: tam,
+        color: NEGRO,
+      });
+    }
+  }
+}
+
 export async function construirFacturaPdf(datos: DatosFacturaPdf): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const page = doc.addPage(A4);
@@ -148,8 +179,8 @@ export async function construirFacturaPdf(datos: DatosFacturaPdf): Promise<Uint8
     font,
   });
   cur.y -= 12;
-  texto(cur, `Inicio de actividades: ${datos.emisor.inicioActividades}`, { size: 8, font, color: GRIS });
-  texto(cur, `Fecha de emisión: ${datos.comprobante.fechaEmision}`, {
+  texto(cur, `Inicio de actividades: ${fechaAr(datos.emisor.inicioActividades)}`, { size: 8, font, color: GRIS });
+  texto(cur, `Fecha de emisión: ${fechaAr(datos.comprobante.fechaEmision)}`, {
     x: A4[0] - MARGEN - 180,
     size: 9,
     font,
@@ -185,11 +216,11 @@ export async function construirFacturaPdf(datos: DatosFacturaPdf): Promise<Uint8
   texto(
     cur,
     `Período facturado: ${String(datos.comprobante.mesFacturado).padStart(2, '0')}/${datos.comprobante.anioFacturado}` +
-      `   Servicio: ${datos.comprobante.periodoDesde} a ${datos.comprobante.periodoHasta}`,
+      `   Servicio: ${fechaAr(datos.comprobante.periodoDesde)} a ${fechaAr(datos.comprobante.periodoHasta)}`,
     { size: 9, font },
   );
   cur.y -= 12;
-  texto(cur, `Vencimiento de pago: ${datos.comprobante.vtoPago}`, { size: 9, font });
+  texto(cur, `Vencimiento de pago: ${fechaAr(datos.comprobante.vtoPago)}`, { size: 9, font });
 
   cur.y -= 14;
   linea(cur);
@@ -224,9 +255,23 @@ export async function construirFacturaPdf(datos: DatosFacturaPdf): Promise<Uint8
   linea(cur);
   cur.y -= 16;
 
-  // --- CAE + código de barras -------------------------------------------------------
+  // --- CAE + código de barras + QR (RG 4892) ----------------------------------------
+  // El QR va a la derecha del bloque CAE/código de barras, alineado arriba con la línea del CAE.
+  const yInicioCae = cur.y;
+  const ladoQr = 84;
+  dibujarQr(page, urlQrAfip({
+    fechaEmision: datos.comprobante.fechaEmision,
+    cuitEmisor: datos.emisor.cuit,
+    ptoVta: datos.comprobante.ptoVta,
+    tipoComprobante: datos.comprobante.letra,
+    nroComprobante: datos.comprobante.nro,
+    importeTotal: datos.importes.total,
+    cuitReceptor: datos.receptor.cuit,
+    cae: datos.cae.valor,
+  }), { x: A4[0] - MARGEN - ladoQr, yArriba: yInicioCae + 10, lado: ladoQr });
+
   texto(cur, `CAE N°: ${datos.cae.valor}`, { size: 10, font: bold });
-  texto(cur, `Fecha vto. CAE: ${datos.cae.vencimiento}`, { x: A4[0] - MARGEN - 200, size: 9, font });
+  texto(cur, `Fecha vto. CAE: ${fechaAr(datos.cae.vencimiento)}`, { x: MARGEN + 220, size: 9, font });
   cur.y -= 16;
 
   const barras = codigoBarrasAfip({
@@ -246,8 +291,15 @@ export async function construirFacturaPdf(datos: DatosFacturaPdf): Promise<Uint8
   }
   cur.y -= 40;
   texto(cur, barras, { size: 7, font, color: GRIS });
+  cur.y -= 12;
+  texto(cur, 'Comprobante autorizado por ARCA. Verificá su validez escaneando el código QR.', {
+    size: 7,
+    font,
+    color: GRIS,
+  });
 
-  cur.y -= 22;
+  // El bloque termina debajo de lo que sea más bajo: el texto o el QR.
+  cur.y = Math.min(cur.y, yInicioCae + 10 - ladoQr) - 12;
   linea(cur);
   cur.y -= 16;
 
@@ -267,7 +319,7 @@ export async function construirFacturaPdf(datos: DatosFacturaPdf): Promise<Uint8
     }
     texto(
       cur,
-      `${a.fecha}   ${a.prestacion.slice(0, 24).padEnd(24)}   ${a.dependencia} -> ${a.retorno}`,
+      `${fechaAr(a.fecha)}   ${a.prestacion.slice(0, 24).padEnd(24)}   ${a.dependencia} -> ${a.retorno}`,
       { size: 8, font },
     );
     cur.y -= 11;

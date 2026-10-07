@@ -119,6 +119,18 @@ Deno.test('200 aprobada:true -> ok con CAE / vencimiento / cbteNro / importes', 
   assertEquals(r.datos.importes.total, 121000);
 });
 
+Deno.test('200 aprobada:true con caeVencimiento aaaammdd (como lo devuelve ARCA) -> se normaliza a ISO', () => {
+  const r = parseRespuestaMiniserver(200, {
+    aprobada: true,
+    cae: '75123456789012',
+    caeVencimiento: '20260910',
+    cbteNro: 45,
+    importes: { neto: 100000, iva: 21000, total: 121000 },
+  });
+  assert(r.ok);
+  assertEquals(r.datos.caeVencimiento, '2026-09-10');
+});
+
 Deno.test('200 aprobada:true pero sin CAE -> ARCA_ERROR', () => {
   const r = parseRespuestaMiniserver(200, { aprobada: true });
   assert(!r.ok);

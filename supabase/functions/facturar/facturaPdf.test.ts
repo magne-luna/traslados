@@ -1,6 +1,6 @@
 // deno test supabase/functions/facturar/facturaPdf.test.ts
 import { assertEquals, assert, assertStringIncludes } from 'jsr:@std/assert@1';
-import { construirFacturaPdf, winAnsi, type DatosFacturaPdf } from './facturaPdf.ts';
+import { construirFacturaPdf, fechaAr, winAnsi, type DatosFacturaPdf } from './facturaPdf.ts';
 
 Deno.test('winAnsi: la flecha U+2192 (rompía drawText) pasa a "->"', () => {
   assertEquals(winAnsi('Casa → Escuela'), 'Casa -> Escuela');
@@ -39,4 +39,15 @@ Deno.test('construirFacturaPdf: no rompe con flechas en la descripción / asiste
   assert(bytes.length > 0);
   const cabecera = new TextDecoder().decode(bytes.slice(0, 5));
   assertStringIncludes(cabecera, '%PDF-');
+});
+
+Deno.test('fechaAr: ISO y aaaammdd (vencimiento del CAE de ARCA) se muestran dd/mm/aaaa', () => {
+  assertEquals(fechaAr('2026-08-31'), '31/08/2026');
+  assertEquals(fechaAr('20260910'), '10/09/2026');
+  assertEquals(fechaAr('—'), '—');
+});
+
+Deno.test('construirFacturaPdf: con el vencimiento del CAE en aaaammdd (como lo devuelve ARCA) también genera el PDF con QR', async () => {
+  const bytes = await construirFacturaPdf({ ...DATOS, cae: { valor: DATOS.cae.valor, vencimiento: '20260910' } });
+  assert(bytes.length > 0);
 });

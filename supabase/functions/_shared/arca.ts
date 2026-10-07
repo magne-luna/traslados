@@ -213,6 +213,16 @@ function formatObservaciones(value: unknown): string | undefined {
 }
 
 /**
+ * ARCA devuelve el vencimiento del CAE (`CAEFchVto`) como `aaaammdd` — se normaliza a ISO
+ * `YYYY-MM-DD` para guardarlo (`cae_vencimiento date`) y mostrarlo igual que el resto de las
+ * fechas. Si ya viene con guiones (o en otro formato) se deja como está.
+ */
+export function fechaIsoDesdeArca(fecha: string): string {
+  const m = /^(\d{4})(\d{2})(\d{2})$/.exec(fecha.trim());
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : fecha;
+}
+
+/**
  * `httpStatus` + cuerpo (ya parseado como JSON, o `undefined` si no era JSON) del miniserver ->
  * `ResultadoMiniserver`. El `status` de la salida es el que la Edge Function `facturar` debe
  * devolver al frontend (no el del miniserver): identidad y errores de transporte se exponen como
@@ -223,7 +233,8 @@ export function parseRespuestaMiniserver(httpStatus: number, body: unknown): Res
 
   if (httpStatus === 200 && cuerpo.aprobada === true) {
     const cae = texto(cuerpo.cae);
-    const caeVencimiento = texto(cuerpo.caeVencimiento);
+    const caeVencimientoCrudo = texto(cuerpo.caeVencimiento);
+    const caeVencimiento = caeVencimientoCrudo ? fechaIsoDesdeArca(caeVencimientoCrudo) : undefined;
     const cbteNro = numero(cuerpo.cbteNro);
     const importes = isRecord(cuerpo.importes) ? cuerpo.importes : {};
     if (cae && caeVencimiento && cbteNro !== undefined) {
