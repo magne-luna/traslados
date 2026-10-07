@@ -45,15 +45,15 @@ describe('FacturaFormEconomicos', () => {
     expect(set).toHaveBeenCalledWith('cantidadKm', 0);
   });
 
-  it('acepta decimales con coma o punto para valor del km y cantidad de km', () => {
+  it('acepta decimales con punto; una coma tipeada se convierte en punto', () => {
     const set = vi.fn();
     render(<FacturaFormEconomicos formId="f" values={valores()} errors={{}} set={set} />);
 
     const valorKm = screen.getByLabelText('Valor del km');
     fireEvent.change(valorKm, { target: { value: '150,' } });
-    expect(valorKm).toHaveValue('150,');
-    fireEvent.change(valorKm, { target: { value: '150,75' } });
-    expect(valorKm).toHaveValue('150,75');
+    expect(valorKm).toHaveValue('150.');
+    fireEvent.change(valorKm, { target: { value: '150.75' } });
+    expect(valorKm).toHaveValue('150.75');
     expect(set).toHaveBeenLastCalledWith('valorKm', 150.75);
 
     const cantidadKm = screen.getByLabelText('Cantidad de km');
@@ -67,7 +67,7 @@ describe('FacturaFormEconomicos', () => {
     render(<FacturaFormEconomicos formId="f" values={valores()} errors={{}} set={set} />);
 
     fireEvent.change(screen.getByLabelText('Valor del km'), { target: { value: '12a' } });
-    fireEvent.change(screen.getByLabelText('Valor del km'), { target: { value: '1,234' } });
+    fireEvent.change(screen.getByLabelText('Valor del km'), { target: { value: '1.234' } });
     fireEvent.change(screen.getByLabelText('Cantidad de días'), { target: { value: '2,5' } });
 
     expect(set).not.toHaveBeenCalled();
@@ -78,7 +78,7 @@ describe('FacturaFormEconomicos', () => {
 
     rerender(<FacturaFormEconomicos formId="f" values={valores({ monto: 1234.5 })} errors={{}} set={vi.fn()} />);
 
-    expect(screen.getByLabelText('Total')).toHaveValue('1234,5');
+    expect(screen.getByLabelText('Total')).toHaveValue('1234.5');
   });
 
   it('"Calcular" completa el total con días × km × valor del km', () => {
