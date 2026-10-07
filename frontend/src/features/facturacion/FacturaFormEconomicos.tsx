@@ -1,7 +1,7 @@
 import type { FacturaFormErrors } from './validateFacturaForm';
 import type { FacturaFormValues } from './FacturaForm';
 import { calcularTotalFactura } from '../../shared/lib/facturacion/totalesFactura';
-import { FieldGroupHeading } from '../../design-system/components';
+import { Button, FieldGroupHeading } from '../../design-system/components';
 import { Field, Input } from '../../design-system/form';
 
 interface FacturaFormEconomicosProps {
@@ -32,6 +32,21 @@ interface FacturaFormEconomicosProps {
 // `sacar-prestadores`, design.md D2): sin `Prestador`, no hay ninguna fuente que fije el tipo de
 // comprobante — el `<Select>` vuelve a ser siempre editable, mismo comportamiento que ya tenía la
 // modalidad "general" (retirado a su vez en WU2, ver arriba).
+//
+// Fix directo (sin change SDD): los inputs numéricos mostraban el `0` inicial, así que al
+// tipear quedaba "05"/"0150" y al borrar el campo volvía a aparecer el 0. Ahora un 0 se
+// muestra vacío (con placeholder "0") — `numeroOVacio`/`aNumero`. Y el total ya no se propone
+// solo al enfocar el campo (sólo funcionaba si estaba en 0): el botón "Calcular" lo completa
+// con `calcularTotalFactura` (días × km × valor del km) y el campo sigue editable a mano.
+function numeroOVacio(valor: number): number | '' {
+  return valor === 0 ? '' : valor;
+}
+
+function aNumero(texto: string): number {
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? numero : 0;
+}
+
 export function FacturaFormEconomicos({ formId, values, errors, set }: FacturaFormEconomicosProps) {
   return (
     <>
@@ -40,22 +55,25 @@ export function FacturaFormEconomicos({ formId, values, errors, set }: FacturaFo
       </div>
 
       <Field label="Valor del km" htmlFor={`${formId}-valorkm`} error={errors.valorKm}>
-        <Input id={`${formId}-valorkm`} type="number" min={0} value={values.valorKm} onChange={(e) => set('valorKm', Number(e.target.value))} />
+        <Input id={`${formId}-valorkm`} type="number" min={0} step="any" placeholder="0" value={numeroOVacio(values.valorKm)} onChange={(e) => set('valorKm', aNumero(e.target.value))} />
       </Field>
       <Field label="Cantidad de km" htmlFor={`${formId}-cantkm`}>
-        <Input id={`${formId}-cantkm`} type="number" min={0} value={values.cantidadKm} onChange={(e) => set('cantidadKm', Number(e.target.value))} />
+        <Input id={`${formId}-cantkm`} type="number" min={0} step="any" placeholder="0" value={numeroOVacio(values.cantidadKm)} onChange={(e) => set('cantidadKm', aNumero(e.target.value))} />
       </Field>
       <Field label="Cantidad de días" htmlFor={`${formId}-dias`} error={errors.dias}>
-        <Input id={`${formId}-dias`} type="number" min={0} value={values.dias} onChange={(e) => set('dias', Number(e.target.value))} />
+        <Input id={`${formId}-dias`} type="number" min={0} placeholder="0" value={numeroOVacio(values.dias)} onChange={(e) => set('dias', aNumero(e.target.value))} />
       </Field>
       <Field label="Total" htmlFor={`${formId}-monto`}>
-        <Input
-          id={`${formId}-monto`}
-          type="number"
-          value={values.monto}
-          onChange={(e) => set('monto', Number(e.target.value))}
-          onFocus={() => { if (values.monto === 0) set('monto', calcularTotalFactura({ valorKm: values.valorKm, cantidadKm: values.cantidadKm, dias: values.dias })); }}
-        />
+        <div className="flex items-center gap-sm">
+          <Input id={`${formId}-monto`} type="number" min={0} step="any" placeholder="0" value={numeroOVacio(values.monto)} onChange={(e) => set('monto', aNumero(e.target.value))} />
+          <Button
+            variant="secondary"
+            requiereEscritura
+            onClick={() => set('monto', calcularTotalFactura({ valorKm: values.valorKm, cantidadKm: values.cantidadKm, dias: values.dias }))}
+          >
+            Calcular
+          </Button>
+        </div>
       </Field>
     </>
   );
