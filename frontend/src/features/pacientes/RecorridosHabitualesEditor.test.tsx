@@ -115,7 +115,7 @@ describe('RecorridosHabitualesEditor', () => {
 
     await userEvent.selectOptions(screen.getByLabelText(/dirección inicial/i), 'd-1');
     await userEvent.selectOptions(screen.getByLabelText(/dirección final/i), 'd-2');
-    await userEvent.selectOptions(screen.getByLabelText(/día de la semana/i), 'martes');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Martes' }));
     fireEvent.change(screen.getByLabelText(/hora/i), { target: { value: '09:15' } });
     fireEvent.click(screen.getByRole('button', { name: /agregar destino habitual/i }));
 
@@ -128,6 +128,81 @@ describe('RecorridosHabitualesEditor', () => {
       hora: '09:15',
     });
     expect(await screen.findByText(/Martes, 09:15/)).toBeInTheDocument();
+  });
+
+  it('alta con varios días: crea un destino por día, en orden de la semana', async () => {
+    const create = vi.fn(async (data: Parameters<RecorridoHabitualRepository['create']>[0]) => ({
+      ...data,
+      id: `id-${data.diaSemana}`,
+    }));
+    render(
+      <RecorridosHabitualesEditor
+        pacienteId="p-1"
+        direcciones={[direccionDomicilio, direccionEscuela]}
+        repository={fakeRepository({ list: async () => [], create })}
+      />,
+    );
+
+    await screen.findByText(/no hay destinos habituales/i);
+    await userEvent.selectOptions(screen.getByLabelText(/dirección inicial/i), 'd-1');
+    await userEvent.selectOptions(screen.getByLabelText(/dirección final/i), 'd-2');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Viernes' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Lunes' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Miércoles' }));
+    fireEvent.change(screen.getByLabelText(/hora/i), { target: { value: '08:00' } });
+    fireEvent.click(screen.getByRole('button', { name: /agregar destino habitual/i }));
+
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(3));
+    expect(create.mock.calls.map(([data]) => data.diaSemana)).toEqual(['lunes', 'miercoles', 'viernes']);
+    expect(await screen.findByText(/Lunes, 08:00/)).toBeInTheDocument();
+    expect(screen.getByText(/Miércoles, 08:00/)).toBeInTheDocument();
+    expect(screen.getByText(/Viernes, 08:00/)).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Lunes' })).not.toBeChecked();
+  });
+
+  it('sin ningún día marcado no llama al repository', async () => {
+    const create = vi.fn(fakeRepository().create);
+    render(
+      <RecorridosHabitualesEditor
+        pacienteId="p-1"
+        direcciones={[direccionDomicilio, direccionEscuela]}
+        repository={fakeRepository({ list: async () => [], create })}
+      />,
+    );
+
+    await screen.findByText(/no hay destinos habituales/i);
+    await userEvent.selectOptions(screen.getByLabelText(/dirección inicial/i), 'd-1');
+    await userEvent.selectOptions(screen.getByLabelText(/dirección final/i), 'd-2');
+    fireEvent.change(screen.getByLabelText(/hora/i), { target: { value: '08:00' } });
+    await userEvent.click(screen.getByRole('button', { name: /agregar destino habitual/i }));
+
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('si falla un día a mitad de camino, los ya creados quedan en la lista y se muestra el error', async () => {
+    const create = vi.fn(async (data: Parameters<RecorridoHabitualRepository['create']>[0]) => {
+      if (data.diaSemana === 'martes') throw new Error('No se pudo guardar el destino habitual.');
+      return { ...data, id: `id-${data.diaSemana}` };
+    });
+    render(
+      <RecorridosHabitualesEditor
+        pacienteId="p-1"
+        direcciones={[direccionDomicilio, direccionEscuela]}
+        repository={fakeRepository({ list: async () => [], create })}
+      />,
+    );
+
+    await screen.findByText(/no hay destinos habituales/i);
+    await userEvent.selectOptions(screen.getByLabelText(/dirección inicial/i), 'd-1');
+    await userEvent.selectOptions(screen.getByLabelText(/dirección final/i), 'd-2');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Lunes' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Martes' }));
+    fireEvent.change(screen.getByLabelText(/hora/i), { target: { value: '08:00' } });
+    await userEvent.click(screen.getByRole('button', { name: /agregar destino habitual/i }));
+
+    expect(await screen.findByText('No se pudo guardar el destino habitual.')).toBeInTheDocument();
+    expect(screen.getByText(/Lunes, 08:00/)).toBeInTheDocument();
+    expect(screen.queryByText(/Martes, 08:00/)).not.toBeInTheDocument();
   });
 
   it('un create() sin dirección/hora elegida no llama al repository (validación mínima)', async () => {
@@ -163,6 +238,7 @@ describe('RecorridosHabitualesEditor', () => {
     await screen.findByText(/no hay destinos habituales/i);
     await userEvent.selectOptions(screen.getByLabelText(/dirección inicial/i), 'd-1');
     await userEvent.selectOptions(screen.getByLabelText(/dirección final/i), 'd-2');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Lunes' }));
     fireEvent.change(screen.getByLabelText(/hora/i), { target: { value: '09:15' } });
     await userEvent.click(screen.getByRole('button', { name: /agregar destino habitual/i }));
 

@@ -52,7 +52,7 @@ export function RecorridosHabitualesEditor({ pacienteId, direcciones, repository
 
   const [direccionInicialId, setDireccionInicialId] = useState('');
   const [direccionFinalId, setDireccionFinalId] = useState('');
-  const [diaSemana, setDiaSemana] = useState<DiaSemana>('lunes');
+  const [diasSemana, setDiasSemana] = useState<DiaSemana[]>([]);
   const [hora, setHora] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -81,27 +81,39 @@ export function RecorridosHabitualesEditor({ pacienteId, direcciones, repository
   function limpiarForm() {
     setDireccionInicialId('');
     setDireccionFinalId('');
-    setDiaSemana('lunes');
+    setDiasSemana([]);
     setHora('');
     setFormError(null);
   }
 
-  async function handleSubmit() {
-    if (!direccionInicialId || !direccionFinalId || !hora) return;
+  function toggleDia(dia: DiaSemana) {
+    setDiasSemana((prev) => (prev.includes(dia) ? prev.filter((d) => d !== dia) : [...prev, dia]));
+  }
 
-    const nuevo: NuevoRecorridoHabitual = {
-      pacienteId,
-      direccionInicialId,
-      direccionFinalId,
-      diaSemana,
-      hora,
-    };
+  // Fix directo (sin change SDD): el alta permitía un solo día por destino — para "escuela de
+  // lunes a viernes" había que cargarlo 5 veces. Ahora se marcan varios días y se crea un
+  // `RecorridoHabitual` por día (la tabla `pacientes.recorridos` sigue siendo una fila por
+  // `dia_semana`, como el docx — no cambia el modelo). Se crean en orden de la semana y de a uno:
+  // si uno falla, los ya creados quedan en la lista y se muestra el error.
+  async function handleSubmit() {
+    if (!direccionInicialId || !direccionFinalId || !hora || diasSemana.length === 0) return;
+
+    const diasOrdenados = DIA_SEMANA_OPTIONS.filter((dia) => diasSemana.includes(dia));
 
     setSubmitting(true);
     setFormError(null);
     try {
-      const creado = await repository.create(nuevo);
-      setRecorridos((prev) => [...prev, creado]);
+      for (const diaSemana of diasOrdenados) {
+        const nuevo: NuevoRecorridoHabitual = {
+          pacienteId,
+          direccionInicialId,
+          direccionFinalId,
+          diaSemana,
+          hora,
+        };
+        const creado = await repository.create(nuevo);
+        setRecorridos((prev) => [...prev, creado]);
+      }
       limpiarForm();
     } catch (err) {
       setFormError(toErrorMessage(err));
@@ -187,7 +199,7 @@ export function RecorridosHabitualesEditor({ pacienteId, direcciones, repository
           <fieldset disabled={!puedeEscribir} className="m-0 flex flex-col gap-md border-0 border-t border-border p-0 pt-md">
             <p className="m-0 font-body text-[14px] font-bold text-ink">Agregar destino habitual</p>
 
-            <div className="grid grid-cols-1 gap-md md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-md md:grid-cols-3">
               <Field label="Dirección inicial" htmlFor={`${formId}-inicial`}>
                 <Select
                   id={`${formId}-inicial`}
@@ -222,22 +234,6 @@ export function RecorridosHabitualesEditor({ pacienteId, direcciones, repository
                 </Select>
               </Field>
 
-              <Field label="Día de la semana" htmlFor={`${formId}-dia`}>
-                <Select
-                  id={`${formId}-dia`}
-                  density="comfortable"
-                  placeholderTone="faint"
-                  value={diaSemana}
-                  onChange={(event) => setDiaSemana(event.target.value as DiaSemana)}
-                >
-                  {DIA_SEMANA_OPTIONS.map((opcion) => (
-                    <option key={opcion} value={opcion}>
-                      {DIA_SEMANA_LABELS[opcion]}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-
               <Field label="Hora" htmlFor={`${formId}-hora`}>
                 <Input
                   id={`${formId}-hora`}
@@ -249,6 +245,28 @@ export function RecorridosHabitualesEditor({ pacienteId, direcciones, repository
                 />
               </Field>
             </div>
+
+            <fieldset className="m-0 flex flex-col gap-xs border-0 p-0">
+              <legend className="mb-xs p-0 font-body text-[13px] font-semibold text-ink">Días de la semana</legend>
+              <div className="flex flex-wrap gap-sm">
+                {DIA_SEMANA_OPTIONS.map((dia) => {
+                  const seleccionado = diasSemana.includes(dia);
+                  return (
+                    <label
+                      key={dia}
+                      className={`cursor-pointer rounded-sm border px-md py-sm font-body text-[13px] transition-colors ${
+                        seleccionado
+                          ? 'border-primary bg-primary-softer/30 font-semibold text-primary'
+                          : 'border-border bg-surface text-text hover:border-border-strong'
+                      }`}
+                    >
+                      {DIA_SEMANA_LABELS[dia]}
+                      <input type="checkbox" className="sr-only" checked={seleccionado} onChange={() => toggleDia(dia)} />
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
 
             <div className="flex justify-end">
               <Button variant="primary" onClick={handleSubmit} disabled={submitting}>
