@@ -91,6 +91,7 @@ function parseDatosTraslado(value: Record<string, unknown>): DatosTraslado | und
     horarioSalida: readOptionalString(value, 'horarioSalida'),
     kmIda: readOptionalNumber(value, 'kmIda'),
     kmVuelta: readOptionalNumber(value, 'kmVuelta'),
+    valorKm: readOptionalNumber(value, 'valorKm'),
     diasSemana: parseDiasSemana(value.diasSemana),
     diasMensuales: readOptionalNumber(value, 'diasMensuales'),
   };
@@ -249,6 +250,7 @@ export interface CrearPresupuestoPayload {
   horarioSalida?: string;
   kmIda?: number;
   kmVuelta?: number;
+  valorKm?: number;
   diasSemana?: DiaSemana[];
   diasMensuales?: number;
 }
@@ -294,6 +296,7 @@ export function toCrearPresupuestoPayload(nuevo: NuevoPresupuesto): CrearPresupu
     if (datosTraslado.horarioSalida !== undefined) payload.horarioSalida = datosTraslado.horarioSalida;
     if (datosTraslado.kmIda !== undefined) payload.kmIda = datosTraslado.kmIda;
     if (datosTraslado.kmVuelta !== undefined) payload.kmVuelta = datosTraslado.kmVuelta;
+    if (datosTraslado.valorKm !== undefined) payload.valorKm = datosTraslado.valorKm;
     payload.diasSemana = datosTraslado.diasSemana;
     if (datosTraslado.diasMensuales !== undefined) payload.diasMensuales = datosTraslado.diasMensuales;
   }
@@ -347,6 +350,7 @@ export function toActualizarPresupuestoPayload(cambios: ActualizacionPresupuesto
     if (datosTraslado.horarioSalida !== undefined) payload.horarioSalida = datosTraslado.horarioSalida;
     if (datosTraslado.kmIda !== undefined) payload.kmIda = datosTraslado.kmIda;
     if (datosTraslado.kmVuelta !== undefined) payload.kmVuelta = datosTraslado.kmVuelta;
+    if (datosTraslado.valorKm !== undefined) payload.valorKm = datosTraslado.valorKm;
     payload.diasSemana = datosTraslado.diasSemana;
     if (datosTraslado.diasMensuales !== undefined) payload.diasMensuales = datosTraslado.diasMensuales;
   }

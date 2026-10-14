@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { AvisoModeloDatos, Button, CamposSoloLectura, FieldGroupHeading, InlineIcon } from '../../design-system/components';
 import { Alert, EmptyState } from '../../design-system/feedback';
-import { Field, FieldError, Select, Input } from '../../design-system/form';
+import { CampoNumerico, Field, FieldError, Select, Input } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import { iconSubirArchivo } from '../../design-system/icons';
 import type { ArchivoAdjunto, DatosTraslado, PresupuestoLinea } from '../../shared/types/presupuesto';
@@ -9,7 +9,7 @@ import type { PacienteResumen } from '../../shared/types/paciente';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 import type { DiaSemana, RecorridoHabitual } from '../../shared/types/recorridoHabitual';
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
-import { calcularKmMensuales, calcularViajesMensuales } from '../../shared/lib/presupuestos/calculoViajes';
+import { calcularKmMensuales, calcularMontoMensualEstimado, calcularViajesMensuales } from '../../shared/lib/presupuestos/calculoViajes';
 import { construirDatosTrasladoDesdeRecorridos } from './construirDatosTrasladoDesdeRecorridos';
 import { PresupuestoLineasEditor, type LineaPresupuesto } from './PresupuestoLineasEditor';
 import { seleccionables } from '../../shared/lib/seleccionables';
@@ -715,29 +715,27 @@ export function PresupuestoForm({
               />
             </Field>
             <Field label="Km (ida)" htmlFor={`${formId}-km-ida`}>
-              <Input
+              <CampoNumerico
                 id={`${formId}-km-ida`}
-                type="number"
-                min={0}
-                step="0.01"
-                density="comfortable"
-                value={datosTraslado.kmIda ?? ''}
-                onChange={(event) =>
-                  setDatosTraslado({ kmIda: event.target.value === '' ? undefined : Number(event.target.value) })
-                }
+                value={datosTraslado.kmIda ?? 0}
+                onChange={(valor) => setDatosTraslado({ kmIda: valor === 0 ? undefined : valor })}
               />
             </Field>
             <Field label="Km (vuelta)" htmlFor={`${formId}-km-vuelta`}>
-              <Input
+              <CampoNumerico
                 id={`${formId}-km-vuelta`}
-                type="number"
-                min={0}
-                step="0.01"
-                density="comfortable"
-                value={datosTraslado.kmVuelta ?? ''}
-                onChange={(event) =>
-                  setDatosTraslado({ kmVuelta: event.target.value === '' ? undefined : Number(event.target.value) })
-                }
+                value={datosTraslado.kmVuelta ?? 0}
+                onChange={(valor) => setDatosTraslado({ kmVuelta: valor === 0 ? undefined : valor })}
+              />
+            </Field>
+            {/* Precio del km del formulario de la obra social (Andrea, 2026-10-07). Es lo
+                presupuestado: facturación sigue cargando el suyo, porque la obra social puede
+                autorizar menos. */}
+            <Field label="Valor del km" htmlFor={`${formId}-valor-km`}>
+              <CampoNumerico
+                id={`${formId}-valor-km`}
+                value={datosTraslado.valorKm ?? 0}
+                onChange={(valor) => setDatosTraslado({ valorKm: valor === 0 ? undefined : valor })}
               />
             </Field>
             <Field label="Días mensuales negociados con la obra social" htmlFor={`${formId}-dias-mensuales`}>
@@ -752,6 +750,16 @@ export function PresupuestoForm({
                 }
               />
             </Field>
+          </div>
+
+          {/* ⚠️ TEMPORAL — sacar cuando Enzo aplique la migración 20261014130000 y deploye la edge
+              function `presupuestos` (docs/PENDIENTE-ENZO.md). Hasta entonces la edge function
+              vieja ignora `valorKm` y el valor se pierde al guardar, sin error. */}
+          <div className="mt-md">
+            <Alert tone="warning" role="note" title="Valor del km: todavía no se guarda.">
+              Se puede cargar para ver el monto mensual estimado, pero al guardar el presupuesto el
+              valor del km se pierde. Falta activarlo en el servidor.
+            </Alert>
           </div>
 
           <div className="mt-md flex flex-col gap-xs">
@@ -782,6 +790,14 @@ export function PresupuestoForm({
             <span className="font-body text-[13px] font-semibold text-ink">Viajes / km mensuales (calculado)</span>
             <span className="font-mono text-[14px] font-bold text-ink">
               {viajesYKmMensuales ? `${viajesYKmMensuales.viajes} viajes · ${viajesYKmMensuales.km} km` : '—'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-sm">
+            <span className="font-body text-[13px] font-semibold text-ink">Monto mensual estimado (calculado)</span>
+            <span className="font-mono text-[14px] font-bold text-ink">
+              {viajesYKmMensuales && datosTraslado.valorKm !== undefined
+                ? `$${calcularMontoMensualEstimado({ kmMensuales: viajesYKmMensuales.km, valorKm: datosTraslado.valorKm }).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : '—'}
             </span>
           </div>
         </div>

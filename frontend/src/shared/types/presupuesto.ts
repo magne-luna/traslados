@@ -110,6 +110,10 @@ export interface DatosTraslado {
    * su valor según CD/SD (Open Question 1, D3). */
   kmIda?: number;
   kmVuelta?: number;
+  /** Precio del km que figura en el formulario de la obra social (Andrea, 2026-10-07). Es el valor
+   * PRESUPUESTADO: la obra social puede autorizar menos, así que facturación sigue cargando su
+   * propio `valorKm` a mano (`factura.ts`). */
+  valorKm?: number;
   /**
    * Conjunto de días de la semana (`DiaSemana[]`, unión reusada de `recorridoHabitual.ts`, nunca la
    * entidad). Requerido (no opcional en esta interfaz) porque la columna real es

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calcularKmMensuales, calcularViajesMensuales } from './calculoViajes';
+import { calcularKmMensuales, calcularMontoMensualEstimado, calcularViajesMensuales } from './calculoViajes';
 
 // Función pura (tasks.md 4.1-4.6, design.md D4): el cálculo de viajes/km mensuales no existía en el
 // repo (`rg -i viaje` no devolvía lógica, solo prosa) — no es un fix de bug, es la primera
@@ -75,5 +75,21 @@ describe('calcularKmMensuales', () => {
     expect(() =>
       calcularKmMensuales({ diasMensuales: -5, tieneVuelta: true, kmIda: 10, kmVuelta: 12 }),
     ).toThrow(RangeError);
+  });
+});
+
+// Andrea (2026-10-07): "mejor menos que más" — se trunca a 2 decimales, nunca se redondea para arriba.
+describe('calcularMontoMensualEstimado', () => {
+  it('km mensuales × valor del km', () => {
+    expect(calcularMontoMensualEstimado({ kmMensuales: 264, valorKm: 1000 })).toBe(264000);
+  });
+
+  it('trunca a 2 decimales en vez de redondear', () => {
+    // 12.5 × 905.31 = 11316.375 → 11316.37 (redondeando daría 11316.38)
+    expect(calcularMontoMensualEstimado({ kmMensuales: 12.5, valorKm: 905.31 })).toBe(11316.37);
+  });
+
+  it('no se pasa por error de coma flotante (0.1 × 3 = 0.30000000000000004)', () => {
+    expect(calcularMontoMensualEstimado({ kmMensuales: 3, valorKm: 0.1 })).toBe(0.3);
   });
 });

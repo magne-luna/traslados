@@ -73,6 +73,9 @@ interface PresupuestoRow {
   horario_salida: string | null;
   km_ida: string | null;
   km_vuelta: string | null;
+  // Precio del km presupuestado (20261014130000). Opcional: si la migración todavía no se aplicó,
+  // `select('*')` no trae la clave y la respuesta sigue funcionando.
+  valor_km?: string | null;
   dias_semana: string[];
   dias_mensuales: number | null;
 }
@@ -118,6 +121,7 @@ interface PresupuestoInput {
   horarioSalida?: string;
   kmIda?: number;
   kmVuelta?: number;
+  valorKm?: number;
   /** `TEXT[]` en la base (D2: "la cerradura la impone el tipo, no la base") -- se pasa tal cual,
    * sin parsear/validar server-side; el type-guard vive en el mapping del frontend (Fase 5). */
   diasSemana?: string[];
@@ -165,6 +169,7 @@ function toApi(row: PresupuestoRow, lineas: PresupuestoLineaInput[]) {
     horarioSalida: row.horario_salida ?? undefined,
     kmIda: row.km_ida === null ? undefined : Number(row.km_ida),
     kmVuelta: row.km_vuelta === null ? undefined : Number(row.km_vuelta),
+    valorKm: row.valor_km == null ? undefined : Number(row.valor_km),
     // dias_semana es NOT NULL DEFAULT '{}': nunca null, se pasa tal cual (D2).
     diasSemana: row.dias_semana,
     diasMensuales: row.dias_mensuales ?? undefined,
@@ -214,6 +219,7 @@ function toDb(input: PresupuestoInput): Record<string, unknown> {
   if (input.horarioSalida !== undefined) row.horario_salida = input.horarioSalida;
   if (input.kmIda !== undefined) row.km_ida = input.kmIda;
   if (input.kmVuelta !== undefined) row.km_vuelta = input.kmVuelta;
+  if (input.valorKm !== undefined) row.valor_km = input.valorKm;
   if (input.diasSemana !== undefined) row.dias_semana = input.diasSemana;
   if (input.diasMensuales !== undefined) row.dias_mensuales = input.diasMensuales;
   return row;

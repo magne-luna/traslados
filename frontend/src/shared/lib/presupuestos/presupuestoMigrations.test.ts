@@ -349,3 +349,24 @@ describe('migración 20260822181000_presupuesto_rpc_autorizacion_primer_mes.sql'
     expect(ocurrenciasNoConvertir).toBe(2);
   });
 });
+
+describe('migración 20261014130000_presupuesto_valor_km.sql', () => {
+  const NOMBRE = '20261014130000_presupuesto_valor_km.sql';
+
+  it('agrega la columna valor_km a facturacion.presupuesto', () => {
+    const sql = quitarComentariosYStrings(leerMigracion(NOMBRE));
+    expect(sql).toMatch(/ALTER TABLE facturacion\.presupuesto\s+ADD COLUMN IF NOT EXISTS valor_km NUMERIC/i);
+  });
+
+  it('las dos RPC de alta insertan valor_km', () => {
+    const sql = quitarComentariosYStrings(leerMigracion(NOMBRE));
+    expect(sql.match(/km_vuelta,\s*valor_km/g)).toHaveLength(2);
+    expect(sql).toMatch(/p_presupuesto ->> ''\)::numeric/);
+  });
+
+  it('las RPC siguen siendo SECURITY INVOKER (nunca DEFINER)', () => {
+    const sql = quitarComentariosYStrings(leerMigracion(NOMBRE));
+    expect(sql.match(/SECURITY INVOKER/g)).toHaveLength(2);
+    expect(sql).not.toMatch(/SECURITY DEFINER/);
+  });
+});

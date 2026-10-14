@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef, ReactElement, ReactNode } from 'react';
+import { useState, type ComponentPropsWithoutRef, type ReactElement, type ReactNode } from 'react';
 import { InlineIcon } from './components';
 import { iconFlechaAbajo } from './icons';
 
@@ -210,5 +210,53 @@ export function Field({
       )}
       {error && <FieldError id={errorIdFor(htmlFor) as string}>{error}</FieldError>}
     </div>
+  );
+}
+
+// Fix directo (sin change SDD): los inputs eran `type="number"` controlados con un `number`, así
+// que mostraban el 0 inicial ("05", no se podían vaciar) y no aceptaban decimales — al tipear
+// "150," o "150." el navegador entrega "" y el form lo pisaba con 0. Ahora `CampoNumerico` es un
+// input de texto con teclado decimal que guarda lo tipeado como texto y sólo propaga el número
+// parseado. El separador decimal es el punto (pedido del usuario 2026-10-07): una coma tipeada
+// (teclado numérico es-AR) se convierte en punto al vuelo. El total se completa con el botón "Calcular"
+// (`calcularTotalFactura`: días × km × valor del km) y sigue editable a mano.
+const PATRON_DECIMAL = /^\d*(\.\d{0,2})?$/;
+const PATRON_ENTERO = /^\d*$/;
+
+function textoANumero(texto: string): number {
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? numero : 0;
+}
+
+function numeroATexto(valor: number): string {
+  return valor === 0 ? '' : String(valor);
+}
+
+export function CampoNumerico({ id, value, onChange, decimal = true }: { id: string; value: number; onChange: (valor: number) => void; decimal?: boolean }) {
+  const [texto, setTexto] = useState(() => numeroATexto(value));
+  const [valorPrevio, setValorPrevio] = useState(value);
+
+  // Si el valor cambia desde afuera (ej. "Calcular", carga en edición), se refleja en el texto
+  // — salvo que ya coincida con lo tipeado ("150," sigue siendo 150 y no se pisa).
+  if (value !== valorPrevio) {
+    setValorPrevio(value);
+    if (textoANumero(texto) !== value) setTexto(numeroATexto(value));
+  }
+
+  return (
+    <Input
+      id={id}
+      type="text"
+      inputMode={decimal ? 'decimal' : 'numeric'}
+      placeholder="0"
+      value={texto}
+      onChange={(e) => {
+        const nuevo = e.target.value.trim().replace(',', '.');
+        if (!(decimal ? PATRON_DECIMAL : PATRON_ENTERO).test(nuevo)) return;
+        setTexto(nuevo);
+        const numero = textoANumero(nuevo);
+        onChange(numero);
+      }}
+    />
   );
 }

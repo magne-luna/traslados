@@ -565,3 +565,27 @@ describe('toActualizarPresupuestoPayload — lineas (2.7)', () => {
     expect('lineas' in payload).toBe(false);
   });
 });
+
+// valor-km-presupuesto (reunión con Andrea 2026-10-07): el formulario de la obra social pide el
+// precio del km además de los km — vive en el mismo bloque de datos de traslado.
+describe('datosTraslado.valorKm', () => {
+  it('parsePresupuestoApi lo lee del body plano', () => {
+    const presupuesto = parsePresupuestoApi(presupuestoApiCompleto({ diasSemana: [], valorKm: 905.31 }));
+
+    expect(presupuesto?.datosTraslado?.valorKm).toBe(905.31);
+  });
+
+  it('viaja en el alta y en la edición cuando está cargado', () => {
+    const datosTraslado = { diasSemana: [], valorKm: 905.31 };
+
+    expect(toCrearPresupuestoPayload(nuevoPresupuestoMinimo({ datosTraslado })).valorKm).toBe(905.31);
+    expect(toActualizarPresupuestoPayload({ datosTraslado }).valorKm).toBe(905.31);
+  });
+
+  it('no viaja si no está cargado', () => {
+    const datosTraslado = { diasSemana: [] };
+
+    expect('valorKm' in toCrearPresupuestoPayload(nuevoPresupuestoMinimo({ datosTraslado }))).toBe(false);
+    expect('valorKm' in toActualizarPresupuestoPayload({ datosTraslado })).toBe(false);
+  });
+});

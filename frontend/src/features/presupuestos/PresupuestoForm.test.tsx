@@ -835,3 +835,49 @@ describe('PresupuestoForm — traer destinos habituales del paciente (tasks.md 8
     expect(screen.getByLabelText(/^origen \(ida\)$/i)).toHaveValue('Otra dirección');
   });
 });
+
+// valor-km-presupuesto (Andrea, 2026-10-07): precio del km en el presupuesto, con coma o punto.
+describe('PresupuestoForm — valor del km y monto mensual estimado', () => {
+  it('acepta km y valor del km con coma y los envía como número', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn<(submission: PresupuestoFormSubmission) => void>();
+
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
+    await user.type(screen.getByLabelText(/^km \(ida\)$/i), '12,5');
+    await user.type(screen.getByLabelText(/^valor del km$/i), '905,31');
+    await user.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(onSubmit).toHaveBeenCalledWith<[PresupuestoFormSubmission]>({
+      modo: 'unico',
+      values: expect.objectContaining({
+        datosTraslado: expect.objectContaining({ kmIda: 12.5, valorKm: 905.31 }),
+      }),
+    });
+  });
+
+  it('calcula el monto mensual estimado = km mensuales × valor del km', async () => {
+    const user = userEvent.setup();
+
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/^km \(ida\)$/i), '10');
+    await user.type(screen.getByLabelText(/días mensuales/i), '23');
+    await user.type(screen.getByLabelText(/^valor del km$/i), '1000.5');
+
+    expect(screen.getByText('Monto mensual estimado (calculado)').nextSibling).toHaveTextContent('$230.115,00');
+  });
+
+  it('sin valor del km: no inventa un monto', async () => {
+    const user = userEvent.setup();
+
+    render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+
+    await user.type(screen.getByLabelText(/^km \(ida\)$/i), '10');
+    await user.type(screen.getByLabelText(/días mensuales/i), '23');
+
+    expect(screen.getByText('Monto mensual estimado (calculado)').nextSibling).toHaveTextContent('—');
+  });
+});

@@ -221,6 +221,12 @@ export function PresupuestoResumen({ presupuesto, paciente, obraSocial, onEdit }
               <span className="font-mono text-[13px] text-ink">{textoOpcional(presupuesto.datosTraslado.kmVuelta)}</span>
             </div>
             <div className="flex flex-col gap-0.5">
+              <span className="font-body text-[11px] text-muted">Valor del km</span>
+              <span className="font-mono text-[13px] text-ink">
+                {presupuesto.datosTraslado.valorKm !== undefined ? `$${presupuesto.datosTraslado.valorKm.toLocaleString('es-AR')}` : 'Sin cargar'}
+              </span>
+            </div>
+            <div className="flex flex-col gap-0.5">
               <span className="font-body text-[11px] text-muted">Días de la semana</span>
               <span className="font-body text-[13px] text-ink">
                 {presupuesto.datosTraslado.diasSemana.length > 0
