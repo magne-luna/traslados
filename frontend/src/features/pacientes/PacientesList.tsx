@@ -2,12 +2,14 @@ import { Button, CamposSoloLectura, Chip, SearchInput } from '../../design-syste
 import { Alert, EmptyState, Pill } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import { Paginador } from '../../design-system/paginador';
+import { Select } from '../../design-system/form';
 import { CUD_CHIP_KIND, CUD_CHIP_LABEL } from '../../shared/lib/pacientes/cudCopy';
 import { estadoCud } from '../../shared/lib/pacientes/estadoCud';
 import type { Paciente } from '../../shared/types/paciente';
 import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 import { MostrarInactivos } from '../../shared/components/BajaLogicaControl';
 import { nombreCompleto } from './PacienteResumen';
+import { calcularEdad } from './exportarPacientesCsv';
 
 interface PacientesListProps {
   /** SOLO la página actual (paginacion-listados, Fase 2) — nunca el padrón completo. */
@@ -33,16 +35,15 @@ interface PacientesListProps {
   /** Baja lógica: el listado trae solo activos salvo que se tilde "Mostrar inactivos". */
   incluirInactivos?: boolean;
   onIncluirInactivosChange?: (incluir: boolean) => void;
-}
-
-function calcularEdad(fechaNacimiento: string, ahora: Date): number {
-  const nacimiento = new Date(fechaNacimiento);
-  let edad = ahora.getFullYear() - nacimiento.getFullYear();
-  const aunNoCumplioEsteAnio =
-    ahora.getMonth() < nacimiento.getMonth() ||
-    (ahora.getMonth() === nacimiento.getMonth() && ahora.getDate() < nacimiento.getDate());
-  if (aunNoCumplioEsteAnio) edad -= 1;
-  return edad;
+  /** Filtros del listado (Andrea, 2026-08-04). Ausente = sin filtro; cada select aparece solo si
+   * llega su handler. */
+  obrasSocialesFiltro?: { id: string; nombre: string }[];
+  obraSocialId?: string;
+  onObraSocialIdChange?: (obraSocialId: string | undefined) => void;
+  amparo?: boolean;
+  onAmparoChange?: (amparo: boolean | undefined) => void;
+  /** Baja a Excel (CSV) el listado con los filtros aplicados, todas las páginas. */
+  onExportar?: () => void;
 }
 
 // Pantalla de listado (tasks.md 5.1/5.2; paginacion-listados Fase 2 tasks.md 13.x): estados de
@@ -66,6 +67,12 @@ export function PacientesList({
   onCambiarPagina,
   incluirInactivos = false,
   onIncluirInactivosChange,
+  obrasSocialesFiltro = [],
+  obraSocialId,
+  onObraSocialIdChange,
+  amparo,
+  onAmparoChange,
+  onExportar,
 }: PacientesListProps) {
   // Tres estados distinguibles (13.5), nunca la misma pantalla para los tres:
   //   1. sin pacientes cargados en TODO el sistema (total 0, sin búsqueda activa)
@@ -73,6 +80,7 @@ export function PacientesList({
   //   3. carga inicial/en curso (loading) — se resuelve antes que los otros dos.
   const sinResultados = total === 0;
   const hayBusquedaActiva = busqueda.trim() !== '';
+  const hayFiltroActivo = obraSocialId !== undefined || amparo !== undefined;
   // El buscador se oculta SOLO cuando no hay absolutamente nada que buscar (nunca se cargó ningún
   // paciente y no hay término activo) — con 0 resultados de una búsqueda sigue visible para poder
   // corregir/borrar el término (a diferencia de la versión anterior, que lo ocultaba con
@@ -84,9 +92,16 @@ export function PacientesList({
     <div className="flex flex-col gap-lg py-xxl px-xl">
       <div className="flex flex-wrap items-center justify-between gap-md">
         <h1 className="m-0 font-heading text-[21px] font-bold text-ink">Pacientes</h1>
-        <Button variant="primary" requiereEscritura onClick={onCreateNew}>
-          + Nuevo paciente
-        </Button>
+        <div className="flex flex-wrap gap-sm">
+          {onExportar && (
+            <Button variant="secondary" disabled={total === 0} onClick={onExportar}>
+              Exportar (Excel)
+            </Button>
+          )}
+          <Button variant="primary" requiereEscritura onClick={onCreateNew}>
+            + Nuevo paciente
+          </Button>
+        </div>
       </div>
 
       {mostrarBuscador && (
@@ -98,14 +113,47 @@ export function PacientesList({
         />
       )}
 
-      {onIncluirInactivosChange && (
-        <MostrarInactivos label="Mostrar inactivos" checked={incluirInactivos} onChange={onIncluirInactivosChange} />
-      )}
+      <div className="flex flex-wrap items-center gap-md">
+        {onObraSocialIdChange && (
+          <div className="w-56">
+            <Select
+              aria-label="Filtrar por obra social"
+              value={obraSocialId ?? ''}
+              onChange={(e) => onObraSocialIdChange(e.target.value || undefined)}
+            >
+              <option value="">Todas las obras sociales</option>
+              {obrasSocialesFiltro.map((os) => (
+                <option key={os.id} value={os.id}>
+                  {os.nombre}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
+        {onAmparoChange && (
+          <div className="w-44">
+            <Select
+              aria-label="Filtrar por amparo"
+              value={amparo === undefined ? '' : amparo ? 'con' : 'sin'}
+              onChange={(e) => onAmparoChange(e.target.value === '' ? undefined : e.target.value === 'con')}
+            >
+              <option value="">Amparo: todos</option>
+              <option value="con">Con amparo</option>
+              <option value="sin">Sin amparo</option>
+            </Select>
+          </div>
+        )}
+        {onIncluirInactivosChange && (
+          <MostrarInactivos label="Mostrar inactivos" checked={incluirInactivos} onChange={onIncluirInactivosChange} />
+        )}
+      </div>
 
       {error && <Alert tone="danger">{error}</Alert>}
 
       {loading ? (
         <p className="font-body text-sm text-muted">Cargando pacientes…</p>
+      ) : sinResultados && hayFiltroActivo ? (
+        <p className="font-body text-sm text-muted">Ningún paciente coincide con los filtros.</p>
       ) : sinResultados && !hayBusquedaActiva ? (
         <EmptyState
           message="No hay pacientes cargados todavía."

@@ -13,6 +13,10 @@ export interface FiltrosPaciente {
   busqueda: string;
   /** Baja lógica: por defecto el listado muestra solo activos. */
   incluirInactivos?: boolean;
+  /** Solo pacientes de esta obra social (ausente = todas). */
+  obraSocialId?: string;
+  /** true = con amparo, false = sin amparo, ausente = todos. */
+  amparo?: boolean;
 }
 
 export interface PacienteRepository {

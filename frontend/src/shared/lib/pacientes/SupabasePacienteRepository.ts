@@ -202,6 +202,8 @@ async function listarPacientesPagina(query: RangoPagina & { filtros: FiltrosPaci
     .range(desde, hasta);
 
   if (!filtros.incluirInactivos) consulta = consulta.eq('activo', true);
+  if (filtros.obraSocialId) consulta = consulta.eq('obra_social_id', filtros.obraSocialId);
+  if (filtros.amparo !== undefined) consulta = consulta.eq('amparo_judicial', filtros.amparo);
 
   const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_PACIENTE);
   if (filtro) {

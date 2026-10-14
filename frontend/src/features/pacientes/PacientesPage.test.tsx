@@ -147,7 +147,7 @@ describe('PacientesPage', () => {
     renderPage(buildFakePacienteRepository());
 
     expect(await screen.findByText(/gómez, martina/i)).toBeInTheDocument();
-    expect(await screen.findByText('OSECAC')).toBeInTheDocument();
+    expect(await screen.findByText('OSECAC', { selector: 'span' })).toBeInTheDocument();
   });
 
   it('navega al detalle de alta al hacer click en "Nuevo paciente"', async () => {
@@ -188,7 +188,7 @@ describe('PacientesPage — no-regresión: obra social sigue usando list() compl
       </PacienteRepositoryProvider>,
     );
 
-    await screen.findByText('OSECAC');
+    await screen.findByText('OSECAC', { selector: 'span' });
 
     expect(obraSocialRepository.list).toHaveBeenCalled();
     expect(obraSocialRepository.listPage).not.toHaveBeenCalled();
@@ -342,5 +342,40 @@ describe('PacientesPage — el permiso de otro módulo no habilita este', () => 
     await screen.findByText(/gómez, martina/i);
     expect(screen.queryByText(/solo lectura/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /nuevo paciente/i })).toBeEnabled();
+  });
+});
+
+describe('PacientesPage — filtros por obra social y amparo', () => {
+  it('filtrar por amparo vuelve a pedir listPage con amparo y desde la página 1', async () => {
+    const user = userEvent.setup();
+    const repository = buildFakePacienteRepository();
+    renderPage(repository);
+
+    await screen.findByText(/gómez, martina/i);
+    await user.selectOptions(screen.getByLabelText('Filtrar por amparo'), 'con');
+
+    await vi.waitFor(() =>
+      expect(repository.listPage).toHaveBeenCalledWith({ pagina: 1, tamanio: 20, filtros: { busqueda: '', incluirInactivos: false, amparo: true } }),
+    );
+  });
+});
+
+describe('PacientesPage — exportar', () => {
+  it('"Exportar (Excel)" pide TODOS los que matchean los filtros (una página del tamaño del total) y descarga un .csv', async () => {
+    const user = userEvent.setup();
+    const repository = buildFakePacienteRepository();
+    vi.mocked(repository.listPage).mockResolvedValue({ items: [martina], total: 45, pagina: 1, tamanio: 20 });
+    const crearUrl = vi.fn().mockReturnValue('blob:csv');
+    vi.stubGlobal('URL', { ...URL, createObjectURL: crearUrl, revokeObjectURL: vi.fn() });
+    renderPage(repository);
+
+    await screen.findByText(/gómez, martina/i);
+    await user.click(screen.getByRole('button', { name: 'Exportar (Excel)' }));
+
+    await vi.waitFor(() =>
+      expect(repository.listPage).toHaveBeenCalledWith({ pagina: 1, tamanio: 45, filtros: { busqueda: '', incluirInactivos: false } }),
+    );
+    await vi.waitFor(() => expect(crearUrl).toHaveBeenCalled());
+    vi.unstubAllGlobals();
   });
 });

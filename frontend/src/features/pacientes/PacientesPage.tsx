@@ -9,7 +9,9 @@ import { useObrasSociales } from '../obras-sociales/useObrasSociales';
 import { PacienteDetail } from './PacienteDetail';
 import { usePacienteRepository } from './PacienteRepositoryContext';
 import { PacientesList } from './PacientesList';
-import { usePacientesPaginado } from './usePacientesPaginado';
+import { usePacientesPaginado, type FiltrosListadoPacientes } from './usePacientesPaginado';
+import { pacientesACsv } from './exportarPacientesCsv';
+import { dispararDescargaZip } from './exportacionZip';
 
 // paginacion-listados, Fase 2 (tasks.md 13.2): la vista de detalle guarda el objeto `Paciente`
 // COMPLETO (no solo su id) — llega directo del evento que dispara la navegación (`onSelect` de la
@@ -44,10 +46,24 @@ export function PacientesPage({
   recorridoHabitualRepository,
 }: PacientesPageProps) {
   const pacienteRepository = usePacienteRepository();
-  const [incluirInactivos, setIncluirInactivos] = useState(false);
-  const listado = usePacientesPaginado(pacienteRepository, incluirInactivos);
+  const [filtros, setFiltros] = useState<FiltrosListadoPacientes>({});
+  const listado = usePacientesPaginado(pacienteRepository, filtros);
   const { obrasSociales } = useObrasSociales(obraSocialRepository);
   const [view, setView] = useState<View>({ kind: 'list' });
+
+  // Exporta TODO lo que matchea (no solo la página visible): misma consulta, una sola página grande.
+  async function exportar() {
+    const filtrosActuales = { busqueda: listado.busqueda, incluirInactivos: false, ...filtros };
+    const { items } = await pacienteRepository.listPage({ pagina: 1, tamanio: Math.max(listado.total, 1), filtros: filtrosActuales });
+    const csv = pacientesACsv(items, nombreObraSocial, new Date());
+    dispararDescargaZip(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `pacientes-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+
+  // Cambiar un filtro vuelve a la página 1: la página actual puede no existir en el nuevo universo.
+  function cambiarFiltros(cambio: FiltrosListadoPacientes) {
+    setFiltros((previos) => ({ ...previos, ...cambio }));
+    listado.irAPagina(1);
+  }
 
   function nombreObraSocial(obraSocialId: string | null): string {
     if (obraSocialId === null) return 'Sin obra social';
@@ -110,11 +126,14 @@ export function PacientesPage({
         tamanio={listado.tamanio}
         total={listado.total}
         onCambiarPagina={listado.irAPagina}
-        incluirInactivos={incluirInactivos}
-        onIncluirInactivosChange={(incluir) => {
-          setIncluirInactivos(incluir);
-          listado.irAPagina(1);
-        }}
+        incluirInactivos={filtros.incluirInactivos ?? false}
+        onIncluirInactivosChange={(incluirInactivos) => cambiarFiltros({ incluirInactivos })}
+        obrasSocialesFiltro={obrasSociales}
+        obraSocialId={filtros.obraSocialId}
+        onObraSocialIdChange={(obraSocialId) => cambiarFiltros({ obraSocialId })}
+        amparo={filtros.amparo}
+        onAmparoChange={(amparo) => cambiarFiltros({ amparo })}
+        onExportar={() => void exportar()}
       />
     </>
   );

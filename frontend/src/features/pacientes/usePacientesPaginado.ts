@@ -19,12 +19,21 @@ export interface UsePacientesPaginadoResult extends UsePaginaListadoResult<Pacie
 // HojaDeRutaPage para poblar sus selectores con el padrón COMPLETO (design.md §D3, tabla de
 // consumidores de `list()`). Este hook es exclusivo de PacientesPage, la única pantalla que
 // muestra el listado paginado en sí.
-export function usePacientesPaginado(repository: PacienteRepository, incluirInactivos = false): UsePacientesPaginadoResult {
+export type FiltrosListadoPacientes = Omit<FiltrosPaciente, 'busqueda'>;
+
+export function usePacientesPaginado(repository: PacienteRepository, filtrosListado: FiltrosListadoPacientes = {}): UsePacientesPaginadoResult {
+  const { incluirInactivos = false, obraSocialId, amparo } = filtrosListado;
   const listado = usePaginaListado<Paciente, FiltrosPaciente>({
     listPage: repository.listPage,
     clave: claves.pacientes.pagina,
     tamanio: TAMANIO_PAGINA,
-    construirFiltros: (busqueda) => ({ busqueda, incluirInactivos }),
+    // Solo las claves con valor: `{ busqueda, incluirInactivos }` sigue siendo la consulta base.
+    construirFiltros: (busqueda) => ({
+      busqueda,
+      incluirInactivos,
+      ...(obraSocialId ? { obraSocialId } : {}),
+      ...(amparo !== undefined ? { amparo } : {}),
+    }),
   });
 
   const queryClient = useQueryClient();

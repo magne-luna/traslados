@@ -276,3 +276,41 @@ describe('PacientesList — inactivos (baja lógica)', () => {
     expect(onIncluirInactivosChange).toHaveBeenCalledWith(true);
   });
 });
+
+describe('PacientesList — filtros por obra social y amparo', () => {
+  const obrasSociales = [
+    { id: 'osecac', nombre: 'OSECAC' },
+    { id: 'osde', nombre: 'OSDE' },
+  ];
+
+  it('elegir una obra social avisa su id; "Todas" avisa undefined', async () => {
+    const onObraSocialIdChange = vi.fn();
+    render(<PacientesList {...defaultProps({ obrasSocialesFiltro: obrasSociales, onObraSocialIdChange })} />);
+
+    await userEvent.selectOptions(screen.getByLabelText('Filtrar por obra social'), 'osde');
+    expect(onObraSocialIdChange).toHaveBeenLastCalledWith('osde');
+
+    await userEvent.selectOptions(screen.getByLabelText('Filtrar por obra social'), '');
+    expect(onObraSocialIdChange).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('amparo: Con amparo = true, Sin amparo = false, Todos = undefined', async () => {
+    const onAmparoChange = vi.fn();
+    render(<PacientesList {...defaultProps({ onAmparoChange })} />);
+    const select = screen.getByLabelText('Filtrar por amparo');
+
+    await userEvent.selectOptions(select, 'con');
+    expect(onAmparoChange).toHaveBeenLastCalledWith(true);
+    await userEvent.selectOptions(select, 'sin');
+    expect(onAmparoChange).toHaveBeenLastCalledWith(false);
+    await userEvent.selectOptions(select, '');
+    expect(onAmparoChange).toHaveBeenLastCalledWith(undefined);
+  });
+
+  it('con un filtro activo y sin resultados no dice "no hay pacientes cargados"', () => {
+    render(<PacientesList {...defaultProps({ amparo: true, onAmparoChange: vi.fn(), total: 0 })} />);
+
+    expect(screen.queryByText('No hay pacientes cargados todavía.')).not.toBeInTheDocument();
+    expect(screen.getByText('Ningún paciente coincide con los filtros.')).toBeInTheDocument();
+  });
+});

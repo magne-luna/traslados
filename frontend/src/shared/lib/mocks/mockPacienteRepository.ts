@@ -97,6 +97,8 @@ export const mockPacienteRepository: PacienteRepository = {
     const todos = ordenarPacientes(readStore()).filter(
       (paciente) =>
         (filtros.incluirInactivos || paciente.activo !== false) &&
+        (!filtros.obraSocialId || paciente.obraSocialId === filtros.obraSocialId) &&
+        (filtros.amparo === undefined || paciente.amparoJudicial === filtros.amparo) &&
         matcheaFiltroBusqueda(valoresBuscables(paciente), filtro),
     );
     const { desde, hasta } = rangoSupabase({ pagina, tamanio });

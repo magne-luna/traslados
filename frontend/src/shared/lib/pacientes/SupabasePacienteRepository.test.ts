@@ -1993,3 +1993,35 @@ describe('supabasePacienteRepository — activo (baja lógica)', () => {
     expect(escritura?.payload).toEqual({ activo: false });
   });
 });
+
+// filtros-pacientes (reunión con Andrea 2026-08-04): filtrar el listado por obra social y amparo.
+describe('supabasePacienteRepository.listPage — filtros por obra social y amparo', () => {
+  it('obraSocialId filtra por obra_social_id', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '', obraSocialId: 'os-1' } });
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.eq).toContainEqual(['obra_social_id', 'os-1']);
+  });
+
+  it('amparo true/false filtra por amparo_judicial', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '', amparo: false } });
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.eq).toContainEqual(['amparo_judicial', false]);
+  });
+
+  it('sin esos filtros no agrega condiciones', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    const columnas = consulta?.eq.map(([columna]) => columna) ?? [];
+    expect(columnas).not.toContain('obra_social_id');
+    expect(columnas).not.toContain('amparo_judicial');
+  });
+});
