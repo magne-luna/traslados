@@ -1,65 +1,92 @@
-TODO — Reunión con Andrea (Traslado Personalizado), Google Meet 2026-08-04
-Fuente: grabación Fathom (resumen transcripto acá, no el video en sí)
+TODO — Reuniones con Andrea (Traslado Personalizado)
+Última actualización: 2026-10-14
+
+Reunión 2026-08-04: grabación Fathom (resumen transcripto acá, no el video en sí).
+Reunión 2026-10-07: transcripción en vault/transcripcion-andrea.txt (sección al final).
 
 ## Pacientes
 
-- [ ] DNI y Número de afiliado son campos distintos: DNI debe ser solo DNI (numérico).
-      "Número de afiliado" tiene que ser flexible para alfanumérico + sufijos
-      (ej. mellizos con /001) — el error actual de "paciente ya existente" viene de
-      mezclar ambos en el mismo campo.
-- [x] Múltiples ubicaciones de Escuela: agregar "Escuela Especial" además de
-      "Escuela" — YA IMPLEMENTADO 2026-08-06 (tipo_direccion).
-- [ ] Múltiples ubicaciones de Terapia: 3 a 5 por paciente. Confirmar si
-      Direccion (ya es colección) alcanza tal cual, o si falta algo puntual.
-- [ ] Filtros de lista de pacientes: por obra social, amparo (sí/no), morosos.
-- [ ] Exportación de pacientes: PDF o Excel. Campos: nombre, obra social, DNI,
-      vencimiento del CUD, edad, estado de amparo.
-- [ ] Reubicar documentos de pacientes/presupuestos (revisar con Andrea dónde
-      los quiere ver — no queda claro el detalle en el resumen, preguntar).
+- [x] DNI y Número de afiliado son campos distintos: DNI solo DNI, número de afiliado
+      libre (alfanumérico + sufijos, ej. mellizos con /001). HECHO: `Paciente.dni` y
+      `Paciente.numeroAfiliado` separados; el formato lo define la obra social.
+- [x] Múltiples ubicaciones de Escuela: "Escuela Especial" además de "Escuela" —
+      HECHO 2026-08-06 (tipo_direccion).
+- [x] Múltiples ubicaciones de Terapia (3 a 5 por paciente): HECHO — las direcciones son
+      una lista sin límite y `descripcion` diferencia dos del mismo tipo
+      (ej. "Kinesióloga" / "Fonoaudióloga").
+- [~] Filtros de lista de pacientes: obra social y amparo HECHOS 2026-10-14 (0c67a03).
+      FALTA "morosos": Andrea tiene que definir qué es un moroso (preguntado 2026-10-14).
+- [~] Exportación de pacientes: Excel HECHO 2026-10-14 (CSV con nombre, obra social,
+      DNI, vencimiento del CUD, edad y amparo, respetando los filtros). PDF no hecho —
+      sumar solo si Andrea lo pide.
+- [ ] Reubicar documentos de pacientes/presupuestos (revisar con Andrea dónde los quiere
+      ver — no queda claro el detalle en el resumen, preguntar).
 - [ ] VIDEO PENDIENTE (Ronda 2, punto 3, `docs/cambios/cambios2-requerimientos.pdf`): Andrea
       prometió un video mostrando el flujo de "marcar una actividad (por su domicilio) lleva a
-      su documentación" — todavía no llegó. Esta reunión (2026-08-04) tampoco lo menciona.
+      su documentación" — todavía no llegó (tampoco se mencionó el 2026-10-07).
       `documentos-transferencia-actividad` implementó exportar y transferir documentos entre
-      actividades con default confirmado (sin esperar el video), pero la NAVEGACIÓN en sí
-      (marcar → ir a la documentación) queda sin implementar hasta que el video llegue y
-      confirme cuál de las tres lecturas posibles es la correcta (acción explícita por fila /
+      actividades, pero la NAVEGACIÓN (marcar → ir a la documentación) queda sin implementar
+      hasta que el video confirme cuál de las tres lecturas es la correcta (acción por fila /
       selección persistente que filtra / deep-link desde Hojas de Ruta). Ver
-      `knowledge-base/04_modelo_de_datos.md` §Discrepancias y `design.md` Checkpoint (a) de ese
-      change.
+      `knowledge-base/04_modelo_de_datos.md` §Discrepancias.
 
 ## Facturación
 
-- [ ] Integración con ARBA (⚠️ NO es AFIP — corrige la deducción de la Ronda 2,
-      que había interpretado "la FIP" como AFIP; es ARBA, organismo bonaerense).
-      Requiere configuración única y compleja del lado de Andrea para conectar
-      la cuenta. Si falla la integración, la app debe generar un resumen
-      facturable para copiar/pegar manual en ARBA (fallback, no bloqueante).
-      **Acordado: se retrasa hasta que el resto del sistema esté funcional.**
-- [ ] Adjuntar 3 documentos por factura para descarga/envío a obras sociales:
-      1. Factura (PDF oficial de ARBA)
-      2. Hoja de asistencia (una por prestación)
-      3. Autorización (AD) — el documento de autorización de la obra social
-      CODEM queda aparte: específico de OSECAC, lo descarga el usuario de ANSES
-      y lo sube manual (no se automatiza).
-- [ ] Campos de descripción de factura: obra social, ubicación, dependencia.
+- [x] Integración con el organismo fiscal: se hizo con ARCA (factura electrónica, edge
+      function `facturar`, PDF con QR). FALTA del lado de Andrea: el trámite en su cuenta de
+      ARCA (hay que mandarle el video de cómo hacerlo).
+- [x] Documentos por factura para descarga/envío a obras sociales: HECHO — checklist de la
+      factura con Comprobante ARCA, Asistencia y CODEM (opcional). La Autorización (AD) vive
+      en el presupuesto/autorización mensual, no en la factura.
+- [x] Campos de descripción de factura: obra social, domicilio, dependencia/retorno — HECHO.
 
 ## Conductores / Vehículos
 
-- [ ] Campo de horario de trabajo por conductor (turnos divididos) — permite
-      asignar un mismo vehículo a dos conductores en turnos distintos.
-- [ ] Recordatorio de Oblea de GNC en mantenimiento de vehículos — el campo
-      "Otro" ya existente alcanza, no hace falta un campo dedicado.
+- [ ] Campo de horario de trabajo por conductor (turnos divididos) para que un vehículo
+      tenga dos choferes en turnos distintos. Compartir vehículo en la semana YA se puede
+      (solo se bloquea un conductor con dos vehículos); falta el dato del horario.
+      Preguntado a Andrea 2026-10-14 si lo sigue necesitando. Toca la base (Enzo).
+- [x] Recordatorio de Oblea de GNC en mantenimiento: alcanza con el campo "Otro", no hace
+      falta un campo dedicado.
 
 ## Prestadores
 
-- [ ] ⚠️ DECISIÓN DE ANDREA: la sección de Prestadores **no es necesaria**.
-      Traslado Personalizado es el único prestador; la tercerización con
-      Uber/remis es mínima y no estructurada. Confirmar con Enzo qué hacer con
-      todo lo ya construido (prestadores-crud, factura-por-prestador) antes de
-      tocar nada — no asumir que hay que borrarlo.
+- [x] Andrea: la sección de Prestadores no es necesaria. HECHO — se sacó (`sacar-prestadores`,
+      `prestadores-crud` y `factura-por-prestador` archivados/dropeados).
 
 ## Pendiente del lado de Andrea / Traslado Personalizado
 
-- [ ] Enviar una factura de ejemplo real para confirmar la estructura de la
-      descripción.
-- [ ] Revisar y confirmar la lista final de filtros de pacientes.
+- [ ] Enviar una factura de ejemplo real para confirmar la estructura de la descripción.
+- [x] Revisar la lista final de filtros de pacientes → hechos obra social y amparo; falta su
+      definición de "moroso".
+- [ ] Responder las 11 preguntas mandadas el 2026-10-14 (datos por año, Uber/remis, viajes al
+      hospital, morosos, horario de choferes).
+
+## Reunión 2026-10-07
+
+Hecho (en main):
+- [x] Inactivar en vez de borrar pacientes y obras sociales (94e633a). Conductores y
+      vehículos reusan "fuera de servicio".
+- [x] Buscador de pacientes con autocompletar en presupuesto, factura y hoja de ruta (bc18a0d).
+- [x] Decimales con punto y 2 decimales cortados sin redondear (dcd3ce3, 95f35f1).
+- [x] "Ver" siempre visible y "Descargar" arriba de la vista previa (2683778).
+- [x] QR de ARCA en el PDF de la factura (0b78de5).
+- [x] Destinos habituales con varios días tildados (568a9d6).
+- [x] Franja horaria de la hoja de ruta editable; horas sugeridas desde las 04:00 (834b6eb).
+
+Hecho en front, falta backend (Enzo, ver docs/PENDIENTE-ENZO.md):
+- [~] Valor del km en presupuestos + monto mensual estimado (b0eab3c). Cartel temporal
+      hasta que Enzo haga db push + deploy de `presupuestos`.
+
+Propuestas OPSX escritas, sin implementar (esperan revisión de Enzo + respuestas de Andrea):
+- [ ] Datos del paciente por año, carpetas 2025/2026/2027
+      (openspec/changes/datos-paciente-por-anio/).
+- [ ] Viajes tercerizados Uber/remis en la hoja de ruta
+      (openspec/changes/viajes-tercerizados-hoja-de-ruta/).
+
+Sin definir (knowledge-base/10_preguntas_abiertas.md):
+- [ ] Viajes sueltos al hospital: hoy se cargan como dirección "Otro" del paciente; falta
+      saber si quiere un tipo de viaje aparte.
+
+Fuera del código:
+- [ ] Mandarle a Andrea el video del trámite de ARCA.
