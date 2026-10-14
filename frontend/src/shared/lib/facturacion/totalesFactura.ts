@@ -1,4 +1,5 @@
 import type { Cobro, Factura } from '../../types/factura';
+import { truncarACentavos } from '../montos';
 
 // Funciones puras (tasks.md 3.8): total propuesto y saldo pendiente de la factura. El total se
 // propone calculado pero queda editable en el formulario (design.md Decisión 12: el docx modela
@@ -8,7 +9,7 @@ import type { Cobro, Factura } from '../../types/factura';
 // `dias` — un traslado de varios días facturaba lo mismo que uno de un solo día con la misma
 // cantidad de km. La fórmula correcta es `dias * cantidadKm * valorKm`.
 export function calcularTotalFactura({ valorKm, cantidadKm, dias }: { valorKm: number; cantidadKm: number; dias: number }): number {
-  return dias * cantidadKm * valorKm;
+  return truncarACentavos(dias * cantidadKm * valorKm);
 }
 
 export function saldoFactura(factura: Factura, cobros: Cobro[]): number {

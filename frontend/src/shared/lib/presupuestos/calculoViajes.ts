@@ -1,3 +1,5 @@
+import { truncarACentavos } from '../montos';
+
 // Función pura (tasks.md 4.1-4.6, design.md D4), sin red, sin React: deriva viajes y km mensuales a
 // partir de los días hábiles cargados en el presupuesto. NO se persiste `viajes_mensuales` en
 // Postgres (design.md D4) — sería una segunda fuente de verdad de `dias_mensuales`, que puede
@@ -38,12 +40,8 @@ export function calcularKmMensuales({
   return diasMensuales * (kmIda + (tieneVuelta ? kmVuelta : 0));
 }
 
-/**
- * Monto mensual estimado del presupuesto = km mensuales × valor del km. Derivado en vivo, nunca se
- * persiste (mismo criterio que viajes/km mensuales). Trunca a 2 decimales en vez de redondear:
- * Andrea (2026-10-07) "mejor menos que más" — el monto no puede pasarse de lo autorizado. El
- * epsilon evita que un error de coma flotante (0.29 → 0.28999…) le reste un centavo de más.
- */
+/** Monto mensual estimado del presupuesto = km mensuales × valor del km, truncado a centavos.
+ * Derivado en vivo, nunca se persiste (mismo criterio que viajes/km mensuales). */
 export function calcularMontoMensualEstimado({ kmMensuales, valorKm }: { kmMensuales: number; valorKm: number }): number {
-  return Math.floor(kmMensuales * valorKm * 100 + 1e-6) / 100;
+  return truncarACentavos(kmMensuales * valorKm);
 }

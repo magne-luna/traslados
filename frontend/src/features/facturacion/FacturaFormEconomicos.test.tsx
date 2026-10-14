@@ -62,12 +62,22 @@ describe('FacturaFormEconomicos', () => {
     expect(set).toHaveBeenLastCalledWith('cantidadKm', 12.5);
   });
 
-  it('ignora lo que no es un número (letras, más de 2 decimales, decimales en días)', () => {
+  it('más de 2 decimales (ej. pegado): corta en el segundo, no redondea ni rechaza', () => {
+    const set = vi.fn();
+    render(<FacturaFormEconomicos formId="f" values={valores()} errors={{}} set={set} />);
+
+    const valorKm = screen.getByLabelText('Valor del km');
+    fireEvent.change(valorKm, { target: { value: '12,249' } });
+
+    expect(valorKm).toHaveValue('12.24');
+    expect(set).toHaveBeenLastCalledWith('valorKm', 12.24);
+  });
+
+  it('ignora lo que no es un número (letras, decimales en días)', () => {
     const set = vi.fn();
     render(<FacturaFormEconomicos formId="f" values={valores()} errors={{}} set={set} />);
 
     fireEvent.change(screen.getByLabelText('Valor del km'), { target: { value: '12a' } });
-    fireEvent.change(screen.getByLabelText('Valor del km'), { target: { value: '1.234' } });
     fireEvent.change(screen.getByLabelText('Cantidad de días'), { target: { value: '2,5' } });
 
     expect(set).not.toHaveBeenCalled();

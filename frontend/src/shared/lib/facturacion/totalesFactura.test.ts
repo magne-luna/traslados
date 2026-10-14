@@ -74,3 +74,9 @@ describe('saldoFactura', () => {
     expect(saldoFactura(f, cobros)).toBe(5000);
   });
 });
+
+describe('calcularTotalFactura — truncado a centavos', () => {
+  it('ejemplo de Andrea: 905,31 × 12,5 km × 21 días = 237643,875 → 237643,87 (no ,88)', () => {
+    expect(calcularTotalFactura({ valorKm: 905.31, cantidadKm: 12.5, dias: 21 })).toBe(237643.87);
+  });
+});

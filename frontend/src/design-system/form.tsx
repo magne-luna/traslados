@@ -251,7 +251,9 @@ export function CampoNumerico({ id, value, onChange, decimal = true }: { id: str
       placeholder="0"
       value={texto}
       onChange={(e) => {
-        const nuevo = e.target.value.trim().replace(',', '.');
+        const conPunto = e.target.value.trim().replace(',', '.');
+        // Más de 2 decimales (ej. un valor pegado) se corta, nunca se redondea ni se rechaza.
+        const nuevo = decimal ? conPunto.replace(/^(\d*\.\d{2})\d+$/, '$1') : conPunto;
         if (!(decimal ? PATRON_DECIMAL : PATRON_ENTERO).test(nuevo)) return;
         setTexto(nuevo);
         const numero = textoANumero(nuevo);
