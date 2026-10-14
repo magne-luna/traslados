@@ -101,15 +101,15 @@ export function VistaPreviaArchivo({ estado, nombreArchivo, tipoMime }: VistaPre
     // `max-w-[640px]` del diálogo de Overlay — sin esto en cada nivel, un flex item no se achica
     // por debajo del ancho de su contenido, sea cual sea el `overflow-auto` que tenga adentro.
     <div className="flex w-full min-w-0 flex-col gap-sm">
-      <div className="flex w-full min-w-0 flex-col items-center gap-sm">{contenido}</div>
-      {/* documentos-previsualizacion (feedback de ubicación, 2026-08-06): "Descargar" va abajo,
-          alineado a la derecha — separado de los controles de zoom/paginación de PdfPreview
-          (que quedan centrados arriba de esta fila), no mezclado en la misma torre de botones. */}
+      {/* "Descargar" arriba a la derecha (reunión con Andrea, 2026-10-07): abajo de un PDF largo
+          quedaba fuera de pantalla. Sigue en su propia fila, separado de los controles de
+          zoom/paginación de PdfPreview (feedback 2026-08-06: no mezclarlo con esos botones). */}
       <div className="flex w-full justify-end">
         <a href={estado.url} download={nombreArchivo} className={buttonClassName('secondary', 'sm')}>
           Descargar
         </a>
       </div>
+      <div className="flex w-full min-w-0 flex-col items-center gap-sm">{contenido}</div>
     </div>
   );
 }

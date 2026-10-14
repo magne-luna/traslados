@@ -109,3 +109,14 @@ describe('VistaPreviaArchivo — sin tipoMime (fallback de extensión resuelto p
     expect(screen.getByText(/no se puede previsualizar acá/i)).toBeInTheDocument();
   });
 });
+
+// Reunión con Andrea (2026-10-07): abajo de un PDF largo, "Descargar" quedaba fuera de pantalla.
+describe('VistaPreviaArchivo — ubicación de "Descargar"', () => {
+  it('"Descargar" va antes que la vista previa, así se ve apenas se abre', () => {
+    render(<VistaPreviaArchivo estado={estadoLista('blob:imagen')} nombreArchivo="foto.jpg" tipoMime="image/jpeg" />);
+
+    const descargar = screen.getByRole('link', { name: 'Descargar' });
+    const imagen = screen.getByRole('img', { name: 'foto.jpg' });
+    expect(descargar.compareDocumentPosition(imagen) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});

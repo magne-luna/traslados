@@ -270,6 +270,8 @@ export function DocumentChecklist({
             // quien tiene permiso de lectura del módulo puede previsualizar, aunque no pueda
             // cargar ni quitar. Mismo criterio para huérfanos (Checkpoint (e)): siguen siendo
             // documentación real del paciente, solo cambió a qué ítem apuntan.
+            // Siempre visible (Andrea, 2026-10-07): antes aparecía solo con hover y en el celular
+            // no se veía nunca.
             <button
               type="button"
               aria-label={`Ver ${itemNombre} - ${doc.nombreArchivo}`}
@@ -277,7 +279,7 @@ export function DocumentChecklist({
                 e.stopPropagation();
                 abrirPreview(doc, itemNombre);
               }}
-              className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-primary underline-offset-2 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:underline"
+              className="cursor-pointer border-none bg-transparent p-0 font-body text-xs font-semibold text-primary underline-offset-2 hover:underline"
             >
               Ver
             </button>

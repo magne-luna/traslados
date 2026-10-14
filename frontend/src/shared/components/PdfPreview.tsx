@@ -144,7 +144,7 @@ export function PdfPreview({ url, nombreArchivo }: { url: string; nombreArchivo:
       </div>
       {/* documentos-previsualizacion (feedback de layout, 2026-08-06): el zoom flotando ENCIMA
           del contenido tapaba texto al scrollear — se saca del visor y pasa a su propia fila,
-          debajo, alineada a la derecha (mismo criterio que "Descargar" más abajo). */}
+          debajo, alineada a la derecha. */}
       <div className="flex w-full items-center justify-end gap-xs">
         <button
           type="button"
