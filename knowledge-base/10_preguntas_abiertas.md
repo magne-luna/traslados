@@ -524,6 +524,37 @@ específicamente la Fase 6b (facturación) de ese change — las Fases 1-6a no d
    viene por delante del repo en 5 changes consecutivos. Se verifica en vivo antes de escribir el
    `.sql` (`tasks.md` 0.5). **Decisor**: Enzo.
 
+## Preguntas nuevas — reunión con Andrea (2026-10-07)
+
+Pedidos de la reunión que quedaron **sin implementar** porque falta definir cómo se cargan. Lo ya
+resuelto de esa reunión (inactivar, valor del km en presupuesto, buscador de pacientes, decimales,
+"Ver"/"Descargar" en documentos, franja horaria editable) está en el historial de git.
+
+1. **Viajes tercerizados: Uber/aplicación o remis.** Cuando no llegan con autos propios, el viaje
+   lo hace una aplicación (casi siempre Uber) o una de sus agencias de remis (hoy tres, ej. París,
+   RSM). Andrea pidió que figure en la hoja de ruta porque: (a) de las aplicaciones hacen un
+   desglose diario de lo pagado; (b) los remis van a cuenta corriente (pago quincenal o mensual) y
+   necesitan saber a qué agencia le deben cada viaje. Video: minuto 1:32:39.
+   **Propuesta a validar** (no implementada): cada **recorrido** de la hoja de ruta lleva un tipo
+   de transporte `propio | aplicacion | remis`; si es `remis`, la **agencia** (¿catálogo
+   administrable o texto libre?); y un **costo** del viaje para el desglose. Con tipo distinto de
+   `propio`, vehículo y conductor dejarían de ser obligatorios.
+   **Abiertas**: ¿el costo se carga por recorrido o por pasajero? ¿Se necesita un reporte de deuda
+   por agencia (cuenta corriente) o alcanza con verlo en la hoja? ¿Se anota qué aplicación fue
+   (Uber/Didi) o alcanza con "aplicación"? Requiere columnas nuevas (paso de backend, Enzo).
+   **Decisor**: Andrea.
+
+2. **Datos del paciente por año (carpetas 2025/2026/2027).** Fijos: nombre, DNI, CUIL y fecha de
+   nacimiento. Todo lo demás (diagnóstico, obra social, prestaciones, destinos) puede cambiar año a
+   año, y un paciente puede cambiar de obra social a mitad de año (dos o más presupuestos el mismo
+   año). Andrea necesita cargar ya lo de 2027 para presentar presupuestos. Pendiente de una
+   propuesta OPSX: cambia la estructura de la base y se pierde parte de lo cargado (Stefano ya se
+   lo avisó). Video: minutos 6:12 a 18:00. **Decisor**: equipo + Andrea.
+
+3. **Viajes sueltos (turnos de hospital, ej. Garrahan a las 5 a.m.).** Hoy se resuelven cargando el
+   hospital como dirección del paciente (tipo "Otro") y armando el recorrido en la hoja de ese día.
+   **Abierta**: ¿alcanza o quiere un tipo de viaje "Turno/Hospital" separado? **Decisor**: Andrea.
+
 ## Insumos pendientes del cliente
 
 - Logo (árbol de discapacidad) y colores de marca; fondo de pantalla de referencia.
