@@ -8,6 +8,7 @@ import type { RecorridoHabitual } from '../../shared/types/recorridoHabitual';
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PresupuestoForm, type PresupuestoFormSubmission } from './PresupuestoForm';
+import { elegirEnCombobox } from '../../test/elegirEnCombobox';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
@@ -110,9 +111,10 @@ describe('PresupuestoForm', () => {
     expect(screen.getByText(/el monto debe ser mayor a 0/i)).toBeInTheDocument();
   });
 
-  it('el selector de paciente ofrece las opciones inyectadas por PacienteRepository', () => {
+  it('el selector de paciente ofrece las opciones inyectadas por PacienteRepository', async () => {
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
+    await userEvent.click(screen.getByLabelText(/paciente/i));
     expect(screen.getByRole('option', { name: /gómez, martina/i })).toBeInTheDocument();
   });
 
@@ -120,14 +122,13 @@ describe('PresupuestoForm', () => {
   // independiente — elegir un paciente completa `obraSocialId` solo, y se muestra de solo lectura
   // (mismo patrón que FacturaForm Paso 2).
   it('al elegir un paciente, la obra social se deriva sola y se muestra de solo lectura (sin selector propio)', async () => {
-    const user = userEvent.setup();
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
     expect(screen.queryByRole('combobox', { name: /obra social/i })).not.toBeInTheDocument();
     expect(screen.getByText(/elegí un paciente para ver su obra social/i)).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
     expect(screen.getByText('OSECAC')).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /obra social/i })).not.toBeInTheDocument();
@@ -143,7 +144,7 @@ describe('PresupuestoForm', () => {
       <PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[pacienteSinObraSocial]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-sin-os');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-sin-os');
 
     expect(
       screen.getByText(/este paciente no tiene obra social asignada\. asignala en la ficha del paciente/i),
@@ -159,7 +160,6 @@ describe('PresupuestoForm', () => {
   // Fix "la obra social debe derivarse del paciente": cambiar de paciente cambia la obra social
   // derivada (no queda "pegada" a la anterior).
   it('cambiar de paciente cambia la obra social derivada', async () => {
-    const user = userEvent.setup();
 
     render(
       <PresupuestoForm
@@ -171,10 +171,10 @@ describe('PresupuestoForm', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     expect(screen.getByText('OSECAC')).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-facundo');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-facundo');
     expect(screen.queryByText('OSECAC')).not.toBeInTheDocument();
     expect(screen.getByText('Swiss Medical')).toBeInTheDocument();
   });
@@ -185,7 +185,7 @@ describe('PresupuestoForm', () => {
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
@@ -290,7 +290,7 @@ describe('PresupuestoForm', () => {
       />,
     );
 
-    expect(screen.getByLabelText(/paciente/i)).toHaveValue('paciente-martina');
+    expect(screen.getByLabelText(/paciente/i)).toHaveValue('Gómez, Martina');
     expect(screen.getByText('OSECAC')).toBeInTheDocument();
     expect(screen.getByLabelText(/^monto \(estimaci/i)).toHaveValue(150_000);
   });
@@ -339,7 +339,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaConPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
     // PresupuestoLineasEditor está presente, pero el campo monto simple sigue siendo la
     // alternativa válida sin líneas (spec "Modalidad general sin líneas cargadas usa el campo simple").
@@ -362,7 +362,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaConPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
     await user.selectOptions(screen.getByLabelText(/prestación/i), 'prestacion-kine');
     await user.type(screen.getByLabelText(/^monto de la línea$/i), '100');
@@ -391,7 +391,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaDosPrestaciones]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
     await user.selectOptions(screen.getByLabelText(/prestación/i), 'prestacion-kine');
     await user.type(screen.getByLabelText(/^monto de la línea$/i), '100');
@@ -419,7 +419,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaSwiss]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
     // Solo la prestación activa aparece (spec "El selector de alta no ofrece prestaciones inactivas").
     expect(screen.getByText('Kinesiología')).toBeInTheDocument();
@@ -445,7 +445,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaDosActivas]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
     await user.click(screen.getByRole('checkbox', { name: /kinesiología/i }));
     await user.type(screen.getByLabelText(/monto para kinesiología/i), '150');
@@ -466,7 +466,7 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[facundoSwiss]} obrasSociales={[swissMedical]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-facundo');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-facundo');
 
     expect(screen.getByText(/no tiene prestaciones activas/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /ficha del paciente/i })).toBeInTheDocument();
@@ -491,14 +491,14 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     await user.selectOptions(screen.getByLabelText(/prestación/i), 'prestacion-kine');
     await user.type(screen.getByLabelText(/^monto de la línea$/i), '100');
     await user.click(screen.getByRole('button', { name: /agregar/i }));
 
     expect(screen.queryByText(/no hay líneas/i)).not.toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-facundo');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-facundo');
 
     expect(screen.getByText(/no hay líneas/i)).toBeInTheDocument();
     expect(screen.getByText(/se reinici[oó]/i)).toBeInTheDocument();
@@ -514,11 +514,11 @@ describe('PresupuestoForm — bifurcación (design.md D9)', () => {
       <PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martinaSwiss, facundo]} obrasSociales={[osecac, swissMedical]} onSubmit={vi.fn()} onCancel={vi.fn()} />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     expect(screen.getByText('Swiss Medical')).toBeInTheDocument();
     await user.click(screen.getByRole('checkbox', { name: /kinesiología/i }));
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-facundo');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-facundo');
 
     expect(screen.getByText('OSECAC')).toBeInTheDocument();
     expect(screen.getByText(/se reinici[oó]/i)).toBeInTheDocument();
@@ -618,7 +618,7 @@ describe('PresupuestoForm — gateo de escritura', () => {
 
     expect(screen.getByLabelText(/paciente/i)).toBeEnabled();
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.click(screen.getByRole('button', { name: /guardar/i }));
 
@@ -658,7 +658,7 @@ describe('PresupuestoForm — vigencia y CD/SD (tasks.md 8.2/8.3/8.6)', () => {
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.type(screen.getByLabelText(/vigente desde/i), '2026-02-01');
     await user.type(screen.getByLabelText(/vigente hasta/i), '2026-01-15');
@@ -674,7 +674,7 @@ describe('PresupuestoForm — vigencia y CD/SD (tasks.md 8.2/8.3/8.6)', () => {
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.type(screen.getByLabelText(/vigente desde/i), '2026-02-01');
     await user.type(screen.getByLabelText(/vigente hasta/i), '2027-01-31');
@@ -695,7 +695,7 @@ describe('PresupuestoForm — vigencia y CD/SD (tasks.md 8.2/8.3/8.6)', () => {
     const checkbox = screen.getByRole('checkbox', { name: /con dependencia/i });
     expect(checkbox).not.toBeChecked();
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.click(checkbox);
     expect(checkbox).toBeChecked();
@@ -715,7 +715,7 @@ describe('PresupuestoForm — datos de traslado y cálculo en vivo (tasks.md 8.4
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.type(screen.getByLabelText(/^origen \(ida\)$/i), 'Casa');
     await user.type(screen.getByLabelText(/^destino \(ida\)$/i), 'Escuela especial');
@@ -783,10 +783,9 @@ describe('PresupuestoForm — traer destinos habituales del paciente (tasks.md 8
   });
 
   it('paciente sin destinos habituales cargados: botón deshabilitado con motivo, nunca oculto', async () => {
-    const user = userEvent.setup();
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={vi.fn()} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
 
     const boton = await screen.findByRole('button', { name: /traer de los destinos habituales/i });
     expect(boton).toBeInTheDocument();
@@ -819,7 +818,7 @@ describe('PresupuestoForm — traer destinos habituales del paciente (tasks.md 8
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     const boton = await screen.findByRole('button', { name: /traer de los destinos habituales/i });
     expect(boton).toBeEnabled();
 
@@ -844,7 +843,7 @@ describe('PresupuestoForm — valor del km y monto mensual estimado', () => {
 
     render(<PresupuestoForm recorridoHabitualRepository={recorridoHabitualRepositoryStub} pacientes={[martina]} obrasSociales={[osecac]} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
     await user.type(screen.getByLabelText(/^km \(ida\)$/i), '12,5');
     await user.type(screen.getByLabelText(/^valor del km$/i), '905,31');

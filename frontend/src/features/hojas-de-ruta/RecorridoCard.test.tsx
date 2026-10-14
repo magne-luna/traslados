@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Conductor } from '../../shared/types/conductor';
@@ -8,6 +8,7 @@ import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { RecorridoCard } from './RecorridoCard';
+import { elegirEnCombobox } from '../../test/elegirEnCombobox';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return renderConQuery(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
@@ -313,7 +314,7 @@ describe('RecorridoCard', () => {
     expect(screen.getByRole('option', { name: /ac123de/i })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /ad456bc/i })).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-c');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-c');
 
     expect(screen.queryByRole('option', { name: /ac123de/i })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: /ad456bc/i })).toBeInTheDocument();
@@ -341,9 +342,9 @@ describe('RecorridoCard', () => {
 
     await user.click(screen.getByRole('button', { name: /editar/i }));
 
-    const selectorPaciente = screen.getByLabelText(/^paciente$/i);
-    expect(within(selectorPaciente).getByRole('option', { name: /gómez/i })).toBeInTheDocument();
-    expect(within(selectorPaciente).getByRole('option', { name: /pereyra/i })).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/^paciente$/i));
+    expect(screen.getByRole('option', { name: /gómez/i })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /pereyra/i })).toBeInTheDocument();
   });
 
   it('muestra un aviso en vez de un select vacío cuando ningún vehículo sirve para el paciente que se está por agregar', async () => {
@@ -364,7 +365,7 @@ describe('RecorridoCard', () => {
     );
 
     await user.click(screen.getByRole('button', { name: /editar/i }));
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-c');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-c');
 
     expect(screen.getByText(/ningún vehículo disponible/i)).toBeInTheDocument();
   });

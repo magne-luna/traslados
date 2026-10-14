@@ -34,6 +34,7 @@ import { validarCupoFacturacion } from '../../shared/lib/facturacion/validarCupo
 import { validarMontoAutorizado } from '../../shared/lib/facturacion/validarMontoAutorizado';
 import { validateFacturaForm, type FacturaFormErrors } from './validateFacturaForm';
 import { seleccionables } from '../../shared/lib/seleccionables';
+import { ComboboxBuscable } from '../../design-system/ComboboxBuscable';
 
 export type FacturaFormValues = Omit<Factura, 'id' | 'estado' | 'identificadorFactura' | 'fechaFactura' | 'fechaEstimadaCobro'>;
 
@@ -379,12 +380,13 @@ export function FacturaForm({
   const pasoPacienteContent: ReactNode = (
     <CamposSoloLectura>
       <Field label="Paciente" htmlFor={`${formId}-paciente`} error={errors.pacienteId}>
-        <Select id={`${formId}-paciente`} value={values.pacienteId} onChange={(e) => set('pacienteId', e.target.value)}>
-          <option value="">Seleccionar paciente…</option>
-          {seleccionables(pacientes, values.pacienteId).map((p) => (
-            <option key={p.id} value={p.id}>{p.apellido}, {p.nombre}</option>
-          ))}
-        </Select>
+        <ComboboxBuscable
+          id={`${formId}-paciente`}
+          placeholder="Escribí apellido o nombre…"
+          opciones={seleccionables(pacientes, values.pacienteId).map((p) => ({ valor: p.id, etiqueta: `${p.apellido}, ${p.nombre}` }))}
+          valor={values.pacienteId}
+          onChange={(pacienteId) => set('pacienteId', pacienteId)}
+        />
       </Field>
     </CamposSoloLectura>
   );

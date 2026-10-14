@@ -8,6 +8,7 @@ import type { AutorizacionRepository } from '../../shared/lib/presupuestos/Autor
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { PresupuestoDetail } from './PresupuestoDetail';
+import { elegirEnCombobox } from '../../test/elegirEnCombobox';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return render(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
@@ -122,7 +123,7 @@ describe('PresupuestoDetail — modo alta (presupuesto null)', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-martina');
     // Fix "la obra social debe derivarse del paciente": ya no hay selector propio — se completa
     // sola con martina.obraSocialId ('osecac') al elegir el paciente.
     await user.type(screen.getByLabelText(/^monto \(estimaci/i), '150000');
@@ -178,7 +179,7 @@ describe('PresupuestoDetail — modo edición', () => {
     await screen.findAllByText('Gómez, Martina');
     await user.click(screen.getByRole('button', { name: /editar datos/i }));
     const pacienteField = screen.getByLabelText(/^paciente$/i);
-    expect(pacienteField).toHaveValue('paciente-martina');
+    expect(pacienteField).toHaveValue('Gómez, Martina');
 
     // Con la autorización todavía sin cargar (listByPresupuestoId resuelve []), la sección de
     // Autorización también muestra su propio form con botón "Guardar" — se acota la búsqueda al

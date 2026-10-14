@@ -16,6 +16,7 @@ import { mockAuthRepository } from '../../shared/lib/auth/mockAuthRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { TiposDocumentoRepositoryProvider } from './TiposDocumentoRepositoryContext';
 import { FacturaDetail } from './FacturaDetail';
+import { elegirEnCombobox } from '../../test/elegirEnCombobox';
 
 const martina: Paciente = {
   id: 'paciente-martina',
@@ -363,7 +364,7 @@ describe('FacturaDetail — write alcanza para todas las acciones de dinero (tas
 
     renderDetailConPermiso(true, { factura: null, presupuestoRepository, autorizacionRepository });
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     const autorizacion = await screen.findByLabelText(/^autorización$/i);

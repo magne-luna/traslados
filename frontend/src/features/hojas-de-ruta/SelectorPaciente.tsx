@@ -1,5 +1,6 @@
 import type { PacienteResumen } from '../../shared/types/paciente';
-import { Field, Select } from '../../design-system/form';
+import { Field } from '../../design-system/form';
+import { ComboboxBuscable } from '../../design-system/ComboboxBuscable';
 import { seleccionables } from '../../shared/lib/seleccionables';
 
 interface SelectorPacienteProps {
@@ -13,19 +14,21 @@ interface SelectorPacienteProps {
 
 // Select de paciente (feedback de usuario: "literal quiero que sean el mismo formulario") —
 // compartido entre AsignacionPanel (agregar pasajero a un recorrido existente) y
-// NuevoRecorridoForm (elegir el primer pasajero al crear uno). Select en vez de checkboxes: más
-// práctico cuando el sistema tiene muchos pacientes.
+// NuevoRecorridoForm (elegir el primer pasajero al crear uno). Buscador en vez de select (Andrea,
+// 2026-10-07): con 60+ pacientes, escribir el apellido es más rápido que scrollear.
 export function SelectorPaciente({ formId, pacientes, value, onChange, permitirVacio }: SelectorPacienteProps) {
   return (
     <Field label="Paciente" htmlFor={`${formId}-paciente`}>
-      <Select id={`${formId}-paciente`} value={value} onChange={(event) => onChange(event.target.value)}>
-        {permitirVacio && <option value="">— Sin pasajero por ahora —</option>}
-        {seleccionables(pacientes, value).map((paciente) => (
-          <option key={paciente.id} value={paciente.id}>
-            {paciente.apellido}, {paciente.nombre}
-          </option>
-        ))}
-      </Select>
+      <ComboboxBuscable
+        id={`${formId}-paciente`}
+        placeholder={permitirVacio ? 'Sin pasajero por ahora — escribí para buscar…' : 'Escribí apellido o nombre…'}
+        opciones={seleccionables(pacientes, value).map((paciente) => ({ valor: paciente.id, etiqueta: `${paciente.apellido}, ${paciente.nombre}` }))}
+        valor={value}
+        // Sin `permitirVacio` (AsignacionPanel) siempre hay alguien elegido: borrar el texto no lo des-elige.
+        onChange={(pacienteId) => {
+          if (pacienteId !== '' || permitirVacio) onChange(pacienteId);
+        }}
+      />
     </Field>
   );
 }

@@ -16,6 +16,7 @@ import type { PresupuestoRepository } from '../../shared/lib/presupuestos/Presup
 import type { AutorizacionRepository } from '../../shared/lib/presupuestos/AutorizacionRepository';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { FacturaForm, type FacturaFormValues } from './FacturaForm';
+import { elegirEnCombobox } from '../../test/elegirEnCombobox';
 
 const martina: Paciente = {
   id: 'paciente-martina',
@@ -223,7 +224,7 @@ async function elegirPrimeraAutorizacion() {
 // autorización "autorizada" por paciente). Reemplaza al doble click de "Siguiente" sin selección
 // que usaban estos tests antes de D4 (ahora bloqueado, tasks.md 3.3).
 async function avanzarHastaPaso3(pacienteId: string) {
-  await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), pacienteId);
+  await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), pacienteId);
   await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
   await elegirPrimeraAutorizacion();
   await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
@@ -237,7 +238,7 @@ describe('FacturaForm', () => {
   it('no invoca onSubmit si falta el paciente (validateFacturaForm bloquea)', async () => {
     const { onSubmit } = renderForm({ initial: valoresIniciales() });
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), '');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), '');
     await userEvent.click(screen.getByRole('button', { name: /guardar/i }));
 
     expect(onSubmit).not.toHaveBeenCalled();
@@ -417,7 +418,7 @@ describe('FacturaForm', () => {
       ),
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-general');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-general');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
     await userEvent.selectOptions(await screen.findByLabelText(/^autorización$/i), 'autorizacion-general-a');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
@@ -471,13 +472,13 @@ describe('FacturaForm — wizard de alta', () => {
     const siguiente = screen.getByRole('button', { name: /siguiente/i });
     expect(siguiente).toBeDisabled();
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     expect(siguiente).toBeEnabled();
   });
 
   it('Paso 2→3: "Siguiente" queda deshabilitado hasta elegir una autorización y se habilita al elegirla (D4)', async () => {
     renderForm();
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     const siguiente = screen.getByRole('button', { name: /siguiente/i });
@@ -497,7 +498,7 @@ describe('FacturaForm — wizard de alta', () => {
       presupuestoRepository: fakePresupuestoRepository([]),
       autorizacionRepository: fakeAutorizacionRepository(new Map()),
     });
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     expect(await screen.findByText(/no tiene autorizaciones pendientes de facturar/i)).toBeInTheDocument();
@@ -531,7 +532,7 @@ describe('FacturaForm — wizard de alta', () => {
       presupuestoRepository: fakePresupuestoRepository(presupuestos),
       autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
     });
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     // `autorizacion-mensual` (design.md D6b, tasks.md 5.3): la etiqueta ahora SIEMPRE lleva el
@@ -552,7 +553,7 @@ describe('FacturaForm — wizard de alta', () => {
     // Paso 3 → Paso 2 → Paso 1: el paciente elegido sigue seleccionado.
     await userEvent.click(screen.getByRole('button', { name: /atrás/i }));
     await userEvent.click(screen.getByRole('button', { name: /atrás/i }));
-    expect(screen.getByLabelText(/^paciente$/i)).toHaveValue('paciente-martina');
+    expect(screen.getByLabelText(/^paciente$/i)).toHaveValue('Gómez, Martina');
 
     // Vuelve a avanzar hasta el Paso 3: la autorización elegida y el valor ya cargado siguen
     // ahí — "Siguiente" ya está habilitado sin volver a elegir (D4).
@@ -615,7 +616,7 @@ describe('FacturaForm — preselección y coherencia de período (D7, tasks.md 6
       autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     const select = await screen.findByLabelText(/^autorización$/i);
@@ -639,7 +640,7 @@ describe('FacturaForm — preselección y coherencia de período (D7, tasks.md 6
       autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     const select = await screen.findByLabelText(/^autorización$/i);
@@ -662,7 +663,7 @@ describe('FacturaForm — preselección y coherencia de período (D7, tasks.md 6
       autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     const select = await screen.findByLabelText(/^autorización$/i);
@@ -737,7 +738,7 @@ describe('FacturaForm — AvisoModeloDatos por convivencia de modelos (D8, tasks
       autorizacionRepository: fakeAutorizacionRepository(autorizaciones),
     });
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     expect(await screen.findByText(/modelo de datos/i)).toBeInTheDocument();
@@ -746,7 +747,7 @@ describe('FacturaForm — AvisoModeloDatos por convivencia de modelos (D8, tasks
   it('Paso 2: NO muestra el aviso de convivencia cuando todas las autorizaciones pendientes son del mismo modelo (todas legacy)', async () => {
     renderForm(); // repositoriosPorDefecto: autorizaciones legacy únicamente
 
-    await userEvent.selectOptions(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'paciente-martina');
     await userEvent.click(screen.getByRole('button', { name: /siguiente/i }));
 
     await elegirPrimeraAutorizacion();

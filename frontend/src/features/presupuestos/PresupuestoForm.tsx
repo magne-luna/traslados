@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { AvisoModeloDatos, Button, CamposSoloLectura, FieldGroupHeading, InlineIcon } from '../../design-system/components';
 import { Alert, EmptyState } from '../../design-system/feedback';
-import { CampoNumerico, Field, FieldError, Select, Input } from '../../design-system/form';
+import { CampoNumerico, Field, FieldError, Input } from '../../design-system/form';
 import { CardForm } from '../../design-system/layout';
 import { iconSubirArchivo } from '../../design-system/icons';
 import type { ArchivoAdjunto, DatosTraslado, PresupuestoLinea } from '../../shared/types/presupuesto';
@@ -20,6 +20,7 @@ import {
   type PresupuestoFormErrors,
   type PresupuestoLoteFormErrors,
 } from './validatePresupuestoForm';
+import { ComboboxBuscable } from '../../design-system/ComboboxBuscable';
 
 export interface PresupuestoFormValues {
   pacienteId: string | null;
@@ -406,19 +407,13 @@ export function PresupuestoForm({
       <CamposSoloLectura>
       <div className="grid grid-cols-1 gap-md md:grid-cols-2">
         <Field label="Paciente" htmlFor={`${formId}-paciente`} error={errors.pacienteId}>
-          <Select
+          <ComboboxBuscable
             id={`${formId}-paciente`}
-            density="comfortable"
-            value={values.pacienteId ?? ''}
-            onChange={(event) => setValues((prev) => ({ ...prev, pacienteId: event.target.value || null }))}
-          >
-            <option value="">Seleccionar paciente…</option>
-            {seleccionables(pacientes, values.pacienteId).map((paciente) => (
-              <option key={paciente.id} value={paciente.id}>
-                {nombrePaciente(paciente)}
-              </option>
-            ))}
-          </Select>
+            placeholder="Escribí apellido o nombre…"
+            opciones={seleccionables(pacientes, values.pacienteId).map((paciente) => ({ valor: paciente.id, etiqueta: nombrePaciente(paciente) }))}
+            valor={values.pacienteId ?? ''}
+            onChange={(pacienteId) => setValues((prev) => ({ ...prev, pacienteId: pacienteId || null }))}
+          />
         </Field>
 
         {/* Fix "la obra social debe derivarse del paciente": ya no es un <select> propio — se

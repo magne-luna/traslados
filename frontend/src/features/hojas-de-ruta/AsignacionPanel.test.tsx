@@ -7,6 +7,7 @@ import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { AsignacionPanel } from './AsignacionPanel';
+import { elegirEnCombobox } from '../../test/elegirEnCombobox';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return renderConQuery(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
@@ -84,7 +85,7 @@ describe('AsignacionPanel', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-incompatible');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-incompatible');
     await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/silla-rigida/i);
@@ -112,7 +113,7 @@ describe('AsignacionPanel', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-1');
     await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/lugar|capacidad/i);
@@ -133,7 +134,7 @@ describe('AsignacionPanel', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-1');
     await user.selectOptions(screen.getByLabelText(/dirección de origen/i), 'dir-ida');
     await user.selectOptions(screen.getByLabelText(/dirección de destino/i), 'dir-vuelta');
     await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
@@ -177,7 +178,7 @@ describe('AsignacionPanel', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-1');
     await user.type(screen.getByLabelText(/hora/i), '08:30');
     await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
 
@@ -199,7 +200,7 @@ describe('AsignacionPanel', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-1');
     await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
 
     const parada = onAgregar.mock.calls[0]?.[0];
@@ -220,7 +221,7 @@ describe('AsignacionPanel', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-1');
     await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
 
     expect(onAgregar).toHaveBeenCalledTimes(1);
@@ -231,7 +232,6 @@ describe('AsignacionPanel', () => {
   // ser SOLO el duplicado exacto (mismo paciente + mismo tramo ya cargado), nunca el paciente
   // entero.
   it('preselecciona el tramo que le falta al paciente elegido cuando ya tiene una parada en este recorrido', async () => {
-    const user = userEvent.setup();
     const compatible = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
     const recorridoConIdaCargada = buildRecorrido({
       paradas: [{ id: 'p-ida', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'a', direccionDestinoId: 'b', orden: 0 }],
@@ -252,7 +252,7 @@ describe('AsignacionPanel', () => {
 
     // Reafirmar la misma elección disparando el onChange (mismo paciente ya seleccionado)
     // también debe mantener "vuelta" (triangulación del mismo camino, no solo el mount inicial).
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'paciente-1');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-1');
     expect(screen.getByLabelText(/tramo/i)).toHaveValue('vuelta');
   });
 

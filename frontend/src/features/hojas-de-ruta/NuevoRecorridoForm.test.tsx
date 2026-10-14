@@ -8,6 +8,7 @@ import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { NuevoRecorridoForm } from './NuevoRecorridoForm';
+import { elegirEnCombobox } from '../../test/elegirEnCombobox';
 
 function renderConPermiso(puedeEscribir: boolean, ui: React.ReactElement) {
   return renderConQuery(<PuedeEscribirContext.Provider value={puedeEscribir}>{ui}</PuedeEscribirContext.Provider>);
@@ -166,7 +167,6 @@ describe('NuevoRecorridoForm', () => {
   });
 
   it('al elegir un paciente con accesorios, los muestra como chips', async () => {
-    const user = userEvent.setup();
     const conAccesorio = buildPaciente({ id: 'p-acc', apellido: 'Ledesma', accesorioMovilidad: ['andador'] });
 
     renderConQuery(
@@ -178,13 +178,12 @@ describe('NuevoRecorridoForm', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'p-acc');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'p-acc');
 
     expect(screen.getAllByText(/andador/i).length).toBeGreaterThan(0);
   });
 
   it('el selector de vehículo se limita a los que tienen accesorios compatibles con el paciente elegido', async () => {
-    const user = userEvent.setup();
     const sinAccesorio = buildVehiculo({ id: 'v-sin', patente: 'SIN111', accesoriosCompatibles: [] });
     const conAccesorio = buildVehiculo({ id: 'v-con', patente: 'CON111', accesoriosCompatibles: ['silla-rigida'] });
     const pacienteConAccesorio = buildPaciente({ id: 'p-acc', accesorioMovilidad: ['silla-rigida'] });
@@ -202,14 +201,13 @@ describe('NuevoRecorridoForm', () => {
     expect(screen.getByRole('option', { name: /sin111/i })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /con111/i })).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'p-acc');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'p-acc');
 
     expect(screen.queryByRole('option', { name: /sin111/i })).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: /con111/i })).toBeInTheDocument();
   });
 
   it('vuelve a incluir un vehículo descartado si se vuelve a elegir "sin pasajero"', async () => {
-    const user = userEvent.setup();
     const sinAccesorio = buildVehiculo({ id: 'v-sin', patente: 'SIN111', accesoriosCompatibles: [] });
     const pacienteConAccesorio = buildPaciente({ id: 'p-acc', accesorioMovilidad: ['silla-rigida'] });
 
@@ -223,16 +221,15 @@ describe('NuevoRecorridoForm', () => {
     );
 
     const selectPaciente = screen.getByLabelText(/paciente/i);
-    await user.selectOptions(selectPaciente, 'p-acc');
+    await elegirEnCombobox(selectPaciente, 'p-acc');
     expect(screen.getByText(/ningún vehículo disponible/i)).toBeInTheDocument();
 
-    await user.selectOptions(selectPaciente, '');
+    await elegirEnCombobox(selectPaciente, '');
     expect(screen.queryByText(/ningún vehículo disponible/i)).not.toBeInTheDocument();
     expect(screen.getByRole('option', { name: /sin111/i })).toBeInTheDocument();
   });
 
   it('muestra un aviso y oculta el botón de crear cuando ningún vehículo disponible sirve para el paciente elegido', async () => {
-    const user = userEvent.setup();
     const chico = buildVehiculo({ id: 'v-chico', accesoriosCompatibles: [] });
     const pacienteConAccesorio = buildPaciente({ id: 'p-acc', accesorioMovilidad: ['silla-rigida'] });
 
@@ -240,7 +237,7 @@ describe('NuevoRecorridoForm', () => {
       <NuevoRecorridoForm vehiculos={[chico]} conductores={[buildConductor()]} pacientes={[pacienteConAccesorio]} onCrear={vi.fn()} />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'p-acc');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'p-acc');
 
     expect(screen.getByText(/ningún vehículo disponible/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /crear recorrido/i })).not.toBeInTheDocument();
@@ -306,7 +303,7 @@ describe('NuevoRecorridoForm', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/paciente/i), 'p-a');
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'p-a');
     await user.type(screen.getByLabelText(/hora/i), '08:30');
     await user.selectOptions(screen.getByLabelText(/dirección de origen/i), 'dir-ida');
     await user.selectOptions(screen.getByLabelText(/dirección de destino/i), 'dir-vuelta');
@@ -362,14 +359,13 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-1');
     await user.type(screen.getByLabelText(/hora/i), '09:10');
 
     expect(screen.queryByRole('button', { name: /agregar a este recorrido/i })).not.toBeInTheDocument();
   });
 
   it('sin hora estimada cargada, no muestra ninguna sugerencia (sin señal temporal)', async () => {
-    const user = userEvent.setup();
     const { recorridoExistente, vehiculoExistente } = setupConCandidato();
 
     renderConQuery(
@@ -383,7 +379,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-1');
 
     expect(screen.queryByRole('button', { name: /agregar a este recorrido/i })).not.toBeInTheDocument();
   });
@@ -403,7 +399,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-1');
     await user.type(screen.getByLabelText(/hora/i), '09:10');
 
     // /exi111/i solo por getByText matchea también el <option> del selector de Vehículo (mismo
@@ -430,7 +426,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-1');
     await user.type(screen.getByLabelText(/hora/i), '09:10');
     await user.click(screen.getByRole('button', { name: /agregar a este recorrido/i }));
 
@@ -467,7 +463,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-1');
     await user.type(screen.getByLabelText(/hora/i), '09:10');
     await user.selectOptions(screen.getByLabelText(/dirección de origen/i), 'dir-ida');
     await user.selectOptions(screen.getByLabelText(/dirección de destino/i), 'dir-vuelta');
@@ -496,7 +492,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-1');
     await user.type(screen.getByLabelText(/hora/i), '09:10');
     await user.click(screen.getByRole('button', { name: /^crear recorrido$/i }));
 
@@ -519,7 +515,7 @@ describe('NuevoRecorridoForm — sugerencia de recorrido existente', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-1');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-1');
     await user.type(screen.getByLabelText(/hora/i), '09:10');
     expect(screen.getByRole('button', { name: /agregar a este recorrido/i })).toBeInTheDocument();
 
@@ -616,7 +612,7 @@ describe('NuevoRecorridoForm — gateo de escritura', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), paciente.id);
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), paciente.id);
     await user.type(screen.getByLabelText(/hora/i), '09:10');
 
     expect(screen.getByRole('button', { name: /agregar a este recorrido/i })).toBeEnabled();
@@ -670,7 +666,7 @@ describe('NuevoRecorridoForm · destino habitual del paciente', () => {
     const user = userEvent.setup();
     renderForm();
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-hab');
     await user.selectOptions(await screen.findByLabelText(/destino habitual/i), 'h-jueves');
 
     expect(screen.getByLabelText(/hora estimada/i)).toHaveValue('08:15');
@@ -682,7 +678,7 @@ describe('NuevoRecorridoForm · destino habitual del paciente', () => {
     const user = userEvent.setup();
     const onCrear = renderForm();
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-hab');
     await user.selectOptions(await screen.findByLabelText(/destino habitual/i), 'h-jueves');
     await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
 
@@ -704,7 +700,7 @@ describe('NuevoRecorridoForm · destino habitual del paciente', () => {
     const user = userEvent.setup();
     const onCrear = renderForm();
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-hab');
     await user.selectOptions(await screen.findByLabelText(/destino habitual/i), 'h-jueves');
     await user.clear(screen.getByLabelText(/hora estimada/i));
     await user.type(screen.getByLabelText(/hora estimada/i), '09:45');
@@ -719,17 +715,15 @@ describe('NuevoRecorridoForm · destino habitual del paciente', () => {
   // ninguno — escondido era indistinguible de "la función no anda". Queda a la vista,
   // deshabilitado y con el motivo escrito.
   it('muestra el atajo deshabilitado y explica por qué cuando el paciente no tiene ninguno', async () => {
-    const user = userEvent.setup();
     renderForm(vi.fn(), []);
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-hab');
 
     expect(await screen.findByLabelText(/destino habitual/i)).toBeDisabled();
     expect(screen.getByText('Este paciente no tiene destinos habituales cargados en su ficha.')).toBeInTheDocument();
   });
 
   it('un fallo de la consulta se muestra como error, no como "no tiene ninguno"', async () => {
-    const user = userEvent.setup();
     renderConPermiso(
       true,
       <NuevoRecorridoForm
@@ -744,14 +738,13 @@ describe('NuevoRecorridoForm · destino habitual del paciente', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-hab');
 
     expect(await screen.findByText('No se pudieron cargar los destinos habituales.')).toBeInTheDocument();
     expect(screen.queryByText(/no tiene destinos habituales cargados/i)).not.toBeInTheDocument();
   });
 
   it('sin repository inyectado el formulario funciona exactamente como antes', async () => {
-    const user = userEvent.setup();
     renderConPermiso(
       true,
       <NuevoRecorridoForm
@@ -762,7 +755,7 @@ describe('NuevoRecorridoForm · destino habitual del paciente', () => {
       />,
     );
 
-    await user.selectOptions(screen.getByLabelText(/^paciente$/i), 'p-hab');
+    await elegirEnCombobox(screen.getByLabelText(/^paciente$/i), 'p-hab');
 
     expect(screen.queryByLabelText(/destino habitual/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/dirección de origen/i)).toBeInTheDocument();
