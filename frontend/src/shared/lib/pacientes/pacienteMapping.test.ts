@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   direccionesACambiar,
   ensamblarPaciente,
+  ensamblarPacienteResumen,
   parseAccesorios,
   parseClinicosRow,
   parseCudRow,
@@ -508,6 +509,7 @@ describe('ensamblarPaciente', () => {
       prestaciones: [
         { id: 'prest-1', pacienteId: 'p-1', nombre: 'Kinesiología', descripcion: 'Sesión semanal', activa: true },
       ],
+      activo: true,
     });
   });
 
@@ -699,5 +701,22 @@ describe('toCrearPacientePayload', () => {
       expect(direccion).not.toHaveProperty('lat');
       expect(direccion).not.toHaveProperty('lng');
     }
+  });
+});
+
+// inactivar-entidades (reunión con Andrea 2026-10-07): baja lógica, nunca borrado — el historial
+// (presupuestos, facturas) sigue apuntando al paciente.
+describe('activo (baja lógica)', () => {
+  it('ensamblarPaciente lee activo = false de la fila', () => {
+    expect(ensamblarPaciente({ id: 'p-1', activo: false }, null).activo).toBe(false);
+  });
+
+  it('ensamblarPaciente toma activo = true si la columna no viene', () => {
+    expect(ensamblarPaciente({ id: 'p-1' }, null).activo).toBe(true);
+  });
+
+  it('ensamblarPacienteResumen también expone activo', () => {
+    expect(ensamblarPacienteResumen({ id: 'p-1', activo: false }).activo).toBe(false);
+    expect(ensamblarPacienteResumen({ id: 'p-1' }).activo).toBe(true);
   });
 });

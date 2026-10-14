@@ -44,7 +44,8 @@ export function PacientesPage({
   recorridoHabitualRepository,
 }: PacientesPageProps) {
   const pacienteRepository = usePacienteRepository();
-  const listado = usePacientesPaginado(pacienteRepository);
+  const [incluirInactivos, setIncluirInactivos] = useState(false);
+  const listado = usePacientesPaginado(pacienteRepository, incluirInactivos);
   const { obrasSociales } = useObrasSociales(obraSocialRepository);
   const [view, setView] = useState<View>({ kind: 'list' });
 
@@ -109,6 +110,11 @@ export function PacientesPage({
         tamanio={listado.tamanio}
         total={listado.total}
         onCambiarPagina={listado.irAPagina}
+        incluirInactivos={incluirInactivos}
+        onIncluirInactivosChange={(incluir) => {
+          setIncluirInactivos(incluir);
+          listado.irAPagina(1);
+        }}
       />
     </>
   );

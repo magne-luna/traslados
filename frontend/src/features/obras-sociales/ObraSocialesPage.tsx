@@ -26,7 +26,8 @@ type View = { kind: 'list' } | { kind: 'detail'; obraSocial: ObraSocial | null }
 // replican gateo-pacientes, gateo-facturacion y gateo-conductores en su propia página de módulo.
 export function ObraSocialesPage() {
   const repository = useObraSocialRepository();
-  const listado = useObrasSocialesPaginado(repository);
+  const [incluirInactivos, setIncluirInactivos] = useState(false);
+  const listado = useObrasSocialesPaginado(repository, incluirInactivos);
   const [view, setView] = useState<View>({ kind: 'list' });
 
   // `ObraSocialDetail` lee directo del prop `obraSocial` (resumen, form, checklist, plantilla de
@@ -77,6 +78,11 @@ export function ObraSocialesPage() {
         tamanio={listado.tamanio}
         total={listado.total}
         onCambiarPagina={listado.irAPagina}
+        incluirInactivos={incluirInactivos}
+        onIncluirInactivosChange={(incluir) => {
+          setIncluirInactivos(incluir);
+          listado.irAPagina(1);
+        }}
       />
     </>
   );

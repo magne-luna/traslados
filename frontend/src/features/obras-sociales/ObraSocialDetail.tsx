@@ -3,6 +3,7 @@ import { AvisoModeloDatos, Button, Section, VolverAlListadoButton, VolverAlLista
 import { Alert } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import type { ActualizacionObraSocial, NuevaObraSocial, ObraSocial } from '../../shared/types/obraSocial';
+import { BajaLogicaControl } from '../../shared/components/BajaLogicaControl';
 import { ChecklistEditor } from './ChecklistEditor';
 import { DEFAULT_IDENTIFICADOR_ORIGEN } from './origenCampoOptions';
 import { ObraSocialForm, type ObraSocialFormValues } from './ObraSocialForm';
@@ -83,6 +84,14 @@ export function ObraSocialDetail({ obraSocial, crear, actualizar, onCreated, onB
   return (
     <div className="flex flex-col gap-xl py-xxl px-xl">
       <VolverAlListadoLink onClick={onBack} />
+
+      {obraSocial && (
+        <BajaLogicaControl
+          activo={obraSocial.activo !== false}
+          entidad="obra social"
+          onCambiar={(activo) => actualizar(obraSocial.id, { activo })}
+        />
+      )}
 
       <Section label="Obra social" title={obraSocial?.nombre ?? 'Nueva obra social'}>
         {obraSocial && !editing ? (

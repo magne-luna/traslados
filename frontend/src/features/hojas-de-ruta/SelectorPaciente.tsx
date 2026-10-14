@@ -1,5 +1,6 @@
 import type { PacienteResumen } from '../../shared/types/paciente';
 import { Field, Select } from '../../design-system/form';
+import { seleccionables } from '../../shared/lib/seleccionables';
 
 interface SelectorPacienteProps {
   formId: string;
@@ -19,7 +20,7 @@ export function SelectorPaciente({ formId, pacientes, value, onChange, permitirV
     <Field label="Paciente" htmlFor={`${formId}-paciente`}>
       <Select id={`${formId}-paciente`} value={value} onChange={(event) => onChange(event.target.value)}>
         {permitirVacio && <option value="">— Sin pasajero por ahora —</option>}
-        {pacientes.map((paciente) => (
+        {seleccionables(pacientes, value).map((paciente) => (
           <option key={paciente.id} value={paciente.id}>
             {paciente.apellido}, {paciente.nombre}
           </option>

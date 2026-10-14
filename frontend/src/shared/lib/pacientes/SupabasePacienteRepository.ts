@@ -35,7 +35,7 @@ import { rangoSupabase } from '../paginacion/rangoSupabase';
 // (discrepancia #6 de D9) aunque `pacienteMapping.ts` no la mapea a ningún campo del dominio.
 const SELECT_PACIENTE_COMPLETO = `
   id, nombre_a, nombre_b, apellido_a, apellido_b, fecha_nacimiento, dni, cuil_titular,
-  domicilio, obra_social_id, amparo_judicial,
+  domicilio, obra_social_id, amparo_judicial, activo,
   cud ( numero_cud, emision, vencimiento ),
   clinicos ( diagnostico, condicion ),
   personas_a_cargo ( id, nombre, apellido, dni, parentesco, telefono, telefono_alternativo ),
@@ -56,7 +56,7 @@ const SELECT_PACIENTE_COMPLETO = `
 // ⚠️ `getById` sigue usando SELECT_PACIENTE_COMPLETO: la ficha necesita todo. Adelgazarla sería
 // romper la pantalla, no optimizarla.
 const SELECT_PACIENTE_RESUMEN = `
-  id, nombre_a, apellido_a, obra_social_id,
+  id, nombre_a, apellido_a, obra_social_id, activo,
   cud ( numero_cud, emision, vencimiento ),
   direcciones ( id, calle, numero, tipo_lugar, localidad, descripcion ),
   accesorios_pacientes ( accesorios ( tipo ) ),
@@ -200,6 +200,8 @@ async function listarPacientesPagina(query: RangoPagina & { filtros: FiltrosPaci
     .order('nombre_a', { ascending: true })
     .order('id', { ascending: true })
     .range(desde, hasta);
+
+  if (!filtros.incluirInactivos) consulta = consulta.eq('activo', true);
 
   const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_PACIENTE);
   if (filtro) {
@@ -392,6 +394,7 @@ function construirCamposPaciente(data: ActualizacionPaciente): Record<string, un
   if (data.cuilTitular !== undefined) campos.cuil_titular = data.cuilTitular || null;
   if (data.obraSocialId !== undefined) campos.obra_social_id = data.obraSocialId;
   if (data.amparoJudicial !== undefined) campos.amparo_judicial = data.amparoJudicial;
+  if (data.activo !== undefined) campos.activo = data.activo;
   return campos;
 }
 

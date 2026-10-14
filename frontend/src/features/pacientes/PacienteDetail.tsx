@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BajaLogicaControl } from '../../shared/components/BajaLogicaControl';
 import { AvisoModeloDatos, AvisoPendienteCliente, Chip, Section, VolverAlListadoButton, VolverAlListadoLink } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
@@ -168,6 +169,14 @@ export function PacienteDetail({
   return (
     <div className="flex flex-col gap-xl py-xxl px-xl">
       <VolverAlListadoLink onClick={onBack} />
+
+      {paciente && (
+        <BajaLogicaControl
+          activo={paciente.activo !== false}
+          entidad="paciente"
+          onCambiar={(activo) => actualizar(paciente.id, { activo })}
+        />
+      )}
 
       <Section label="Paciente" title={paciente ? nombreCompleto(paciente) : 'Nuevo paciente'}>
         {paciente && !editing ? (

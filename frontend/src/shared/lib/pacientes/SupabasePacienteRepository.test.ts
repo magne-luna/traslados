@@ -1955,3 +1955,41 @@ describe('supabasePacienteRepository — list() no trae lo que nadie usa (select
     expect(consulta?.columns).toMatch(/personas_a_cargo\s*\(/);
   });
 });
+
+describe('supabasePacienteRepository — activo (baja lógica)', () => {
+  it('listPage oculta los inactivos por defecto', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.eq).toContainEqual(['activo', true]);
+  });
+
+  it('listPage con incluirInactivos no filtra por activo', async () => {
+    configurar('pacientes', 'paciente', 'select', () => okConCount([], 0));
+
+    await supabasePacienteRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '', incluirInactivos: true } });
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.eq.some(([columna]) => columna === 'activo')).toBe(false);
+  });
+
+  it('list() pide la columna activo para que los selectores puedan filtrar', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([]));
+
+    await supabasePacienteRepository.list();
+
+    const consulta = calls.find((c) => c.schema === 'pacientes' && c.table === 'paciente' && c.op === 'select');
+    expect(consulta?.columns).toMatch(/\bactivo\b/);
+  });
+
+  it('update({ activo: false }) escribe la columna activo', async () => {
+    configurar('pacientes', 'paciente', 'select', () => ok([filaPaciente()]));
+
+    await supabasePacienteRepository.update('p-1', { activo: false });
+
+    const escritura = calls.find((c) => c.table === 'paciente' && c.op === 'update');
+    expect(escritura?.payload).toEqual({ activo: false });
+  });
+});

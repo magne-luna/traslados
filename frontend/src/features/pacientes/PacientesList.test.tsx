@@ -253,3 +253,26 @@ describe('PacientesList', () => {
     });
   });
 });
+
+describe('PacientesList — inactivos (baja lógica)', () => {
+  it('marca con un chip al paciente inactivo', () => {
+    render(<PacientesList {...defaultProps({ pacientes: [{ ...martina, activo: false }], total: 1 })} />);
+
+    expect(screen.getByText('Inactivo')).toBeInTheDocument();
+  });
+
+  it('no marca nada a un paciente activo', () => {
+    render(<PacientesList {...defaultProps({ pacientes: [martina], total: 1 })} />);
+
+    expect(screen.queryByText('Inactivo')).not.toBeInTheDocument();
+  });
+
+  it('"Mostrar inactivos" avisa el cambio aunque no haya ningún paciente activo', async () => {
+    const onIncluirInactivosChange = vi.fn();
+    render(<PacientesList {...defaultProps({ incluirInactivos: false, onIncluirInactivosChange })} />);
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Mostrar inactivos' }));
+
+    expect(onIncluirInactivosChange).toHaveBeenCalledWith(true);
+  });
+});

@@ -249,3 +249,20 @@ describe('ObrasSocialesList — rol admin sin filas de permisos', () => {
     expect(screen.getByRole('button', { name: /crear la primera obra social/i })).toBeEnabled();
   });
 });
+
+describe('ObrasSocialesList — inactivas (baja lógica)', () => {
+  it('marca con un chip a la obra social inactiva y no a las activas', () => {
+    render(<ObrasSocialesList {...defaultProps({ obrasSociales: [{ ...osecac, activo: false }, osde], total: 2 })} />);
+
+    expect(screen.getAllByText('Inactiva')).toHaveLength(1);
+  });
+
+  it('"Mostrar inactivas" avisa el cambio aunque no haya ninguna activa', async () => {
+    const onIncluirInactivosChange = vi.fn();
+    render(<ObrasSocialesList {...defaultProps({ onIncluirInactivosChange })} />);
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Mostrar inactivas' }));
+
+    expect(onIncluirInactivosChange).toHaveBeenCalledWith(true);
+  });
+});

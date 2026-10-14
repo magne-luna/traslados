@@ -239,6 +239,7 @@ describe('ensamblarObraSocial (3.5)', () => {
         identificadorOrigen: 'paciente.numeroAfiliado',
         campos: [{ id: 'c-1', etiqueta: 'Paciente', origen: 'paciente.nombre', orden: 0 }],
       },
+      activo: true,
     });
   });
 
@@ -274,6 +275,7 @@ describe('ensamblarObraSocial (3.5)', () => {
       tipoComprobante: undefined,
       checklist: [],
       plantillaFactura: { identificadorOrigen: 'paciente.numeroAfiliado', campos: [] },
+      activo: true,
     });
   });
 

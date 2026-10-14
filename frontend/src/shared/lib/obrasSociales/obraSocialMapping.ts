@@ -278,6 +278,8 @@ export function ensamblarObraSocial(row: unknown): ObraSocial {
       identificadorOrigen: base.identificadorOrigen,
       campos: parsePlantillaCampos(record.plantilla_campo),
     },
+    // Columna ausente del select = activa: nunca se oculta una obra social por un dato no pedido.
+    activo: record.activo !== false,
   };
 }
 

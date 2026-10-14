@@ -118,6 +118,13 @@ export interface Paciente {
    * satisfacer el tipo — `PacienteDetail` la trata igual como `paciente.prestaciones ?? []`.
    */
   prestaciones?: Prestacion[];
+  /**
+   * Baja lógica (reunión con Andrea, 2026-10-07): un paciente nunca se borra, se inactiva — los
+   * presupuestos y facturas ya emitidos siguen apuntando a él. Inactivo = fuera del listado por
+   * defecto y de los selectores de altas nuevas. Opcional por el mismo motivo que `prestaciones`
+   * (no obligar a tocar fixtures ajenos); el repository real siempre lo completa. Ausente = activo.
+   */
+  activo?: boolean;
 }
 
 /**
@@ -144,7 +151,7 @@ export interface Paciente {
  */
 export type PacienteResumen = Pick<
   Paciente,
-  'id' | 'nombre' | 'apellido' | 'obraSocialId' | 'cud' | 'direcciones' | 'accesorioMovilidad' | 'prestaciones'
+  'id' | 'nombre' | 'apellido' | 'obraSocialId' | 'cud' | 'direcciones' | 'accesorioMovilidad' | 'prestaciones' | 'activo'
 >;
 
 /** Payload de alta: todo lo de Paciente salvo el id, que asigna el repository. */

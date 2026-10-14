@@ -33,6 +33,7 @@ import { renderDescripcionFactura } from '../../shared/lib/facturacion/renderDes
 import { validarCupoFacturacion } from '../../shared/lib/facturacion/validarCupoFacturacion';
 import { validarMontoAutorizado } from '../../shared/lib/facturacion/validarMontoAutorizado';
 import { validateFacturaForm, type FacturaFormErrors } from './validateFacturaForm';
+import { seleccionables } from '../../shared/lib/seleccionables';
 
 export type FacturaFormValues = Omit<Factura, 'id' | 'estado' | 'identificadorFactura' | 'fechaFactura' | 'fechaEstimadaCobro'>;
 
@@ -380,7 +381,7 @@ export function FacturaForm({
       <Field label="Paciente" htmlFor={`${formId}-paciente`} error={errors.pacienteId}>
         <Select id={`${formId}-paciente`} value={values.pacienteId} onChange={(e) => set('pacienteId', e.target.value)}>
           <option value="">Seleccionar paciente…</option>
-          {pacientes.map((p) => (
+          {seleccionables(pacientes, values.pacienteId).map((p) => (
             <option key={p.id} value={p.id}>{p.apellido}, {p.nombre}</option>
           ))}
         </Select>

@@ -206,7 +206,7 @@ describe('PacientesPage — paginación server-side (13.x)', () => {
 
     await screen.findByText(/gómez, martina/i);
 
-    expect(repository.listPage).toHaveBeenCalledWith({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+    expect(repository.listPage).toHaveBeenCalledWith({ pagina: 1, tamanio: 20, filtros: { busqueda: '', incluirInactivos: false } });
   });
 
   it('13.1/13.2 monta el <Paginador> y navegar a la página siguiente vuelve a pedir listPage con esa página', async () => {
@@ -222,7 +222,20 @@ describe('PacientesPage — paginación server-side (13.x)', () => {
     await user.click(screen.getByRole('button', { name: /página siguiente/i }));
 
     await vi.waitFor(() =>
-      expect(repository.listPage).toHaveBeenCalledWith({ pagina: 2, tamanio: 20, filtros: { busqueda: '' } }),
+      expect(repository.listPage).toHaveBeenCalledWith({ pagina: 2, tamanio: 20, filtros: { busqueda: '', incluirInactivos: false } }),
+    );
+  });
+
+  it('tildar "Mostrar inactivos" vuelve a pedir listPage con incluirInactivos y desde la página 1', async () => {
+    const user = userEvent.setup();
+    const repository = buildFakePacienteRepository();
+    renderPage(repository);
+
+    await screen.findByText(/gómez, martina/i);
+    await user.click(screen.getByRole('checkbox', { name: 'Mostrar inactivos' }));
+
+    await vi.waitFor(() =>
+      expect(repository.listPage).toHaveBeenCalledWith({ pagina: 1, tamanio: 20, filtros: { busqueda: '', incluirInactivos: true } }),
     );
   });
 

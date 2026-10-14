@@ -94,8 +94,10 @@ export const mockPacienteRepository: PacienteRepository = {
 
   async listPage({ pagina, tamanio, filtros }) {
     const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_PACIENTE);
-    const todos = ordenarPacientes(readStore()).filter((paciente) =>
-      matcheaFiltroBusqueda(valoresBuscables(paciente), filtro),
+    const todos = ordenarPacientes(readStore()).filter(
+      (paciente) =>
+        (filtros.incluirInactivos || paciente.activo !== false) &&
+        matcheaFiltroBusqueda(valoresBuscables(paciente), filtro),
     );
     const { desde, hasta } = rangoSupabase({ pagina, tamanio });
     const items = todos.slice(desde, hasta + 1);

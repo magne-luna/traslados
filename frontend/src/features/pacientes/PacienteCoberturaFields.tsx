@@ -4,6 +4,7 @@ import { Field, Input, Select } from '../../design-system/form';
 import { IdentificadorAfiliadoField } from './IdentificadorAfiliadoField';
 import type { PacienteFormValues } from './PacienteForm';
 import type { PacienteFormErrors } from './validatePacienteForm';
+import { seleccionables } from '../../shared/lib/seleccionables';
 
 type Cobertura = Pick<
   PacienteFormValues,
@@ -39,7 +40,7 @@ export function PacienteCoberturaFields({ formId, values, errors, obrasSociales,
             onChange={(event) => onChange({ obraSocialId: event.target.value === '' ? null : event.target.value })}
           >
             <option value="">Sin obra social</option>
-            {obrasSociales.map((obraSocial) => (
+            {seleccionables(obrasSociales, values.obraSocialId).map((obraSocial) => (
               <option key={obraSocial.id} value={obraSocial.id}>
                 {obraSocial.nombre}
               </option>

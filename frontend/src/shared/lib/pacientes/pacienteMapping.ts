@@ -396,6 +396,7 @@ export function ensamblarPaciente(row: unknown, coberturaRow: unknown): Paciente
     amparoJudicial: base.amparoJudicial,
     amparoJudicialAclaracion: undefined,
     prestaciones,
+    activo: leerActivo(record),
   };
 }
 
@@ -489,5 +490,12 @@ export function ensamblarPacienteResumen(row: unknown): PacienteResumen {
     direcciones: direccionesRaw.map((d) => parseDireccionRow(d)).filter((d): d is Direccion => d !== null),
     accesorioMovilidad: parseAccesorios(record.accesorios_pacientes),
     prestaciones: prestacionesRaw.map((p) => parsePrestacionRow(p)).filter((p): p is Prestacion => p !== null),
+    activo: leerActivo(record),
   };
+}
+
+/** `pacientes.paciente.activo` (NOT NULL DEFAULT true). Si la columna no vino en el select, el
+ * paciente se considera activo — nunca se oculta a alguien por un dato que no se pidió. */
+function leerActivo(record: Record<string, unknown>): boolean {
+  return record.activo !== false;
 }

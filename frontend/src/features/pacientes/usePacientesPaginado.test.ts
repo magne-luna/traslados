@@ -66,7 +66,7 @@ describe('usePacientesPaginado', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(repository.listPage).toHaveBeenCalledWith({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+    expect(repository.listPage).toHaveBeenCalledWith({ pagina: 1, tamanio: 20, filtros: { busqueda: '', incluirInactivos: false } });
     expect(result.current.items).toEqual([martina]);
     expect(result.current.total).toBe(1);
   });

@@ -12,6 +12,7 @@ import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/Rec
 import { calcularKmMensuales, calcularViajesMensuales } from '../../shared/lib/presupuestos/calculoViajes';
 import { construirDatosTrasladoDesdeRecorridos } from './construirDatosTrasladoDesdeRecorridos';
 import { PresupuestoLineasEditor, type LineaPresupuesto } from './PresupuestoLineasEditor';
+import { seleccionables } from '../../shared/lib/seleccionables';
 import {
   validatePresupuestoForm,
   validatePresupuestoLoteForm,
@@ -412,7 +413,7 @@ export function PresupuestoForm({
             onChange={(event) => setValues((prev) => ({ ...prev, pacienteId: event.target.value || null }))}
           >
             <option value="">Seleccionar paciente…</option>
-            {pacientes.map((paciente) => (
+            {seleccionables(pacientes, values.pacienteId).map((paciente) => (
               <option key={paciente.id} value={paciente.id}>
                 {nombrePaciente(paciente)}
               </option>

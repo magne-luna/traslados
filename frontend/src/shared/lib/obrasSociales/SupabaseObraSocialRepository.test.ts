@@ -144,6 +144,16 @@ function crearFakeSupabase() {
               calls.push({ op: 'insert', schema: schemaName, table, eq: [], payload });
               return Promise.resolve(resolver({ op: 'insert', schema: schemaName, table, eq: [], payload }));
             },
+            update(payload: unknown) {
+              const call: RecordedCall = { op: 'update', schema: schemaName, table, eq: [], payload };
+              return {
+                eq(column: string, value: unknown) {
+                  call.eq.push([column, value]);
+                  calls.push(call);
+                  return Promise.resolve(resolver(call));
+                },
+              };
+            },
           };
         },
         rpc(fn: string, args: unknown) {
@@ -654,5 +664,45 @@ describe('código fuente de SupabaseObraSocialRepository.ts (4.8)', () => {
   // cualquier columna nueva del mismo tipo tiene el mismo riesgo si se omite acá.
   it('el SELECT de list()/getById() incluye formato_afiliado', () => {
     expect(supabaseObraSocialRepositorySource).toMatch(/formato_afiliado/);
+  });
+});
+
+// inactivar-entidades (reunión con Andrea 2026-10-07): baja lógica, nunca borrado.
+describe('supabaseObraSocialRepository — activo (baja lógica)', () => {
+  it('ensamblarObraSocial lee activo y toma true si la columna no viene', () => {
+    expect(ensamblarObraSocial(filaObraSocial({ activo: false })).activo).toBe(false);
+    expect(ensamblarObraSocial(filaObraSocial()).activo).toBe(true);
+  });
+
+  it('listPage oculta las inactivas por defecto', async () => {
+    configurar('obra_social', 'obra_social', 'select', () => okConCount([], 0));
+
+    await supabaseObraSocialRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '' } });
+
+    const consulta = calls.find((c) => c.table === 'obra_social' && c.op === 'select');
+    expect(consulta?.eq).toContainEqual(['activo', true]);
+  });
+
+  it('listPage con incluirInactivos no filtra por activo', async () => {
+    configurar('obra_social', 'obra_social', 'select', () => okConCount([], 0));
+
+    await supabaseObraSocialRepository.listPage({ pagina: 1, tamanio: 20, filtros: { busqueda: '', incluirInactivos: true } });
+
+    const consulta = calls.find((c) => c.table === 'obra_social' && c.op === 'select');
+    expect(consulta?.eq.some(([columna]) => columna === 'activo')).toBe(false);
+  });
+
+  it('update({ activo }) escribe la columna directo y no la manda a la rpc', async () => {
+    configurar('obra_social', 'obra_social', 'select', () => ok([filaObraSocial()]));
+    configurar('obra_social', 'obra_social', 'update', () => ok(null));
+    configurarRpc('obra_social', 'actualizar_obra_social_completa', () => ok('os-1'));
+
+    await supabaseObraSocialRepository.update('os-1', { activo: false });
+
+    const escritura = calls.find((c) => c.table === 'obra_social' && c.op === 'update');
+    expect(escritura?.payload).toEqual({ activo: false });
+    expect(escritura?.eq).toEqual([['id', 'os-1']]);
+    const rpc = calls.find((c) => c.op === 'rpc');
+    expect(rpc).toBeUndefined();
   });
 });

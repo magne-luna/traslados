@@ -20,7 +20,7 @@ import { rangoSupabase } from '../paginacion/rangoSupabase';
 const SELECT_OBRA_SOCIAL_COMPLETA = `
   id, razon_social, cuit, codigo, direccion, telefono, condicion_iva, tipo_comprobante,
   plazo_cobro_dias, modalidad_facturacion, admite_pagos_parciales, identificador_origen,
-  formato_afiliado,
+  formato_afiliado, activo,
   requisitos_os ( id, orden, requerido, tipos_documento ( id, tipo ) ),
   plantilla_campo ( id, etiqueta, origen, orden )
 `;
@@ -55,6 +55,8 @@ async function listarObrasSocialesPagina(
     .order('razon_social', { ascending: true })
     .order('id', { ascending: true })
     .range(desde, hasta);
+
+  if (!filtros.incluirInactivos) consulta = consulta.eq('activo', true);
 
   const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_OBRA_SOCIAL);
   if (filtro) {
@@ -200,14 +202,24 @@ async function crearObraSocial(data: NuevaObraSocial) {
 // ---------------------------------------------------------------------------------------------
 
 async function actualizarObraSocial(id: string, data: ActualizacionObraSocial) {
-  const { data: idActualizado, error } = await supabase
-    .schema('obra_social')
-    .rpc('actualizar_obra_social_completa', { p_id: id, p_cambios: toActualizarObraSocialPayload(data) });
+  // Baja lógica: `activo` es una columna suelta, no pasa por la RPC (que habría que redefinir
+  // entera para sumarle una clave). Inactivar/reactivar no toca nada más de la obra social.
+  if (data.activo !== undefined) {
+    const { error } = await supabase.schema('obra_social').from('obra_social').update({ activo: data.activo }).eq('id', id);
+    if (error) throw mapearErrorObraSocial(error, { operacion: 'actualizar', id });
+  }
 
-  if (error) throw mapearErrorObraSocial(error, { operacion: 'actualizar', cuit: data.cuit, id });
+  const cambios = toActualizarObraSocialPayload(data);
+  if (Object.keys(cambios).length > 0) {
+    const { data: idActualizado, error } = await supabase
+      .schema('obra_social')
+      .rpc('actualizar_obra_social_completa', { p_id: id, p_cambios: cambios });
 
-  if (typeof idActualizado !== 'string') {
-    throw new Error(MSG_ERROR_GENERICO_GUARDADO);
+    if (error) throw mapearErrorObraSocial(error, { operacion: 'actualizar', cuit: data.cuit, id });
+
+    if (typeof idActualizado !== 'string') {
+      throw new Error(MSG_ERROR_GENERICO_GUARDADO);
+    }
   }
 
   const obraSocial = await getObraSocialById(id);

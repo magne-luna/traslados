@@ -19,12 +19,12 @@ export interface UseObrasSocialesPaginadoResult extends UsePaginaListadoResult<O
 // PresupuestosPage/FacturacionPage para sus selectores con el catálogo COMPLETO (design.md §D3,
 // caso "PacientesList resuelve nombreObraSocial vía list()"). Este hook es exclusivo de
 // ObraSocialesPage, la única pantalla que muestra el listado paginado en sí.
-export function useObrasSocialesPaginado(repository: ObraSocialRepository): UseObrasSocialesPaginadoResult {
+export function useObrasSocialesPaginado(repository: ObraSocialRepository, incluirInactivos = false): UseObrasSocialesPaginadoResult {
   const listado = usePaginaListado<ObraSocial, FiltrosObraSocial>({
     listPage: repository.listPage,
     clave: claves.obrasSociales.pagina,
     tamanio: TAMANIO_PAGINA,
-    construirFiltros: (busqueda) => ({ busqueda }),
+    construirFiltros: (busqueda) => ({ busqueda, incluirInactivos }),
   });
 
   const queryClient = useQueryClient();

@@ -10,6 +10,8 @@ import type { Pagina, RangoPagina } from '../../types/paginacion';
 // matchea nombre o CUIT. Vacío ('') = sin filtro.
 export interface FiltrosObraSocial {
   busqueda: string;
+  /** Baja lógica: por defecto el listado muestra solo activas. */
+  incluirInactivos?: boolean;
 }
 
 export interface ObraSocialRepository {

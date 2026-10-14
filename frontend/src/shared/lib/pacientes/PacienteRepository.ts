@@ -11,6 +11,8 @@ import type { Pagina, RangoPagina } from '../../types/paginacion';
 // Vacío ('') = sin filtro. Semántica de tokenización en `construirFiltroBusqueda` (§D5).
 export interface FiltrosPaciente {
   busqueda: string;
+  /** Baja lógica: por defecto el listado muestra solo activos. */
+  incluirInactivos?: boolean;
 }
 
 export interface PacienteRepository {

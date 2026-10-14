@@ -6,6 +6,7 @@ import { CUD_CHIP_KIND, CUD_CHIP_LABEL } from '../../shared/lib/pacientes/cudCop
 import { estadoCud } from '../../shared/lib/pacientes/estadoCud';
 import type { Paciente } from '../../shared/types/paciente';
 import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
+import { MostrarInactivos } from '../../shared/components/BajaLogicaControl';
 import { nombreCompleto } from './PacienteResumen';
 
 interface PacientesListProps {
@@ -29,6 +30,9 @@ interface PacientesListProps {
    * mucho `tamanio`) — lo que permite mostrar "Página N de M" sin una segunda consulta. */
   total: number;
   onCambiarPagina: (pagina: number) => void;
+  /** Baja lógica: el listado trae solo activos salvo que se tilde "Mostrar inactivos". */
+  incluirInactivos?: boolean;
+  onIncluirInactivosChange?: (incluir: boolean) => void;
 }
 
 function calcularEdad(fechaNacimiento: string, ahora: Date): number {
@@ -60,6 +64,8 @@ export function PacientesList({
   tamanio,
   total,
   onCambiarPagina,
+  incluirInactivos = false,
+  onIncluirInactivosChange,
 }: PacientesListProps) {
   // Tres estados distinguibles (13.5), nunca la misma pantalla para los tres:
   //   1. sin pacientes cargados en TODO el sistema (total 0, sin búsqueda activa)
@@ -92,6 +98,10 @@ export function PacientesList({
         />
       )}
 
+      {onIncluirInactivosChange && (
+        <MostrarInactivos label="Mostrar inactivos" checked={incluirInactivos} onChange={onIncluirInactivosChange} />
+      )}
+
       {error && <Alert tone="danger">{error}</Alert>}
 
       {loading ? (
@@ -114,7 +124,10 @@ export function PacientesList({
             const cudEstado = paciente.cud ? estadoCud(paciente.cud, ahora) : null;
 
             return (
-              <Card key={paciente.id} radius="md" elevated interactive onClick={() => onSelect(paciente)}>
+              // Wrapper `grid`: el único hijo se estira igual que la Card sola en el grid de tarjetas.
+              // Inactivo = apagado (opacidad + gris) para que se distinga sin leer el chip.
+              <div key={paciente.id} className={paciente.activo === false ? 'grid opacity-60 grayscale' : 'grid'}>
+              <Card radius="md" elevated interactive onClick={() => onSelect(paciente)}>
                 <div className="flex flex-wrap items-start justify-between gap-sm">
                   <div className="flex flex-col">
                     <span className="font-body text-[14px] font-semibold text-ink">{nombreCompleto(paciente)}</span>
@@ -123,6 +136,7 @@ export function PacientesList({
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-xs">
+                    {paciente.activo === false && <Chip kind="secondary">Inactivo</Chip>}
                     {paciente.amparoJudicial && <Chip kind="info">Amparo judicial</Chip>}
                     {cudEstado && <Chip kind={CUD_CHIP_KIND[cudEstado]}>CUD {CUD_CHIP_LABEL[cudEstado]}</Chip>}
                   </div>
@@ -201,6 +215,7 @@ export function PacientesList({
                 </CamposSoloLectura>
                 </div>
               </Card>
+              </div>
             );
           })}
         </div>

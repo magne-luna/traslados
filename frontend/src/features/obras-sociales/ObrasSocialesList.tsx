@@ -3,6 +3,7 @@ import { Alert, EmptyState, Pill } from '../../design-system/feedback';
 import { Card } from '../../design-system/layout';
 import { Paginador } from '../../design-system/paginador';
 import { iconCredencial, iconDocumento } from '../../design-system/icons';
+import { MostrarInactivos } from '../../shared/components/BajaLogicaControl';
 import type { ObraSocial } from '../../shared/types/obraSocial';
 
 interface ObrasSocialesListProps {
@@ -22,6 +23,9 @@ interface ObrasSocialesListProps {
    * mucho `tamanio`) — lo que permite mostrar "Página N de M" sin una segunda consulta. */
   total: number;
   onCambiarPagina: (pagina: number) => void;
+  /** Baja lógica: el listado trae solo activas salvo que se tilde "Mostrar inactivas". */
+  incluirInactivos?: boolean;
+  onIncluirInactivosChange?: (incluir: boolean) => void;
 }
 
 const CHECKLIST_PREVIEW_COUNT = 3;
@@ -45,6 +49,8 @@ export function ObrasSocialesList({
   tamanio,
   total,
   onCambiarPagina,
+  incluirInactivos = false,
+  onIncluirInactivosChange,
 }: ObrasSocialesListProps) {
   // Tres estados distinguibles (mismo criterio que PacientesList 13.5/ConductoresList 16.3):
   // sin obras sociales cargadas en TODO el sistema / búsqueda sin coincidencias / carga inicial.
@@ -64,6 +70,10 @@ export function ObrasSocialesList({
 
       {mostrarBuscador && (
         <SearchInput value={busqueda} onChange={onBusquedaChange} placeholder="Buscar obra social…" ariaLabel="Buscar obra social" />
+      )}
+
+      {onIncluirInactivosChange && (
+        <MostrarInactivos label="Mostrar inactivas" checked={incluirInactivos} onChange={onIncluirInactivosChange} />
       )}
 
       {error && <Alert tone="danger">{error}</Alert>}
@@ -89,12 +99,15 @@ export function ObrasSocialesList({
             const checklistRestantes = obraSocial.checklist.length - checklistVisible.length;
 
             return (
-              <Card key={obraSocial.id} radius="md" elevated interactive onClick={() => onSelect(obraSocial)}>
+              // Mismo criterio que PacientesList: inactiva = tarjeta apagada.
+              <div key={obraSocial.id} className={obraSocial.activo === false ? 'grid opacity-60 grayscale' : 'grid'}>
+              <Card radius="md" elevated interactive onClick={() => onSelect(obraSocial)}>
                 <div className="flex items-start justify-between gap-sm">
                   <div className="flex flex-col">
                     <h2 className="m-0 font-heading text-[17px] font-bold text-ink">{obraSocial.nombre}</h2>
                     <span className="font-mono text-[12px] text-muted">CUIT: {obraSocial.cuit}</span>
                   </div>
+                  {obraSocial.activo === false && <Chip kind="secondary">Inactiva</Chip>}
                 </div>
 
                 <div className="grid grid-cols-2 gap-sm border-y border-border py-sm">
@@ -159,6 +172,7 @@ export function ObrasSocialesList({
                   </Button>
                 </div>
               </Card>
+              </div>
             );
           })}
         </div>

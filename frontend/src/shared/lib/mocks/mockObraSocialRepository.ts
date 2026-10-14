@@ -88,8 +88,10 @@ export const mockObraSocialRepository: ObraSocialRepository = {
 
   async listPage({ pagina, tamanio, filtros }) {
     const filtro = construirFiltroBusqueda(filtros.busqueda, COLUMNAS_BUSQUEDA_OBRA_SOCIAL);
-    const todas = ordenarObrasSociales(readStore()).filter((obraSocial) =>
-      matcheaFiltroBusqueda(valoresBuscables(obraSocial), filtro),
+    const todas = ordenarObrasSociales(readStore()).filter(
+      (obraSocial) =>
+        (filtros.incluirInactivos || obraSocial.activo !== false) &&
+        matcheaFiltroBusqueda(valoresBuscables(obraSocial), filtro),
     );
     const { desde, hasta } = rangoSupabase({ pagina, tamanio });
     const items = todas.slice(desde, hasta + 1);

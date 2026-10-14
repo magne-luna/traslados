@@ -108,6 +108,10 @@ export interface ObraSocial {
    * de los ítems del array es significativo y debe preservarse. */
   checklist: ChecklistItem[];
   plantillaFactura: PlantillaFactura;
+  /** Baja lógica (reunión con Andrea, 2026-10-07): una obra social nunca se borra, se inactiva —
+   * pacientes, presupuestos y facturas históricos siguen apuntando a ella. Opcional para no
+   * obligar a tocar fixtures ajenos; el repository real siempre lo completa. Ausente = activa. */
+  activo?: boolean;
   /**
    * Código interno/identificador corto de la obra social (integracion-obra-social D9,
    * discrepancia #11 del docx: la columna `obra_social.codigo` ya existe en la base desde
