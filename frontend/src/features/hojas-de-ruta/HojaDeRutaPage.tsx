@@ -14,10 +14,11 @@ import { usePacientes } from '../pacientes/usePacientes';
 import { useVehiculos } from '../vehiculos/useVehiculos';
 import { HojaDeRutaImprimible } from './HojaDeRutaImprimible';
 import { useHojaDeRutaRepository } from './HojaDeRutaRepositoryContext';
-import { CalendarIcon, ClockIcon, GlobeIcon, ListIcon, PrinterIcon } from './icons';
+import { CalendarIcon, GlobeIcon, ListIcon, PrinterIcon } from './icons';
 import { NuevoRecorridoForm, type NuevoRecorridoPayload } from './NuevoRecorridoForm';
 import { RecorridoCard } from './RecorridoCard';
 import { useHojasDeRuta } from './useHojasDeRuta';
+import { FranjaHorariaEditable } from './FranjaHorariaEditable';
 import { VistaGlobalHojaDeRuta } from './VistaGlobalHojaDeRuta';
 
 interface HojaDeRutaPageProps {
@@ -193,12 +194,11 @@ export function HojaDeRutaPage({
           </div>
         </div>
         {hojaDelDia && (
-          <div className="flex items-center gap-xs rounded-sm border border-border-strong bg-surface px-md py-2 text-muted">
-            <ClockIcon />
-            <span className="font-body text-[13px]">
-              Franja {hojaDelDia.franjaInicio} a {hojaDelDia.franjaFin}
-            </span>
-          </div>
+          <FranjaHorariaEditable
+            inicio={hojaDelDia.franjaInicio}
+            fin={hojaDelDia.franjaFin}
+            onGuardar={(franjaInicio, franjaFin) => actualizar(hojaDelDia.id, { franjaInicio, franjaFin })}
+          />
         )}
 
         {hojaDelDia && (
