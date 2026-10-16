@@ -109,6 +109,18 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
     }
   }
 
+  // Corrección de un registro ya cargado: reemplaza el ítem conservando su id.
+  async function handleEditarMantenimiento(id: string, data: NuevoMantenimientoInput) {
+    if (vehiculo === null) return;
+    setSectionError(null);
+    const mantenimientos = vehiculo.mantenimientos.map((m) => (m.id === id ? ({ id, ...data } as MantenimientoRegistro) : m));
+    try {
+      await actualizar(vehiculo.id, { mantenimientos });
+    } catch (err) {
+      setSectionError(toErrorMessage(err));
+    }
+  }
+
   const serviceCopy =
     vehiculo &&
     SERVICE_COPY[
@@ -247,7 +259,11 @@ export function VehiculoDetail({ vehiculo, crear, actualizar, documentoRepositor
           </Section>
 
           <Section label="Mantenimiento" title="Historial de mantenimiento">
-            <HistorialMantenimiento mantenimientos={vehiculo.mantenimientos} onAgregar={handleAgregarMantenimiento} />
+            <HistorialMantenimiento
+              mantenimientos={vehiculo.mantenimientos}
+              onAgregar={handleAgregarMantenimiento}
+              onEditar={handleEditarMantenimiento}
+            />
           </Section>
 
           <Section label="Gastos" title="Registro de gastos">

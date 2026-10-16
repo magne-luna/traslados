@@ -38,3 +38,17 @@ export function toMantenimientoRegistro(input: MantenimientoFormInput): NuevoMan
 
   return { ...base, tipoIntervencion: 'gasto' };
 }
+
+// Inversa de `toMantenimientoRegistro`: precarga el form con un registro existente para
+// corregir errores de carga. Los opcionales ausentes vuelven a string vacío.
+export function toMantenimientoFormInput(registro: MantenimientoRegistro): MantenimientoFormInput {
+  return {
+    tipoIntervencion: registro.tipoIntervencion,
+    subtipo: registro.tipoIntervencion === 'gasto' ? '' : registro.subtipo,
+    detalle: registro.tipoIntervencion === 'correctivo' && registro.subtipo === 'otro' ? registro.detalle : '',
+    fecha: registro.fecha,
+    kilometraje: String(registro.kilometraje),
+    proximoVencimientoFecha: registro.proximoVencimientoFecha ?? '',
+    proximoVencimientoKm: registro.proximoVencimientoKm !== undefined ? String(registro.proximoVencimientoKm) : '',
+  };
+}

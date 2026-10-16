@@ -12,6 +12,9 @@ import { validateMantenimientoForm, type MantenimientoFormInput } from './valida
 
 interface NuevoMantenimientoFormProps {
   onAgregar: (data: NuevoMantenimientoInput) => void;
+  /** Con valor, el form edita ese registro (precargado) en vez de dar de alta uno nuevo. */
+  inicial?: MantenimientoFormInput;
+  onCancelar?: () => void;
 }
 
 const INPUT_INICIAL: MantenimientoFormInput = {
@@ -30,8 +33,8 @@ const INPUT_INICIAL: MantenimientoFormInput = {
 // sub-tipos de un nivel 1 no se ofrecen en el otro"). Solo ofrece preventivo/correctivo
 // (`TIPOS_INTERVENCION_ALTA`, design.md Decisión 2) y no tiene campo de monto (el importe se
 // carga como gasto aparte, capability `vehiculo-gastos`).
-export function NuevoMantenimientoForm({ onAgregar }: NuevoMantenimientoFormProps) {
-  const [input, setInput] = useState<MantenimientoFormInput>(INPUT_INICIAL);
+export function NuevoMantenimientoForm({ onAgregar, inicial, onCancelar }: NuevoMantenimientoFormProps) {
+  const [input, setInput] = useState<MantenimientoFormInput>(inicial ?? INPUT_INICIAL);
   const [errors, setErrors] = useState<ReturnType<typeof validateMantenimientoForm>>({});
   const formId = useId();
 
@@ -59,8 +62,8 @@ export function NuevoMantenimientoForm({ onAgregar }: NuevoMantenimientoFormProp
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-md rounded-md border border-border bg-surface p-lg">
       <div className="flex flex-col">
-        <span className="font-body text-[11px] text-muted">Nueva intervención</span>
-        <span className="font-heading text-[15px] font-bold text-ink">Registrar mantenimiento</span>
+        <span className="font-body text-[11px] text-muted">{inicial ? 'Corregir intervención' : 'Nueva intervención'}</span>
+        <span className="font-heading text-[15px] font-bold text-ink">{inicial ? 'Editar mantenimiento' : 'Registrar mantenimiento'}</span>
       </div>
 
       <CamposSoloLectura>
@@ -149,8 +152,13 @@ export function NuevoMantenimientoForm({ onAgregar }: NuevoMantenimientoFormProp
         </Field>
 
         <Button type="submit" variant="primary" requiereEscritura>
-          + Registrar
+          {inicial ? 'Guardar cambios' : '+ Registrar'}
         </Button>
+        {onCancelar && (
+          <Button variant="secondary" onClick={onCancelar}>
+            Cancelar
+          </Button>
+        )}
       </CamposSoloLectura>
     </form>
   );

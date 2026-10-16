@@ -200,3 +200,44 @@ describe('HistorialMantenimiento — gateo de escritura', () => {
     expect(onAgregar).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('HistorialMantenimiento — edición', () => {
+  it('Editar precarga el form con el registro y Guardar llama onEditar con el id y los datos corregidos', async () => {
+    const user = userEvent.setup();
+    const onEditar = vi.fn();
+
+    renderConPermiso(true, <HistorialMantenimiento mantenimientos={[preventivo]} onAgregar={vi.fn()} onEditar={onEditar} />);
+
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+    const km = screen.getByLabelText(/^kilometraje$/i);
+    expect(km).toHaveValue(82_000);
+    await user.clear(km);
+    await user.type(km, '83000');
+    await user.click(screen.getByRole('button', { name: /guardar cambios/i }));
+
+    expect(onEditar).toHaveBeenCalledWith('m1', {
+      fecha: '2026-06-01',
+      kilometraje: 83_000,
+      tipoIntervencion: 'preventivo',
+      subtipo: 'cambio-aceite-filtros',
+      proximoVencimientoKm: 92_000,
+    });
+    // Tras guardar vuelve al form de alta.
+    expect(screen.getByRole('button', { name: /registrar/i })).toBeInTheDocument();
+  });
+
+  it('Cancelar descarta la edición sin llamar onEditar; un registro "gasto" no ofrece Editar', async () => {
+    const user = userEvent.setup();
+    const onEditar = vi.fn();
+
+    renderConPermiso(true, <HistorialMantenimiento mantenimientos={[correctivoOtro, gasto]} onAgregar={vi.fn()} onEditar={onEditar} />);
+
+    // Solo el correctivo ofrece Editar (getByRole falla si hubiera dos).
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+    expect(screen.getByLabelText(/detalle/i)).toHaveValue('Reemplazo de radiador perforado');
+    await user.click(screen.getByRole('button', { name: /cancelar/i }));
+
+    expect(onEditar).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/^kilometraje$/i)).toHaveValue(null);
+  });
+});

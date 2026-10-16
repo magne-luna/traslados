@@ -1,4 +1,4 @@
-import { Chip } from '../../design-system/components';
+import { Button, Chip } from '../../design-system/components';
 import { Td, Tr } from '../../design-system/table';
 import type { MantenimientoRegistro } from '../../shared/types/vehiculo';
 import { SUBTIPO_LABELS, TIPO_INTERVENCION_CHIP_KIND, TIPO_INTERVENCION_LABELS } from './mantenimientoCategoriaOptions';
@@ -26,7 +26,8 @@ function textoProximoVencimiento(registro: MantenimientoRegistro): string {
 // El `switch` implícito vía las funciones de arriba cubre los 4 miembros de la unión
 // discriminada (design.md Decisión 4): 'gasto' se renderiza sin sub-tipo (spec, escenario
 // "Registro de nivel 1 'gasto' sin sub-tipo").
-export function MantenimientoFila({ registro }: { registro: MantenimientoRegistro }) {
+// Los registros 'gasto' no se editan acá: el form solo maneja preventivo/correctivo (Decisión 2).
+export function MantenimientoFila({ registro, onEditar }: { registro: MantenimientoRegistro; onEditar?: () => void }) {
   return (
     <Tr>
       <Td padding="md" divided>
@@ -44,6 +45,13 @@ export function MantenimientoFila({ registro }: { registro: MantenimientoRegistr
       </Td>
       <Td padding="md" divided>
         {textoProximoVencimiento(registro)}
+      </Td>
+      <Td padding="md" divided>
+        {onEditar && registro.tipoIntervencion !== 'gasto' && (
+          <Button variant="secondary" size="xs" requiereEscritura onClick={onEditar}>
+            Editar
+          </Button>
+        )}
       </Td>
     </Tr>
   );

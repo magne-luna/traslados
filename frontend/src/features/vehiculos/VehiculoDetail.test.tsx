@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { screen, within } from '@testing-library/react';
 import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
-import type { Vehiculo } from '../../shared/types/vehiculo';
+import type { MantenimientoRegistro, Vehiculo } from '../../shared/types/vehiculo';
 import type { DocumentoRepository } from '../../shared/lib/documentos/DocumentoRepository';
 import { AuthProvider } from '../../shared/auth/AuthContext';
 import { createMockAuthRepository } from '../../shared/lib/auth/mockAuthRepository';
@@ -227,6 +227,39 @@ describe('VehiculoDetail — modo edición', () => {
           kilometraje: 90_000,
         }),
       ],
+    });
+  });
+
+  it('al editar una intervención, reemplaza ese registro (mismo id) y persiste vía actualizar(id, { mantenimientos })', async () => {
+    const user = userEvent.setup();
+    const actualizar = vi.fn().mockResolvedValue(etios);
+    const registro: MantenimientoRegistro = {
+      id: 'm1',
+      fecha: '2026-06-01',
+      kilometraje: 82_000,
+      tipoIntervencion: 'preventivo',
+      subtipo: 'vtv',
+    };
+
+    renderDetail(
+      <VehiculoDetail
+        vehiculo={{ ...etios, mantenimientos: [registro] }}
+        crear={vi.fn()}
+        actualizar={actualizar}
+        documentoRepository={buildFakeDocumentoRepository()}
+        onCreated={vi.fn()}
+        onBack={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /^editar$/i }));
+    const form = within(formCercaDe('Editar mantenimiento'));
+    await user.clear(form.getByLabelText(/^kilometraje$/i));
+    await user.type(form.getByLabelText(/^kilometraje$/i), '83000');
+    await user.click(form.getByRole('button', { name: /guardar cambios/i }));
+
+    expect(actualizar).toHaveBeenCalledWith('vehiculo-etios', {
+      mantenimientos: [{ ...registro, kilometraje: 83_000 }],
     });
   });
 

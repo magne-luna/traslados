@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toMantenimientoRegistro } from './toMantenimientoRegistro';
+import { toMantenimientoFormInput, toMantenimientoRegistro } from './toMantenimientoRegistro';
 import type { MantenimientoFormInput } from './validateMantenimientoForm';
 
 // RED→GREEN (tasks.md 3.6): estrecha el input validado del formulario (laxo, todo `string`) al
@@ -65,5 +65,18 @@ describe('toMantenimientoRegistro', () => {
 
     expect(registro.proximoVencimientoFecha).toBeUndefined();
     expect(registro.proximoVencimientoKm).toBeUndefined();
+  });
+});
+
+describe('toMantenimientoFormInput', () => {
+  it('un registro vuelve al input laxo del form y hace round-trip con toMantenimientoRegistro', () => {
+    const input = buildInput({ proximoVencimientoKm: '55000' });
+    expect(toMantenimientoFormInput({ id: 'm1', ...toMantenimientoRegistro(input) })).toEqual(input);
+  });
+
+  it('un correctivo "otro" conserva el detalle; los opcionales ausentes quedan en string vacío', () => {
+    const input = buildInput({ tipoIntervencion: 'correctivo', subtipo: 'otro', detalle: 'Radiador', proximoVencimientoFecha: '2027-01-01' });
+
+    expect(toMantenimientoFormInput({ id: 'm2', ...toMantenimientoRegistro(input) })).toEqual(input);
   });
 });
