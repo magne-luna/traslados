@@ -253,12 +253,17 @@ export function toDireccionRows(
  * idénticas, para no gastar cuota de la Geocoding API ni pisar una coordenada válida con el mismo
  * resultado. Pura: no decide CÓMO geocodificar, solo QUÉ direcciones lo necesitan.
  */
-export function direccionesACambiar(existentes: Direccion[], entrantes: Direccion[]): Direccion[] {
+export function direccionesACambiar(
+  existentes: Direccion[],
+  entrantes: Direccion[],
+  idsSinCoordenadas: ReadonlySet<string> = new Set(),
+): Direccion[] {
   const existentesPorId = new Map(existentes.map((direccion) => [direccion.id, direccion]));
 
   return entrantes.filter((entrante) => {
     const previa = existentesPorId.get(entrante.id);
     if (previa === undefined) return true; // dirección nueva
+    if (idsSinCoordenadas.has(entrante.id)) return true; // nunca geocodificada (o falló): reintentar
     return previa.calle !== entrante.calle || previa.localidad !== entrante.localidad;
   });
 }

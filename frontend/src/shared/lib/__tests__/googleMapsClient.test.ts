@@ -79,6 +79,8 @@ describe('geocodificarDireccion', () => {
     // contra la forma cruda codificada.
     const address = new URL(url).searchParams.get('address')
     expect(address).toBe('Av. Santa Fe 1234, CABA')
+    // Restringe a Argentina: "Calle 15 1586" sin país puede no resolver o caer en otro lado.
+    expect(new URL(url).searchParams.get('components')).toBe('country:AR')
   })
 
   it('sin API key configurada (env var ausente) -> undefined, sin llamar a fetch', async () => {

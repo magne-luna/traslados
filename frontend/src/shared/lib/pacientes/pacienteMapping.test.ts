@@ -300,6 +300,15 @@ describe('toDireccionRows', () => {
 });
 
 describe('direccionesACambiar (RF-701)', () => {
+  it('una dirección existente sin cambios pero SIN coordenadas se marca a cambiar (cargada antes del geocoding)', () => {
+    const existentes: Direccion[] = [
+      { id: 'd-1', tipo: 'domicilio', calle: 'Calle 836 338', localidad: 'Zeballos' },
+      { id: 'd-2', tipo: 'escuela', calle: 'Calle 15 1586', localidad: 'Berazategui' },
+    ];
+
+    expect(direccionesACambiar(existentes, existentes, new Set(['d-1']))).toEqual([existentes[0]]);
+  });
+
   it('una dirección nueva (id no está entre las existentes) siempre se marca a cambiar', () => {
     const existentes: Direccion[] = [];
     const entrantes: Direccion[] = [{ id: 'd-nueva', tipo: 'domicilio', calle: 'Calle 1', localidad: 'CABA' }];

@@ -66,7 +66,8 @@ export function parseGeocodingResponse(json: unknown): Coordenada | undefined {
 
 function construirUrl(direccion: DireccionGeocodificable, apiKey: string): string {
   const direccionCompleta = `${direccion.calle}, ${direccion.localidad}`;
-  const params = new URLSearchParams({ address: direccionCompleta, key: apiKey });
+  // `components=country:AR`: sin país, "Calle 15 1586, Berazategui" puede no resolver o caer fuera.
+  const params = new URLSearchParams({ address: direccionCompleta, components: 'country:AR', key: apiKey });
   return `${GEOCODING_ENDPOINT}?${params.toString()}`;
 }
 

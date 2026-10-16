@@ -561,7 +561,18 @@ async function actualizarPaciente(id: string, data: ActualizacionPaciente): Prom
     // (`direccionesACambiar`) — nunca todo el lote en cada edición. Las que no cambiaron quedan
     // fuera del mapa `coordenadas`, así que `toDireccionRows` omite `lat`/`lng` para ellas y el
     // upsert preserva la coordenada ya guardada en vez de pisarla con `null`.
-    const aRegeocodificar = direccionesACambiar(existente.direcciones, data.direcciones);
+    // También las que quedaron con lat NULL (cargadas antes del geocoding o con geocoding fallido):
+    // el dominio `Direccion` no trae coordenadas, así que se consultan aparte.
+    const { data: filasCoordenadas, error: errorCoordenadas } = await supabase
+      .schema('pacientes')
+      .from('direcciones')
+      .select('id, lat')
+      .eq('paciente_id', id);
+    if (errorCoordenadas) throw mapearErrorPaciente(errorCoordenadas, { operacion: 'actualizar' });
+    const idsSinCoordenadas = new Set(
+      (filasCoordenadas ?? []).filter((fila) => fila.lat === null).map((fila) => String(fila.id)),
+    );
+    const aRegeocodificar = direccionesACambiar(existente.direcciones, data.direcciones, idsSinCoordenadas);
     const coordenadas = await geocodificarDirecciones(aRegeocodificar);
 
     await aplicarDiffColeccion({

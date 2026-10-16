@@ -1601,6 +1601,21 @@ describe('supabasePacienteRepository.update — geocoding de direcciones (RF-701
     expect(geocodificarDireccionMock).not.toHaveBeenCalled();
   });
 
+  it('una dirección sin cambios pero sin coordenadas guardadas (lat NULL) SÍ se geocodifica al guardar', async () => {
+    geocodificarDireccionMock.mockResolvedValueOnce({ lat: -34.8, lng: -58.2 });
+    configurar('pacientes', 'paciente', 'select', () => ok([filaExistenteConDireccion()]));
+    configurar('pacientes', 'direcciones', 'select', () => ok([{ id: 'd-1', lat: null }]));
+
+    await supabasePacienteRepository.update('p-1', {
+      direcciones: [{ id: 'd-1', tipo: 'domicilio', calle: 'Corrientes 1000', localidad: 'CABA' }],
+    });
+
+    expect(geocodificarDireccionMock).toHaveBeenCalledTimes(1);
+    const upsert = calls.find((c) => c.table === 'direcciones' && c.op === 'upsert');
+    const payload = upsert?.payload as Array<{ lat?: number | null; lng?: number | null }>;
+    expect(payload[0]).toMatchObject({ lat: -34.8, lng: -58.2 });
+  });
+
   it('una dirección con calle cambiada SÍ se re-geocodifica', async () => {
     geocodificarDireccionMock.mockResolvedValueOnce({ lat: 1, lng: 2 });
     configurar('pacientes', 'paciente', 'select', () => ok([filaExistenteConDireccion()]));
