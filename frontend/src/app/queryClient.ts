@@ -8,9 +8,11 @@ import { QueryClient } from '@tanstack/react-query';
 // silencio. La cacheabilidad se opta explícitamente, query por query, con `FRESCURA.referencia`
 // (ver shared/lib/query/frescura.ts). NUNCA subir este default a un valor distinto de cero.
 //
-// `refetchOnWindowFocus: false` se hereda de la versión original de este change: la app se usa en
-// jornadas largas con muchas ventanas abiertas, y refrescar al volver el foco produciría ráfagas de
-// consultas que nadie pidió.
+// `refetchOnWindowFocus: true` (antes `false`, por miedo a ráfagas de consultas con muchas ventanas
+// abiertas): varias personas usan la misma cuenta en distintas computadoras y no veían lo que cargaba
+// la otra sin F5. Con 2-3 usuarias el costo es despreciable. Solo refresca queries activas y vencidas
+// según su `staleTime` (las de `FRESCURA.referencia` esperan su minuto). Tiempo real (Supabase
+// Realtime) queda descartado por ahora: más costo que beneficio para este problema.
 export function crearQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
@@ -22,7 +24,7 @@ export function crearQueryClient(): QueryClient {
         // revalida en background. Bajar esto a la par del staleTime traería de vuelta los spinners
         // que el change vino a eliminar.
         gcTime: 10 * 60 * 1000,
-        refetchOnWindowFocus: false,
+        refetchOnWindowFocus: true,
         refetchOnReconnect: false,
         retry: 1,
       },
