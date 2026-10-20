@@ -1497,6 +1497,23 @@ apellido_b/dni). No hay ningún `pg_trgm` en las 71 migraciones.
 índices GIN cuestan escritura y espacio en cada alta. Además es migración SQL — territorio de Enzo.
 Vale la pena cuando una consulta se sienta lenta de verdad, no antes.
 
+### `realtime-sync` — sincronización en vivo entre sesiones
+
+Governance: **MEDIO**. Cambios de otra sesión (otra PC, otra pestaña) se reflejan sin F5.
+
+Supabase Realtime (`postgres_changes`) solo **avisa qué tabla cambió**; el frontend invalida el
+dominio en React Query (`claves.X.todos()`) y relee por el SELECT normal, sujeto a RLS. Nunca se
+pinta el payload. Ráfagas coalescidas ~300 ms; al reconectar tras un corte se invalida todo;
+`refetchOnWindowFocus` queda como respaldo. Código en `frontend/src/shared/lib/realtime/`
+(`TABLAS_REALTIME` = tabla → dominios) + migración `*_realtime_publicacion.sql`. Kill switch: quitar
+`<SincronizacionRealtime />` de `App.tsx`.
+
+**Regla para changes futuros:** toda tabla operativa nueva → sumarla a `TABLAS_REALTIME` **y** a una
+migración de publicación nueva (`ALTER PUBLICATION supabase_realtime ADD TABLE …`; no editar la ya
+aplicada). Un test de guarda (`tablasPublicadas.test.ts`) exige que ambas coincidan.
+Avisa a `viajes-tercerizados-hoja-de-ruta` (p. ej. `pacientes.recorrido_tercerizado` → `hojasDeRuta`)
+y a `datos-paciente-por-anio` (`pacientes.paciente_anio` → `pacientes`).
+
 ---
 
 ## ⚠️ Checklist de seguridad — antes de lanzar a producción

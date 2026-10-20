@@ -11,8 +11,9 @@ import { QueryClient } from '@tanstack/react-query';
 // `refetchOnWindowFocus: true` (antes `false`, por miedo a ráfagas de consultas con muchas ventanas
 // abiertas): varias personas usan la misma cuenta en distintas computadoras y no veían lo que cargaba
 // la otra sin F5. Con 2-3 usuarias el costo es despreciable. Solo refresca queries activas y vencidas
-// según su `staleTime` (las de `FRESCURA.referencia` esperan su minuto). Tiempo real (Supabase
-// Realtime) queda descartado por ahora: más costo que beneficio para este problema.
+// según su `staleTime` (las de `FRESCURA.referencia` esperan su minuto). Desde `realtime-sync`,
+// Supabase Realtime invalida las queries al instante (shared/lib/realtime) y el refresco al enfocar
+// queda como respaldo permanente (cortes de conexión, eventos perdidos).
 export function crearQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {

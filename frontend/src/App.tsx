@@ -4,6 +4,12 @@ import { AuthProvider } from './shared/auth/AuthContext';
 import { supabaseAuthRepository } from './shared/lib/auth/SupabaseAuthRepository';
 import { queryClient } from './app/queryClient';
 import { router } from './app/router';
+import { supabase } from './shared/lib/supabaseClient';
+import { crearCanalSupabase } from './shared/lib/realtime/canalSupabase';
+import { SincronizacionRealtime } from './shared/lib/realtime/SincronizacionRealtime';
+
+// Identidad estable (constante de módulo): el hook re-suscribe si cambia.
+const crearCanalProduccion = () => crearCanalSupabase(supabase);
 
 // Punto de composición de la app: QueryClientProvider > AuthProvider > RouterProvider
 // (createBrowserRouter). Único lugar de producción que conoce supabaseAuthRepository
@@ -17,6 +23,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider repository={supabaseAuthRepository}>
+        <SincronizacionRealtime crearCanal={crearCanalProduccion} />
         <RouterProvider router={router} />
       </AuthProvider>
     </QueryClientProvider>
