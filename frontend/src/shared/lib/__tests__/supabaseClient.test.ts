@@ -28,6 +28,7 @@ describe('supabaseClient', () => {
     expect(createClient).toHaveBeenCalledWith(
       'https://test-project.supabase.co',
       'test-anon-key-123',
+      { global: { fetch: expect.any(Function) } },
     )
 
     // The exported instance is a valid SupabaseClient-shaped object
