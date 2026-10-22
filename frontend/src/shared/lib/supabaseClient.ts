@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { conRegionDeFunciones } from './regionFunciones'
 
 // tasks.md 1.2/1.3 (auth-frontend-real): sin esta validación, createClient(undefined, undefined)
 // falla con un error críptico interno de @supabase/supabase-js. Nombrar la variable faltante
@@ -18,4 +19,10 @@ function requireEnv(name: 'SUPABASE_URL' | 'SUPABASE_ANON_KEY'): string {
 const supabaseUrl: string = requireEnv('SUPABASE_URL')
 const supabaseAnonKey: string = requireEnv('SUPABASE_ANON_KEY')
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey)
+// `functions.invoke` siempre pasa la URL como string; Request/URL siguen de largo sin tocar.
+const fetchConRegion: typeof fetch = (input, init) =>
+  fetch(typeof input === 'string' ? conRegionDeFunciones(input, supabaseUrl) : input, init)
+
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  global: { fetch: fetchConRegion },
+})

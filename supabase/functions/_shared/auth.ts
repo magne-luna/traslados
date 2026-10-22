@@ -16,10 +16,14 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 // este helper quedaba bloqueado por el navegador antes de llegar siquiera a `requirePermiso()`. Los
 // tests nunca lo detectaron porque mockean `supabase.functions.invoke` (sin fetch real, sin
 // preflight). Afecta a todas las funciones que importan `CORS_HEADERS`, no solo `vehiculos`.
+//
+// `Max-Age` (2026-10-22): sin él, el navegador repetía el preflight antes de CADA llamada (~200 ms
+// medidos). Chrome lo topea en 2 h y Firefox en 24 h; 86400 cubre ambos.
 export const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 export function jsonResponse(status: number, body: unknown): Response {

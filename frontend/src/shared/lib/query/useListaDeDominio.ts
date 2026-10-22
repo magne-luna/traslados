@@ -21,6 +21,10 @@ import { aMensaje } from './aMensaje';
 //
 // La invalidación apunta al PREFIJO del dominio, no a la clave de la lista: así alcanza también a
 // las páginas de `listPage` sin tener que enumerarlas (R1).
+//
+// Tras una mutación, lo que devolvió el servidor se escribe en la lista y la invalidación corre en
+// segundo plano (sin `await`): la pantalla no espera un segundo viaje a la Edge Function, que medido
+// el 2026-10-22 sumaba ~1,5 s a cada guardado.
 
 export interface ParametrosListaDeDominio<T, Nuevo, Actualizacion> {
   /** Prefijo del dominio, p. ej. `claves.vehiculos.todos()`. Es el objetivo de la invalidación. */
@@ -44,7 +48,7 @@ export interface ResultadoListaDeDominio<T, Nuevo, Actualizacion> {
   actualizar: (id: string, data: Actualizacion) => Promise<T>;
 }
 
-export function useListaDeDominio<T, Nuevo, Actualizacion>({
+export function useListaDeDominio<T extends { id: string }, Nuevo, Actualizacion>({
   claveDominio,
   claveLista,
   cargar,
@@ -68,18 +72,28 @@ export function useListaDeDominio<T, Nuevo, Actualizacion>({
     [queryClient, JSON.stringify(claveDominio)],
   );
 
+  const aplicarYRevalidar = (item: T) => {
+    queryClient.setQueryData<T[]>(claveLista, (lista) => {
+      if (!lista) return lista;
+      return lista.some((x) => x.id === item.id)
+        ? lista.map((x) => (x.id === item.id ? item : x))
+        : [...lista, item];
+    });
+    void invalidarDominio();
+  };
+
   const mutacionCrear = useMutation({
     mutationFn: crear,
     onMutate: () => setErrorMutacion(null),
     onError: (err: unknown) => setErrorMutacion(aMensaje(err)),
-    onSuccess: invalidarDominio,
+    onSuccess: aplicarYRevalidar,
   });
 
   const mutacionActualizar = useMutation({
     mutationFn: ({ id, cambios }: { id: string; cambios: Actualizacion }) => actualizar(id, cambios),
     onMutate: () => setErrorMutacion(null),
     onError: (err: unknown) => setErrorMutacion(aMensaje(err)),
-    onSuccess: invalidarDominio,
+    onSuccess: aplicarYRevalidar,
   });
 
   return {

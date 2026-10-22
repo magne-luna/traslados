@@ -95,6 +95,40 @@ describe('useVehiculos', () => {
     expect(repository.list).toHaveBeenCalledTimes(2);
   });
 
+  it('actualizar() resuelve sin esperar la recarga y la lista ya muestra lo que devolvió el servidor', async () => {
+    const actualizado: Vehiculo = { ...etios, kilometraje: 90_000 };
+    const repository = buildFakeRepository({
+      // La recarga posterior nunca termina: si `actualizar` la esperara, este test se colgaría.
+      list: vi.fn().mockResolvedValueOnce([etios]).mockReturnValue(new Promise<Vehiculo[]>(() => {})),
+      update: vi.fn().mockResolvedValue(actualizado),
+    });
+    const { result } = renderHookConQuery(() => useVehiculos(repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.actualizar('vehiculo-etios', { kilometraje: 90_000 });
+    });
+
+    expect(result.current.vehiculos).toEqual([actualizado]);
+    expect(repository.list).toHaveBeenCalledTimes(2); // la recarga se disparó igual, en segundo plano
+  });
+
+  it('crear() suma el alta a la lista sin esperar la recarga (triangulación)', async () => {
+    const nuevo: Vehiculo = { ...etios, id: 'vehiculo-fiorino', patente: 'ZZ000ZZ' };
+    const repository = buildFakeRepository({
+      list: vi.fn().mockResolvedValueOnce([etios]).mockReturnValue(new Promise<Vehiculo[]>(() => {})),
+      create: vi.fn().mockResolvedValue(nuevo),
+    });
+    const { result } = renderHookConQuery(() => useVehiculos(repository));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.crear({ ...nuevo });
+    });
+
+    expect(result.current.vehiculos).toEqual([etios, nuevo]);
+  });
+
   it('crear() propaga el error del repository sin dejar loading colgado', async () => {
     const repository = buildFakeRepository({ create: vi.fn().mockRejectedValue(new Error('patente duplicada')) });
     const { result } = renderHookConQuery(() => useVehiculos(repository));
