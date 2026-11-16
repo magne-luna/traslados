@@ -7,6 +7,7 @@ import { estadoHabilitacion } from '../../shared/lib/mantenimiento/estadoHabilit
 import { estadoServicePreventivo } from '../../shared/lib/mantenimiento/estadoServicePreventivo';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
+import { ordenarVehiculos } from '../../shared/lib/vehiculos/ordenarVehiculos';
 import { ESTADO_TEXT_CLASS, HABILITACION_COPY, SERVICE_COPY, TIPO_HABILITACION_LABELS } from './mantenimientoCopy';
 
 interface VehiculosListProps {
@@ -38,10 +39,13 @@ export function VehiculosList({ vehiculos, loading, error, onSelect, onCreateNew
 
   const filtrados = useMemo(() => {
     const termino = busqueda.trim().toLowerCase();
-    if (!termino) return vehiculos;
-    return vehiculos.filter(
-      (vehiculo) => vehiculo.patente.toLowerCase().includes(termino) || vehiculo.modelo.toLowerCase().includes(termino),
-    );
+    const coincidentes = termino
+      ? vehiculos.filter(
+          (vehiculo) =>
+            vehiculo.patente.toLowerCase().includes(termino) || vehiculo.modelo.toLowerCase().includes(termino),
+        )
+      : vehiculos;
+    return ordenarVehiculos(coincidentes);
   }, [busqueda, vehiculos]);
 
   return (
