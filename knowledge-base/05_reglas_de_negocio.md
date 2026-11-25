@@ -104,8 +104,9 @@ Cada regla tiene un código único `RN-{DOMINIO}-{NN}` para trazabilidad. Extra�
   `propio` exige vehículo y conductor; uno tercerizado (`aplicacion`/`remis`) no tiene ni vehículo
   ni conductor y **no pasa** por la validación de capacidad ni por la de accesorios de movilidad
   (RN-VE-01), porque no hay vehículo propio contra el cual validar. Un `remis` exige el nombre de la
-  agencia en **texto libre** (sin catálogo). Fuera de alcance por ahora: costo del viaje, nombre de
-  la aplicación (alcanza con "aplicación", confirmado 2026-11-25) y reporte de deuda por agencia.
+  agencia en **texto libre** (sin catálogo). Fuera de alcance (decidido 2026-11-25): costo del viaje
+  y reporte de deuda por agencia — los montos los gestionan por afuera; tampoco se anota qué
+  aplicación fue (alcanza con "aplicación").
 
 ## Dominio: Excepciones globales (RN-GL)
 

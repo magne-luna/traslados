@@ -1534,7 +1534,8 @@ la agencia en texto libre. Los tercerizados no validan capacidad ni accesorios.
 - **⚠️ Discrepancia con Traslados-Modelo-Datos.docx**: el docx no modela tipo de transporte ni
   agencia en Recorrido. Detalle en `knowledge-base/04_modelo_de_datos.md` §Discrepancias; cartel
   `AvisoModeloDatos` en `HojaDeRutaPage`. Pendiente de confirmar.
-- Fuera de alcance: costo del viaje y reporte de deuda por agencia (pendientes de Andrea).
+- Fuera de alcance (decidido 2026-11-25): costo del viaje y reporte de deuda por agencia — los montos
+  los gestionan por afuera.
 
 ### Baja lógica de pacientes y obras sociales (2026-10-14)
 

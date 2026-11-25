@@ -540,11 +540,12 @@ resuelto de esa reunión (inactivar, valor del km en presupuesto, buscador de pa
    `remis`, la **agencia** en texto libre (sin catálogo); con tipo distinto de `propio`, vehículo y
    conductor no se cargan. **Alcanza con "aplicación"** sin anotar cuál (confirmado por Enzo,
    2026-11-25).
-   **Siguen abiertas**: ¿el **costo** del viaje se carga por recorrido o por pasajero, y en la hoja
-   de ruta o en un módulo de gastos ("eso ya entra en la parte de finanzas", 1:34:00)? ¿Hace falta
-   un **reporte de deuda por agencia** (cuenta corriente) o alcanza con verlo en la hoja? (depende del
-   costo). ¿Hace falta pasar la agencia a **catálogo** si aparecen variantes de tipeo?
-   **Decisor**: Andrea.
+   **Decidido (Enzo, 2026-11-25) — fuera de alcance**: el **costo** del viaje y el **reporte de deuda
+   por agencia** no se cargan en la app. La hoja de ruta no maneja costos: los montos de Uber y de las
+   agencias de remis los gestionan por afuera (es una excepción y no fue un pedido urgente). La app
+   solo registra el tipo de transporte y la agencia de cada recorrido.
+   **Sigue abierta (baja prioridad)**: ¿pasar la agencia a **catálogo** si aparecen variantes de
+   tipeo ("Paris"/"París")?
 
 2. **Datos del paciente por año (carpetas 2025/2026/2027).** Fijos: nombre, DNI, CUIL y fecha de
    nacimiento. Todo lo demás (diagnóstico, obra social, prestaciones, destinos) puede cambiar año a
