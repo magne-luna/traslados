@@ -5,7 +5,10 @@ Cuando termines una, tachala o borrala de acá y avisale a Delfi.
 
 ---
 
-## 1. Valor del km en presupuestos — ⏳ pendiente
+## 1. Valor del km en presupuestos — ✅ hecho (2026-11-25)
+
+> Migración ya aplicada en remoto y edge function `presupuestos` deployada el 2026-11-25.
+> Falta solo el paso 3: sacar el cartel `⚠️ TEMPORAL` de `PresupuestoForm.tsx`.
 
 **Qué es:** Andrea pidió (reunión del 2026-10-07) cargar el precio del km en el presupuesto, como
 figura en el formulario de la obra social. El front ya muestra el campo "Valor del km" y calcula el
