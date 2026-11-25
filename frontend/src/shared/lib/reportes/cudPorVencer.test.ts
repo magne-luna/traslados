@@ -29,6 +29,13 @@ function paciente(overrides: Partial<Paciente> = {}): Paciente {
 const HOY = new Date('2026-07-24');
 
 describe('cudPorVencer', () => {
+  it('omite al paciente inactivo (baja lógica): no tiene sentido alertar por su CUD', () => {
+    const cud = { numero: '1', fechaEmision: '2020-01-01', fechaVencimiento: '2026-08-10' };
+    const pacientes = [paciente({ id: 'p1', cud, activo: false }), paciente({ id: 'p2', cud, activo: true }), paciente({ id: 'p3', cud })];
+    const resultado = cudPorVencer({ pacientes, hoy: HOY, umbralDias: UMBRAL_CUD_DASHBOARD_DIAS });
+    expect(resultado.map((r) => r.pacienteId)).toEqual(['p2', 'p3']);
+  });
+
   it('incluye al paciente cuyo CUD vence dentro del umbral, con estado por-vencer', () => {
     const pacientes = [paciente({ id: 'p1', cud: { numero: '1', fechaEmision: '2020-01-01', fechaVencimiento: '2026-08-10' } })];
     const resultado = cudPorVencer({ pacientes, hoy: HOY, umbralDias: UMBRAL_CUD_DASHBOARD_DIAS });

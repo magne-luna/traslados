@@ -128,6 +128,17 @@ real). Los puntos marcados como "cartel en UI" ya están señalizados con `Aviso
 pantallas correspondientes (Obras Sociales, Vehículos); el resto no tiene pantalla propia todavía,
 así que queda anotado acá hasta que se construya esa feature.
 
+- **Baja lógica de Paciente / ObraSocial (`activo`)** — reunión con Andrea (2026-10-07): pacientes
+  y obras sociales nunca se borran, se inactivan (presupuestos, facturas y hojas de ruta ya
+  emitidos siguen apuntando a la fila). El docx **no modela** ningún campo de baja/estado activo en
+  esas entidades: se agregó `activo boolean NOT NULL DEFAULT true` a `pacientes.paciente` y
+  `obra_social.obra_social` (`supabase/migrations/20261014120000_activo_paciente_obra_social.sql`).
+  Regla aplicada: el inactivo no aparece en el listado (salvo con "Mostrar inactivos") ni en los
+  selectores de altas nuevas (`seleccionables()`), ni en la alerta de CUD del dashboard.
+  Conductores y vehículos no usan `activo`: reusan su `estado` existente ("fuera de servicio").
+  Cartel en UI: `AvisoModeloDatos` dentro de `BajaLogicaControl` (ficha de paciente y de obra
+  social). **Pendiente de confirmar** con quien mantiene el docx.
+
 - **Catálogo de módulos de permisos (4 → 7)** — decisión de UX, **NO pedido del cliente**
   (`openspec/changes/permisos-modulos-granulares/`, propose validado 2026-07-30): el docx nombra
   explícitamente 4 módulos de ejemplo (`pacientes`, `obra_social`, `facturacion`, `conductores`) y

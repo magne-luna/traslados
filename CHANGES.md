@@ -1516,6 +1516,24 @@ y a `datos-paciente-por-anio` (`pacientes.paciente_anio` → `pacientes`).
 
 ---
 
+## Fixes directos fuera del roadmap C-NN
+
+### Baja lógica de pacientes y obras sociales (2026-10-14)
+
+Reunión con Andrea (2026-10-07): pacientes y obras sociales se **inactivan** (columna `activo`),
+nunca se borran. Conductores y vehículos reusan su `estado` ("fuera de servicio").
+
+- Migración: `supabase/migrations/20261014120000_activo_paciente_obra_social.sql`. Sin cambios de
+  RLS: las policies "Write <módulo>" son FOR ALL.
+- Frontend: `BajaLogicaControl` en cada ficha, tilde "Mostrar inactivos" en cada listado,
+  `seleccionables()` en los selectores de altas nuevas, y `cudPorVencer` omite inactivos en la
+  alerta del dashboard.
+- **⚠️ Discrepancia con Traslados-Modelo-Datos.docx**: el docx no modela ninguna baja/estado activo
+  en Paciente ni ObraSocial. Detalle en `knowledge-base/04_modelo_de_datos.md` §Discrepancias;
+  cartel `AvisoModeloDatos` en `BajaLogicaControl`. Pendiente de confirmar.
+
+---
+
 ## ⚠️ Checklist de seguridad — antes de lanzar a producción
 
 Pendiente de que Enzo lo haga a mano en el dashboard de Supabase (no automatizable desde acá).

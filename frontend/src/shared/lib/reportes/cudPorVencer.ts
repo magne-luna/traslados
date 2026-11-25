@@ -18,6 +18,8 @@ export function cudPorVencer({ pacientes, hoy, umbralDias }: CudPorVencerInput):
 
   for (const paciente of pacientes) {
     if (paciente.cud === null) continue;
+    // Baja lógica: un paciente inactivo ya no se atiende, alertar por su CUD es ruido.
+    if (paciente.activo === false) continue;
 
     const estado = estadoCud(paciente.cud, hoy, umbralDias);
     if (estado === 'vigente') continue;

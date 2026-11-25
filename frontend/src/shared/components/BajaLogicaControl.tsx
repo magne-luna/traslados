@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Chip } from '../../design-system/components';
+import { AvisoModeloDatos, Button, Chip } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 
 type Entidad = 'paciente' | 'obra social';
@@ -36,6 +36,10 @@ export function BajaLogicaControl({
 
   return (
     <div className="flex flex-col gap-sm">
+      <AvisoModeloDatos>
+        El modelo de datos (Traslados-Modelo-Datos.docx) no tiene un campo de activo/inactivo para {entidad === 'paciente' ? 'Paciente' : 'Obra Social'}.
+        Se agregó la columna <code>activo</code> por pedido de la reunión del 2026-10-07. Pendiente de confirmar con quien mantiene el docx.
+      </AvisoModeloDatos>
       <div className="flex flex-wrap items-center justify-end gap-sm">
         {!activo && <Chip kind="secondary">{INACTIVO[entidad]}</Chip>}
         <Button variant="secondary" size="sm" requiereEscritura disabled={guardando} onClick={() => void cambiar()} ariaLabel={`${activo ? 'Inactivar' : 'Reactivar'} ${entidad}`}>
