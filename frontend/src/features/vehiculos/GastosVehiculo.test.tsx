@@ -43,8 +43,9 @@ describe('GastosVehiculo', () => {
 
     render(<GastosVehiculo gastos={[gasto, otroGasto]} onAgregar={vi.fn()} ahora={ahora} />);
 
-    expect(screen.getByText('$50.000')).toBeInTheDocument();
-    expect(screen.getByText('$45.000')).toBeInTheDocument();
+    // Se busca el monto junto a su etiqueta: $45.000 aparece también en la fila de la tabla.
+    expect(screen.getByText('Total gastado').nextElementSibling).toHaveTextContent('$50.000');
+    expect(screen.getByText('Este mes').nextElementSibling).toHaveTextContent('$45.000');
   });
 
   it('bloquea el alta con monto inválido y muestra el error', async () => {
