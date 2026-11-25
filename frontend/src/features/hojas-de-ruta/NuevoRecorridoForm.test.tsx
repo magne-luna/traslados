@@ -4,7 +4,7 @@ import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Conductor } from '../../shared/types/conductor';
 import type { Paciente } from '../../shared/types/paciente';
-import type { Recorrido } from '../../shared/types/hojaDeRuta';
+import type { RecorridoPropio } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { NuevoRecorridoForm } from './NuevoRecorridoForm';
@@ -57,8 +57,9 @@ function buildConductor(overrides: Partial<Conductor> = {}): Conductor {
   };
 }
 
-function buildRecorrido(overrides: Partial<Recorrido> = {}): Recorrido {
+function buildRecorrido(overrides: Partial<RecorridoPropio> = {}): RecorridoPropio {
   return {
+    tipoTransporte: 'propio',
     id: 'r-1',
     vehiculoId: 'v-1',
     conductorId: 'c-1',
@@ -138,7 +139,7 @@ describe('NuevoRecorridoForm', () => {
 
     await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
 
-    expect(onCrear).toHaveBeenCalledWith({ vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] });
+    expect(onCrear).toHaveBeenCalledWith({ tipoTransporte: 'propio', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] });
   });
 
   it('permite marcar el recorrido como manual (RN-HR-03, triangulación)', async () => {
@@ -157,7 +158,7 @@ describe('NuevoRecorridoForm', () => {
     await user.click(screen.getByLabelText(/manual/i));
     await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
 
-    expect(onCrear).toHaveBeenCalledWith({ vehiculoId: 'v-1', conductorId: 'c-1', manual: true, paradas: [] });
+    expect(onCrear).toHaveBeenCalledWith({ tipoTransporte: 'propio', vehiculoId: 'v-1', conductorId: 'c-1', manual: true, paradas: [] });
   });
 
   it('no muestra el botón de crear si no hay vehículos o conductores disponibles (borde)', () => {
@@ -310,6 +311,7 @@ describe('NuevoRecorridoForm', () => {
     await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
 
     expect(onCrear).toHaveBeenCalledWith({
+      tipoTransporte: 'propio',
       vehiculoId: 'v-1',
       conductorId: 'c-1',
       manual: false,
@@ -759,5 +761,98 @@ describe('NuevoRecorridoForm · destino habitual del paciente', () => {
 
     expect(screen.queryByLabelText(/destino habitual/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/dirección de origen/i)).toBeInTheDocument();
+  });
+});
+
+// viajes-tercerizados-hoja-de-ruta, tasks.md 4.1 (spec recorrido-tercerizado).
+describe('NuevoRecorridoForm — viaje tercerizado', () => {
+  it('"Viaje tercerizado" viene destildado y el alta sigue siendo propio', async () => {
+    const user = userEvent.setup();
+    const onCrear = vi.fn();
+    renderConQuery(<NuevoRecorridoForm vehiculos={[buildVehiculo()]} conductores={[buildConductor()]} pacientes={[]} onCrear={onCrear} />);
+
+    expect(screen.getByLabelText(/viaje tercerizado/i)).not.toBeChecked();
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+    expect(onCrear).toHaveBeenCalledWith(expect.objectContaining({ tipoTransporte: 'propio', vehiculoId: 'v-1' }));
+  });
+
+  it('al tildarlo oculta vehículo y conductor y crea un recorrido por aplicación (default)', async () => {
+    const user = userEvent.setup();
+    const onCrear = vi.fn();
+    renderConQuery(<NuevoRecorridoForm vehiculos={[buildVehiculo()]} conductores={[buildConductor()]} pacientes={[]} onCrear={onCrear} />);
+
+    await user.click(screen.getByLabelText(/viaje tercerizado/i));
+
+    expect(screen.queryByLabelText(/^vehículo$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^conductor$/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/uber \/ aplicación/i)).toBeChecked();
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+    expect(onCrear).toHaveBeenCalledWith({ tipoTransporte: 'aplicacion', manual: false, paradas: [] });
+  });
+
+  it('crea un remis con la agencia escrita', async () => {
+    const user = userEvent.setup();
+    const onCrear = vi.fn();
+    renderConQuery(<NuevoRecorridoForm vehiculos={[buildVehiculo()]} conductores={[buildConductor()]} pacientes={[]} onCrear={onCrear} />);
+
+    await user.click(screen.getByLabelText(/viaje tercerizado/i));
+    await user.click(screen.getByLabelText(/^remis$/i));
+    await user.type(screen.getByLabelText(/agencia/i), 'París');
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+
+    expect(onCrear).toHaveBeenCalledWith({ tipoTransporte: 'remis', agenciaRemis: 'París', manual: false, paradas: [] });
+  });
+
+  it('remis sin agencia no crea y pide la agencia', async () => {
+    const user = userEvent.setup();
+    const onCrear = vi.fn();
+    renderConQuery(<NuevoRecorridoForm vehiculos={[buildVehiculo()]} conductores={[buildConductor()]} pacientes={[]} onCrear={onCrear} />);
+
+    await user.click(screen.getByLabelText(/viaje tercerizado/i));
+    await user.click(screen.getByLabelText(/^remis$/i));
+    await user.type(screen.getByLabelText(/agencia/i), '   ');
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+
+    expect(onCrear).not.toHaveBeenCalled();
+    expect(screen.getByText(/nombre de la agencia/i)).toBeInTheDocument();
+  });
+
+  it('sin vehículo compatible para el paciente, igual se puede crear tercerizado', async () => {
+    const user = userEvent.setup();
+    const onCrear = vi.fn();
+    const chico = buildVehiculo({ id: 'v-chico', accesoriosCompatibles: [] });
+    const pacienteConAccesorio = buildPaciente({ id: 'p-acc', accesorioMovilidad: ['silla-rigida'] });
+    renderConQuery(<NuevoRecorridoForm vehiculos={[chico]} conductores={[buildConductor()]} pacientes={[pacienteConAccesorio]} onCrear={onCrear} />);
+
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'p-acc');
+    await user.click(screen.getByLabelText(/viaje tercerizado/i));
+
+    expect(screen.queryByText(/ningún vehículo disponible/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+    expect(onCrear).toHaveBeenCalledWith(expect.objectContaining({ tipoTransporte: 'aplicacion' }));
+  });
+
+  it('sin vehículos habilitados hoy, igual se puede crear tercerizado', async () => {
+    const user = userEvent.setup();
+    const onCrear = vi.fn();
+    renderConQuery(<NuevoRecorridoForm vehiculos={[]} conductores={[buildConductor()]} pacientes={[]} onCrear={onCrear} />);
+
+    expect(screen.getByText(/no hay vehículos habilitados/i)).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/viaje tercerizado/i));
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+    expect(onCrear).toHaveBeenCalledWith(expect.objectContaining({ tipoTransporte: 'aplicacion' }));
+  });
+
+  it('destildar vuelve a mostrar y exigir vehículo y conductor', async () => {
+    const user = userEvent.setup();
+    const onCrear = vi.fn();
+    renderConQuery(<NuevoRecorridoForm vehiculos={[buildVehiculo()]} conductores={[buildConductor()]} pacientes={[]} onCrear={onCrear} />);
+
+    await user.click(screen.getByLabelText(/viaje tercerizado/i));
+    await user.click(screen.getByLabelText(/viaje tercerizado/i));
+
+    expect(screen.getByLabelText(/^vehículo$/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+    expect(onCrear).toHaveBeenCalledWith(expect.objectContaining({ tipoTransporte: 'propio', vehiculoId: 'v-1', conductorId: 'c-1' }));
   });
 });

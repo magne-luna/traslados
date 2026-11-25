@@ -38,3 +38,41 @@ conoce `valorKm` y lo descarta en silencio. En el formulario hay un cartel amari
 
 **Cómo probar:** Presupuestos → Nuevo presupuesto → cargar "Valor del km" → Guardar → abrir el
 presupuesto: en el resumen tiene que aparecer "Valor del km".
+
+---
+
+## 2. Viajes tercerizados en la hoja de ruta — ⏳ pendiente
+
+**Qué es:** cada recorrido puede ser de flota propia, **Uber / aplicación** o **Remis** (con la
+agencia). Pedido de Andrea en la reunión del 2026-10-07. Change
+`openspec/changes/viajes-tercerizados-hoja-de-ruta/`.
+
+**Qué falta, en este orden:**
+
+1. Verificar que el schema real coincide con el repo (en el SQL editor de Supabase):
+   ```sql
+   SELECT column_name, is_nullable FROM information_schema.columns
+   WHERE table_schema = 'pacientes' AND table_name = 'recorrido';
+   SELECT pg_get_functiondef('pacientes.crear_hoja_de_ruta_completa(jsonb)'::regprocedure);
+   ```
+   Tiene que coincidir con `20260804100000_schema_hoja_de_ruta.sql` y `20260804110000_hoja_de_ruta_rpc.sql`.
+   Si difiere, avisar antes de aplicar.
+
+2. Aplicar la migración (no hay Edge Function que deployar: la hoja de ruta escribe por RPC):
+   ```
+   supabase db push
+   ```
+   Archivo: `supabase/migrations/20261125120000_recorrido_tipo_transporte.sql`
+
+3. Verificar:
+   ```sql
+   SELECT tipo_transporte, count(*) FROM pacientes.recorrido GROUP BY 1;  -- solo 'propio'
+   ```
+   y que la hoja de ruta actual (frontend viejo) sigue cargando y guardando.
+
+4. **Recién después** deployar el frontend. ⚠️ Si el frontend nuevo sale antes que la migración, la
+   hoja de ruta no carga (pide `tipo_transporte`, que todavía no existe).
+
+**Cómo probar:** Hojas de ruta → Nuevo recorrido → tildar "Viaje tercerizado" → Remis, agencia
+"París" → Crear recorrido. Recargar: la tarjeta dice "Remis · París", y también aparece así en la
+vista imprimible y en el panel del dashboard.

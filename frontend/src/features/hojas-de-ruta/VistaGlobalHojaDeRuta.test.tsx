@@ -79,7 +79,7 @@ function buildParada(overrides: Partial<ParadaRecorrido> = {}): ParadaRecorrido 
 
 describe('VistaGlobalHojaDeRuta', () => {
   it('muestra un estado explícito cuando no hay conflictos (borde)', () => {
-    const recorrido: Recorrido = { id: 'r-1', vehiculoId: 'v-ok', conductorId: 'c-op', manual: false, paradas: [] };
+    const recorrido: Recorrido = { id: 'r-1', tipoTransporte: 'propio', vehiculoId: 'v-ok', conductorId: 'c-op', manual: false, paradas: [] };
 
     render(
       <VistaGlobalHojaDeRuta
@@ -95,7 +95,7 @@ describe('VistaGlobalHojaDeRuta', () => {
   });
 
   it('señala un recorrido con vehículo fuera de servicio', () => {
-    const conflictivo: Recorrido = { id: 'r-fds', vehiculoId: 'v-fds', conductorId: 'c-op', manual: false, paradas: [] };
+    const conflictivo: Recorrido = { id: 'r-fds', tipoTransporte: 'propio', vehiculoId: 'v-fds', conductorId: 'c-op', manual: false, paradas: [] };
 
     render(
       <VistaGlobalHojaDeRuta
@@ -116,12 +116,13 @@ describe('VistaGlobalHojaDeRuta', () => {
     const paciente = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
     const conflictivo: Recorrido = {
       id: 'r-fds',
+      tipoTransporte: 'propio',
       vehiculoId: 'v-fds',
       conductorId: 'c-op',
       manual: false,
       paradas: [buildParada()],
     };
-    const destino: Recorrido = { id: 'r-ok', vehiculoId: 'v-ok', conductorId: 'c-op', manual: false, paradas: [] };
+    const destino: Recorrido = { id: 'r-ok', tipoTransporte: 'propio', vehiculoId: 'v-ok', conductorId: 'c-op', manual: false, paradas: [] };
 
     render(
       <VistaGlobalHojaDeRuta
@@ -145,12 +146,13 @@ describe('VistaGlobalHojaDeRuta', () => {
     const paciente = buildPaciente({ accesorioMovilidad: ['silla-rigida'] });
     const conflictivo: Recorrido = {
       id: 'r-fds',
+      tipoTransporte: 'propio',
       vehiculoId: 'v-fds',
       conductorId: 'c-op',
       manual: false,
       paradas: [buildParada()],
     };
-    const destino: Recorrido = { id: 'r-ok', vehiculoId: 'v-ok', conductorId: 'c-op', manual: false, paradas: [] };
+    const destino: Recorrido = { id: 'r-ok', tipoTransporte: 'propio', vehiculoId: 'v-ok', conductorId: 'c-op', manual: false, paradas: [] };
 
     render(
       <VistaGlobalHojaDeRuta
@@ -177,12 +179,13 @@ describe('VistaGlobalHojaDeRuta — gateo de escritura', () => {
   const paciente = buildPaciente({ accesorioMovilidad: ['silla-plegable'] });
   const conflictivo: Recorrido = {
     id: 'r-fds',
+    tipoTransporte: 'propio',
     vehiculoId: 'v-fds',
     conductorId: 'c-op',
     manual: false,
     paradas: [buildParada()],
   };
-  const destino: Recorrido = { id: 'r-ok', vehiculoId: 'v-ok', conductorId: 'c-op', manual: false, paradas: [] };
+  const destino: Recorrido = { id: 'r-ok', tipoTransporte: 'propio', vehiculoId: 'v-ok', conductorId: 'c-op', manual: false, paradas: [] };
 
   it('sin permiso de escritura: no se puede elegir destino ni mover una fila, y el conflicto y el pasajero siguen legibles', async () => {
     const user = userEvent.setup();
@@ -245,5 +248,53 @@ describe('VistaGlobalHojaDeRuta — gateo de escritura', () => {
     );
 
     expect(screen.getByRole('button', { name: /mover/i })).toBeEnabled();
+  });
+});
+
+// viajes-tercerizados-hoja-de-ruta, tasks.md 5.3 (spec recorrido-tercerizado).
+describe('VistaGlobalHojaDeRuta — tercerizados', () => {
+  const pacienteConSilla = buildPaciente({ accesorioMovilidad: ['silla-rigida'] });
+  const conflictivo: Recorrido = {
+    id: 'r-fds',
+    tipoTransporte: 'propio',
+    vehiculoId: 'v-fds',
+    conductorId: 'c-op',
+    manual: false,
+    paradas: [buildParada()],
+  };
+  const propio: Recorrido = { id: 'r-ok', tipoTransporte: 'propio', vehiculoId: 'v-ok', conductorId: 'c-op', manual: false, paradas: [] };
+  const remis: Recorrido = { id: 'r-remis', tipoTransporte: 'remis', agenciaRemis: 'París', manual: false, paradas: [] };
+
+  function renderVista(onReasignar = vi.fn()) {
+    render(
+      <VistaGlobalHojaDeRuta
+        recorridos={[conflictivo, propio, remis]}
+        vehiculos={[vehiculoFueraDeServicio, vehiculoHabilitado]}
+        conductores={[conductorOperando]}
+        pacientes={[pacienteConSilla]}
+        onReasignar={onReasignar}
+      />,
+    );
+    return onReasignar;
+  }
+
+  it('agrupa los destinos en "Flota propia" y "Tercerizados", identificando al remis por su agencia', () => {
+    renderVista();
+
+    const select = screen.getByLabelText(/reasignar gómez, martina a/i);
+    const grupos = Array.from(select.querySelectorAll('optgroup')).map((g) => g.label);
+    expect(grupos).toEqual(['Flota propia', 'Tercerizados']);
+    expect(screen.getByRole('option', { name: 'Remis · París' })).toBeInTheDocument();
+  });
+
+  it('mover un pasajero a un tercerizado no valida capacidad ni accesorios', async () => {
+    const user = userEvent.setup();
+    const onReasignar = renderVista();
+
+    await user.selectOptions(screen.getByLabelText(/reasignar gómez, martina a/i), 'r-remis');
+    await user.click(screen.getByRole('button', { name: /mover/i }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(onReasignar).toHaveBeenCalledWith('parada-1', 'r-fds', 'r-remis');
   });
 });

@@ -1518,6 +1518,24 @@ y a `datos-paciente-por-anio` (`pacientes.paciente_anio` → `pacientes`).
 
 ## Fixes directos fuera del roadmap C-NN
 
+### Viajes tercerizados en la hoja de ruta (2026-11-25)
+
+Change `openspec/changes/viajes-tercerizados-hoja-de-ruta/` (RN-HR-05). Cada recorrido de la hoja de
+ruta puede ser **propio** (vehículo + conductor, como siempre), **Uber / aplicación** o **Remis** con
+la agencia en texto libre. Los tercerizados no validan capacidad ni accesorios.
+
+- Governance **MEDIUM-HIGH**: cambia constraints de `pacientes.recorrido` (módulo productivo).
+- Depende de `integracion-hojas-de-ruta` (`20260804100000` / `20260804110000`).
+- Migración: `supabase/migrations/20261125120000_recorrido_tipo_transporte.sql` (**la aplica Enzo**,
+  `supabase db push`; sin Edge Function). **Orden obligatorio: migración antes que el frontend.**
+- Frontend: unión discriminada `TransporteRecorrido`, `transporteRecorrido.ts` (etiqueta, guard,
+  validación), control "Viaje tercerizado" en alta y edición, y etiqueta "Uber / aplicación" /
+  "Remis · <agencia>" en tarjeta, vista global (grupo "Tercerizados"), imprimible y dashboard.
+- **⚠️ Discrepancia con Traslados-Modelo-Datos.docx**: el docx no modela tipo de transporte ni
+  agencia en Recorrido. Detalle en `knowledge-base/04_modelo_de_datos.md` §Discrepancias; cartel
+  `AvisoModeloDatos` en `HojaDeRutaPage`. Pendiente de confirmar.
+- Fuera de alcance: costo del viaje y reporte de deuda por agencia (pendientes de Andrea).
+
 ### Baja lógica de pacientes y obras sociales (2026-10-14)
 
 Reunión con Andrea (2026-10-07): pacientes y obras sociales se **inactivan** (columna `activo`),

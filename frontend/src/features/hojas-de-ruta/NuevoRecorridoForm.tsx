@@ -5,10 +5,11 @@ import { Label, Textarea } from '../../design-system/form';
 import { camposDesdeRecorridoHabitual } from '../../shared/lib/hojas-de-ruta/camposDesdeRecorridoHabitual';
 import { conductoresDisponibles, vehiculosDisponibles } from '../../shared/lib/hojas-de-ruta/disponibilidad';
 import { sugerirRecorridoExistente } from '../../shared/lib/hojas-de-ruta/sugerirRecorridoExistente';
+import { validarTransporte } from '../../shared/lib/hojas-de-ruta/transporteRecorrido';
 import { vehiculosCompatibles } from '../../shared/lib/hojas-de-ruta/vehiculosCompatibles';
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { Conductor } from '../../shared/types/conductor';
-import type { NuevaParadaRecorrido, Recorrido, Tramo } from '../../shared/types/hojaDeRuta';
+import type { NuevaParadaRecorrido, Recorrido, Tramo, TransporteRecorrido } from '../../shared/types/hojaDeRuta';
 import type { RecorridoHabitual } from '../../shared/types/recorridoHabitual';
 import type { PacienteResumen } from '../../shared/types/paciente';
 import type { Vehiculo } from '../../shared/types/vehiculo';
@@ -18,15 +19,16 @@ import { PacienteTramoCampos } from './PacienteTramoCampos';
 import { RequisitosPaciente } from './RequisitosPaciente';
 import { SelectorPaciente } from './SelectorPaciente';
 import { SelectorRecorridoHabitual } from './SelectorRecorridoHabitual';
+import { BORRADOR_TERCERIZADO_INICIAL, transporteDesdeBorrador } from '../../shared/lib/hojas-de-ruta/borradorTercerizado';
+import { TransporteTercerizadoCampos } from './TransporteTercerizadoCampos';
 import { useRecorridosHabituales } from './useRecorridosHabituales';
 
-export interface NuevoRecorridoPayload {
-  vehiculoId: string;
-  conductorId: string;
+/** Alta de recorrido: propio (vehículo + conductor) o tercerizado (aplicación / remis), RN-HR-05. */
+export type NuevoRecorridoPayload = TransporteRecorrido & {
   manual: boolean;
   paradas: NuevaParadaRecorrido[];
   notas?: string;
-}
+};
 
 interface NuevoRecorridoFormProps {
   vehiculos: Vehiculo[];
@@ -106,25 +108,25 @@ export function NuevoRecorridoForm({
   const [conductorId, setConductorId] = useState(conductoresOperando[0]?.id ?? '');
   const [manual, setManual] = useState(false);
   const [notas, setNotas] = useState('');
+  // Viaje tercerizado (RN-HR-05): con el control tildado no hay vehículo ni conductor que elegir.
+  const [borradorTransporte, setBorradorTransporte] = useState(BORRADOR_TERCERIZADO_INICIAL);
+  const [errorTransporte, setErrorTransporte] = useState<string | null>(null);
+  const tercerizado = borradorTransporte.tercerizado;
 
   const vehiculoSeleccionado = candidatos.find((v) => v.id === vehiculoId);
   // Sugerencia de recorrido existente (feedback de usuario, RN-HR-01): se recalcula en cada
   // render junto con `candidatos` — misma estrategia sin useMemo, es barato sobre arrays ya
   // cargados. Sin paciente elegido no hay nada para sugerir.
-  const candidatosExistentes = pacienteSeleccionado
+  const candidatosExistentes = pacienteSeleccionado && !tercerizado
     ? sugerirRecorridoExistente(recorridos, vehiculos, pacienteSeleccionado, tramo, horaEstimada)
     : [];
   // "Crear recorrido" vive debajo de Notas (feedback de usuario) pero mantiene el mismo gateo que
   // antes tenía en la fila de vehículo/conductor: sin vehículo compatible para el paciente
   // elegido, no se puede enviar.
-  const puedeCrear = !pacienteSeleccionado || candidatos.length > 0;
-
-  if (disponibles.length === 0) {
-    return <p className="m-0 font-body text-sm text-muted">No hay vehículos habilitados disponibles hoy.</p>;
-  }
-  if (conductoresOperando.length === 0) {
-    return <p className="m-0 font-body text-sm text-muted">No hay conductores operando disponibles hoy.</p>;
-  }
+  // Un tercerizado no depende de la flota: se puede crear aunque no haya vehículos/conductores
+  // propios o ninguno sea compatible con el paciente (spec recorrido-tercerizado).
+  const sinFlotaDisponible = disponibles.length === 0 || conductoresOperando.length === 0;
+  const puedeCrear = tercerizado || (!sinFlotaDisponible && (!pacienteSeleccionado || candidatos.length > 0));
 
   function handlePacienteChange(id: string) {
     setPacienteId(id);
@@ -156,7 +158,10 @@ export function NuevoRecorridoForm({
   }
 
   function handleSubmit() {
-    if (!vehiculoId || !conductorId) return;
+    const transporte = transporteDesdeBorrador(borradorTransporte, vehiculoId, conductorId);
+    const error = validarTransporte(transporte);
+    setErrorTransporte(error);
+    if (error !== null) return;
 
     const paradas: NuevaParadaRecorrido[] = pacienteSeleccionado
       ? [
@@ -171,7 +176,7 @@ export function NuevoRecorridoForm({
         ]
       : [];
 
-    onCrear({ vehiculoId, conductorId, manual, paradas, notas: notas || undefined });
+    onCrear({ ...transporte, manual, paradas, notas: notas || undefined });
   }
 
   function handleAgregarAExistente(recorridoId: string) {
@@ -280,14 +285,31 @@ export function NuevoRecorridoForm({
         </Alert>
       )}
 
-      {pacienteSeleccionado && <RequisitosPaciente paciente={pacienteSeleccionado} vehiculo={vehiculoSeleccionado} />}
+      {pacienteSeleccionado && !tercerizado && <RequisitosPaciente paciente={pacienteSeleccionado} vehiculo={vehiculoSeleccionado} />}
 
-      {pacienteSeleccionado && candidatos.length === 0 ? (
+      <div className="flex flex-wrap items-center gap-md pt-2">
+        <TransporteTercerizadoCampos formId={formId} value={borradorTransporte} onChange={setBorradorTransporte} />
+        <label htmlFor={`${formId}-manual`} className="flex items-center gap-xs font-body text-[13px] text-text">
+          <input
+            id={`${formId}-manual`}
+            type="checkbox"
+            checked={manual}
+            onChange={(event) => setManual(event.target.checked)}
+          />
+          Recorrido manual (sin turno fijo)
+        </label>
+      </div>
+
+      {tercerizado ? null : disponibles.length === 0 ? (
+        <p className="m-0 font-body text-sm text-muted">No hay vehículos habilitados disponibles hoy.</p>
+      ) : conductoresOperando.length === 0 ? (
+        <p className="m-0 font-body text-sm text-muted">No hay conductores operando disponibles hoy.</p>
+      ) : pacienteSeleccionado && candidatos.length === 0 ? (
         <p role="alert" className="m-0 font-body text-sm text-danger">
           Ningún vehículo disponible tiene capacidad o accesorios compatibles con este paciente.
         </p>
       ) : (
-        <div className="flex flex-wrap items-end gap-md pt-2">
+        <div className="flex flex-wrap items-end gap-md">
           <div className="flex flex-col gap-xs">
             <Label htmlFor={`${formId}-vehiculo`}>Vehículo</Label>
             <div className={boxedSelectClasses}>
@@ -325,18 +347,10 @@ export function NuevoRecorridoForm({
               </select>
             </div>
           </div>
-
-          <label htmlFor={`${formId}-manual`} className="flex items-center gap-xs font-body text-[13px] text-text">
-            <input
-              id={`${formId}-manual`}
-              type="checkbox"
-              checked={manual}
-              onChange={(event) => setManual(event.target.checked)}
-            />
-            Recorrido manual (sin turno fijo)
-          </label>
         </div>
       )}
+
+      {errorTransporte && <Alert tone="danger">{errorTransporte}</Alert>}
 
       <div className="flex flex-col gap-xs py-3">
         <Label htmlFor={`${formId}-notas`}>Notas del recorrido (opcional)</Label>

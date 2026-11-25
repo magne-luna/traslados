@@ -4,7 +4,7 @@ import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Conductor } from '../../shared/types/conductor';
 import type { Paciente } from '../../shared/types/paciente';
-import type { Recorrido } from '../../shared/types/hojaDeRuta';
+import type { Recorrido, RecorridoPropio } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { RecorridoCard } from './RecorridoCard';
@@ -96,8 +96,9 @@ const pacienteB: Paciente = { ...pacienteA, id: 'paciente-b', apellido: 'Pereyra
 // Sin parada propia en `buildRecorrido()` — queda disponible para AsignacionPanel en modo edición.
 const pacienteC: Paciente = { ...pacienteA, id: 'paciente-c', apellido: 'Ledesma', nombre: 'Brisa' };
 
-function buildRecorrido(overrides: Partial<Recorrido> = {}): Recorrido {
+function buildRecorrido(overrides: Partial<RecorridoPropio> = {}): RecorridoPropio {
   return {
+    tipoTransporte: 'propio',
     id: 'recorrido-1',
     vehiculoId: 'vehiculo-etios',
     conductorId: 'conductor-gonzalez',
@@ -724,5 +725,93 @@ describe('RecorridoCard — gateo de escritura', () => {
     );
     expect(screen.getByText(/ac123de/i)).toBeInTheDocument();
     expect(screen.getByText(/gonzález/i)).toBeInTheDocument();
+  });
+});
+
+// viajes-tercerizados-hoja-de-ruta, tasks.md 4.5 (spec recorrido-tercerizado).
+describe('RecorridoCard — viaje tercerizado', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'demo-key');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const remis: Recorrido = { id: 'recorrido-remis', tipoTransporte: 'remis', agenciaRemis: 'París', manual: false, paradas: [] };
+
+  it('en lectura, un remis se muestra "Remis · París", sin vehículo desconocido', () => {
+    renderConQuery(
+      <RecorridoCard
+        recorrido={remis}
+        vehiculo={undefined}
+        conductor={undefined}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA]}
+        onUpdateRecorrido={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Remis · París')).toBeInTheDocument();
+    expect(screen.queryByText(/vehículo desconocido/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/conductor desconocido/i)).not.toBeInTheDocument();
+  });
+
+  it('pasar un propio a remis "RSM" guarda el remis y pierde vehículo y conductor', async () => {
+    const user = userEvent.setup();
+    const onUpdateRecorrido = vi.fn();
+    renderConQuery(
+      <RecorridoCard
+        recorrido={buildRecorrido()}
+        vehiculo={vehiculo}
+        conductor={conductor}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA, pacienteB]}
+        onUpdateRecorrido={onUpdateRecorrido}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+    await user.click(screen.getByLabelText(/viaje tercerizado/i));
+    onUpdateRecorrido.mockClear();
+    await user.click(screen.getByLabelText(/^remis$/i));
+    await user.type(screen.getByLabelText(/agencia/i), 'RSM');
+    await user.tab();
+
+    const ultimo = onUpdateRecorrido.mock.calls.at(-1)?.[0] as Recorrido;
+    expect(ultimo).toMatchObject({ id: 'recorrido-1', tipoTransporte: 'remis', agenciaRemis: 'RSM' });
+    expect(ultimo).not.toHaveProperty('vehiculoId');
+    expect(ultimo).not.toHaveProperty('conductorId');
+    expect(ultimo.paradas).toHaveLength(2);
+  });
+
+  it('volver un tercerizado a propio exige elegir vehículo y conductor antes de guardar', async () => {
+    const user = userEvent.setup();
+    const onUpdateRecorrido = vi.fn();
+    renderConQuery(
+      <RecorridoCard
+        recorrido={remis}
+        vehiculo={undefined}
+        conductor={undefined}
+        vehiculos={[vehiculo]}
+        conductores={[conductor]}
+        pacientes={[pacienteA]}
+        onUpdateRecorrido={onUpdateRecorrido}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /editar/i }));
+    await user.click(screen.getByLabelText(/viaje tercerizado/i));
+    expect(onUpdateRecorrido).not.toHaveBeenCalled();
+
+    await user.selectOptions(screen.getByLabelText(/^vehículo$/i), 'vehiculo-etios');
+    expect(onUpdateRecorrido).not.toHaveBeenCalled();
+
+    await user.selectOptions(screen.getByLabelText(/^conductor$/i), 'conductor-gonzalez');
+    expect(onUpdateRecorrido).toHaveBeenCalledWith(
+      expect.objectContaining({ tipoTransporte: 'propio', vehiculoId: 'vehiculo-etios', conductorId: 'conductor-gonzalez' }),
+    );
   });
 });

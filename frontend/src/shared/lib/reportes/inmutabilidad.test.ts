@@ -89,6 +89,7 @@ function hojaDeRuta(): HojaDeRuta {
     recorridos: [
       {
         id: 'r1',
+        tipoTransporte: 'propio',
         vehiculoId: 'v1',
         conductorId: 'c1',
         manual: false,

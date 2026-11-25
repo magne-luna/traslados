@@ -56,27 +56,47 @@ export interface ParadaRecorrido {
 }
 
 /**
- * Recorrido de un vehículo/conductor dentro de la hoja de ruta del día (design.md Decisión 1).
+ * Tipo de transporte de un recorrido (RN-HR-05, change viajes-tercerizados-hoja-de-ruta):
+ * `propio` = flota propia (vehículo + conductor); `aplicacion` = Uber u otra app; `remis` = agencia
+ * de remis (nombre en texto libre, sin catálogo — decisión de la usuaria 2026-10-14).
  *
- * ⚠️ Discrepancia con el docx (design.md Discrepancia 2, punto de discrepancia central de este
- * change): `docs/core/Traslados-Modelo-Datos.docx §Historial de Recorridos` NO tiene campo
- * Conductor (liga el viaje solo a Paciente + Vehículo). `conductorId` es un campo AGREGADO sobre
- * el docx porque RN-VE-01/02, US-700 y `07_flujos_principales.md §Flujo 2` exigen agrupar,
- * editar y auditar recorridos por vehículo Y conductor. Pendiente de confirmar con el dueño del
- * docx antes de cerrar el esquema de la tabla `recorrido` en el backend `C-10` (ver también
- * `knowledge-base/04_modelo_de_datos.md §Discrepancias` y el cartel `AvisoModeloDatos` en
- * `HojaDeRutaPage`).
+ * ⚠️ Discrepancia con el docx: `Traslados-Modelo-Datos.docx` no modela tipo de transporte ni
+ * agencia. Campos agregados — ver `knowledge-base/04_modelo_de_datos.md §Discrepancias` y el
+ * `AvisoModeloDatos` de `HojaDeRutaPage`.
  */
-export interface Recorrido {
+export type TipoTransporte = 'propio' | 'aplicacion' | 'remis';
+
+/**
+ * Unión discriminada (design.md D3): solo un recorrido `propio` tiene `vehiculoId`/`conductorId`,
+ * así el compilador obliga a distinguir el tipo antes de leerlos (nunca "Vehículo desconocido" por
+ * un tercerizado).
+ *
+ * ⚠️ Discrepancia con el docx (design.md Discrepancia 2 de C-10): `docs/core/Traslados-Modelo-Datos.docx
+ * §Historial de Recorridos` NO tiene campo Conductor (liga el viaje solo a Paciente + Vehículo).
+ * `conductorId` es un campo AGREGADO sobre el docx porque RN-VE-01/02, US-700 y
+ * `07_flujos_principales.md §Flujo 2` exigen agrupar, editar y auditar recorridos por vehículo Y
+ * conductor.
+ */
+export type TransporteRecorrido =
+  | { tipoTransporte: 'propio'; vehiculoId: string; conductorId: string }
+  | { tipoTransporte: 'aplicacion' }
+  | { tipoTransporte: 'remis'; agenciaRemis: string };
+
+/** Campos de un recorrido que no dependen del tipo de transporte. */
+export interface RecorridoBase {
   id: string;
-  vehiculoId: string;
-  /** Campo agregado sobre el docx — ver comentario de la interfaz y design.md Decisión 2. */
-  conductorId: string;
   /** Recorrido manual sin frecuencia fija ni turno preestablecido (RN-HR-03). */
   manual: boolean;
   notas?: string;
   paradas: ParadaRecorrido[];
 }
+
+/** Recorrido dentro de la hoja de ruta del día (design.md Decisión 1 de C-10 + D3 de
+ *  viajes-tercerizados-hoja-de-ruta). */
+export type Recorrido = RecorridoBase & TransporteRecorrido;
+
+/** Recorrido de flota propia: el único con vehículo y conductor. */
+export type RecorridoPropio = RecorridoBase & Extract<TransporteRecorrido, { tipoTransporte: 'propio' }>;
 
 /**
  * Hoja de ruta del día (design.md Decisión 1): agregado de la jornada operativa con los
@@ -98,8 +118,11 @@ export interface HojaDeRuta {
 /** Payload de alta de una parada: sin `id`, lo asigna el repository al persistir el agregado. */
 export type NuevaParadaRecorrido = Omit<ParadaRecorrido, 'id'>;
 
-/** Payload de alta de un recorrido: sin `id`, sus paradas tampoco llevan `id` todavía. */
-export type NuevoRecorrido = Omit<Recorrido, 'id' | 'paradas'> & { paradas: NuevaParadaRecorrido[] };
+/** Payload de alta de un recorrido: sin `id`, sus paradas tampoco llevan `id` todavía. Se arma
+ *  con intersección (no `Omit<Recorrido, ...>`) porque `Omit` sobre una unión no es distributivo y
+ *  perdería el discriminante (design.md D3). */
+export type NuevoRecorrido = Omit<RecorridoBase, 'id' | 'paradas'> &
+  TransporteRecorrido & { paradas: NuevaParadaRecorrido[] };
 
 /** Payload de alta de la hoja de ruta: sin `id`, recorridos como `NuevoRecorrido[]`. */
 export type NuevaHojaDeRuta = Omit<HojaDeRuta, 'id' | 'recorridos'> & { recorridos: NuevoRecorrido[] };

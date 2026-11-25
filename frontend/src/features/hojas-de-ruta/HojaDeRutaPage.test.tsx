@@ -6,7 +6,7 @@ import type { ConductorRepository } from '../../shared/lib/conductores/Conductor
 import type { HojaDeRutaRepository } from '../../shared/lib/hojas-de-ruta/HojaDeRutaRepository';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { VehiculoRepository } from '../../shared/lib/vehiculos/VehiculoRepository';
-import type { HojaDeRuta } from '../../shared/types/hojaDeRuta';
+import type { HojaDeRuta, Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import type { Conductor } from '../../shared/types/conductor';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
@@ -157,6 +157,7 @@ describe('HojaDeRutaPage', () => {
       recorridos: [
         {
           id: 'r-1',
+          tipoTransporte: 'propio',
           vehiculoId: 'v-1',
           conductorId: 'c-1',
           manual: false,
@@ -207,7 +208,7 @@ describe('HojaDeRutaPage', () => {
       fecha: HOY,
       franjaInicio: '08:00',
       franjaFin: '20:00',
-      recorridos: [{ id: 'r-1', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
+      recorridos: [{ id: 'r-1', tipoTransporte: 'propio', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
     };
     const repo = buildFakeHojaRepoConHoja(hoja);
 
@@ -271,7 +272,7 @@ describe('HojaDeRutaPage — lo que NO se gatea (D1/D2)', () => {
     fecha: HOY,
     franjaInicio: '08:00',
     franjaFin: '20:00',
-    recorridos: [{ id: 'r-1', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
+    recorridos: [{ id: 'r-1', tipoTransporte: 'propio', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
   };
 
   it('sin permiso de escritura: los tres conmutadores de vista son activables y las tres vistas se renderizan completas', async () => {
@@ -336,7 +337,7 @@ describe('HojaDeRutaPage — vistas de solo lectura no se bloquean', () => {
       fecha: HOY,
       franjaInicio: '08:00',
       franjaFin: '20:00',
-      recorridos: [{ id: 'r-1', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
+      recorridos: [{ id: 'r-1', tipoTransporte: 'propio', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
     };
     renderPageConPermiso(false, buildFakeHojaRepoConHoja(hoja));
 
@@ -356,7 +357,7 @@ describe('HojaDeRutaPage — aviso de modo solo lectura', () => {
     fecha: HOY,
     franjaInicio: '08:00',
     franjaFin: '20:00',
-    recorridos: [{ id: 'r-1', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
+    recorridos: [{ id: 'r-1', tipoTransporte: 'propio', vehiculoId: 'v-1', conductorId: 'c-1', manual: false, paradas: [] }],
   };
 
   it('sin permiso de escritura: la pantalla informa el modo solo lectura', async () => {
@@ -422,6 +423,7 @@ describe('HojaDeRutaPage — regresión de recarga silenciosa (design.md §D7)',
       recorridos: [
         {
           id: 'r-1',
+          tipoTransporte: 'propio',
           vehiculoId: 'v-1',
           conductorId: 'c-1',
           manual: false,
@@ -465,3 +467,53 @@ describe('HojaDeRutaPage — regresión de recarga silenciosa (design.md §D7)',
     expect(screen.getByRole('button', { name: /^listo$/i })).toBeInTheDocument();
   });
 });
+
+// viajes-tercerizados-hoja-de-ruta, tasks.md 4.3.
+describe('HojaDeRutaPage — viajes tercerizados', () => {
+  beforeEach(() => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'demo-key');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const hojaVacia: HojaDeRuta = { id: 'hoja-1', fecha: HOY, franjaInicio: '08:00', franjaFin: '20:00', recorridos: [] };
+
+  it('el cartel del modelo de datos menciona el tipo de transporte y la agencia como campos agregados', async () => {
+    renderPage(buildFakeHojaRepo());
+
+    expect(await screen.findByRole('heading', { name: /hoja de ruta del día/i })).toBeInTheDocument();
+    const notas = screen.getAllByRole('note').map((nota) => nota.textContent ?? '');
+    expect(notas.some((texto) => /tipo de transporte/i.test(texto) && /agencia/i.test(texto))).toBe(true);
+  });
+
+  it('crear un remis lo persiste vía repository sin vehículo ni conductor', async () => {
+    const user = userEvent.setup();
+    const update = vi.fn().mockResolvedValue(hojaVacia);
+    renderPageConPermiso(true, buildFakeHojaRepoConHoja(hojaVacia, { update }));
+
+    await user.click(await screen.findByLabelText(/viaje tercerizado/i));
+    await user.click(screen.getByLabelText(/^remis$/i));
+    await user.type(screen.getByLabelText(/agencia/i), 'París');
+    await user.click(screen.getByRole('button', { name: /crear recorrido/i }));
+
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    const [, cambios] = update.mock.calls[0] as [string, { recorridos: Recorrido[] }];
+    expect(cambios.recorridos).toHaveLength(1);
+    expect(cambios.recorridos[0]).toMatchObject({ tipoTransporte: 'remis', agenciaRemis: 'París' });
+    expect(cambios.recorridos[0]).not.toHaveProperty('vehiculoId');
+  });
+
+  it('muestra un remis ya cargado como "Remis · París"', async () => {
+    const hoja: HojaDeRuta = {
+      ...hojaVacia,
+      recorridos: [{ id: 'r-remis', tipoTransporte: 'remis', agenciaRemis: 'París', manual: false, paradas: [] }],
+    };
+    renderPage(buildFakeHojaRepoConHoja(hoja));
+
+    expect((await screen.findAllByText(/remis · parís/i)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/vehículo desconocido/i)).not.toBeInTheDocument();
+  });
+});
+

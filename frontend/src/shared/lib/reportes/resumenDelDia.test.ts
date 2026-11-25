@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { HojaDeRuta, Recorrido } from '../../types/hojaDeRuta';
+import type { HojaDeRuta, Recorrido, RecorridoPropio } from '../../types/hojaDeRuta';
 import { resumenDelDia } from './resumenDelDia';
 
 // tasks.md 4.7, spec dashboard-recorridos-del-dia: conteo de recorridos, de paradas (sumando
@@ -10,8 +10,8 @@ function parada(overrides: Partial<Recorrido['paradas'][number]> & Pick<Recorrid
   return { direccionOrigenId: 'd1', direccionDestinoId: 'd2', orden: 1, ...overrides };
 }
 
-function recorrido(overrides: Partial<Recorrido> = {}): Recorrido {
-  return { id: 'r1', vehiculoId: 'v1', conductorId: 'c1', manual: false, paradas: [], ...overrides };
+function recorrido(overrides: Partial<RecorridoPropio> = {}): RecorridoPropio {
+  return { tipoTransporte: 'propio', id: 'r1', vehiculoId: 'v1', conductorId: 'c1', manual: false, paradas: [], ...overrides };
 }
 
 function hojaDeRuta(overrides: Partial<HojaDeRuta> = {}): HojaDeRuta {

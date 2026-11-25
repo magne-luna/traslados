@@ -3,6 +3,7 @@ import { Button, CamposSoloLectura, InlineIcon } from '../../design-system/compo
 import { Alert } from '../../design-system/feedback';
 import { iconFlechaAbajo } from '../../design-system/icons';
 import { capacidadDisponible } from '../../shared/lib/hojas-de-ruta/capacidadDisponible';
+import { esPropio, etiquetaTercerizado } from '../../shared/lib/hojas-de-ruta/transporteRecorrido';
 import { validarCompatibilidadAccesorio } from '../../shared/lib/hojas-de-ruta/validarCompatibilidadAccesorio';
 import type { Conductor } from '../../shared/types/conductor';
 import type { PacienteResumen } from '../../shared/types/paciente';
@@ -32,11 +33,12 @@ export function VistaGlobalHojaDeRuta({ recorridos, vehiculos, conductores, paci
   const [destinoPorFila, setDestinoPorFila] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
 
+  // Un tercerizado (RN-HR-05) no tiene vehículo ni conductor propios: nunca entra en conflicto.
   function vehiculoDe(recorrido: Recorrido): Vehiculo | undefined {
-    return vehiculos.find((v) => v.id === recorrido.vehiculoId);
+    return esPropio(recorrido) ? vehiculos.find((v) => v.id === recorrido.vehiculoId) : undefined;
   }
   function conductorDe(recorrido: Recorrido): Conductor | undefined {
-    return conductores.find((c) => c.id === recorrido.conductorId);
+    return esPropio(recorrido) ? conductores.find((c) => c.id === recorrido.conductorId) : undefined;
   }
   function nombrePaciente(pacienteId: string): string {
     const paciente = pacientes.find((p) => p.id === pacienteId);
@@ -51,6 +53,8 @@ export function VistaGlobalHojaDeRuta({ recorridos, vehiculos, conductores, paci
 
   const recorridosConConflicto = recorridos.filter((r) => razonConflicto(r) !== null);
   const recorridosDisponibles = recorridos.filter((r) => razonConflicto(r) === null);
+  const destinosPropios = recorridosDisponibles.filter((r) => esPropio(r));
+  const destinosTercerizados = recorridosDisponibles.filter((r) => !esPropio(r));
 
   function filaKey(fila: FilaReasignacion): string {
     return `${fila.recorridoId}-${fila.paradaId}`;
@@ -63,8 +67,13 @@ export function VistaGlobalHojaDeRuta({ recorridos, vehiculos, conductores, paci
     const vehiculoDestino = destino ? vehiculoDe(destino) : undefined;
     const paciente = pacientes.find((p) => p.id === fila.pacienteId);
 
-    if (!destino || !vehiculoDestino || !paciente) {
+    if (!destino || !paciente || (esPropio(destino) && !vehiculoDestino)) {
       setError('Elegí un recorrido destino válido.');
+      return;
+    }
+    // Destino tercerizado: sin vehículo propio contra el cual validar capacidad ni accesorios.
+    if (!vehiculoDestino) {
+      onReasignar(fila.paradaId, fila.recorridoId, destino.id);
       return;
     }
     if (!capacidadDisponible(vehiculoDestino, destino)) {
@@ -141,11 +150,24 @@ export function VistaGlobalHojaDeRuta({ recorridos, vehiculos, conductores, paci
                     }
                   >
                     <option value="">Elegir recorrido destino…</option>
-                    {recorridosDisponibles.map((destino) => (
-                      <option key={destino.id} value={destino.id}>
-                        {vehiculoDe(destino)?.patente ?? destino.id}
-                      </option>
-                    ))}
+                    {destinosPropios.length > 0 && (
+                      <optgroup label="Flota propia">
+                        {destinosPropios.map((destino) => (
+                          <option key={destino.id} value={destino.id}>
+                            {vehiculoDe(destino)?.patente ?? 'Vehículo desconocido'}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {destinosTercerizados.length > 0 && (
+                      <optgroup label="Tercerizados">
+                        {destinosTercerizados.map((destino) => (
+                          <option key={destino.id} value={destino.id}>
+                            {etiquetaTercerizado(destino)}
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                   <span className="pointer-events-none absolute inset-y-0 right-xs flex items-center text-muted">
                     <InlineIcon size={12}>{iconFlechaAbajo}</InlineIcon>

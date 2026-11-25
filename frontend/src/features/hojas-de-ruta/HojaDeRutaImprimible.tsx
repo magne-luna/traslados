@@ -1,4 +1,5 @@
 import type { Conductor } from '../../shared/types/conductor';
+import { etiquetaTransporte } from '../../shared/lib/hojas-de-ruta/transporteRecorrido';
 import type { PacienteResumen } from '../../shared/types/paciente';
 import type { HojaDeRuta } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
@@ -40,15 +41,13 @@ export function HojaDeRutaImprimible({ hoja, vehiculos, conductores, pacientes }
         <p className="m-0 font-body text-sm text-muted">Sin recorridos cargados para este día.</p>
       ) : (
         hoja.recorridos.map((recorrido) => {
-          const vehiculo = vehiculos.find((v) => v.id === recorrido.vehiculoId);
-          const conductor = conductores.find((c) => c.id === recorrido.conductorId);
           const paradasOrdenadas = [...recorrido.paradas].sort((a, b) => a.orden - b.orden);
 
           return (
             <section key={recorrido.id} className="flex flex-col gap-sm break-inside-avoid border border-border p-md print:border-black">
               <h2 className="m-0 font-body text-[14px] font-semibold text-ink">
-                {vehiculo ? `${vehiculo.patente} · ${vehiculo.modelo}` : 'Vehículo desconocido'} —{' '}
-                {conductor ? `${conductor.apellido}, ${conductor.nombre}` : 'Conductor desconocido'}
+                {/* Propio: "patente · modelo — conductor"; tercerizado: "Remis · París" (RN-HR-05). */}
+                {etiquetaTransporte(recorrido, vehiculos, conductores)}
                 {recorrido.manual && ' (manual)'}
               </h2>
 

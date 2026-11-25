@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Paciente } from '../../types/paciente';
-import type { ParadaRecorrido, Recorrido } from '../../types/hojaDeRuta';
+import type { ParadaRecorrido, Recorrido, RecorridoPropio } from '../../types/hojaDeRuta';
 import type { Vehiculo } from '../../types/vehiculo';
 import { sugerirRecorridoExistente } from './sugerirRecorridoExistente';
 
@@ -45,8 +45,9 @@ function parada(overrides: Partial<ParadaRecorrido> = {}): ParadaRecorrido {
   };
 }
 
-function recorrido(id: string, overrides: Partial<Recorrido> = {}): Recorrido {
+function recorrido(id: string, overrides: Partial<RecorridoPropio> = {}): RecorridoPropio {
   return {
+    tipoTransporte: 'propio',
     id,
     vehiculoId: `veh-${id}`,
     conductorId: `cond-${id}`,
@@ -72,6 +73,14 @@ describe('sugerirRecorridoExistente', () => {
 
     expect(() => sugerirRecorridoExistente([r], [v], paciente('p1'), 'ida', 'no-es-una-hora')).not.toThrow();
     expect(sugerirRecorridoExistente([r], [v], paciente('p1'), 'ida', 'no-es-una-hora')).toEqual([]);
+  });
+
+  it('nunca sugiere un recorrido tercerizado (no tiene vehículo propio)', () => {
+    const v = vehiculo('veh-r1');
+    const remis: Recorrido = { id: 'r-remis', tipoTransporte: 'remis', agenciaRemis: 'París', manual: false, paradas: [parada({ horaEstimada: '11:00' })] };
+    const app: Recorrido = { id: 'r-app', tipoTransporte: 'aplicacion', manual: false, paradas: [parada({ horaEstimada: '11:00' })] };
+
+    expect(sugerirRecorridoExistente([remis, app], [v], paciente('p1'), 'ida', '11:00')).toEqual([]);
   });
 
   it('sugiere un recorrido con una parada dentro de la ventana horaria por defecto (RN-HR-01)', () => {

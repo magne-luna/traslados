@@ -15,7 +15,7 @@ function parada(id: string, horaEstimada?: string): ParadaRecorrido {
 }
 
 function recorrido(id: string, ...paradas: ParadaRecorrido[]): Recorrido {
-  return { id, vehiculoId: `vehiculo-${id}`, conductorId: `conductor-${id}`, manual: false, paradas };
+  return { id, tipoTransporte: 'propio', vehiculoId: `vehiculo-${id}`, conductorId: `conductor-${id}`, manual: false, paradas };
 }
 
 describe('ordenarRecorridosPorHorario', () => {

@@ -117,6 +117,7 @@ describe('parseRecorridoRow', () => {
   it('mapea una fila completa de pacientes.recorrido', () => {
     expect(parseRecorridoRow(filaRecorrido())).toEqual({
       id: 'rec-1',
+      tipoTransporte: 'propio',
       vehiculoId: 'veh-1',
       conductorId: 'con-1',
       manual: false,
@@ -129,6 +130,7 @@ describe('parseRecorridoRow', () => {
 
     expect(parseRecorridoRow(row)).toEqual({
       id: 'rec-1',
+      tipoTransporte: 'propio',
       vehiculoId: 'veh-1',
       conductorId: 'con-1',
       manual: true,
@@ -151,6 +153,58 @@ describe('parseRecorridoRow', () => {
     expect(parseRecorridoRow(filaRecorrido({ id: '' }))).toBeNull();
     expect(parseRecorridoRow(filaRecorrido({ vehiculo_id: undefined }))).toBeNull();
     expect(parseRecorridoRow(null)).toBeNull();
+  });
+});
+
+// viajes-tercerizados-hoja-de-ruta, tasks.md 3.4: tipo de transporte.
+describe('parseRecorridoRow — tipo de transporte', () => {
+  it('lee un recorrido aplicacion sin vehículo ni conductor (antes se descartaba)', () => {
+    const row = filaRecorrido({ tipo_transporte: 'aplicacion', vehiculo_id: null, conductor_id: null });
+    expect(parseRecorridoRow(row)).toEqual({ id: 'rec-1', tipoTransporte: 'aplicacion', manual: false, notas: undefined });
+  });
+
+  it('lee un recorrido remis con su agencia', () => {
+    const row = filaRecorrido({ tipo_transporte: 'remis', agencia_remis: 'París', vehiculo_id: null, conductor_id: null });
+    expect(parseRecorridoRow(row)).toEqual({ id: 'rec-1', tipoTransporte: 'remis', agenciaRemis: 'París', manual: false, notas: undefined });
+  });
+
+  it('una fila sin tipo_transporte (columna ausente) se trata como propio', () => {
+    expect(parseRecorridoRow(filaRecorrido())).toMatchObject({ tipoTransporte: 'propio', vehiculoId: 'veh-1' });
+  });
+
+  it('descarta un propio sin vehículo, un remis sin agencia y un tipo desconocido', () => {
+    expect(parseRecorridoRow(filaRecorrido({ tipo_transporte: 'propio', vehiculo_id: null }))).toBeNull();
+    expect(parseRecorridoRow(filaRecorrido({ tipo_transporte: 'remis', agencia_remis: '  ', vehiculo_id: null, conductor_id: null }))).toBeNull();
+    expect(parseRecorridoRow(filaRecorrido({ tipo_transporte: 'avion' }))).toBeNull();
+  });
+});
+
+describe('payloads — tipo de transporte', () => {
+  const parada = { pacienteId: 'pac-1', tramo: 'ida' as const, direccionOrigenId: 'dir-a', direccionDestinoId: 'dir-b', orden: 0 };
+
+  it('un remis viaja con tipo, agencia y null en vehiculo_id/conductor_id/id_vehiculo de las paradas', () => {
+    const payload = toCrearHojaDeRutaPayload({
+      fecha: '2026-08-04',
+      franjaInicio: '08:00',
+      franjaFin: '20:00',
+      recorridos: [{ tipoTransporte: 'remis', agenciaRemis: 'París', manual: false, paradas: [parada] }],
+    });
+    expect(payload.recorridos[0]).toMatchObject({
+      tipo_transporte: 'remis',
+      agencia_remis: 'París',
+      vehiculo_id: null,
+      conductor_id: null,
+    });
+    expect(payload.recorridos[0]?.paradas[0]?.id_vehiculo).toBeNull();
+  });
+
+  it('una aplicación en la edición viaja sin agencia ni vehículo', () => {
+    const payload = toActualizarHojaDeRutaPayload({
+      recorridos: [{ id: 'rec-1', tipoTransporte: 'aplicacion', manual: false, paradas: [{ ...parada, id: 'par-1' }] }],
+    });
+    expect(payload.recorridos).toEqual([
+      expect.objectContaining({ tipo_transporte: 'aplicacion', agencia_remis: null, vehiculo_id: null, conductor_id: null }),
+    ]);
   });
 });
 
@@ -353,6 +407,7 @@ function buildNuevaHojaDeRuta(): NuevaHojaDeRuta {
     notas: 'Nota de la hoja',
     recorridos: [
       {
+        tipoTransporte: 'propio',
         vehiculoId: 'veh-1',
         conductorId: 'con-1',
         manual: false,
@@ -385,6 +440,8 @@ describe('toCrearHojaDeRutaPayload', () => {
         {
           vehiculo_id: 'veh-1',
           conductor_id: 'con-1',
+          tipo_transporte: 'propio',
+          agencia_remis: null,
           manual: false,
           notas: null,
           paradas: [
@@ -419,6 +476,7 @@ describe('toCrearHojaDeRutaPayload', () => {
       franjaFin: '20:00',
       recorridos: [
         {
+          tipoTransporte: 'propio',
           vehiculoId: 'veh-1',
           conductorId: 'con-1',
           manual: true,
@@ -460,6 +518,7 @@ describe('toActualizarHojaDeRutaPayload', () => {
       recorridos: [
         {
           id: 'rec-1',
+          tipoTransporte: 'propio',
           vehiculoId: 'veh-1',
           conductorId: 'con-1',
           manual: false,
@@ -484,6 +543,8 @@ describe('toActualizarHojaDeRutaPayload', () => {
           {
             vehiculo_id: 'veh-1',
             conductor_id: 'con-1',
+            tipo_transporte: 'propio',
+            agencia_remis: null,
             manual: false,
             notas: null,
             paradas: [

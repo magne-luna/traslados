@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { esPropio, etiquetaTercerizado } from '../../shared/lib/hojas-de-ruta/transporteRecorrido';
 import { Alert } from '../../design-system/feedback';
 import { Panel } from '../../design-system/layout';
 import type { Conductor } from '../../shared/types/conductor';
@@ -53,17 +54,25 @@ export function RecorridosDelDiaPanel({ cargando, error, hojaDeRuta, vehiculos, 
           ) : (
             <ul className="m-0 flex list-none flex-col gap-sm p-0">
               {hojaDeRuta.recorridos.map((recorrido) => {
-                const vehiculoEncontrado = vehiculos.find((v) => v.id === recorrido.vehiculoId);
-                const conductorEncontrado = conductores.find((c) => c.id === recorrido.conductorId);
+                // Tercerizado (RN-HR-05): su etiqueta reemplaza a vehículo y conductor.
+                const tercerizado = etiquetaTercerizado(recorrido);
+                const vehiculoEncontrado = esPropio(recorrido) ? vehiculos.find((v) => v.id === recorrido.vehiculoId) : undefined;
+                const conductorEncontrado = esPropio(recorrido) ? conductores.find((c) => c.id === recorrido.conductorId) : undefined;
                 return (
                   <li
                     key={recorrido.id}
                     className="flex flex-wrap items-center gap-md rounded-sm border border-border bg-surface-soft px-md py-sm font-body text-[13px] text-text"
                   >
-                    <span className="font-semibold">{vehiculoEncontrado?.patente ?? REFERENCIA_NO_DISPONIBLE}</span>
-                    <span className="text-muted">
-                      {conductorEncontrado ? `${conductorEncontrado.apellido}, ${conductorEncontrado.nombre}` : REFERENCIA_NO_DISPONIBLE}
-                    </span>
+                    {tercerizado !== null ? (
+                      <span className="font-semibold">{tercerizado}</span>
+                    ) : (
+                      <>
+                        <span className="font-semibold">{vehiculoEncontrado?.patente ?? REFERENCIA_NO_DISPONIBLE}</span>
+                        <span className="text-muted">
+                          {conductorEncontrado ? `${conductorEncontrado.apellido}, ${conductorEncontrado.nombre}` : REFERENCIA_NO_DISPONIBLE}
+                        </span>
+                      </>
+                    )}
                     <span className="text-muted">{recorrido.paradas.length} paradas</span>
                     {recorrido.manual && <span className="font-semibold text-info">Manual</span>}
                   </li>

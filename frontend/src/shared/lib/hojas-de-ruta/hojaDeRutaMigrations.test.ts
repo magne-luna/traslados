@@ -80,3 +80,46 @@ describe('migración 20260804100000_schema_hoja_de_ruta.sql', () => {
     expect(fuente).not.toMatch(/^\s*DROP TABLE/m);
   });
 });
+
+// viajes-tercerizados-hoja-de-ruta (tasks.md 1.1, design.md D1/D2): tipo de transporte por recorrido.
+describe('migración 20261125120000_recorrido_tipo_transporte.sql', () => {
+  const nombre = '20261125120000_recorrido_tipo_transporte.sql';
+
+  it('agrega tipo_transporte con default propio y CHECK de los tres valores, y agencia_remis', () => {
+    const fuente = leerMigracion(nombre);
+    expect(fuente).toMatch(/ADD COLUMN tipo_transporte TEXT NOT NULL DEFAULT 'propio'/);
+    expect(fuente).toMatch(/CHECK \(tipo_transporte IN \('propio', 'aplicacion', 'remis'\)\)/);
+    expect(fuente).toMatch(/ADD COLUMN agencia_remis TEXT/);
+  });
+
+  it('vuelve nullable vehiculo_id y conductor_id y agrega la constraint de coherencia', () => {
+    const fuente = leerMigracion(nombre);
+    expect(fuente).toMatch(/ALTER COLUMN vehiculo_id DROP NOT NULL/);
+    expect(fuente).toMatch(/ALTER COLUMN conductor_id DROP NOT NULL/);
+    expect(fuente).toContain('recorrido_tipo_transporte_coherente');
+  });
+
+  it('las RPC conservan 45301-45304 y agregan 45305 para el tipo de transporte incoherente', () => {
+    const fuente = leerMigracion(nombre);
+    for (const codigo of ['45301', '45302', '45303', '45304', '45305']) {
+      expect(fuente).toContain(`ERRCODE = '${codigo}'`);
+    }
+  });
+
+  it('las dos funciones siguen SECURITY INVOKER, nunca DEFINER, con REVOKE anon y GRANT authenticated', () => {
+    const fuente = leerMigracion(nombre);
+    const codigoActivo = quitarComentariosYStrings(fuente);
+    expect(codigoActivo.match(/SECURITY INVOKER/g) ?? []).toHaveLength(2);
+    expect(codigoActivo).not.toContain('SECURITY DEFINER');
+    expect(fuente).toContain('REVOKE ALL ON FUNCTION pacientes.crear_hoja_de_ruta_completa(jsonb) FROM anon');
+    expect(fuente).toContain('REVOKE ALL ON FUNCTION pacientes.actualizar_hoja_de_ruta_completa(uuid, jsonb) FROM anon');
+    expect(fuente).toContain('GRANT EXECUTE ON FUNCTION pacientes.crear_hoja_de_ruta_completa(jsonb) TO authenticated');
+    expect(fuente).toContain('GRANT EXECUTE ON FUNCTION pacientes.actualizar_hoja_de_ruta_completa(uuid, jsonb) TO authenticated');
+  });
+
+  it('es aditiva: ningún DROP COLUMN ni DROP TABLE activo', () => {
+    const codigoActivo = quitarComentariosYStrings(leerMigracion(nombre));
+    expect(codigoActivo).not.toMatch(/DROP COLUMN/);
+    expect(codigoActivo).not.toMatch(/DROP TABLE/);
+  });
+});

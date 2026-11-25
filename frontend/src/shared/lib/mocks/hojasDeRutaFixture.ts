@@ -26,6 +26,7 @@ export function buildHojasDeRutaFixture(): HojaDeRuta[] {
         // invirtiendo la ida, son dos registros autónomos que acá coinciden con el trayecto
         // inverso porque así lo carga el fixture de Direcciones de Martina).
         id: 'recorrido-martina',
+        tipoTransporte: 'propio',
         vehiculoId: 'vehiculo-etios',
         conductorId: 'conductor-gonzalez',
         manual: false,
@@ -58,6 +59,7 @@ export function buildHojasDeRutaFixture(): HojaDeRuta[] {
         // (dir-facundo-domicilio-ida) — se usa como origen y destino porque este fixture no
         // inventa una segunda dirección que no exista en el catálogo real del paciente.
         id: 'recorrido-facundo-manual',
+        tipoTransporte: 'propio',
         vehiculoId: 'vehiculo-kangoo',
         conductorId: 'conductor-perez',
         manual: true,
@@ -74,6 +76,31 @@ export function buildHojasDeRutaFixture(): HojaDeRuta[] {
             coordenadaOrigen: { lat: -34.9205, lng: -57.9536 },
           },
         ],
+      },
+      {
+        // Viaje tercerizado por remis (RN-HR-05, viajes-tercerizados-hoja-de-ruta): sin vehículo ni
+        // conductor propios, identificado por la agencia.
+        id: 'recorrido-facundo-remis',
+        tipoTransporte: 'remis',
+        agenciaRemis: 'París',
+        manual: true,
+        paradas: [
+          {
+            id: 'parada-facundo-remis-vuelta',
+            pacienteId: 'paciente-facundo',
+            tramo: 'vuelta',
+            direccionOrigenId: 'dir-facundo-domicilio-ida',
+            direccionDestinoId: 'dir-facundo-domicilio-ida',
+            orden: 0,
+          },
+        ],
+      },
+      {
+        // Viaje tercerizado por aplicación (Uber u otra), todavía sin pasajeros asignados.
+        id: 'recorrido-aplicacion',
+        tipoTransporte: 'aplicacion',
+        manual: true,
+        paradas: [],
       },
     ],
   };

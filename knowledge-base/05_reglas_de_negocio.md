@@ -98,6 +98,14 @@ Cada regla tiene un código único `RN-{DOMINIO}-{NN}` para trazabilidad. Extra�
   automáticamente**: el armado de hojas de ruta (`C-10`) no puede excluir conductores por este
   criterio, solo mostrar la observación para que la persona decida. Es una decisión tomada, no una
   limitación técnica pendiente de resolver.
+- **RN-HR-05** (reunión con Andrea 2026-10-07, decisión de UI y alcance 2026-10-14 —
+  `openspec/changes/viajes-tercerizados-hoja-de-ruta/`): cada recorrido de la hoja de ruta tiene un
+  **tipo de transporte**: `propio` (default), `aplicacion` (Uber u otra) o `remis`. Un recorrido
+  `propio` exige vehículo y conductor; uno tercerizado (`aplicacion`/`remis`) no tiene ni vehículo
+  ni conductor y **no pasa** por la validación de capacidad ni por la de accesorios de movilidad
+  (RN-VE-01), porque no hay vehículo propio contra el cual validar. Un `remis` exige el nombre de la
+  agencia en **texto libre** (sin catálogo). Fuera de alcance por ahora: costo del viaje, nombre de
+  la aplicación (alcanza con "aplicación", confirmado 2026-11-25) y reporte de deuda por agencia.
 
 ## Dominio: Excepciones globales (RN-GL)
 

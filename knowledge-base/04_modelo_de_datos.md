@@ -120,6 +120,7 @@ Recorrido N---1 Paciente (por tramo, con dirección de ida y de vuelta independi
 ### HojaDeRuta / Recorrido
 - Atributos: fecha, franja horaria (aprox. 8:00-20:00), notas al pie.
 - Relaciones: agrupa recorridos por vehículo/conductor, cada recorrido asocia pacientes con dirección de origen y destino independientes por tramo (no se asume que la vuelta es el trayecto inverso). Admite recorridos manuales sin frecuencia fija ni turno asignado (ej. hospitales puntuales).
+- Tipo de transporte del recorrido (RN-HR-05): `tipo_transporte` (`propio` | `aplicacion` | `remis`, default `propio`) y `agencia_remis` (texto libre, solo remis). `Recorrido N---0..1 Vehiculo` y `Recorrido N---0..1 Conductor`: solo el recorrido `propio` los referencia; la coherencia la garantiza la CHECK `recorrido_tipo_transporte_coherente` (`supabase/migrations/20261125120000_recorrido_tipo_transporte.sql`).
 
 ## ⚠️ Discrepancias con el modelo de datos real (docs/core/Traslados-Modelo-Datos.docx)
 
@@ -127,6 +128,13 @@ Comparación hecha 2026-07-24 contra el docx entregado por MagneStudios (modelo 
 real). Los puntos marcados como "cartel en UI" ya están señalizados con `AvisoModeloDatos` en las
 pantallas correspondientes (Obras Sociales, Vehículos); el resto no tiene pantalla propia todavía,
 así que queda anotado acá hasta que se construya esa feature.
+
+- **Tipo de transporte y agencia de remis en Recorrido** — reunión con Andrea (2026-10-07), change
+  `viajes-tercerizados-hoja-de-ruta`: el docx **no modela** viajes tercerizados (Uber/remis) — su
+  "Historial de Recorridos" liga cada viaje a un Vehículo. Se agregaron `tipo_transporte` y
+  `agencia_remis` a `pacientes.recorrido`, y `vehiculo_id`/`conductor_id` pasaron a nullable (solo
+  para tercerizados). Regla: RN-HR-05. Cartel en UI: `AvisoModeloDatos` de `HojaDeRutaPage`.
+  **Pendiente de confirmar** con quien mantiene el docx.
 
 - **Baja lógica de Paciente / ObraSocial (`activo`)** — reunión con Andrea (2026-10-07): pacientes
   y obras sociales nunca se borran, se inactivan (presupuestos, facturas y hojas de ruta ya

@@ -35,6 +35,7 @@ interface RecordedCall {
   eq: Array<[string, unknown]>;
   order?: { column: string; ascending: boolean };
   payload?: unknown;
+  columns?: string;
 }
 
 type Handler = (call: RecordedCall) => FakeResult;
@@ -109,8 +110,8 @@ function crearFakeSupabase() {
       return {
         from(table: string) {
           return {
-            select(_columns: string) {
-              return new FakeSelectBuilder({ op: 'select', schema: schemaName, table, eq: [] });
+            select(columns: string) {
+              return new FakeSelectBuilder({ op: 'select', schema: schemaName, table, eq: [], columns });
             },
           };
         },
@@ -458,6 +459,21 @@ describe('supabaseHojaDeRutaRepository.getByFecha (3.2 / 3.4)', () => {
     expect(hoja).toEqual(hojaEsperada(fila));
   });
 
+  it('viajes tercerizados: el select pide tipo_transporte y agencia_remis, y lee un remis sin vehículo', async () => {
+    const fila = filaHojaEmbed({
+      recorrido: [
+        filaRecorridoEmbed({ tipo_transporte: 'remis', agencia_remis: 'París', vehiculo_id: null, conductor_id: null }),
+      ],
+    });
+    configurarSelect('pacientes', 'hoja_de_ruta', () => ok([fila]));
+
+    const hoja = await supabaseHojaDeRutaRepository.getByFecha('2026-08-04');
+
+    expect(consultasSelectHoja()[0]?.columns).toMatch(/tipo_transporte/);
+    expect(consultasSelectHoja()[0]?.columns).toMatch(/agencia_remis/);
+    expect(hoja?.recorridos[0]).toMatchObject({ tipoTransporte: 'remis', agenciaRemis: 'París' });
+  });
+
   it('3.4: sin hoja para esa fecha resuelve null y NO lanza', async () => {
     configurarSelect('pacientes', 'hoja_de_ruta', () => ok([]));
 
@@ -488,6 +504,7 @@ describe('supabaseHojaDeRutaRepository.create (3.2)', () => {
       notas: 'Nota de la hoja',
       recorridos: [
         {
+          tipoTransporte: 'propio',
           vehiculoId: 'veh-1',
           conductorId: 'con-1',
           manual: false,
@@ -619,6 +636,7 @@ describe('mapeo de errores a mensajes en castellano (3.3)', () => {
       franjaFin: '20:00',
       recorridos: [
         {
+          tipoTransporte: 'propio',
           vehiculoId: 'veh-1',
           conductorId: 'con-1',
           manual: false,
@@ -665,6 +683,16 @@ describe('mapeo de errores a mensajes en castellano (3.3)', () => {
 
     await expect(supabaseHojaDeRutaRepository.create(nueva())).rejects.toThrow(
       'Revisá el vehículo y el conductor del recorrido.',
+    );
+  });
+
+  it('45305 (tipo de transporte incoherente) -> "Revisá el tipo de transporte del recorrido."', async () => {
+    configurarRpc('pacientes', 'crear_hoja_de_ruta_completa', () =>
+      fail({ code: '45305', message: 'violates check constraint recorrido_tipo_transporte_coherente' }),
+    );
+
+    await expect(supabaseHojaDeRutaRepository.create(nueva())).rejects.toThrow(
+      'Revisá el tipo de transporte del recorrido.',
     );
   });
 

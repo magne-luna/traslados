@@ -71,6 +71,7 @@ describe('mockHojaDeRutaRepository', () => {
           fecha: '2026-09-20',
           recorridos: [
             {
+              tipoTransporte: 'propio',
               vehiculoId: 'vehiculo-etios',
               conductorId: 'conductor-gonzalez',
               manual: false,

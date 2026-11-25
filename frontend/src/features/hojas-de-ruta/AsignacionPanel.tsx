@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { esPropio } from '../../shared/lib/hojas-de-ruta/transporteRecorrido';
 import { Button, CamposSoloLectura } from '../../design-system/components';
 import { Alert } from '../../design-system/feedback';
 import { generateId } from '../../shared/lib/id';
@@ -21,8 +22,9 @@ import { useRecorridosHabituales } from './useRecorridosHabituales';
 
 interface AsignacionPanelProps {
   recorrido: Recorrido;
-  /** Vehículo del recorrido, resuelto por el caller a partir de `recorrido.vehiculoId`. */
-  vehiculo: Vehiculo | undefined;
+  /** Vehículo del recorrido, resuelto por el caller a partir de `recorrido.vehiculoId`.
+   *  `undefined` en un recorrido tercerizado (RN-HR-05). */
+  vehiculo?: Vehiculo;
   /** Candidatos a asignar — la pantalla decide si filtra a los que ya están en el recorrido. */
   pacientes: PacienteResumen[];
   onAgregar: (parada: ParadaRecorrido) => void;
@@ -111,7 +113,10 @@ export function AsignacionPanel({
   function handleSubmit() {
     setError(null);
 
-    if (!vehiculo) {
+    // Un tercerizado (Uber/remis) no tiene vehículo propio: no valida capacidad ni accesorios
+    // (RN-HR-05). Un propio sin vehículo resoluble sigue siendo un error.
+    const propio = esPropio(recorrido);
+    if (propio && !vehiculo) {
       setError('No se pudo resolver el vehículo del recorrido.');
       return;
     }
@@ -120,7 +125,7 @@ export function AsignacionPanel({
       return;
     }
 
-    if (!capacidadDisponible(vehiculo, recorrido)) {
+    if (propio && vehiculo && !capacidadDisponible(vehiculo, recorrido)) {
       setError(`El vehículo ${vehiculo.patente} no tiene lugar disponible (capacidad ${vehiculo.capacidad}).`);
       return;
     }
@@ -132,10 +137,13 @@ export function AsignacionPanel({
       return;
     }
 
-    const compatibilidad = validarCompatibilidadAccesorio({
-      accesoriosPaciente: pacienteSeleccionado.accesorioMovilidad,
-      accesoriosCompatiblesVehiculo: vehiculo.accesoriosCompatibles,
-    });
+    const compatibilidad =
+      propio && vehiculo
+        ? validarCompatibilidadAccesorio({
+            accesoriosPaciente: pacienteSeleccionado.accesorioMovilidad,
+            accesoriosCompatiblesVehiculo: vehiculo.accesoriosCompatibles,
+          })
+        : { ok: true as const };
     if (!compatibilidad.ok) {
       setError(compatibilidad.error);
       return;

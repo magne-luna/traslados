@@ -27,6 +27,7 @@ function buildVehiculo(capacidad: number): Vehiculo {
 function buildRecorrido(cantidadPasajeros: number): Recorrido {
   return {
     id: 'recorrido-1',
+    tipoTransporte: 'propio',
     vehiculoId: 'vehiculo-1',
     conductorId: 'conductor-1',
     manual: false,

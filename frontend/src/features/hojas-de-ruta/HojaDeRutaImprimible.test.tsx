@@ -65,6 +65,7 @@ const hoja: HojaDeRuta = {
   recorridos: [
     {
       id: 'r-1',
+      tipoTransporte: 'propio',
       vehiculoId: 'v-1',
       conductorId: 'c-1',
       manual: false,
@@ -105,5 +106,30 @@ describe('HojaDeRutaImprimible', () => {
     render(<HojaDeRutaImprimible hoja={vacia} vehiculos={[vehiculo]} conductores={[conductor]} pacientes={[paciente]} />);
 
     expect(screen.getByText(/sin recorridos/i)).toBeInTheDocument();
+  });
+});
+
+// viajes-tercerizados-hoja-de-ruta, tasks.md 5.5.
+describe('HojaDeRutaImprimible — tercerizado', () => {
+  it('encabeza un remis como "Remis · París", con sus paradas y direcciones', () => {
+    const hojaConRemis: HojaDeRuta = {
+      ...hoja,
+      recorridos: [
+        {
+          id: 'r-remis',
+          tipoTransporte: 'remis',
+          agenciaRemis: 'París',
+          manual: false,
+          paradas: [
+            { id: 'p-r', pacienteId: 'paciente-1', tramo: 'ida', direccionOrigenId: 'dir-origen', direccionDestinoId: 'dir-destino', orden: 0 },
+          ],
+        },
+      ],
+    };
+    render(<HojaDeRutaImprimible hoja={hojaConRemis} vehiculos={[vehiculo]} conductores={[conductor]} pacientes={[paciente]} />);
+
+    expect(screen.getByRole('heading', { name: /remis · parís/i })).toBeInTheDocument();
+    expect(screen.queryByText(/vehículo desconocido/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/av\. rivadavia 4500/i)).toBeInTheDocument();
   });
 });

@@ -1,5 +1,4 @@
 import type { Conductor } from '../../shared/types/conductor';
-import type { Recorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { labelAccesorio } from '../../shared/lib/accesorios/IconoAccesorio';
 import { Label } from '../../design-system/form';
@@ -16,7 +15,9 @@ const boxedSelectFieldClasses = 'border-none bg-transparent p-0 font-body text-[
 
 interface RecorridoVehiculoConductorProps {
   formId: string;
-  recorrido: Recorrido;
+  /** '' = todavía sin elegir (recorrido tercerizado que vuelve a flota propia). */
+  vehiculoId: string;
+  conductorId: string;
   vehiculo: Vehiculo | undefined;
   conductor: Conductor | undefined;
   editing: boolean;
@@ -38,7 +39,8 @@ function opcionVehiculo(v: Vehiculo): string {
 // Extraído de RecorridoCard para mantenerlo < ~200 líneas (react-best-practices).
 export function RecorridoVehiculoConductor({
   formId,
-  recorrido,
+  vehiculoId,
+  conductorId,
   vehiculo,
   conductor,
   editing,
@@ -78,9 +80,14 @@ export function RecorridoVehiculoConductor({
             <select
               id={`${formId}-vehiculo`}
               className={boxedSelectFieldClasses}
-              value={recorrido.vehiculoId}
+              value={vehiculoId}
               onChange={(event) => onChangeVehiculo(event.target.value)}
             >
+              {vehiculoId === '' && (
+                <option value="" disabled>
+                  — Elegí un vehículo —
+                </option>
+              )}
               {opcionesVehiculo.map((v) => (
                 <option key={v.id} value={v.id}>
                   {opcionVehiculo(v)}
@@ -97,9 +104,14 @@ export function RecorridoVehiculoConductor({
           <select
             id={`${formId}-conductor`}
             className={boxedSelectFieldClasses}
-            value={recorrido.conductorId}
+            value={conductorId}
             onChange={(event) => onChangeConductor(event.target.value)}
           >
+            {conductorId === '' && (
+              <option value="" disabled>
+                — Elegí un conductor —
+              </option>
+            )}
             {opcionesConductor.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.apellido}, {c.nombre}

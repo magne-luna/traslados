@@ -5,15 +5,16 @@
 // creando un recorrido nuevo (mismo espíritu que sugerirOrdenPorCercania.ts, que ya implementa el
 // mismo concepto de ventana horaria). Sin efectos de red ni localStorage.
 
+import { esPropio } from './transporteRecorrido';
 import { capacidadDisponible } from './capacidadDisponible';
 import { aMinutosDesdeMedianoche, VENTANA_BLOQUE_HORARIO_MINUTOS_DEFAULT } from './sugerirOrdenPorCercania';
 import { validarCompatibilidadAccesorio } from './validarCompatibilidadAccesorio';
 import type { PacienteResumen } from '../../types/paciente';
-import type { Recorrido, Tramo } from '../../types/hojaDeRuta';
+import type { Recorrido, RecorridoPropio, Tramo } from '../../types/hojaDeRuta';
 import type { Vehiculo } from '../../types/vehiculo';
 
 export interface CandidatoRecorridoExistente {
-  recorrido: Recorrido;
+  recorrido: RecorridoPropio;
   vehiculo: Vehiculo;
 }
 
@@ -48,6 +49,8 @@ export function sugerirRecorridoExistente(
   const candidatos: Array<CandidatoRecorridoExistente & { diferencia: number }> = [];
 
   for (const recorrido of recorridos) {
+    // Un tercerizado (Uber/remis) no tiene vehículo propio al cual sumar al paciente.
+    if (!esPropio(recorrido)) continue;
     const vehiculo = vehiculos.find((v) => v.id === recorrido.vehiculoId);
     if (vehiculo === undefined || vehiculo.estado !== 'habilitado') continue;
     if (!capacidadDisponible(vehiculo, recorrido)) continue;

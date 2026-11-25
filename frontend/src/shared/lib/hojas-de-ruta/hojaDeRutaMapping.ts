@@ -5,7 +5,9 @@
 //
 // Forma de las tablas (veredicto Checkpoint 1 opción A):
 //   pacientes.hoja_de_ruta        (id, fecha, franja_inicio, franja_fin, notas)
-//   pacientes.recorrido           (id, hoja_de_ruta_id, vehiculo_id, conductor_id, manual, notas)
+//   pacientes.recorrido           (id, hoja_de_ruta_id, vehiculo_id, conductor_id, tipo_transporte,
+//                                 agencia_remis, manual, notas — vehiculo_id/conductor_id solo para
+//                                 tipo_transporte = 'propio', change viajes-tercerizados-hoja-de-ruta)
 //   pacientes.historial_recorridos como parada (id, paciente_id, id_dir_inicial, id_dir_final,
 //                                 recorrido_id, tramo, orden, hora_estimada — `fecha`,
 //                                 `id_vehiculo` y `estado` quedan como columnas legacy que la
@@ -24,7 +26,9 @@ import type {
   NuevaHojaDeRuta,
   ParadaRecorrido,
   Recorrido,
+  RecorridoBase,
   Tramo,
+  TransporteRecorrido,
 } from '../../types/hojaDeRuta';
 
 // -------------------------------------------------------------------------------------------
@@ -107,29 +111,41 @@ export function parseHojaDeRutaRow(row: unknown): HojaDeRutaCamposBase {
   };
 }
 
-/** Campos base de `pacientes.recorrido` (sin `paradas`, que resuelve `ensamblarHojaDeRuta`).
- *  Devuelve `null` ante una fila malformada (sin `id`, `vehiculo_id` o `conductor_id` — las
- *  columnas NOT NULL que identifican al recorrido); `manual` y `notas` degradan sin descartar. */
-export interface RecorridoCamposBase {
-  id: string;
-  vehiculoId: string;
-  conductorId: string;
-  manual: boolean;
-  notas?: string;
+/** Campos base de `pacientes.recorrido` (sin `paradas`, que resuelve `ensamblarHojaDeRuta`). */
+export type RecorridoCamposBase = Omit<RecorridoBase, 'paradas'> & TransporteRecorrido;
+
+/** Lee el tipo de transporte de la fila (design.md D5 de viajes-tercerizados-hoja-de-ruta): sin
+ *  `tipo_transporte` se asume `propio`, igual que el DEFAULT de la columna. Devuelve `null` si la
+ *  fila es incoherente (propio sin vehículo/conductor, remis sin agencia, tipo desconocido). */
+function parseTransporte(row: Record<string, unknown>): TransporteRecorrido | null {
+  const tipo = row.tipo_transporte ?? 'propio';
+  if (tipo === 'propio') {
+    const vehiculoId = leerId(row, 'vehiculo_id');
+    const conductorId = leerId(row, 'conductor_id');
+    if (vehiculoId === undefined || conductorId === undefined) return null;
+    return { tipoTransporte: 'propio', vehiculoId, conductorId };
+  }
+  if (tipo === 'aplicacion') return { tipoTransporte: 'aplicacion' };
+  if (tipo === 'remis') {
+    const agenciaRemis = readString(row, 'agencia_remis').trim();
+    return agenciaRemis === '' ? null : { tipoTransporte: 'remis', agenciaRemis };
+  }
+  return null;
 }
 
+/** Devuelve `null` ante una fila malformada (sin `id` o con un transporte incoherente);
+ *  `manual` y `notas` degradan sin descartar. */
 export function parseRecorridoRow(row: unknown): RecorridoCamposBase | null {
   if (!isRecord(row)) return null;
 
   const id = leerId(row, 'id');
-  const vehiculoId = leerId(row, 'vehiculo_id');
-  const conductorId = leerId(row, 'conductor_id');
-  if (id === undefined || vehiculoId === undefined || conductorId === undefined) return null;
+  if (id === undefined) return null;
+  const transporte = parseTransporte(row);
+  if (transporte === null) return null;
 
   return {
     id,
-    vehiculoId,
-    conductorId,
+    ...transporte,
     manual: typeof row.manual === 'boolean' ? row.manual : false,
     notas: readOptionalString(row, 'notas'),
   };
@@ -294,11 +310,11 @@ export function aplicarCoordenadasOrigen(hoja: HojaDeRuta, coordenadas: Readonly
 
 /** Fila de parada para `pacientes.crear_hoja_de_ruta_completa`/`actualizar_hoja_de_ruta_completa`
  *  (D3). `id_vehiculo` va SIEMPRE sincronizado con `vehiculo_id` del recorrido (D3: la función
- *  mantiene la columna legacy al día; nunca puede divergir). `coordenadaOrigen` nunca viaja
- *  (Checkpoint 2). */
+ *  mantiene la columna legacy al día; nunca puede divergir) — `null` en un tercerizado.
+ *  `coordenadaOrigen` nunca viaja (Checkpoint 2). */
 export interface ParadaRowInput {
   paciente_id: string;
-  id_vehiculo: string;
+  id_vehiculo: string | null;
   id_dir_inicial: string;
   id_dir_final: string;
   tramo: Tramo;
@@ -307,8 +323,10 @@ export interface ParadaRowInput {
 }
 
 export interface RecorridoRowInput {
-  vehiculo_id: string;
-  conductor_id: string;
+  vehiculo_id: string | null;
+  conductor_id: string | null;
+  tipo_transporte: TransporteRecorrido['tipoTransporte'];
+  agencia_remis: string | null;
   manual: boolean;
   notas: string | null;
   paradas: ParadaRowInput[];
@@ -336,15 +354,13 @@ interface ParadaFuente {
   horaEstimada?: string;
 }
 
-interface RecorridoFuente {
-  vehiculoId: string;
-  conductorId: string;
+type RecorridoFuente = TransporteRecorrido & {
   manual: boolean;
   notas?: string;
   paradas: ParadaFuente[];
-}
+};
 
-function toParadaRowInput(parada: ParadaFuente, idVehiculo: string): ParadaRowInput {
+function toParadaRowInput(parada: ParadaFuente, idVehiculo: string | null): ParadaRowInput {
   return {
     paciente_id: parada.pacienteId,
     // D3: sincronizada con vehiculo_id del recorrido, nunca con la de la parada.
@@ -358,12 +374,15 @@ function toParadaRowInput(parada: ParadaFuente, idVehiculo: string): ParadaRowIn
 }
 
 function toRecorridoRowInput(recorrido: RecorridoFuente): RecorridoRowInput {
+  const vehiculoId = recorrido.tipoTransporte === 'propio' ? recorrido.vehiculoId : null;
   return {
-    vehiculo_id: recorrido.vehiculoId,
-    conductor_id: recorrido.conductorId,
+    vehiculo_id: vehiculoId,
+    conductor_id: recorrido.tipoTransporte === 'propio' ? recorrido.conductorId : null,
+    tipo_transporte: recorrido.tipoTransporte,
+    agencia_remis: recorrido.tipoTransporte === 'remis' ? recorrido.agenciaRemis.trim() : null,
     manual: recorrido.manual,
     notas: recorrido.notas ?? null,
-    paradas: recorrido.paradas.map((parada) => toParadaRowInput(parada, recorrido.vehiculoId)),
+    paradas: recorrido.paradas.map((parada) => toParadaRowInput(parada, vehiculoId)),
   };
 }
 

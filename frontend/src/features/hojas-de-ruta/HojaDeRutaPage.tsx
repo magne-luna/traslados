@@ -4,6 +4,7 @@ import { Alert } from '../../design-system/feedback';
 import { generateId } from '../../shared/lib/id';
 import { agregarParada, quitarParada } from '../../shared/lib/hojas-de-ruta/paradasHelpers';
 import { ordenarRecorridosPorHorario } from '../../shared/lib/hojas-de-ruta/ordenarRecorridosPorHorario';
+import { esPropio } from '../../shared/lib/hojas-de-ruta/transporteRecorrido';
 import type { ConductorRepository } from '../../shared/lib/conductores/ConductorRepository';
 import type { PacienteRepository } from '../../shared/lib/pacientes/PacienteRepository';
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
@@ -100,12 +101,10 @@ export function HojaDeRutaPage({
 
   async function handleCrearRecorrido(data: NuevoRecorridoPayload) {
     if (!hojaDelDia) return;
+    // El payload ya trae la variante de transporte (propio / aplicación / remis, RN-HR-05).
     const nuevoRecorrido: Recorrido = {
+      ...data,
       id: generateId('recorrido'),
-      vehiculoId: data.vehiculoId,
-      conductorId: data.conductorId,
-      manual: data.manual,
-      notas: data.notas,
       paradas: data.paradas.map((parada) => ({ ...parada, id: generateId('parada') })),
     };
     await actualizar(hojaDelDia.id, { recorridos: [...hojaDelDia.recorridos, nuevoRecorrido] });
@@ -158,7 +157,8 @@ export function HojaDeRutaPage({
         El modelo real (Traslados-Modelo-Datos.docx) no tiene entidad "Hoja de Ruta" y su
         "Historial de Recorridos" no tiene campo Conductor — <code>conductorId</code> es un campo
         agregado en este frontend, pendiente de confirmar con el dueño del docx (design.md
-        Discrepancias 1 y 2).
+        Discrepancias 1 y 2). Tampoco tiene tipo de transporte (flota propia / Uber / remis) ni
+        agencia de remis: se agregaron para registrar los viajes tercerizados (RN-HR-05).
       </AvisoModeloDatos>
 
       <div className="flex flex-wrap items-end gap-md">
@@ -279,8 +279,8 @@ export function HojaDeRutaPage({
                     key={recorrido.id}
                     numero={index + 1}
                     recorrido={recorrido}
-                    vehiculo={vehiculos.find((v) => v.id === recorrido.vehiculoId)}
-                    conductor={conductores.find((c) => c.id === recorrido.conductorId)}
+                    vehiculo={esPropio(recorrido) ? vehiculos.find((v) => v.id === recorrido.vehiculoId) : undefined}
+                    conductor={esPropio(recorrido) ? conductores.find((c) => c.id === recorrido.conductorId) : undefined}
                     vehiculos={vehiculos}
                     conductores={conductores}
                     pacientes={pacientes}

@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { renderConQuery } from '../../shared/test/queryWrapper';
 import userEvent from '@testing-library/user-event';
 import type { Paciente } from '../../shared/types/paciente';
-import type { Recorrido } from '../../shared/types/hojaDeRuta';
+import type { Recorrido, RecorridoPropio } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { PuedeEscribirContext } from '../../shared/auth/PuedeEscribirContext';
 import { AsignacionPanel } from './AsignacionPanel';
@@ -55,8 +55,9 @@ function buildPaciente(overrides: Partial<Paciente> = {}): Paciente {
   };
 }
 
-function buildRecorrido(overrides: Partial<Recorrido> = {}): Recorrido {
+function buildRecorrido(overrides: Partial<RecorridoPropio> = {}): RecorridoPropio {
   return {
+    tipoTransporte: 'propio',
     id: 'recorrido-1',
     vehiculoId: 'vehiculo-1',
     conductorId: 'conductor-1',
@@ -501,3 +502,22 @@ describe('AsignacionPanel · destino habitual del paciente', () => {
     expect(screen.getByLabelText(/dirección de origen/i)).toBeInTheDocument();
   });
 });
+
+// viajes-tercerizados-hoja-de-ruta, tasks.md 5.1: un tercerizado no valida capacidad ni accesorios.
+describe('AsignacionPanel — recorrido tercerizado', () => {
+  it('a un remis se le agrega un paciente con accesorio incompatible sin error', async () => {
+    const user = userEvent.setup();
+    const onAgregar = vi.fn();
+    const pacienteConSilla = buildPaciente({ id: 'paciente-silla', accesorioMovilidad: ['silla-rigida'] });
+    const remis: Recorrido = { id: 'r-remis', tipoTransporte: 'remis', agenciaRemis: 'París', manual: false, paradas: [] };
+
+    renderConQuery(<AsignacionPanel recorrido={remis} vehiculo={undefined} pacientes={[pacienteConSilla]} onAgregar={onAgregar} />);
+
+    await elegirEnCombobox(screen.getByLabelText(/paciente/i), 'paciente-silla');
+    await user.click(screen.getByRole('button', { name: /agregar pasajero/i }));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(onAgregar).toHaveBeenCalledWith(expect.objectContaining({ pacienteId: 'paciente-silla' }));
+  });
+});
+

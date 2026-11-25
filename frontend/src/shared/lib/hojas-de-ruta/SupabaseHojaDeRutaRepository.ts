@@ -50,7 +50,7 @@ import {
 const SELECT_HOJA_DE_RUTA_CON_RECORRIDOS = `
   id, fecha, franja_inicio, franja_fin, notas,
   recorrido (
-    id, hoja_de_ruta_id, vehiculo_id, conductor_id, manual, notas,
+    id, hoja_de_ruta_id, vehiculo_id, conductor_id, tipo_transporte, agencia_remis, manual, notas,
     historial_recorridos (
       id, recorrido_id, paciente_id, id_dir_inicial, id_dir_final, tramo, orden, hora_estimada
     )
@@ -191,6 +191,7 @@ const MSG_SIN_PERMISO_LECTURA = 'No tenés permiso para consultar hojas de ruta.
 const MSG_SIN_PERMISO_ESCRITURA = 'No tenés permiso para modificar hojas de ruta.';
 const MSG_FECHA_DUPLICADA = 'Ya existe una hoja de ruta para esa fecha.';
 const MSG_VEHICULO_CONDUCTOR_INVALIDOS = 'Revisá el vehículo y el conductor del recorrido.';
+const MSG_TIPO_TRANSPORTE_INVALIDO = 'Revisá el tipo de transporte del recorrido.';
 
 /** 45302 (D4): el mensaje es idéntico al del mock (`mockHojaDeRutaRepository`), para que el
  *  comportamiento visible no cambie cuando la fuente de datos pase a Supabase. */
@@ -208,6 +209,8 @@ function mapearErrorHojaDeRuta(error: FakeErrorLike, contexto: ContextoError): E
   if (codigo === '45302') return new Error(msgHojaDeRutaInexistente(contexto.id ?? ''));
   if (codigo === '45303') return new Error(MSG_FECHA_DUPLICADA);
   if (codigo === '45304') return new Error(MSG_VEHICULO_CONDUCTOR_INVALIDOS);
+  // viajes-tercerizados-hoja-de-ruta: viola recorrido_tipo_transporte_coherente.
+  if (codigo === '45305') return new Error(MSG_TIPO_TRANSPORTE_INVALIDO);
   if (codigo === 'PGRST204') return new Error(MSG_MODULO_NO_DISPONIBLE);
   if (codigo === 'PGRST202') return new Error(MSG_GUARDADO_NO_HABILITADO);
   if (codigo === '42501') {

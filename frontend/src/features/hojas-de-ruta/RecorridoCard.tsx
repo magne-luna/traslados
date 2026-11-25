@@ -1,24 +1,28 @@
 import { useId, useState } from 'react';
 import { AvisoModeloDatos, Button, CamposSoloLectura, Chip } from '../../design-system/components';
+import { Alert } from '../../design-system/feedback';
 import { Label, Textarea } from '../../design-system/form';
 import { conductoresDisponibles, vehiculosDisponibles } from '../../shared/lib/hojas-de-ruta/disponibilidad';
 import { agregarParada, quitarParada } from '../../shared/lib/hojas-de-ruta/paradasHelpers';
 import { pacienteDisponibleEnRecorrido } from '../../shared/lib/hojas-de-ruta/pacienteDisponibleEnRecorrido';
 import { sugerirOrdenPorCercania } from '../../shared/lib/hojas-de-ruta/sugerirOrdenPorCercania';
+import { esPropio, etiquetaTercerizado, validarTransporte } from '../../shared/lib/hojas-de-ruta/transporteRecorrido';
 import { vehiculosCompatibles } from '../../shared/lib/hojas-de-ruta/vehiculosCompatibles';
 import type { RecorridoHabitualRepository } from '../../shared/lib/pacientes/RecorridoHabitualRepository';
 import type { Conductor } from '../../shared/types/conductor';
 import type { PacienteResumen } from '../../shared/types/paciente';
-import type { Recorrido } from '../../shared/types/hojaDeRuta';
+import type { Recorrido, TransporteRecorrido } from '../../shared/types/hojaDeRuta';
 import type { Vehiculo } from '../../shared/types/vehiculo';
 import { TRAMO_LABELS } from '../pacientes/direccionOptions';
 import { AsignacionPanel } from './AsignacionPanel';
-import { ArrowLeftIcon, ArrowRightIcon, NotesIcon } from './icons';
+import { ArrowLeftIcon, ArrowRightIcon, CarIcon, NotesIcon } from './icons';
 import { ParadasList } from './ParadasList';
 import { RecorridoHorario } from './RecorridoHorario';
 import { RecorridoMapa } from './RecorridoMapa';
 import { RecorridoStat } from './RecorridoStat';
 import { RecorridoVehiculoConductor } from './RecorridoVehiculoConductor';
+import { type BorradorTercerizado, borradorDesdeTransporte, transporteDesdeBorrador } from '../../shared/lib/hojas-de-ruta/borradorTercerizado';
+import { TransporteTercerizadoCampos } from './TransporteTercerizadoCampos';
 
 const NOTAS_MAX_LENGTH = 500;
 
@@ -70,6 +74,14 @@ export function RecorridoCard({
   const formId = useId();
   const [editing, setEditing] = useState(false);
   const [notas, setNotas] = useState(recorrido.notas ?? '');
+  // Viaje tercerizado (RN-HR-05). Un tercerizado que vuelve a flota propia no se guarda hasta
+  // tener vehículo Y conductor elegidos: mientras tanto viven en `propioPendiente`.
+  const propio = esPropio(recorrido);
+  const [borradorTransporte, setBorradorTransporte] = useState<BorradorTercerizado>(() => borradorDesdeTransporte(recorrido));
+  const [propioPendiente, setPropioPendiente] = useState({ vehiculoId: '', conductorId: '' });
+  const [errorTransporte, setErrorTransporte] = useState<string | null>(null);
+  const vehiculoIdActual = propio ? recorrido.vehiculoId : propioPendiente.vehiculoId;
+  const conductorIdActual = propio ? recorrido.conductorId : propioPendiente.conductorId;
 
   // RN-HR-02 (feedback de usuario): ida y vuelta conviven en el mismo recorrido — un paciente
   // sigue disponible mientras le falte al menos un tramo, no desaparece apenas tiene una parada.
@@ -85,7 +97,7 @@ export function RecorridoCard({
   // El vehículo ACTUAL siempre queda como opción base aunque ya no pase el filtro del grupo YA
   // asignado (evita que el select quede sin value válido si, por ejemplo, salió de servicio
   // recién) — esta base NO se ve afectada por la preview del paciente en curso.
-  const vehiculoActualEnCandidatos = vehiculosCandidatosGrupo.some((v) => v.id === recorrido.vehiculoId);
+  const vehiculoActualEnCandidatos = vehiculosCandidatosGrupo.some((v) => v.id === vehiculoIdActual);
   const opcionesVehiculoBase =
     vehiculoActualEnCandidatos || !vehiculo ? vehiculosCandidatosGrupo : [vehiculo, ...vehiculosCandidatosGrupo];
   // Preview: si hay alguien elegido en "Agregar pasajero", se acota más — mismo criterio que
@@ -94,7 +106,7 @@ export function RecorridoCard({
     ? vehiculosCompatibles(opcionesVehiculoBase, [pacienteEnCurso])
     : opcionesVehiculoBase;
   const conductoresCandidatos = conductoresDisponibles(conductores);
-  const conductorActualEnCandidatos = conductoresCandidatos.some((c) => c.id === recorrido.conductorId);
+  const conductorActualEnCandidatos = conductoresCandidatos.some((c) => c.id === conductorIdActual);
   const opcionesConductor =
     conductorActualEnCandidatos || !conductor ? conductoresCandidatos : [conductor, ...conductoresCandidatos];
 
@@ -107,6 +119,59 @@ export function RecorridoCard({
     const paciente = pacientes.find((p) => p.id === pacienteId);
     const direccion = paciente?.direcciones.find((d) => d.id === direccionId);
     return direccion ? `${direccion.calle}, ${direccion.localidad}` : 'Dirección desconocida';
+  }
+
+  /** Mismo recorrido con otro transporte, armado explícito (nunca `{ ...recorrido, vehiculoId }`:
+   *  arrastraría campos de la variante anterior — design.md D3). */
+  function conTransporte(transporte: TransporteRecorrido): Recorrido {
+    return { id: recorrido.id, manual: recorrido.manual, notas: recorrido.notas, paradas: recorrido.paradas, ...transporte };
+  }
+
+  function guardarTransporte(transporte: TransporteRecorrido) {
+    const error = validarTransporte(transporte);
+    setErrorTransporte(error);
+    if (error === null) onUpdateRecorrido(conTransporte(transporte));
+  }
+
+  function handleBorradorTransporte(siguiente: BorradorTercerizado) {
+    setBorradorTransporte(siguiente);
+    setErrorTransporte(null);
+    if (!siguiente.tercerizado) {
+      // Vuelta a flota propia: se espera a que elija vehículo y conductor.
+      if (!propio) setPropioPendiente({ vehiculoId: '', conductorId: '' });
+      return;
+    }
+    // Aplicación se guarda en el acto; remis recién al salir del campo de la agencia.
+    if (siguiente.tipo === 'aplicacion' && recorrido.tipoTransporte !== 'aplicacion') {
+      guardarTransporte({ tipoTransporte: 'aplicacion' });
+    }
+  }
+
+  function handleAgenciaBlur() {
+    const transporte = transporteDesdeBorrador(borradorTransporte, '', '');
+    if (transporte.tipoTransporte !== 'remis') return;
+    if (recorrido.tipoTransporte === 'remis' && recorrido.agenciaRemis === transporte.agenciaRemis) return;
+    guardarTransporte(transporte);
+  }
+
+  function handleCambiarVehiculo(vehiculoId: string) {
+    if (propio) {
+      onUpdateRecorrido(conTransporte({ tipoTransporte: 'propio', vehiculoId, conductorId: recorrido.conductorId }));
+      return;
+    }
+    const pendiente = { ...propioPendiente, vehiculoId };
+    setPropioPendiente(pendiente);
+    if (pendiente.conductorId !== '') guardarTransporte({ tipoTransporte: 'propio', ...pendiente });
+  }
+
+  function handleCambiarConductor(conductorId: string) {
+    if (propio) {
+      onUpdateRecorrido(conTransporte({ tipoTransporte: 'propio', vehiculoId: recorrido.vehiculoId, conductorId }));
+      return;
+    }
+    const pendiente = { ...propioPendiente, conductorId };
+    setPropioPendiente(pendiente);
+    if (pendiente.vehiculoId !== '') guardarTransporte({ tipoTransporte: 'propio', ...pendiente });
   }
 
   function handleSugerirOrden() {
@@ -232,17 +297,29 @@ export function RecorridoCard({
              autorización efectiva la impone la RLS vía modulos.tiene_permiso('pacientes',
              'write'). Mismo comentario que permisos.ts y usePuedeEscribir.ts. */
           <CamposSoloLectura>
-            <RecorridoVehiculoConductor
+            <TransporteTercerizadoCampos
               formId={formId}
-              recorrido={recorrido}
-              vehiculo={vehiculo}
-              conductor={conductor}
-              editing={editing}
-              opcionesVehiculo={opcionesVehiculo}
-              opcionesConductor={opcionesConductor}
-              onChangeVehiculo={(vehiculoId) => onUpdateRecorrido({ ...recorrido, vehiculoId })}
-              onChangeConductor={(conductorId) => onUpdateRecorrido({ ...recorrido, conductorId })}
+              value={borradorTransporte}
+              onChange={handleBorradorTransporte}
+              onAgenciaBlur={handleAgenciaBlur}
             />
+
+            {!borradorTransporte.tercerizado && (
+              <RecorridoVehiculoConductor
+                formId={formId}
+                vehiculoId={vehiculoIdActual}
+                conductorId={conductorIdActual}
+                vehiculo={vehiculo}
+                conductor={conductor}
+                editing={editing}
+                opcionesVehiculo={opcionesVehiculo}
+                opcionesConductor={opcionesConductor}
+                onChangeVehiculo={handleCambiarVehiculo}
+                onChangeConductor={handleCambiarConductor}
+              />
+            )}
+
+            {errorTransporte && <Alert tone="danger">{errorTransporte}</Alert>}
 
             <div className="flex flex-col gap-xs">
               <Label htmlFor={`${formId}-notas`}>Notas del recorrido (opcional)</Label>
@@ -262,17 +339,22 @@ export function RecorridoCard({
           </CamposSoloLectura>
         ) : (
           <div className="flex flex-wrap divide-x divide-border border-t border-t-border pt-md">
-            <RecorridoVehiculoConductor
-              formId={formId}
-              recorrido={recorrido}
-              vehiculo={vehiculo}
-              conductor={conductor}
-              editing={editing}
-              opcionesVehiculo={opcionesVehiculo}
-              opcionesConductor={opcionesConductor}
-              onChangeVehiculo={(vehiculoId) => onUpdateRecorrido({ ...recorrido, vehiculoId })}
-              onChangeConductor={(conductorId) => onUpdateRecorrido({ ...recorrido, conductorId })}
-            />
+            {propio ? (
+              <RecorridoVehiculoConductor
+                formId={formId}
+                vehiculoId={recorrido.vehiculoId}
+                conductorId={recorrido.conductorId}
+                vehiculo={vehiculo}
+                conductor={conductor}
+                editing={editing}
+                opcionesVehiculo={opcionesVehiculo}
+                opcionesConductor={opcionesConductor}
+                onChangeVehiculo={handleCambiarVehiculo}
+                onChangeConductor={handleCambiarConductor}
+              />
+            ) : (
+              <RecorridoStat icon={<CarIcon />} label="Transporte" value={etiquetaTercerizado(recorrido) ?? ''} />
+            )}
             <RecorridoStat icon={<NotesIcon />} label="Notas del recorrido" value={recorrido.notas || 'Sin notas.'} />
           </div>
         )}

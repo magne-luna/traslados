@@ -535,13 +535,15 @@ resuelto de esa reunión (inactivar, valor del km en presupuesto, buscador de pa
    RSM). Andrea pidió que figure en la hoja de ruta porque: (a) de las aplicaciones hacen un
    desglose diario de lo pagado; (b) los remis van a cuenta corriente (pago quincenal o mensual) y
    necesitan saber a qué agencia le deben cada viaje. Video: minuto 1:32:39.
-   **Propuesta a validar** (no implementada): cada **recorrido** de la hoja de ruta lleva un tipo
-   de transporte `propio | aplicacion | remis`; si es `remis`, la **agencia** (¿catálogo
-   administrable o texto libre?); y un **costo** del viaje para el desglose. Con tipo distinto de
-   `propio`, vehículo y conductor dejarían de ser obligatorios.
-   **Abiertas**: ¿el costo se carga por recorrido o por pasajero? ¿Se necesita un reporte de deuda
-   por agencia (cuenta corriente) o alcanza con verlo en la hoja? ¿Se anota qué aplicación fue
-   (Uber/Didi) o alcanza con "aplicación"? Requiere columnas nuevas (paso de backend, Enzo).
+   **Decidido (2026-10-14, implementado 2026-11-25 — `openspec/changes/viajes-tercerizados-hoja-de-ruta/`,
+   RN-HR-05)**: cada **recorrido** lleva un tipo de transporte `propio | aplicacion | remis`; si es
+   `remis`, la **agencia** en texto libre (sin catálogo); con tipo distinto de `propio`, vehículo y
+   conductor no se cargan. **Alcanza con "aplicación"** sin anotar cuál (confirmado por Enzo,
+   2026-11-25).
+   **Siguen abiertas**: ¿el **costo** del viaje se carga por recorrido o por pasajero, y en la hoja
+   de ruta o en un módulo de gastos ("eso ya entra en la parte de finanzas", 1:34:00)? ¿Hace falta
+   un **reporte de deuda por agencia** (cuenta corriente) o alcanza con verlo en la hoja? (depende del
+   costo). ¿Hace falta pasar la agencia a **catálogo** si aparecen variantes de tipeo?
    **Decisor**: Andrea.
 
 2. **Datos del paciente por año (carpetas 2025/2026/2027).** Fijos: nombre, DNI, CUIL y fecha de

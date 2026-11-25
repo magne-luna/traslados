@@ -45,6 +45,7 @@ const hojaDeRuta: HojaDeRuta = {
   recorridos: [
     {
       id: 'r1',
+      tipoTransporte: 'propio',
       vehiculoId: 'v1',
       conductorId: 'c1',
       manual: false,
@@ -52,6 +53,7 @@ const hojaDeRuta: HojaDeRuta = {
     },
     {
       id: 'r2',
+      tipoTransporte: 'propio',
       vehiculoId: 'no-existe',
       conductorId: 'no-existe',
       manual: true,
@@ -106,5 +108,24 @@ describe('RecorridosDelDiaPanel', () => {
   it('muestra estado vacío cuando no hay hoja de ruta cargada para hoy', () => {
     renderPanel({ hojaDeRuta: null });
     expect(screen.getByText(/no hay hoja de ruta cargada/i)).toBeInTheDocument();
+  });
+});
+
+// viajes-tercerizados-hoja-de-ruta, tasks.md 5.7.
+describe('RecorridosDelDiaPanel — tercerizados', () => {
+  it('un tercerizado muestra su etiqueta, sin el texto de referencia no disponible', () => {
+    renderPanel({
+      hojaDeRuta: {
+        ...hojaDeRuta,
+        recorridos: [
+          { id: 'r-app', tipoTransporte: 'aplicacion', manual: false, paradas: [] },
+          { id: 'r-remis', tipoTransporte: 'remis', agenciaRemis: 'RSM', manual: false, paradas: [] },
+        ],
+      },
+    });
+
+    expect(screen.getByText('Uber / aplicación')).toBeInTheDocument();
+    expect(screen.getByText('Remis · RSM')).toBeInTheDocument();
+    expect(screen.queryByText(/no disponible/i)).not.toBeInTheDocument();
   });
 });
